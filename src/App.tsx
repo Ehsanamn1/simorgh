@@ -439,6 +439,136 @@ function Dashboard({ membership }: { membership: Membership }) {
     </section>
   </>;
 }
+const objectiveMetricOptions = [
+  { key: 'orders', label: 'سفارش‌های ثبت‌شده' },
+  { key: 'customers', label: 'مشتریان ثبت‌شده' },
+  { key: 'suppliers', label: 'تأمین‌کنندگان فعال' },
+  { key: 'shipments', label: 'محموله‌های باز' },
+  { key: 'capacity', label: 'تعهدهای ظرفیت جاری' },
+  { key: 'late_orders', label: 'سفارش‌های عقب‌افتاده' },
+  { key: 'overdue_tasks', label: 'وظایف عقب‌افتاده' },
+  { key: 'review_tasks', label: 'وظایف منتظر بررسی' },
+  { key: 'incidents', label: 'رخدادهای باز' },
+  { key: 'invoices', label: 'فاکتورهای سررسیدگذشته' },
+  { key: 'failed_shipments', label: 'ارسال‌های ناموفق' },
+  { key: 'expiring_licenses', label: 'مجوزهای نزدیک انقضا' },
+] as const;
+
+const objectiveMetricLabels: Record<string, string> = Object.fromEntries(objectiveMetricOptions.map(item => [item.key, item.label]));
+const objectiveCountKey: Record<string, string> = {
+  orders: 'orders', customers: 'customers', suppliers: 'suppliers', shipments: 'shipments', capacity: 'capacity',
+  late_orders: 'lateOrders', overdue_tasks: 'overdueTasks', review_tasks: 'reviewTasks', incidents: 'incidents',
+  invoices: 'invoices', failed_shipments: 'failedShipments', expiring_licenses: 'expiringLicenses',
+};
+
+type ObjectiveForm = {
+  title: string; description: string; metric_key: string; target_value: string;
+  target_direction: 'at_least' | 'at_most'; starts_on: string; ends_on: string;
+};
+const emptyObjectiveForm = (): ObjectiveForm => ({
+  title: '', description: '', metric_key: 'late_orders', target_value: '',
+  target_direction: 'at_most', starts_on: todayForDisplay(), ends_on: '',
+});
+
+function ObjectivesPage({ membership, search }: { membership: Membership; search: string }) {
+  const canManage = membership.role === 'owner' || membership.role === 'admin';
+  const [rows, setRows] = useState<Row[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<Row | null>(null);
+  const [form, setForm] = useState<ObjectiveForm>(emptyObjectiveForm());
+
+  const load = async () => {
+    if (!supabase || !canManage) { setRows([]); setLoading(false); return; }
+    setLoading(true); setError('');
+    const result = await supabase.from('company_objectives').select('*').eq('company_id', membership.company_id).order('created_at', { ascending: false }).limit(100);
+    if (result.error) setError('خواندن اهداف انجام نشد: ' + result.error.message);
+    setRows((result.data ?? []) as Row[]);
+    setLoading(false);
+  };
+  useEffect(() => { void load(); }, [membership.company_id, membership.role]);
+
+  const openNew = () => { setEditing(null); setForm(emptyObjectiveForm()); setOpen(true); };
+  const openEdit = (row: Row) => {
+    setEditing(row);
+    setForm({
+      title: String(row.title ?? ''),
+      description: String(row.description ?? ''),
+      metric_key: String(row.metric_key ?? 'late_orders'),
+      target_value: String(row.target_value ?? ''),
+      target_direction: row.target_direction === 'at_least' ? 'at_least' : 'at_most',
+      starts_on: String(row.starts_on ?? todayForDisplay()).slice(0, 10),
+      ends_on: String(row.ends_on ?? '').slice(0, 10),
+    });
+    setOpen(true);
+  };
+  const save = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!supabase || !canManage) return;
+    const target = Number(form.target_value);
+    if (!form.title.trim() || !Number.isFinite(target) || target <= 0) { setError('عنوان و مقدار هدف باید معتبر باشند.'); return; }
+    if (form.ends_on && form.ends_on < form.starts_on) { setError('پایان بازه نمی‌تواند پیش از شروع آن باشد.'); return; }
+    setBusy(true); setError('');
+    const payload = {
+      title: form.title.trim(),
+      description: form.description.trim() || null,
+      metric_key: form.metric_key,
+      target_value: target,
+      target_direction: form.target_direction,
+      starts_on: form.starts_on,
+      ends_on: form.ends_on || null,
+    };
+    const result = editing
+      ? await supabase.from('company_objectives').update(payload).eq('id', String(editing.id)).eq('company_id', membership.company_id)
+      : await supabase.from('company_objectives').insert({ ...payload, company_id: membership.company_id, created_by: membership.user_id });
+    if (result.error) setError('ذخیره‌ی هدف انجام نشد: ' + result.error.message);
+    else { setOpen(false); setEditing(null); setForm(emptyObjectiveForm()); await load(); }
+    setBusy(false);
+  };
+  const changeStatus = async (row: Row, status: string) => {
+    if (!supabase || !canManage) return;
+    setBusy(true); setError('');
+    const result = await supabase.from('company_objectives').update({ status }).eq('id', String(row.id)).eq('company_id', membership.company_id);
+    if (result.error) setError('به‌روزرسانی وضعیت هدف انجام نشد: ' + result.error.message);
+    else await load();
+    setBusy(false);
+  };
+  const shown = rows.filter(row => !search || `${String(row.title ?? '')} ${String(row.description ?? '')} ${objectiveMetricLabels[String(row.metric_key)] ?? ''}`.toLowerCase().includes(search.toLowerCase()));
+  const statusText: Record<string, string> = { active: 'فعال', paused: 'متوقف', completed: 'تکمیل‌شده', archived: 'بایگانی‌شده' };
+
+  if (!canManage) return <><PageHeading eyebrow="اهداف مدیریتی" title="اهداف و شاخص‌ها" description="مدیریت هدف‌ها فقط در اختیار مالک یا مدیر مجاز مجموعه است."/><EmptyState title="دسترسی مدیریتی لازم است" description="برای تغییر اهداف، باید با عضویت مالک یا مدیر وارد شوی." icon={ShieldCheck}/></>;
+
+  return <>
+    <PageHeading eyebrow="اهداف و شاخص‌های شرکت" title="مدیریت اهداف" description="هدف‌های قابل اندازه‌گیری برای شاخص‌های واقعی عملیات تعریف کن؛ مقدار فعلی از مرکز فرمان خوانده می‌شود." action={<Button onClick={openNew}><Plus size={16}/> هدف جدید</Button>}/>
+    {error && <InlineError error={error} retry={() => void load()}/>}
+    <section className="panel objective-manager-panel">
+      <div className="panel-heading"><div><span className="section-number"><Target size={15}/></span><div><h3>دفتر اهداف شرکت</h3><p>هدف‌ها در پایگاه داده ذخیره می‌شوند؛ رکورد نمونه به‌صورت خودکار ایجاد نمی‌شود.</p></div></div><Button variant="soft" onClick={() => void load()} disabled={loading}><Activity size={15}/> تازه‌سازی</Button></div>
+      {loading ? <div className="panel-loading"><span className="spinner small"/></div> : shown.length ? <div className="objective-manager-list">
+        {shown.map(row => <article className="objective-manager-row" key={String(row.id)}>
+          <span className="objective-manager-mark"><Target size={18}/></span>
+          <div className="objective-manager-copy"><b>{String(row.title)}</b><p>{objectiveMetricLabels[String(row.metric_key)] ?? 'شاخص سفارشی'} · {row.target_direction === 'at_least' ? 'حداقل' : 'حداکثر'} {numberFa(String(row.target_value))}</p>{Boolean(row.description) && <small>{String(row.description)}</small>}<small>{dateFa(String(row.starts_on ?? ''))}{row.ends_on ? ' تا ' + dateFa(String(row.ends_on)) : ' · بدون تاریخ پایان'}</small></div>
+          <span className={'objective-manager-status ' + String(row.status)}>{statusText[String(row.status)] ?? 'نامشخص'}</span>
+          <div className="objective-manager-actions"><Button variant="soft" onClick={() => openEdit(row)}>ویرایش</Button>{row.status === 'active' ? <Button variant="ghost" onClick={() => void changeStatus(row, 'paused')} disabled={busy}>توقف</Button> : row.status === 'paused' ? <Button variant="ghost" onClick={() => void changeStatus(row, 'active')} disabled={busy}>فعال‌سازی</Button> : null}{row.status !== 'archived' && <Button variant="ghost" onClick={() => void changeStatus(row, 'archived')} disabled={busy}>بایگانی</Button>}</div>
+        </article>)}
+      </div> : <EmptyState title="هنوز هدفی تعریف نشده" description="اولین هدف واقعی شرکت را بساز؛ داشبورد آن را با شمارش‌های ثبت‌شده مقایسه می‌کند." icon={Target}/>}
+    </section>
+    {open && <Modal title={editing ? 'ویرایش هدف' : 'تعریف هدف جدید'} subtitle="این اطلاعات در دفتر اهداف شرکت ذخیره می‌شود." onClose={() => { if (!busy) setOpen(false); }}>
+      <form className="record-form" onSubmit={save}>
+        <label className="full-span">عنوان هدف<input autoFocus required maxLength={120} value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} placeholder="مثلاً کاهش سفارش‌های عقب‌افتاده"/></label>
+        <label>شاخص واقعی<select required value={form.metric_key} onChange={e => setForm({ ...form, metric_key: e.target.value })}>{objectiveMetricOptions.map(option => <option value={option.key} key={option.key}>{option.label}</option>)}</select></label>
+        <label>نوع هدف<select value={form.target_direction} onChange={e => setForm({ ...form, target_direction: e.target.value as ObjectiveForm['target_direction'] })}><option value="at_most">حداکثر تا مقدار تعیین‌شده</option><option value="at_least">حداقل به مقدار تعیین‌شده</option></select></label>
+        <label>مقدار هدف<input type="number" min="0.01" step="0.01" required value={form.target_value} onChange={e => setForm({ ...form, target_value: e.target.value })} dir="ltr"/></label>
+        <label>شروع هدف<input type="date" required value={form.starts_on} onChange={e => setForm({ ...form, starts_on: e.target.value })}/></label>
+        <label>پایان هدف (اختیاری)<input type="date" value={form.ends_on} min={form.starts_on} onChange={e => setForm({ ...form, ends_on: e.target.value })}/></label>
+        <label className="full-span">توضیح و معیار موفقیت<textarea rows={3} maxLength={600} value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} placeholder="محدوده و معیار تکمیل هدف را توضیح بده."/></label>
+        <div className="modal-actions"><Button variant="soft" onClick={() => setOpen(false)} disabled={busy}>انصراف</Button><Button type="submit" disabled={busy}>{busy ? 'در حال ذخیره…' : 'ذخیره‌ی هدف'}</Button></div>
+      </form>
+    </Modal>}
+  </>;
+}
+
 function todayForDisplay() {
   const parts = Object.fromEntries(new Intl.DateTimeFormat('en-CA', {timeZone:'Asia/Tehran',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date()).map(part => [part.type,part.value]));
   return `${parts.year}-${parts.month}-${parts.day}`;
