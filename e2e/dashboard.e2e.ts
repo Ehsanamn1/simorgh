@@ -25,7 +25,7 @@ for (const panel of panels) {
     await expect(page.getByText('نمای ساختاری، نه پنل عملیاتی')).toBeVisible();
     expect(errors).toEqual([]);
     if (testInfo.project.name === 'desktop-chromium') {
-      await page.screenshot({ path: testInfo.outputPath(`role-preview-${panel.key}.png`), fullPage: true });
+      await page.locator('.portal-preview').screenshot({ path: testInfo.outputPath(`role-preview-${panel.key}.png`) });
     }
   });
 }
