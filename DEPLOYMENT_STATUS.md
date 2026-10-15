@@ -6,8 +6,8 @@ Checked: 2026-10-15.
 
 - **Live URL:** https://ehsanamn1.github.io/simorgh/
 - **Latest verified runtime commit:** `bd29c4dc91b0ef600f048d5671843463cce388ec`.
-- **Successful CI:** [Run 38770634676](https://github.com/Ehsanamn1/simorgh/actions/runs/38769548002).
-- **Successful deployment:** [Run 38770881239](https://github.com/Ehsanamn1/simorgh/actions/runs/38769835859).
+- **Successful CI:** [Run 38770634676](https://github.com/Ehsanamn1/simorgh/actions/runs/38770634676).
+- **Successful deployment:** [Run 38770881239](https://github.com/Ehsanamn1/simorgh/actions/runs/38770881239).
 - Frontend uses React 19, TypeScript, Vite, React Router and custom responsive CSS. Static hosting is GitHub Pages; Vercel is not used.
 - Supabase project `aoxerjimfiwusidaparx` in `eu-central-1` is connected by its Project URL and a browser-safe publishable key. The core migration created 18 app tables with RLS enabled, and the initial company `شبکه سیمرغ` exists.
 - Creation of the Supabase project was confirmed at $0/month. Free-tier limits and any ancillary services remain subject to their terms/limits.
