@@ -1,15 +1,15 @@
 # Simorgh — Network Operations
 
-سیمرغ یک نرم‌افزار عملیاتی برای کسب‌وکار شبکه تأمین تخم و گوشت بلدرچین است: سفارش، مشتری، تأمین‌کننده، ظرفیت، سری محصول/کیفیت، ارسال، فاکتور و تسویه. سورس برای انتشار روی Cloudflare Pages و انتقال بعدی به هاست استاتیک یا هر میزبان SPA آماده شده است.
+سیمرغ یک نرم‌افزار عملیاتی برای شبکه تأمین تخم و گوشت بلدرچین است: مشتری، تأمین‌کننده، سفارش، ظرفیت، کیفیت، ارسال، فاکتور، تسویه و کنترل دسترسی.
 
-**وضعیت این بسته:** سورس مستقل نوشته شده؛ هنوز به پروژه Supabase متصل نشده، روی حساب Cloudflare منتشر نشده و مخزن GitHub اختصاصی از این محیط ایجاد نشده است. هیچ داده نمونه یا seed آزمایشی در آن قرار ندارد. نباید قبل از اجرای migration، تنظیم کلیدها و تکمیل تست استقرار به‌عنوان سیستم عملیاتی استفاده شود.
+**وضعیت فعلی (۱۵ اکتبر ۲۰۲۶):** رابط وب روی [GitHub Pages](https://ehsanamn1.github.io/simorgh/) منتشر شده، پروژه Supabase `aoxerjimfiwusidaparx` فعال است و migration اصلی روی دیتابیس اجرا شده است. شرکت اولیه «شبکه سیمرغ» ایجاد شده، اما هیچ کاربری/مالک هنوز ثبت‌نام نکرده و فرآیند ورود واقعی و دسترسی‌های نقش‌محور هنوز end-to-end آزمون نشده‌اند؛ تا تکمیل آن‌ها، این سامانه را برای ثبت عملیات مالی یا تحویل واقعی به‌عنوان سیستم عملیاتی نهایی در نظر نگیرید. هیچ داده ساختگی مشتری/سفارش وارد نشده است.
 
 ## فناوری‌ها
 
 - React + TypeScript + Vite، اپ SPA با خروجی `dist/`
 - Supabase Auth و PostgreSQL از طریق `@supabase/supabase-js`
 - Row Level Security (RLS)، عضویت نقش‌محور و audit trail در migration SQL
-- Cloudflare Pages برای فایل‌های front-end؛ بدون Vercel و بدون وابستگی به Replit
+- GitHub Pages برای میزبانی فعلی رایگان؛ بدون Vercel. Workflow جایگزین Cloudflare نیز در مخزن نگه داشته شده است.
 - GitHub Actions برای typecheck/lint/test/build
 
 ## اجرای محلی
@@ -24,25 +24,32 @@ npm run dev
 
 اگر متغیرهای Supabase تنظیم نشده باشند، صفحه راه‌اندازی نمایش داده می‌شود؛ اپ به داده fake یا localStorage عملیاتی برنمی‌گردد.
 
-## ایجاد پایگاه داده
+## پایگاه داده متصل
 
-1. در [Supabase Dashboard](https://supabase.com/dashboard) یک پروژه اختصاصی Simorgh بساز.
-2. فایل `supabase/migrations/20261015000000_simorgh_core.sql` را از ابتدا تا انتها review کن و در SQL Editor اجرا کن. این migration در این بسته اجرا نشده است.
-3. بعد از ایجاد اولین حساب با ایمیل مالک، از Supabase SQL Editor (با نقش `postgres`) شرکت اصلی و عضویت مالک را بساز. نمونه زیر را با UUID واقعی کاربر و نام شرکت واقعی جایگزین کن:
+- پروژه Supabase: `aoxerjimfiwusidaparx`
+- Project URL: `https://aoxerjimfiwusidaparx.supabase.co`
+- Migration `supabase/migrations/20261015000000_simorgh_core.sql` اجرا شده و ۱۸ جدول اپلیکیشن با RLS فعال دارد.
+- کلید قابل استفاده در مرورگر از نوع publishable است. کلید secret/service-role نباید در سورس یا متغیر `VITE_` قرار گیرد.
+
+### ایجاد حساب اولین مالک
+
+1. سایت [سیمرغ](https://ehsanamn1.github.io/simorgh/) را باز کن و با ایمیل مورد استفاده برای مالک، ثبت‌نام را انجام بده.
+2. در داشبورد Supabase → **Authentication → URL Configuration**، مقدار **Site URL** را روی `https://ehsanamn1.github.io/simorgh/` بگذار و همین آدرس دقیق را به **Redirect URLs** اضافه کن. برای توسعه محلی نیز `http://localhost:5173/**` را اضافه کن. آدرس تأیید ایمیل/بازیابی باید در فهرست مجاز باشد.
+3. پس از ثبت‌نام (و تأیید ایمیل، اگر فعال است)، حساب هنوز عضویت سازمانی ندارد. در Supabase SQL Editor با نقش `postgres` دستور زیر را با ایمیل واقعی مالک اجرا کن؛ آن را فقط برای یک حساب مورداعتماد اجرا کن:
 
 ```sql
--- First create a company. Run only once per company.
-insert into public.companies (name, province)
-values ('نام واقعی شرکت', 'گلستان')
-returning id;
-
--- Use the returned company UUID and the auth.users UUID for the first owner.
 insert into public.memberships (company_id, user_id, role, active)
-values ('COMPANY_UUID', 'AUTH_USER_UUID', 'owner', true);
+select c.id, u.id, 'owner', true
+from public.companies c
+join auth.users u on lower(u.email) = lower('OWNER_EMAIL_HERE')
+where c.name = 'شبکه سیمرغ'
+  and not exists (
+    select 1 from public.memberships m
+    where m.company_id = c.id and m.user_id = u.id and m.role = 'owner'
+  );
 ```
 
-4. تنظیمات Authentication URL Configuration را مطابق دامنه Cloudflare و دامنه محلی تنظیم کن. ایمیل تأیید/بازیابی به تنظیمات SMTP و Auth پروژه بستگی دارد.
-5. در **Project Settings → API Keys** مقدار Project URL و **publishable key** را دریافت کن. فقط این دو مقدار را به مرورگر بده؛ `service_role`/secret key را در هیچ متغیر `VITE_` قرار نده.
+پس از آن از سایت خارج و دوباره وارد شو. کاربر عمومی نمی‌تواند برای خودش نقش مالک/مدیر بسازد؛ عضویت اولیه عمداً نیازمند اقدام کنترل‌شده است.
 
 `.env.local`:
 
@@ -71,32 +78,21 @@ npm run build
 
 خروجی Vite در `dist/` ساخته می‌شود. `public/_redirects` مسیریابی SPA را برای Cloudflare Pages تنظیم می‌کند.
 
-## GitHub → Cloudflare Pages
+## وضعیت انتشار و استقرار
 
-سورس در مخزن [Ehsanamn1/simorgh](https://github.com/Ehsanamn1/simorgh) روی شاخه `main` ثبت شده است. اجرای CI در commit `0d9430a8cc2db87260576f73ff70d5a1c6e2ad78` شامل typecheck، lint، test و build با موفقیت کامل شد.
+- سایت: **https://ehsanamn1.github.io/simorgh/**
+- مخزن سورس: [Ehsanamn1/simorgh](https://github.com/Ehsanamn1/simorgh)
+- استقرار اولیه GitHub Pages با موفقیت انجام شده: [GitHub Actions deployment run](https://github.com/Ehsanamn1/simorgh/actions/runs/38744301095)
+- هر push روی `main`، workflow انتشار GitHub Pages را اجرا می‌کند؛ workflow CI نیز typecheck، lint، آزمون‌ها، ممیزی وابستگی‌های production و build را انجام می‌دهد.
+- Workflow جایگزین Cloudflare در `.github/workflows/deploy.yml` قرار دارد و برای اجرا به secrets مربوط به Cloudflare و Supabase نیاز دارد.
 
-دو روش انتشار وجود دارد:
+### پیش از استفاده واقعی
 
-### انتشار از GitHub Actions
+1. تنظیمات Auth URL بالا را تکمیل کن.
+2. اولین حساب مالک را ثبت و به شرکت «شبکه سیمرغ» متصل کن.
+3. ورود/خروج، تأیید ایمیل، بازیابی رمز عبور، و دسترسی جداگانه مالک، کارمند، مشتری، تأمین‌کننده و راننده را آزمون کن.
+4. پیش از ثبت تراکنش واقعی، سیاست‌های RLS، ذخیره‌سازی مدارک، قیمت توافقی، ظرفیت و گردش وضعیت سفارش‌ها را با داده‌های کنترل‌شده بررسی کن.
 
-Workflow آماده در `.github/workflows/deploy.yml` به صورت دستی اجرا می‌شود تا قبل از تنظیم اطلاعات محرمانه، deployment تکراری و ناموفق ایجاد نکند.
-
-1. در GitHub → **Settings → Secrets and variables → Actions** این چهار Repository Secret را تعریف کن:
-   - `CLOUDFLARE_API_TOKEN`: توکن Cloudflare با دسترسی Account → Cloudflare Pages: Edit برای همان اکانت.
-   - `CLOUDFLARE_ACCOUNT_ID`: شناسه اکانت Cloudflare.
-   - `VITE_SUPABASE_URL`: آدرس پروژه Supabase فعال.
-   - `VITE_SUPABASE_PUBLISHABLE_KEY`: کلید عمومی publishable همان پروژه.
-2. در GitHub → **Actions → Deploy Simorgh to Cloudflare Pages → Run workflow** را اجرا کن.
-3. Workflow پروژه Pages با نام `simorgh-network` را ایجاد (اگر از قبل وجود نداشته باشد)، خروجی `dist/` را build و منتشر می‌کند.
-
-Workflow تا وقتی همه چهار Secret حاضر نباشند deploy را انجام نمی‌دهد. کلید `service_role` یا هر کلید مخفی دیتابیس را در متغیر `VITE_` قرار نده؛ کلید publishable به مرورگر می‌رسد و باید فقط با RLS درست استفاده شود.
-
-### انتشار از طریق Cloudflare Git Integration
-
-از داشبورد Cloudflare به **Workers & Pages → Create → Pages → Connect to Git** برو، مخزن `Ehsanamn1/simorgh` و شاخه `main` را انتخاب کن، build command را `npm run build` و output directory را `dist` قرار بده. متغیرهای عمومی `VITE_SUPABASE_URL` و `VITE_SUPABASE_PUBLISHABLE_KEY` باید پیش از اولین build در Production تنظیم شوند.
-
-CI گیت‌هاب با هر push روی `main` آزمون‌ها را اجرا می‌کند؛ deploy خودکار را فقط پس از ایجاد و آزمون اتصال Supabase فعال کن.
- 
 ## انتقال به هاست خودت
 
 این یک اپ SPA است؛ خروجی `dist/` را می‌توان روی هر وب‌سرور استاتیک با fallback به `index.html` منتشر کرد. برای Nginx باید مسیرهای SPA به `index.html` fallback شوند. دیتابیس/Auth/Storage مستقل از میزبان front-end در Supabase می‌ماند. اگر در آینده Supabase را نیز self-host کنی، اتصال‌ها، ایمیل، بکاپ، HTTPS، Storage و ارتقای نسخه‌ها جداگانه باید نگهداری شوند.
