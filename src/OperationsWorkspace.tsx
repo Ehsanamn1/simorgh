@@ -3,10 +3,10 @@ import {
   Activity, AlertTriangle, ArrowLeft, ArrowUpLeft, BarChart3, Bell,
   Boxes, Camera, CheckCircle2, ClipboardCheck, Clock3,
   CreditCard, Factory, FileText, Gauge, Home, Layers3, Map, MapPin, Menu, Moon,
-  Package, Search, Settings2, ShieldCheck, Sparkles, Sun, Truck, Users, Warehouse, X,
+  Package, RefreshCw, Search, Settings2, ShieldCheck, Sparkles, Sun, Truck, Users, Warehouse, X,
 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { سیمرغLogo } from './سیمرغLogo';
+import { SimorghLogo } from './SimorghLogo';
 
 type WorkspacePage =
   | 'command' | 'orders' | 'farm' | 'driver' | 'customer' | 'finance'
@@ -103,7 +103,7 @@ function NetworkMap({ expanded = false }: { expanded?: boolean }) {
       <iframe title="نقشه جغرافیایی ایران برای راهنمای شبکه" loading="lazy" referrerPolicy="no-referrer-when-downgrade" src="https://www.openstreetmap.org/export/embed.html?bbox=43.2%2C24.5%2C64.8%2C40.8&layer=mapnik" />
       <div className="sim-preview-map-note"><MapPin size={16}/><span><b>موقعیت محموله ثبت نشده</b><small>نشانگرها فقط پس از ثبت مختصات واقعی و مجاز نمایش داده می‌شوند.</small></span></div>
     </div>
-    <div className="sim-preview-map-foot"><span><MapPin size={14}/> مختصات GPS: در این محیط هنوز ثبت نشده</span><button type="button" onClick={() => window.open('https://www.openstreetmap.org/#map=5/32.5/53.5', '_blank', 'noopener,noreferrer')}>بازکردن نقشه <ArrowUpLeft size={14}/></button></div>
+    <div className="sim-preview-map-foot"><span><MapPin size={14}/> مختصات GPS: هنوز ثبت نشده</span><button type="button" onClick={() => window.open('https://www.openstreetmap.org/#map=5/32.5/53.5', '_blank', 'noopener,noreferrer')}>بازکردن نقشه <ArrowUpLeft size={14}/></button></div>
   </section>;
 }
 
@@ -137,12 +137,12 @@ function ControlTower({ navigate }: { navigate: (page: WorkspacePage) => void })
       <section className="sim-preview-panel sim-preview-chart-panel">
         <div className="sim-preview-panel-head"><div><span className="sim-preview-section-id">۰۲</span><div><h3>روند تولید و فروش</h3><p>آمار روزانه‌ی شبکه در منطقه‌ی زمانی تهران</p></div></div><BarChart3 size={18}/></div>
         <div className="sim-preview-empty-chart"><div className="sim-preview-chart-grid"><span/><span/><span/><span/><span/></div><div className="sim-preview-chart-empty-label"><BarChart3 size={24}/><b>داده‌ی روزانه موجود نیست</b><small>با فعال‌شدن دسترسی به رکوردهای واقعی، نمودار از تاریخچه‌ی ثبت‌شده ساخته می‌شود.</small></div></div>
-        <div className="sim-preview-chart-legend"><span><i className="production-dot"/> تولید ثبت‌شده</span><span><i className="sales-dot"/> سفارش تکمیل‌شده</span><small>هیچ سری داده‌ای به‌صورت نمایشی رسم نشده است.</small></div>
+        <div className="sim-preview-chart-legend"><span><i className="production-dot"/> تولید ثبت‌شده</span><span><i className="sales-dot"/> سفارش تکمیل‌شده</span><small>نمودار پس از دریافت داده‌های ثبت‌شده به‌روزرسانی می‌شود.</small></div>
       </section>
     </div>
     <QuickAccess navigate={navigate}/>
     <div className="sim-preview-secondary-grid">
-      <section className="sim-preview-panel"><div className="sim-preview-panel-head"><div><span className="sim-preview-section-id">۰۳</span><div><h3>سفارش‌های اخیر</h3><p>جدیدترین سفارش‌ها و موعد تحویل</p></div></div><button type="button" className="sim-preview-text-link" onClick={() => navigate('orders')}>همه سفارش‌ها <ArrowLeft size={13}/></button></div><EmptyState icon={FileText} title="سفارشی برای نمایش بارگذاری نشده" description="پس از اتصال نشست مجاز، سفارش‌ها، مشتری، مبلغ و وضعیت واقعی اینجا نمایش داده می‌شوند."/></section>
+      <section className="sim-preview-panel"><div className="sim-preview-panel-head"><div><span className="sim-preview-section-id">۰۳</span><div><h3>سفارش‌های اخیر</h3><p>جدیدترین سفارش‌ها و موعد تحویل</p></div></div><button type="button" className="sim-preview-text-link" onClick={() => navigate('orders')}>همه سفارش‌ها <ArrowLeft size={13}/></button></div><EmptyState icon={FileText} title="سفارشی برای نمایش بارگذاری نشده" description="پس از اتصال حساب مجاز، سفارش‌ها، مشتری، مبلغ و وضعیت واقعی اینجا نمایش داده می‌شوند."/></section>
       <section className="sim-preview-panel"><div className="sim-preview-panel-head"><div><span className="sim-preview-section-id">۰۴</span><div><h3>وضعیت ظرفیت شبکه</h3><p>ظرفیت تأییدشده در برابر تعهدها</p></div></div></div><EmptyState icon={Gauge} title="ظرفیت واقعی در دسترس نیست" description="درصد بهره‌برداری یا کمبود ظرفیت بدون رکورد معتبر محاسبه نمی‌شود."/></section>
       <section className="sim-preview-panel"><div className="sim-preview-panel-head"><div><span className="sim-preview-section-id">۰۵</span><div><h3>وضعیت مالی</h3><p>مطالبات و تسویه‌های ثبت‌شده</p></div></div><CreditCard size={18}/></div><EmptyState icon={CreditCard} title="مانده‌ی مالی خوانده نشده" description="هیچ مبلغ، سود یا بدهی فرضی در داشبورد قرار نمی‌گیرد."/></section>
     </div>
@@ -254,7 +254,7 @@ export default function OperationsWorkspace() {
     <div className="sim-preview-shell">
       {mobileSidebar && <button className="sim-preview-scrim" type="button" aria-label="بستن منوی کناری" onClick={() => setMobileSidebar(false)}/>}
       <aside className={`sim-preview-sidebar ${mobileSidebar ? 'open' : ''}`}>
-        <div className="sim-preview-sidebar-brand"><سیمرغLogo compact/><div><b>سیمرغ</b><small>سامانه</small></div><button type="button" className="sim-preview-close-sidebar" aria-label="بستن منو" onClick={() => setMobileSidebar(false)}><X size={17}/></button></div>
+        <div className="sim-preview-sidebar-brand"><SimorghLogo compact/><div><b>سیمرغ</b><small>سامانه</small></div><button type="button" className="sim-preview-close-sidebar" aria-label="بستن منو" onClick={() => setMobileSidebar(false)}><X size={17}/></button></div>
         <div className="sim-preview-sidebar-search"><Search size={15}/><input placeholder="جست‌وجو در بخش‌ها…" value={search} onChange={e => setSearch(e.target.value)} aria-label="جست‌وجو در بخش‌های سامانه"/></div>
         <nav className="sim-preview-nav" aria-label="بخش‌های سیمرغ">
           {visibleGroups.map(group => <div className="sim-preview-nav-group" key={group.title}><span>{group.title}</span>{group.items.map(item => {const Icon=item.icon;return <button type="button" key={item.key} className={page===item.key?'active':''} onClick={()=>goTo(item.key)}><Icon size={16}/><span>{item.label}</span>{page===item.key&&<i/>}</button>;})}</div>)}
