@@ -125,6 +125,18 @@ create or replace function public.guard_production_batch_scope()
 returns trigger language plpgsql set search_path='' as $$
 declare site_supplier uuid; agreement_supplier uuid; cycle_site uuid; lot_supplier uuid; lot_product uuid;
 begin
+  if tg_op='INSERT' and new.status<>'planned' then raise exception 'بچ تولید جدید باید ابتدا در وضعیت برنامه‌ریزی‌شده باشد'; end if;
+  if tg_op='UPDATE' and old.status='completed' and (to_jsonb(new) - 'updated_at') is distinct from (to_jsonb(old) - 'updated_at') then
+    raise exception 'بچ تولید تکمیل‌شده قابل بازنویسی نیست؛ ثبت اصلاحی جداگانه لازم است';
+  end if;
+  if tg_op='UPDATE' and new.status is distinct from old.status and not (
+    (old.status='planned' and new.status in ('active','cancelled')) or
+    (old.status='active' and new.status in ('submitted_for_review','on_hold','cancelled')) or
+    (old.status='submitted_for_review' and new.status in ('approved','on_hold','rejected')) or
+    (old.status='approved' and new.status in ('completed','on_hold')) or
+    (old.status='on_hold' and new.status in ('active','rejected','cancelled')) or
+    (old.status='rejected' and new.status in ('active','cancelled'))
+  ) then raise exception 'انتقال وضعیت بچ تولید مجاز نیست'; end if;
   select fs.supplier_id into site_supplier from public.farm_sites fs where fs.company_id=new.company_id and fs.id=new.farm_site_id;
   if not found then raise exception 'سایت تولید متعلق به این شرکت نیست'; end if;
   if site_supplier is distinct from new.supplier_id then
