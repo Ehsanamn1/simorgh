@@ -1,4 +1,6 @@
 import type * as React from 'react';
+import { Capacitor } from '@capacitor/core';
+import { StatusBar, Style } from '@capacitor/status-bar';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import {
@@ -288,6 +290,13 @@ function AppShell() {
     document.documentElement.style.colorScheme = theme;
     const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
     if (meta) meta.content = theme === 'dark' ? '#0B1012' : '#F4F7F7';
+    if (Capacitor.isNativePlatform()) {
+      void StatusBar.setStyle({ style: theme === 'dark' ? Style.Light : Style.Dark }).catch(() => {});
+      void StatusBar.setOverlaysWebView({ overlay: false }).catch(() => {});
+      if (Capacitor.getPlatform() === 'android') {
+        void StatusBar.setBackgroundColor({ color: theme === 'dark' ? '#0B1012' : '#F4F7F7' }).catch(() => {});
+      }
+    }
     try { window.localStorage.setItem('simorgh-theme', theme); } catch { /* Private browsing may disable storage. */ }
   }, [theme]);
   const membership = memberships.find(m => m.id === membershipId) ?? memberships[0];
@@ -577,9 +586,7 @@ function SupplierCapacityPage({membership,search}:{membership:Membership;search:
 function SupplierSettlementPage({membership,search}:{membership:Membership;search:string}) {const {rows,loading,error,refresh}=useDbRows('settlements',membership,{order:'created_at'});const shown=rows.filter(r=>(!membership.supplier_id||r.supplier_id===membership.supplier_id)&&(!search||`${r.invoice_ref??''} ${r.status}`.toLowerCase().includes(search.toLowerCase())));return <><PageHeading eyebrow="SUPPLIER / SETTLEMENT" title="تسویه‌های من" description="مبالغ و وضعیت تسویه را بر اساس رکوردهای داخلی ببین؛ وضعیت «پرداخت‌شده» باید پس از تطبیق واقعی ثبت شود." action={<Button variant="soft" onClick={()=>void refresh()}>تازه‌سازی</Button>}/>{error&&<InlineError error={error} retry={()=>void refresh()}/>}<section className="panel entity-panel">{loading?<div className="panel-loading"><span className="spinner small"/></div>:shown.length?<DataTable rows={shown} columns={[{key:'invoice_ref',label:'مرجع سند'},{key:'amount',label:'مبلغ',render:r=>moneyFa(String(r.amount))},{key:'due_date',label:'سررسید'},{key:'status',label:'وضعیت',render:r=><Badge value={r.status}/>},{key:'note',label:'یادداشت'}]}/>:<EmptyState title="تسویه‌ای برای نمایش وجود ندارد" description="سوابق تسویه پس از ثبت توسط تیم مالی مجموعه اینجا قرار می‌گیرند." icon={CreditCard}/>}</section></>}
 
 export default function App() {
-  const { user } = useAuth();
   if (!isSupabaseConfigured) return <ConfigScreen/>;
-  // The public role-selection portal must not wait on auth/session restoration.
-  // Authenticated users are still routed into the protected app once a real session is available.
-  return <Routes><Route path="/" element={<Navigate to={user ? '/app/command' : '/app/command'} replace/>}/><Route path="/about" element={<WorkspacePortal/>}/><Route path="/auth" element={<Navigate to="/app/command" replace/>}/><Route path="/app/*" element={<AppShell/>}/><Route path="*" element={<Navigate to="/" replace/>}/></Routes>;
+  // The mobile app always opens at the operational command center.
+  return <Routes><Route path="/" element={<Navigate to="/app/command" replace/>}/><Route path="/about" element={<WorkspacePortal/>}/><Route path="/auth" element={<Navigate to="/app/command" replace/>}/><Route path="/app/*" element={<AppShell/>}/><Route path="*" element={<Navigate to="/" replace/>}/></Routes>;
 }
