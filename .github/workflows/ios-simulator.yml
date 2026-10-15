@@ -1,0 +1,63 @@
+name: Simorgh iOS Simulator App
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ios-simulator:
+    name: Build iOS simulator app
+    runs-on: macos-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install JavaScript dependencies
+        run: npm install
+
+      - name: Build application assets
+        run: npm run build
+
+      - name: Generate iOS project
+        run: npx cap add ios
+
+      - name: Synchronize native assets
+        run: npx cap sync ios
+
+      - name: Build unsigned iOS Simulator app
+        run: |
+          xcodebuild \
+            -workspace ios/App/App.xcworkspace \
+            -scheme App \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath ios/build \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
+      - name: Package simulator app
+        run: |
+          cd ios/build/Build/Products/Debug-iphonesimulator
+          zip -r "$GITHUB_WORKSPACE/Simorgh-iOS-Simulator.zip" App.app
+
+      - name: Upload simulator app artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: simorgh-ios-simulator-app
+          path: Simorgh-iOS-Simulator.zip
+          if-no-files-found: error
+          retention-days: 14
