@@ -172,7 +172,7 @@ export default function ProductExperience() {
       )}
 
       {signInOpen && !user && !loading && (
-        <section className="simorgh-signin-layer" aria-label="ورود کاربران مجاز">
+        <section className="simorgh-signin-layer" role="dialog" aria-modal="true" aria-labelledby="simorgh-signin-title" aria-label="ورود کاربران مجاز">
           <div className="simorgh-signin-brand">
             <div className="simorgh-signin-brand-top">
               <span className="simorgh-signin-mark"><ShieldCheck size={27} aria-hidden="true" /></span>
@@ -191,7 +191,7 @@ export default function ProductExperience() {
             <div className="simorgh-signin-form-card" dir="rtl">
               <span className="signin-form-icon"><LogIn size={21} aria-hidden="true" /></span>
               <span className="signin-overline">ورود امن به فضای کاری</span>
-              <h2>خوش برگشتی</h2>
+              <h2 id="simorgh-signin-title">خوش برگشتی</h2>
               <p>با اطلاعات حساب دعوت‌شده وارد شو. ثبت‌نام عمومی در این سامانه فعال نیست.</p>
               <form className="simorgh-signin-form" onSubmit={(event) => void submitSignIn(event)}>
                 <label htmlFor="simorgh-signin-email">ایمیل سازمانی</label>
