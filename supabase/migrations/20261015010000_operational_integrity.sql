@@ -645,7 +645,7 @@ begin
   return new;
 end $$;
 create trigger guard_partner_financial_entry_update
-  before update or delete on public.partner_financial_entries for each row execute function public.guard_posted_partner_financial_entry();
+  before insert or update or delete on public.partner_financial_entries for each row execute function public.guard_posted_partner_financial_entry();
 
 create or replace function public.guard_partner_settlement_period_update()
 returns trigger language plpgsql set search_path='' as $$
