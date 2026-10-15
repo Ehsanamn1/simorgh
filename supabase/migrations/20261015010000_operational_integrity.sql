@@ -255,7 +255,7 @@ create table public.partner_financial_entries (
   direction text not null default 'not_cash' check (direction in ('not_cash','inflow_to_company','outflow_from_company','company_to_partner','partner_to_company')),
   amount numeric(16,0) not null check (amount > 0),
   paid_amount numeric(16,0) not null default 0 check (paid_amount >= 0 and paid_amount <= amount),
-  currency text not null default 'IRR' check (currency in ('IRR','TOMAN')),
+  currency text not null default 'TOMAN' check (currency in ('IRR','TOMAN')),
   expense_category text,
   is_shared_cost boolean not null default false,
   paid_by text not null default 'none' check (paid_by in ('none','company','partner','customer','vendor','third_party')),
@@ -265,6 +265,7 @@ create table public.partner_financial_entries (
   source_table text,
   source_record_id uuid,
   linked_entry_id uuid,
+  adjustment_effect text check (adjustment_effect in ('increase','decrease')),
   notes text,
   submitted_by uuid references auth.users(id) on delete set null,
   submitted_at timestamptz,
@@ -289,6 +290,7 @@ create table public.partner_financial_entries (
   check (entry_type <> 'expense' or direction in ('not_cash','outflow_from_company')),
   check (entry_type <> 'partner_advance' or direction in ('company_to_partner','partner_to_company')),
   check (entry_type <> 'settlement_payment' or direction in ('company_to_partner','partner_to_company')),
+  check ((entry_type='adjustment' and linked_entry_id is not null and adjustment_effect is not null) or (entry_type<>'adjustment' and adjustment_effect is null)),
   check (status <> 'posted' or (posted_at is not null and posted_by is not null))
 );
 create index partner_financial_supplier_date_idx on public.partner_financial_entries(company_id,supplier_id,recognized_on desc);
@@ -357,7 +359,7 @@ create policy farm_sites_partner_read on public.farm_sites for select to authent
   using (supplier_id in (select public.my_supplier_ids()));
 
 create policy partnership_agreements_internal_all on public.partnership_agreements for all to authenticated
-  using (public.is_company_internal(company_id)) with check (public.is_company_internal(company_id));
+  using (public.is_company_manager(company_id)) with check (public.is_company_manager(company_id));
 create policy partnership_agreements_partner_read on public.partnership_agreements for select to authenticated
   using (supplier_id in (select public.my_supplier_ids()));
 
@@ -401,14 +403,40 @@ create policy operational_incidents_partner_insert on public.operational_inciden
   with check (reported_by=auth.uid() and (reported_supplier_id in (select public.my_supplier_ids()) or exists(select 1 from public.farm_sites fs where fs.company_id=operational_incidents.company_id and fs.id=operational_incidents.farm_site_id and fs.supplier_id in (select public.my_supplier_ids()))));
 
 create policy partner_financial_internal_all on public.partner_financial_entries for all to authenticated
-  using (public.is_company_internal(company_id)) with check (public.is_company_internal(company_id));
+  using (public.is_company_manager(company_id)) with check (public.is_company_manager(company_id));
 create policy partner_financial_supplier_read on public.partner_financial_entries for select to authenticated
   using (supplier_id in (select public.my_supplier_ids()));
 
 create policy partner_settlement_internal_all on public.partner_settlement_periods for all to authenticated
-  using (public.is_company_internal(company_id)) with check (public.is_company_internal(company_id));
+  using (public.is_company_manager(company_id)) with check (public.is_company_manager(company_id));
 create policy partner_settlement_supplier_read on public.partner_settlement_periods for select to authenticated
   using (supplier_id in (select public.my_supplier_ids()));
+
+
+-- Signed/active agreement terms are versioned and cannot be edited in place.
+create or replace function public.guard_partnership_agreement_version()
+returns trigger language plpgsql set search_path='' as $
+begin
+  if tg_op='DELETE' and old.status in ('active','suspended','expired','terminated') then
+    raise exception 'قرارداد فعال یا تاریخی حذف نمی‌شود؛ الحاقیه با نسخه جدید بسازید';
+  end if;
+  if tg_op='UPDATE' and old.status in ('active','suspended','expired','terminated') then
+    if (to_jsonb(new) - array['status','updated_at'])
+       is distinct from
+       (to_jsonb(old) - array['status','updated_at']) then
+      raise exception 'شروط قرارداد فعال/تاریخی تغییر نمی‌کند؛ نسخه جدید یا الحاقیه بسازید';
+    end if;
+    if old.status in ('expired','terminated') and new.status is distinct from old.status then
+      raise exception 'وضعیت قرارداد تاریخی قابل بازگشت نیست';
+    end if;
+    if old.status='active' and new.status not in ('active','suspended','expired','terminated') then
+      raise exception 'گذار وضعیت قرارداد فعال مجاز نیست';
+    end if;
+  end if;
+  return new;
+end $;
+create trigger guard_partnership_agreement_update
+  before update or delete on public.partnership_agreements for each row execute function public.guard_partnership_agreement_version();
 
 -- Keep approved procedures versioned and completed task history unchanged.
 create or replace function public.guard_approved_task_template()
@@ -466,6 +494,35 @@ begin
 end $$;
 create trigger guard_operational_task_update
   before update on public.operational_tasks for each row execute function public.guard_task_status_transition();
+
+
+-- Validate financial corrections against a posted source record in the same agreement.
+create or replace function public.guard_partner_financial_relationship()
+returns trigger language plpgsql security definer set search_path='' as $
+declare source public.partner_financial_entries%rowtype;
+begin
+  if new.entry_type='adjustment' then
+    select * into source from public.partner_financial_entries
+     where id=new.linked_entry_id and company_id=new.company_id
+       and supplier_id=new.supplier_id and agreement_id=new.agreement_id;
+    if not found or source.status<>'posted' or source.entry_type='adjustment' then
+      raise exception 'سند تعدیلی باید به سند ثبت‌شده همان قرارداد متصل شود';
+    end if;
+    if new.is_shared_cost then raise exception 'تعدیل را از طریق سند مرتبط ثبت کنید؛ is_shared_cost روی تعدیل تنظیم نمی‌شود'; end if;
+  elsif new.adjustment_effect is not null then
+    raise exception 'adjustment_effect فقط برای سند تعدیلی مجاز است';
+  end if;
+  if new.entry_type='sale_collection' then
+    select * into source from public.partner_financial_entries
+     where id=new.linked_entry_id and company_id=new.company_id
+       and supplier_id=new.supplier_id and agreement_id=new.agreement_id
+       and entry_type='sale_invoice';
+    if not found then raise exception 'دریافت فروش باید به فاکتور همین قرارداد متصل شود'; end if;
+  end if;
+  return new;
+end $;
+create trigger guard_partner_financial_relationship
+  before insert or update on public.partner_financial_entries for each row execute function public.guard_partner_financial_relationship();
 
 create or replace function public.guard_posted_partner_financial_entry()
 returns trigger language plpgsql set search_path='' as $$
@@ -609,7 +666,7 @@ begin
   net_total:=revenue_used-expense_total;
   company_share_total:=round(net_total*a.company_profit_share_pct/100.0,0);
   partner_share_total:=round(net_total*a.partner_profit_share_pct/100.0,0);
-  balance_partner:=partner_share_total+partner_paid_total+partner_advance_total-company_advance_total-paid_to_partner_total+paid_to_company_total;
+  balance_partner:=partner_share_total+partner_paid_total+partner_advance_total-company_advance_total-paid_to_partner_total-paid_to_company_total;
   balance_company:=case when balance_partner < 0 then abs(balance_partner) else 0 end;
   balance_partner:=case when balance_partner > 0 then balance_partner else 0 end;
   cash_available:=collection_total-company_paid_total-company_advance_total-paid_to_partner_total+partner_advance_total+paid_to_company_total;
@@ -628,7 +685,7 @@ begin
   return jsonb_build_object(
     'agreement_id',a.id,'agreement_code',a.agreement_code,'agreement_version',a.version,
     'supplier_id',a.supplier_id,'period_start',_period_start,'period_end',_period_end,
-    'settlement_basis',a.settlement_basis,'currency','IRR',
+    'settlement_basis',a.settlement_basis,'currency','TOMAN',
     'company_profit_share_pct',a.company_profit_share_pct,'partner_profit_share_pct',a.partner_profit_share_pct,
     'invoiced_revenue',invoice_total,'collected_revenue',collection_total,'recognized_revenue',revenue_used,
     'approved_shared_expenses',expense_total,'unpaid_approved_expenses',unpaid_expense_total,
@@ -653,6 +710,7 @@ begin
   if not public.is_company_manager(a.company_id) then raise exception 'ایجاد دوره فقط برای مالک یا مدیر مجاز است'; end if;
   if a.status not in ('active','expired') then raise exception 'قرارداد باید تأیید و فعال شده باشد'; end if;
   if _period_start is null or _period_end is null or _period_end<_period_start then raise exception 'بازه زمانی دوره نامعتبر است'; end if;
+  if _period_end>current_date then raise exception 'دوره تسویه آینده قابل ایجاد نیست'; end if;
   perform pg_advisory_xact_lock(hashtext(_agreement::text));
   if exists(select 1 from public.partner_settlement_periods p where p.agreement_id=_agreement and p.company_id=a.company_id and p.status<>'cancelled' and p.period_start<=_period_end and p.period_end>=_period_start) then
     raise exception 'این بازه با یک دوره تسویه موجود هم‌پوشانی دارد';
@@ -664,7 +722,7 @@ begin
     company_paid_shared_expenses,partner_paid_shared_expenses,net_result,company_share_amount,partner_share_amount,
     balance_due_to_partner,balance_due_to_company,recorded_cash_available,calculation_snapshot,calculated_at,created_by
   ) values(
-    a.company_id,a.supplier_id,a.id,_period_start,_period_end,'draft','IRR',
+    a.company_id,a.supplier_id,a.id,_period_start,_period_end,'draft','TOMAN',
     (snap->>'invoiced_revenue')::numeric,(snap->>'collected_revenue')::numeric,(snap->>'recognized_revenue')::numeric,
     (snap->>'approved_shared_expenses')::numeric,(snap->>'unpaid_approved_expenses')::numeric,
     (snap->>'company_paid_shared_expenses')::numeric,(snap->>'partner_paid_shared_expenses')::numeric,
@@ -746,6 +804,8 @@ end $$;
 
 -- Expose only role-checked RPC entry points; no anonymous access.
 revoke all on function public.guard_approved_task_template() from public,anon,authenticated;
+revoke all on function public.guard_partnership_agreement_version() from public,anon,authenticated;
+revoke all on function public.guard_partner_financial_relationship() from public,anon,authenticated;
 revoke all on function public.guard_task_status_transition() from public,anon,authenticated;
 revoke all on function public.guard_posted_partner_financial_entry() from public,anon,authenticated;
 revoke all on function public.guard_partner_settlement_period_update() from public,anon,authenticated;
