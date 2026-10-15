@@ -1,16 +1,13 @@
 {
-  "name": "Simorgh — Obsidian Intelligence",
-  "short_name": "Simorgh",
-  "description": "پلتفرم عملیات شبکه تأمین سیمرغ",
+  "name": "سیمرغ | مدیریت یکپارچه‌ی مزرعه و عملیات",
+  "short_name": "سیمرغ",
+  "description": "سامانه‌ی مدیریت یکپارچه‌ی مزرعه، تولید، سفارش، موجودی، حمل، کیفیت و حساب‌وکتاب",
   "lang": "fa",
   "dir": "rtl",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
-  "display_override": [
-    "standalone",
-    "minimal-ui"
-  ],
+  "display_override": ["standalone", "minimal-ui"],
   "orientation": "any",
   "background_color": "#0B1012",
   "theme_color": "#0B1012",
