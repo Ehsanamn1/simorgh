@@ -522,3 +522,15 @@ html[data-theme="light"] .sim-preview-split-model .split-ring:before{background:
 @media(prefers-reduced-motion:reduce){
  .sim-preview-app *, .sim-preview-app *::before, .sim-preview-app *::after{animation-duration:.01ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;transition-duration:.01ms!important}
 }
+
+
+/* Keep Persian content RTL, but match the reference board's left-to-right frame composition. */
+.sim-preview-masthead{direction:ltr}
+.sim-preview-brand{direction:ltr}
+.sim-preview-manifesto{direction:rtl;text-align:right}
+.sim-preview-palette{direction:ltr}
+.sim-preview-head-actions{direction:rtl}
+.sim-preview-workspace-bar{direction:ltr}
+.sim-preview-page-label{direction:ltr}
+.sim-preview-role-switch{direction:ltr}
+.sim-preview-clock{direction:rtl}
