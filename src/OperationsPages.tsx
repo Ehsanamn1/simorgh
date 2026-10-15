@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ChangeEvent, FormEvent } from 'react';
-import { Activity, AlertTriangle, CheckCircle2, ClipboardCheck, CreditCard, FileCheck2, FileText, Factory, Plus, RefreshCw, ShieldCheck, UploadCloud, Warehouse, X } from 'lucide-react';
+import { Activity, AlertTriangle, CheckCircle2, ClipboardCheck, CreditCard, FileCheck2, FileText, Factory, Plus, RefreshCw, ShieldCheck, Warehouse, X } from 'lucide-react';
 import { supabase } from './lib/supabase';
 import type { Membership, Row } from './lib/types';
 import { dateFa, dateTimeFa, moneyFa, numberFa, statusTone } from './lib/format';
@@ -347,7 +347,7 @@ export function OperationsWorkspacePage({kind,membership,search}:{kind:Operation
     closeForm();setNotice('رکورد با موفقیت ثبت شد.');await load();
   };
 
-  const action=async(run:()=>Promise<{error:{message:string}|null}>,success:string)=>{
+  const action=async(run:()=>PromiseLike<{error:{message:string}|null}>,success:string)=>{
     setBusy(true);setError('');setNotice('');
     const result=await run();
     setBusy(false);
