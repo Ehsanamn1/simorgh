@@ -1,20 +1,19 @@
 import { expect, test } from '@playwright/test';
 
-test('public entry is a role-based portal and keeps sign-in off the public landing page', async ({ page }, testInfo) => {
+test('app-first entry opens a secure mobile workspace without public marketing or registration', async ({ page }) => {
   const pageErrors: string[] = [];
   page.on('pageerror', error => pageErrors.push(error.message));
   await page.goto('/simorgh/', { waitUntil: 'domcontentloaded' });
 
   await expect(page).toHaveTitle(/سیمرغ/);
-  await expect(page.locator('.portal-hero h1')).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'برای هر نقش، فضای خودش' })).toBeVisible();
-  for (const roleName of [/مدیر و مالک شبکه/, /تأمین‌کننده و شریک مزرعه/, /راننده و پیمانکار حمل/, /مشتری و خریدار عمده/]) {
-    await expect(page.getByRole('button', { name: roleName })).toBeVisible();
-  }
-  await expect(page.getByRole('button', { name: /ورود اعضای مجاز/ })).toBeVisible();
-  await expect(page.locator('input[type="password"], input[type="email"]')).toHaveCount(0);
-  await expect(page.getByRole('button', { name: /ثبت‌نام|ورود امن|ورود به سیمرغ/ })).toHaveCount(0);
-  await expect(page.getByText('نقش با انتخاب کارت فعال نمی‌شود.')).toBeVisible();
+  await expect(page).toHaveURL(/\/simorgh\/app\/command/);
+  await expect(page.locator('.portal')).toHaveCount(0);
+  await expect(page.locator('.simorgh-signin-layer')).toBeVisible();
+  await expect(page.getByLabel('ایمیل')).toBeVisible();
+  await expect(page.getByLabel('گذرواژه', { exact: true })).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'ایجاد حساب' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /ورود \/ ثبت‌نام/ })).toHaveCount(0);
+  await expect(page.getByText(/ثبت‌نام عمومی غیرفعال است/)).toBeVisible();
 
   const dimensions = await page.evaluate(() => ({
     viewport: innerWidth,
@@ -24,36 +23,20 @@ test('public entry is a role-based portal and keeps sign-in off the public landi
   expect(dimensions.document).toBeLessThanOrEqual(dimensions.viewport);
   expect(dimensions.body).toBeLessThanOrEqual(dimensions.viewport);
   expect(pageErrors).toEqual([]);
-  await page.screenshot({ path: testInfo.outputPath('workspace-portal-viewport.png') });
-  await page.screenshot({ path: testInfo.outputPath('workspace-portal.png'), fullPage: true });
 });
 
-test('role selection stays a non-operational preview', async ({ page }) => {
-  await page.goto('/simorgh/', { waitUntil: 'domcontentloaded' });
-  const supplier = page.getByRole('button', { name: /تأمین‌کننده و شریک مزرعه/ });
-  await supplier.click();
-  await expect(supplier).toHaveAttribute('aria-pressed', 'true');
-  await page.getByRole('button', { name: 'نمایش ساختار پنل' }).click();
-  await expect(page.getByRole('heading', { name: 'فضای تأمین و مزرعه' })).toBeVisible();
-  await expect(page.getByText('نمای ساختاری، نه پنل عملیاتی')).toBeVisible();
-  await expect(page.getByText(/هیچ رکورد خصوصی بارگذاری یا قابل ویرایش نیست/)).toBeVisible();
-  await expect(page.locator('.portal-capability').getByText('ظرفیت تولید', { exact: true })).toBeVisible();
-});
-
-test('direct navigation to a protected route requires sign-in and never grants a role', async ({ page }) => {
+test('direct navigation opens the secure app gate and does not grant an operating role', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.goto('/simorgh/app/command', { waitUntil: 'domcontentloaded' });
-
+  await expect(page.locator('.mobile-access-screen')).toBeVisible();
   await expect(page.locator('.simorgh-signin-layer')).toBeVisible();
-  await expect(page.getByLabel('ایمیل سازمانی')).toBeVisible();
-  await expect(page.getByLabel('گذرواژه')).toBeVisible();
-  await expect(page.getByText(/ثبت‌نام عمومی در این سامانه فعال نیست/)).toBeVisible();
+  await expect(page.getByLabel('ایمیل')).toBeVisible();
+  await expect(page.getByLabel('گذرواژه', { exact: true })).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'ایجاد حساب' })).toHaveCount(0);
   await expect(page.locator('.app-frame')).toHaveCount(0);
   const dimensions = await page.evaluate(() => ({
-    viewport: innerWidth,
-    document: document.documentElement.scrollWidth,
-    body: document.body.scrollWidth,
+    viewport: innerWidth, document: document.documentElement.scrollWidth, body: document.body.scrollWidth,
   }));
   expect(dimensions.document).toBeLessThanOrEqual(dimensions.viewport);
   expect(dimensions.body).toBeLessThanOrEqual(dimensions.viewport);
@@ -135,13 +118,16 @@ test('invited user can sign in through Supabase and then receives only membershi
   });
 
   await page.goto('/simorgh/', { waitUntil: 'domcontentloaded' });
-  await page.getByRole('button', { name: /ورود اعضای مجاز/ }).click();
-  await page.getByLabel('ایمیل سازمانی').fill('invited-owner@example.test');
-  await page.getByLabel('گذرواژه').fill('test-only-password');
-  await page.getByRole('button', { name: /ورود به سیمرغ/ }).click();
+  await page.getByLabel('ایمیل').fill('invited-owner@example.test');
+  await page.getByLabel('گذرواژه', { exact: true }).fill('test-only-password');
+  await page.getByRole('button', { name: /ورود به فضای کار/ }).click();
   await expect(page.locator('.app-frame')).toBeVisible();
   await expect(page.getByRole('heading', { name: /مرکز فرمان شبکه/ })).toBeVisible();
   await expect(page.locator('.simorgh-signin-layer')).toHaveCount(0);
   await expect(page.getByRole('link', { name: /دسترسی کاربران/ })).toBeVisible();
+  await page.getByRole('button', { name: 'فعال‌کردن حالت روشن' }).click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+  await page.getByRole('button', { name: 'فعال‌کردن حالت تاریک' }).click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   expect(errors).toEqual([]);
 });

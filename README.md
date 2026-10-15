@@ -104,3 +104,17 @@ npm run test:e2e
 ## انتقال به هاست خودت
 
 این یک اپ SPA است؛ خروجی `dist/` را می‌توان روی هر وب‌سرور استاتیک با fallback به `index.html` منتشر کرد. برای Nginx باید مسیرهای SPA به `index.html` fallback شوند. دیتابیس/Auth/Storage مستقل از میزبان front-end در Supabase می‌ماند. اگر در آینده Supabase را نیز self-host کنی، اتصال‌ها، ایمیل، بکاپ، HTTPS، Storage و ارتقای نسخه‌ها جداگانه باید نگهداری شوند.
+
+
+## Native mobile application
+
+Simorgh now has a Capacitor Android/iOS application target. The main route opens directly into the secure operational workspace, without a marketing landing screen or public self-registration. The mobile app shell supports a persistent dark/light theme, mobile navigation, native status-bar styling, and device permission scaffolding.
+
+- [Native mobile build and release notes](docs/MOBILE_APP.md)
+- [First owner provisioning](docs/OWNER_PROVISIONING.md)
+
+GitHub Actions builds an internal Android debug APK and an unsigned iOS Simulator app on supported pushes/PRs and manual dispatch. These are test artifacts, not store releases: Android Play Store publishing needs a release signing key; a physical iPhone/TestFlight build needs Apple signing and provisioning. Do not commit any signing credentials.
+
+The app still requires an owner-provisioned account for private company data. Public self-registration is intentionally disabled. Only an authenticated, authorized account receives a role-backed workspace, and Supabase RLS remains the server-side access boundary.
+
+The hosted preview may continue to use a service worker for static app shell/assets only. Auth, database records, private files, and writes are never cached. Offline mutation queueing and conflict resolution are not implemented; records must be changed online. Native GPS/push/background services must be tested through explicit permissions before production use.
