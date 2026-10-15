@@ -249,6 +249,11 @@ function WorkspacePortal() {
   </main>;
 }
 
+function WaitingAccess({ membershipsError }: { membershipsError: string | null }) {
+  const { user, signOut, refreshMemberships } = useAuth();
+  return <main className="waiting-screen" dir="rtl"><Logo/><div className="waiting-mark"><ShieldCheck size={30}/></div><span className="eyebrow">ACCESS REVIEW</span><h1>حساب شما هنوز به مجموعه‌ای متصل نیست.</h1><p>حساب کاربری ثبت شده، اما دسترسی عملیاتی فقط با دعوت یا تأیید مالک/مدیر مجموعه فعال می‌شود. این صفحه هیچ نقشی را به‌طور خودکار به شما اختصاص نمی‌دهد.</p><div className="waiting-email"><span>حساب</span><b dir="ltr">{user?.email}</b></div>{membershipsError && <div className="form-error">خواندن سطح دسترسی ناموفق بود: {membershipsError}</div>}<button className="button-primary" onClick={() => void refreshMemberships()}>بررسی دوباره دسترسی <Activity size={16}/></button><button className="button-ghost" onClick={() => void signOut()}>خروج از حساب <LogOut size={15}/></button><small>مالک مجموعه باید از بخش «دسترسی کاربران» یا تابع امن grant_membership شما را اضافه کند.</small></main>;
+}
+
 function AppShell() {
   const { user, memberships, signOut, loading, error } = useAuth();
   const location = useLocation();
