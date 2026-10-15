@@ -1,5 +1,14 @@
 import type * as React from 'react';
-import { useMemo, Navigate, Route, Routes, AlertTriangle, ArrowLeft, ArrowUpLeft, Boxes, Building2, Check, CheckCircle2, ChevronDown, CircleHelp, ClipboardCheck, CreditCard, Factory, FileCheck2, FileText, LayoutDashboard, LogOut, MapPin, Menu, Moon, Package, Plus, RefreshCw, Search, Settings2, ShieldCheck, Sun, Truck, Users, UserPlus, Warehouse, X, Zap } from 'lucide-react';
+import { Capacitor } from '@capacitor/core';
+import { Geolocation } from '@capacitor/geolocation';
+import { StatusBar, Style } from '@capacitor/status-bar';
+import { useEffect, useMemo, useState } from 'react';
+import { Link, Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import {
+  Activity, AlertTriangle, ArrowLeft, ArrowUpLeft, Boxes, Building2, Check, CheckCircle2,
+  ChevronDown, CircleHelp, ClipboardCheck, CreditCard, Factory, FileCheck2, FileText, LayoutDashboard,
+  LogOut, MapPin, Menu, Moon, Package, Plus, RefreshCw, Search, Settings2, ShieldCheck, Sun, Truck, Users, UserPlus, Warehouse, X, Zap,
+} from 'lucide-react';
 import { useAuth } from './lib/AuthContext';
 import { supabase, isSupabaseConfigured } from './lib/supabase';
 import { pageSectionLabel } from './lib/pageSections';
