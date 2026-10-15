@@ -9,7 +9,7 @@ import type { AppRole } from './lib/types';
 
 type NavigationEntry = { key: string; label: string };
 type PublicRequestedRole = 'staff' | 'supplier' | 'driver' | 'customer';
-type AuthMode = 'signin' | 'signup' | 'reset' | 'recovery';
+type AuthMode = 'signin' | 'reset' | 'recovery';
 const requestedRoles: { value: PublicRequestedRole; label: string; Icon: LucideIcon }[] = [
   { value: 'customer', label: 'خریدار عمده', Icon: Boxes },
   { value: 'supplier', label: 'شریک مزرعه', Icon: Factory },
@@ -50,7 +50,6 @@ export default function ProductExperience() {
   const { user, loading, memberships } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
-  const [portalHeader, setPortalHeader] = useState<HTMLElement | null>(null);
   const [appMain, setAppMain] = useState<HTMLElement | null>(null);
   const [waitingScreen, setWaitingScreen] = useState<HTMLElement | null>(null);
   const [allowedLinks, setAllowedLinks] = useState<NavigationEntry[]>([]);
@@ -75,7 +74,6 @@ export default function ProductExperience() {
 
   useEffect(() => {
     const refreshTargets = () => {
-      setPortalHeader(document.querySelector<HTMLElement>('.portal-header'));
       setAppMain(document.querySelector<HTMLElement>('.app-main'));
       setWaitingScreen(document.querySelector<HTMLElement>('.waiting-screen'));
     };
@@ -163,30 +161,7 @@ export default function ProductExperience() {
     if (!supabase || !isSupabaseConfigured) { setError('اتصال احراز هویت در این نسخه پیکربندی نشده است. ورود یا ثبت‌نام آنلاین در دسترس نیست.'); return; }
     setBusy(true); setError(''); setNotice('');
     try {
-      if (mode === 'signup') {
-        if (password.length < 8) { setError('گذرواژه باید حداقل ۸ نویسه باشد.'); return; }
-        if (password !== confirmPassword) { setError('تکرار گذرواژه با مقدار نخست یکسان نیست.'); return; }
-        if (['customer', 'supplier'].includes(requestedRole) && organizationName.trim().length < 2) {
-          setError('برای نقش انتخاب‌شده وارد کردن نام شرکت یا مزرعه الزامی است.'); return;
-        }
-        const redirectUrl = new URL((import.meta.env.BASE_URL || '/') + '#signin', window.location.origin).toString();
-        const { data, error: authError } = await supabase.auth.signUp({
-          email: email.trim(), password,
-          options: { emailRedirectTo: redirectUrl, data: { full_name: fullName.trim(), requested_role: requestedRole, organization_name: organizationName.trim(), phone: phone.trim() } },
-        });
-        if (authError) {
-          setError(authError.message.includes('already registered') ? 'این ایمیل قبلاً ثبت شده است. وارد شو یا گذرواژه را بازیابی کن.' : 'ثبت‌نام انجام نشد. ایمیل، اتصال اینترنت و تنظیمات تأیید ایمیل را بررسی کن.');
-          return;
-        }
-        setPassword(''); setConfirmPassword('');
-        if (data.session) {
-          setNotice('حساب ساخته شد. درخواست نقش را در صفحه بعد برای تأیید مدیر ارسال کن.');
-          navigate('/app', { replace: true });
-        } else {
-          setMode('signin');
-          setNotice('حساب ثبت شد. ایمیل تأیید را باز کن و سپس با همین ایمیل وارد شو؛ درخواست نقش بعد از ورود ارسال می‌شود.');
-        }
-      } else if (mode === 'reset') {
+      if (mode === 'reset') {
         const redirectUrl = new URL((import.meta.env.BASE_URL || '/') + '#signin', window.location.origin).toString();
         const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo: redirectUrl });
         if (resetError) { setError('ارسال ایمیل بازیابی انجام نشد. ایمیل و تنظیمات Auth را بررسی کن.'); return; }
@@ -227,8 +202,6 @@ export default function ProductExperience() {
   }
 
   return <>
-    {portalHeader && !user && createPortal(
-      <button className="portal-signin-link" type="button" onClick={() => openSignIn('signin')}><LogIn size={16} aria-hidden="true"/><span>ورود / ثبت‌نام</span><ArrowLeft size={14} aria-hidden="true"/></button>, portalHeader)}
     {user && appMain && mobileLinks.length > 0 && createPortal(
       <nav className="mobile-workspace-nav" aria-label="ناوبری اصلی فضای کاری">
         {mobileLinks.map(({ key, label, Icon }) => {
@@ -252,7 +225,7 @@ export default function ProductExperience() {
         <p className="access-request-foot"><ShieldCheck size={15}/> انتخاب نقش به‌تنهایی دسترسی نمی‌دهد. مدیر باید درخواست را در پنل کاربران بررسی کند.</p>
       </section>, waitingScreen)}
     {signInOpen && (!user || mode === 'recovery') && (!loading || mode === 'recovery') && (
-      <section className="simorgh-signin-layer" role="dialog" aria-modal="true" aria-labelledby="simorgh-signin-title" aria-label="ورود و ثبت‌نام سیمرغ">
+      <section className="simorgh-signin-layer" role="dialog" aria-modal="true" aria-labelledby="simorgh-signin-title" aria-label="ورود امن سیمرغ">
         <div className="simorgh-signin-brand">
           <div className="simorgh-signin-brand-top"><span className="simorgh-signin-mark"><ShieldCheck size={26}/></span><span><strong>سیمرغ</strong><small>OBSIDIAN INTELLIGENCE</small></span></div>
           <div className="simorgh-signin-story"><span className="signin-overline">SIMORGH / SECURE WORKSPACE</span><h1>یک شبکه.<br/><em>کنترل دقیق.</em></h1><p>عملیات تولید، سفارش، کیفیت، حمل و تسویه؛ در یک فضای کاری نقش‌محور و قابل پیگیری.</p><div className="signin-assurance"><ShieldCheck size={17}/><span>نقش‌های داخلی و مدیریتی فقط با دعوت یا تأیید مالک فعال می‌شوند.</span></div></div>
@@ -261,35 +234,25 @@ export default function ProductExperience() {
         <div className="simorgh-signin-form-area">
           {!protectedRoute && mode !== 'recovery' && <button type="button" className="signin-close" onClick={closeSignIn} aria-label="بستن ورود"><X size={20}/></button>}
           <div className="simorgh-signin-form-card" dir="rtl">
-            {(mode === 'signin' || mode === 'signup') && <div className="auth-mode-tabs" role="tablist" aria-label="حالت حساب">
-              <button type="button" role="tab" aria-selected={mode === 'signin'} className={mode === 'signin' ? 'active' : ''} onClick={() => {setMode('signin');setError('');setNotice('');}}>ورود</button>
-              <button type="button" role="tab" aria-selected={mode === 'signup'} className={mode === 'signup' ? 'active' : ''} onClick={() => {setMode('signup');setError('');setNotice('');}}>ایجاد حساب</button>
-            </div>}
-            <span className="signin-form-icon">{mode === 'signup' ? <UserPlus size={21}/> : mode === 'reset' || mode === 'recovery' ? <KeyRound size={21}/> : <LogIn size={21}/>}</span>
-            <span className="signin-overline">{mode === 'signup' ? 'CREATE YOUR ACCOUNT' : mode === 'reset' ? 'PASSWORD RECOVERY' : mode === 'recovery' ? 'SET A NEW PASSWORD' : 'SECURE SIGN IN'}</span>
-            <h2 id="simorgh-signin-title">{mode === 'signup' ? 'ساخت حساب کاربری' : mode === 'reset' ? 'بازیابی گذرواژه' : mode === 'recovery' ? 'گذرواژه جدید' : 'خوش برگشتی'}</h2>
-            <p>{mode === 'signup' ? 'اطلاعاتت را ثبت کن و نقش موردنظر را انتخاب کن؛ دسترسی عملیاتی پس از تأیید مدیر فعال می‌شود.' : mode === 'reset' ? 'ایمیل حساب را وارد کن تا در صورت وجود حساب، لینک بازیابی ارسال شود.' : mode === 'recovery' ? 'یک گذرواژه جدید و قوی برای حساب انتخاب کن.' : 'با ایمیل و گذرواژه وارد شو. دسترسی‌ها از عضویت معتبر خوانده می‌شوند.'}</p>
+            <span className="signin-form-icon">{mode === 'reset' || mode === 'recovery' ? <KeyRound size={21}/> : <LogIn size={21}/>}</span>
+            <span className="signin-overline">{mode === 'reset' ? 'PASSWORD RECOVERY' : mode === 'recovery' ? 'SET A NEW PASSWORD' : 'SECURE SIGN IN'}</span>
+            <h2 id="simorgh-signin-title">{mode === 'reset' ? 'بازیابی گذرواژه' : mode === 'recovery' ? 'گذرواژه جدید' : 'ورود به سیمرغ'}</h2>
+            <p>{mode === 'reset' ? 'ایمیل حساب را وارد کن تا در صورت وجود حساب، لینک بازیابی ارسال شود.' : mode === 'recovery' ? 'یک گذرواژه جدید و قوی برای حساب انتخاب کن.' : 'برای ورود از حسابی استفاده کن که مالک شرکت ساخته یا دعوت آن را صادر کرده است.'}</p>
             <form className="simorgh-signin-form" onSubmit={event => void submitAuth(event)}>
-              {mode === 'signup' && <>
-                <label htmlFor="simorgh-full-name">نام و نام خانوادگی</label><input id="simorgh-full-name" className="auth-input" type="text" autoComplete="name" required minLength={2} maxLength={160} value={fullName} onChange={e => setFullName(e.target.value)} placeholder="نام کامل"/>
-                <label htmlFor="simorgh-requested-role">نوع همکاری</label><select id="simorgh-requested-role" className="auth-input" value={requestedRole} onChange={e => setRequestedRole(e.target.value as PublicRequestedRole)}><option value="customer">خریدار عمده</option><option value="supplier">شریک مزرعه</option><option value="driver">راننده / پیمانکار حمل</option><option value="staff">کارمند / تیم داخلی</option></select>
-                {['customer', 'supplier'].includes(requestedRole) && <><label htmlFor="simorgh-organization">نام شرکت / مزرعه</label><input id="simorgh-organization" className="auth-input" type="text" autoComplete="organization" required minLength={2} maxLength={160} value={organizationName} onChange={e => setOrganizationName(e.target.value)} placeholder="نام مجموعه"/></>}
-                <label htmlFor="simorgh-phone">شماره تماس <span className="auth-optional">اختیاری</span></label><input id="simorgh-phone" className="auth-input" type="tel" autoComplete="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="شماره تماس"/>
-              </>}
               <label htmlFor="simorgh-signin-email">ایمیل</label><input id="simorgh-signin-email" className="auth-input" type="email" autoComplete="username" inputMode="email" required={mode !== 'recovery'} value={email} onChange={e => setEmail(e.target.value)} placeholder="name@company.com" dir="ltr"/>
               {mode !== 'reset' && <>
                 <label htmlFor="simorgh-signin-password">{mode === 'recovery' ? 'گذرواژه جدید' : 'گذرواژه'}</label>
-                <div className="auth-password-wrap"><input id="simorgh-signin-password" className="auth-input" type={showPassword ? 'text' : 'password'} minLength={8} autoComplete={mode === 'recovery' || mode === 'signup' ? 'new-password' : 'current-password'} required value={password} onChange={e => setPassword(e.target.value)} placeholder="حداقل ۸ نویسه" dir="ltr"/><button type="button" onClick={() => setShowPassword(value => !value)} aria-label={showPassword ? 'پنهان‌کردن گذرواژه' : 'نمایش گذرواژه'}>{showPassword ? <EyeOff size={16}/> : <Eye size={16}/>}</button></div>
-                {(mode === 'signup' || mode === 'recovery') && <><label htmlFor="simorgh-confirm-password">تکرار گذرواژه</label><input id="simorgh-confirm-password" className="auth-input" type="password" autoComplete="new-password" required minLength={8} value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="گذرواژه را دوباره وارد کن" dir="ltr"/></>}
+                <div className="auth-password-wrap"><input id="simorgh-signin-password" className="auth-input" type={showPassword ? 'text' : 'password'} minLength={8} autoComplete={mode === 'recovery' ? 'new-password' : 'current-password'} required value={password} onChange={e => setPassword(e.target.value)} placeholder="حداقل ۸ نویسه" dir="ltr"/><button type="button" onClick={() => setShowPassword(value => !value)} aria-label={showPassword ? 'پنهان‌کردن گذرواژه' : 'نمایش گذرواژه'}>{showPassword ? <EyeOff size={16}/> : <Eye size={16}/>}</button></div>
+                {mode === 'recovery' && <><label htmlFor="simorgh-confirm-password">تکرار گذرواژه</label><input id="simorgh-confirm-password" className="auth-input" type="password" autoComplete="new-password" required minLength={8} value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="گذرواژه را دوباره وارد کن" dir="ltr"/></>}
               </>}
               {error && <div className="auth-feedback error" role="alert">{error}</div>}{notice && <div className="auth-feedback success" role="status">{notice}</div>}
-              <button className="signin-submit" type="submit" disabled={busy || ((mode === 'signin' || mode === 'signup' || mode === 'reset') && !email.trim()) || (mode !== 'reset' && !password)}>
-                {busy ? <><span className="signin-spinner" aria-hidden="true"/> در حال پردازش…</> : mode === 'signup' ? <>ساخت حساب <UserPlus size={17}/></> : mode === 'reset' ? <>ارسال لینک بازیابی <RotateCcw size={16}/></> : mode === 'recovery' ? <>ذخیره گذرواژه جدید <Check size={17}/></> : <>ورود به فضای کار <ArrowLeft size={17}/></>}
+              <button className="signin-submit" type="submit" disabled={busy || (mode !== 'recovery' && !email.trim()) || (mode !== 'reset' && !password)}>
+                {busy ? <><span className="signin-spinner" aria-hidden="true"/> در حال پردازش…</> : mode === 'reset' ? <>ارسال لینک بازیابی <RotateCcw size={16}/></> : mode === 'recovery' ? <>ذخیره گذرواژه جدید <Check size={17}/></> : <>ورود به فضای کار <ArrowLeft size={17}/></>}
               </button>
             </form>
             {mode === 'signin' && <button type="button" className="auth-text-action" onClick={() => {setMode('reset');setError('');setNotice('');}}>گذرواژه‌ات را فراموش کرده‌ای؟</button>}
             {mode === 'reset' && <button type="button" className="auth-text-action" onClick={() => {setMode('signin');setError('');setNotice('');}}>بازگشت به ورود</button>}
-            <div className="signin-no-signup"><ShieldCheck size={16}/><span>{mode === 'signup' ? 'نقش مالک و مدیرکل عمومی نیست؛ این دسترسی فقط از مسیر امن راه‌اندازی یا دعوت صادر می‌شود.' : 'پس از ورود، اگر عضویتی نداشته باشی می‌توانی درخواست نقش ثبت کنی.'}</span></div>
+            <div className="signin-no-signup"><ShieldCheck size={16}/><span>ثبت‌نام عمومی غیرفعال است؛ حساب‌های جدید فقط از مسیر مدیریت امن شرکت ایجاد می‌شوند.</span></div>
             <div className="signin-form-foot"><span><Check size={13}/> کنترل دسترسی سمت سرور</span><span>OBSIDIAN · 01</span></div>
           </div>
         </div>
