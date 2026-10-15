@@ -9,7 +9,7 @@ import {
 import { useLocation, useNavigate } from 'react-router-dom';
 import { SimorghLogo } from './SimorghLogo';
 
-type ModuleKey = 'command'|'orders'|'farms'|'production'|'tasks'|'inventory'|'shipments'|'finance'|'partners'|'quality'|'intelligence'|'goals'|'audit'|'settings';
+type ModuleKey = 'command'|'orders'|'farms'|'production'|'tasks'|'inventory'|'shipments'|'map'|'finance'|'partners'|'quality'|'intelligence'|'goals'|'audit'|'settings';
 type IconType = typeof Home;
 type ModuleItem = {key:ModuleKey; label:string; icon:IconType; group:string; subtitle:string};
 
@@ -22,6 +22,7 @@ const modules:ModuleItem[]=[
  {key:'tasks',label:'وظایف و رخدادها',icon:ClipboardCheck,group:'عملیات',subtitle:'مسئولیت، موعد، مغایرت و پیگیری'},
  {key:'inventory',label:'انبار و خرید',icon:Warehouse,group:'عملیات',subtitle:'موجودی، رسید و گردش کالا'},
  {key:'shipments',label:'ارسال و تحویل',icon:Truck,group:'عملیات',subtitle:'محموله، مسیر و مدرک تحویل'},
+ {key:'map',label:'نقشه و راهنما',icon:Map,group:'عملیات',subtitle:'نمای جغرافیایی مسیرهای شبکه'},
  {key:'quality',label:'کیفیت و مدارک',icon:ShieldCheck,group:'عملیات',subtitle:'کنترل کیفیت و اسناد مستند'},
  {key:'finance',label:'مالی و تسویه',icon:CreditCard,group:'مالی',subtitle:'دفتر مالی، قرارداد و تسویه'},
  {key:'goals',label:'اهداف و برنامه',icon:Target,group:'مدیریت',subtitle:'اهداف، شاخص‌ها و مسیر اجرا'},
@@ -39,7 +40,7 @@ const pageFromLocation=(path:string,search:string):ModuleKey=>{
  const query=new URLSearchParams(search).get('module');
  if(query&&modules.some(m=>m.key===query))return query as ModuleKey;
  const tail=path.split('/').filter(Boolean).pop();
- const map:Record<string,ModuleKey>={command:'command',orders:'orders',inventory:'inventory',shipments:'shipments',finance:'finance','partner-finance':'finance','daily-production':'production','operational-tasks':'tasks','farm-sites':'farms',customers:'partners',suppliers:'partners',audit:'audit',quality:'quality'};
+ const map:Record<string,ModuleKey>={command:'command',orders:'orders',inventory:'inventory',shipments:'shipments',map:'map',finance:'finance','partner-finance':'finance','daily-production':'production','operational-tasks':'tasks','farm-sites':'farms',customers:'partners',suppliers:'partners',audit:'audit',quality:'quality'};
  return tail?map[tail]??'command':'command';
 };
 function TehranClock(){
@@ -101,11 +102,11 @@ export default function OperationalWorkspace({authLoading=false,hasMembership=fa
       <section className="ops-live-quick"><header className="ops-live-panel-head"><div><span className="ops-live-section-icon"><Layers3 size={17}/></span><div><h3>دسترسی سریع</h3><p>مسیر کوتاه به کارهای پرتکرار</p></div></div><span className="ops-live-chip">۴ میان‌بر</span></header><div className="ops-live-quick-grid">{quickItems.map(q=>{const Icon=q.icon;return <button key={q.key} type="button" className={'ops-live-quick-card '+q.tone} onClick={()=>go(q.key)}><span><Icon size={19}/></span><div><b>{q.title}</b><small>{q.desc}</small></div><ArrowUpLeft size={15}/></button>})}</div></section>
       <div className="ops-live-secondary-grid"><section className="ops-live-panel"><header className="ops-live-panel-head"><div><span className="ops-live-section-icon"><Activity size={17}/></span><div><h3>روند عملکرد</h3><p>رکورد روزانه در برابر هدف دوره</p></div></div><BarChart3 size={17}/></header><EmptyPanel icon={BarChart3} title="روند قابل محاسبه نیست" description="تا زمانی که رکوردهای واقعی تولید و سفارش در دسترس نباشد، خط روندی رسم نمی‌شود."/></section><section className="ops-live-panel"><header className="ops-live-panel-head"><div><span className="ops-live-section-icon"><AlertTriangle size={17}/></span><div><h3>موارد نیازمند پیگیری</h3><p>تأخیر، رخداد، موعد و درخواست</p></div></div><Bell size={17}/></header><EmptyPanel icon={CheckCircle2} title="فهرست امن نیازمند دسترسی مدیر است" description="این بخش پس از فعال‌شدن حساب مجاز، هشدارها را از رکوردهای واقعی و به‌روز نشان می‌دهد."/></section></div>
       <footer className="ops-live-footer"><span><ShieldCheck size={14}/> اطلاعات ساختگی نمایش داده نمی‌شود.</span><span>زمان محلی سامانه بر پایه‌ی منطقه‌ی زمانی تهران</span></footer>
-     </>:<ModuleWorkspace module={active} hasMembership={hasMembership} onHome={()=>go('command')}/>}
+     </>:page==='map'?<div className="ops-live-module"><div className="ops-live-heading"><div><span>راهنمای جغرافیایی</span><h1>نقشه و راهنما</h1><p>نقشه‌ی پایه برای بررسی موقعیت‌های واقعی ثبت‌شده در سامانه.</p></div></div><MapGuide expanded/><div className="ops-live-panel"><EmptyPanel icon={MapPin} title="نقطه‌ی عملیاتی ثبت نشده" description="نشانگرها فقط پس از ثبت GPS واقعی توسط کاربر مجاز نمایش داده خواهند شد."/></div></div>:<ModuleWorkspace module={active} hasMembership={hasMembership} onHome={()=>go('command')}/>}
     </div>
    </section>
   </div>
-  <nav className="ops-live-bottom-nav" aria-label="ناوبری اصلی موبایل"><button className={page==='command'?'active':''} onClick={()=>go('command')} type="button"><Home size={19}/><span>خانه</span></button><button className={['orders','farms','production','tasks','inventory','shipments'].includes(page)?'active':''} onClick={()=>go('tasks')} type="button"><ClipboardCheck size={19}/><span>عملیات</span></button><button className={page==='shipments'?'active':''} onClick={()=>go('shipments')} type="button"><Route size={19}/><span>مسیر</span></button><button type="button" className={drawerOpen?'active':''} onClick={()=>setDrawerOpen(true)}><Menu size={19}/><span>بیشتر</span></button></nav>
+  <nav className="ops-live-bottom-nav" aria-label="ناوبری اصلی موبایل"><button className={page==='command'?'active':''} onClick={()=>go('command')} type="button"><Home size={19}/><span>خانه</span></button><button className={['orders','farms','production','tasks','inventory','shipments'].includes(page)?'active':''} onClick={()=>go('tasks')} type="button"><ClipboardCheck size={19}/><span>عملیات</span></button><button className={page==='shipments'?'active':''} onClick={()=>go('map')} type="button"><Route size={19}/><span>نقشه</span></button><button type="button" className={drawerOpen?'active':''} onClick={()=>setDrawerOpen(true)}><Menu size={19}/><span>بیشتر</span></button></nav>
  </main>;
 }
 function ModuleWorkspace({module,hasMembership,onHome}:{module:ModuleItem;hasMembership:boolean;onHome:()=>void}){
