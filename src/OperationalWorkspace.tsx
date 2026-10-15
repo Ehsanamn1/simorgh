@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  Activity, AlertTriangle, ArrowLeft, ArrowUpLeft, BarChart3, Bell, Boxes,
+  Activity, AlertTriangle, ArrowUpLeft, BarChart3, Bell, Boxes,
   CalendarDays, CheckCircle2, ChevronLeft, ClipboardCheck, Clock3, CreditCard,
   Factory, FileText, Gauge, Home, Layers3, Map, MapPin, Menu, Moon, Network,
-  Package, Route, Search, Settings2, ShieldCheck, Sun, Target, Truck, Users,
+  Route, Search, Settings2, ShieldCheck, Sun, Target, Truck, Users,
   Warehouse, X, CircleHelp,
 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
