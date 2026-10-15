@@ -415,7 +415,7 @@ create policy partner_settlement_supplier_read on public.partner_settlement_peri
 
 -- Signed/active agreement terms are versioned and cannot be edited in place.
 create or replace function public.guard_partnership_agreement_version()
-returns trigger language plpgsql set search_path='' as $
+returns trigger language plpgsql set search_path='' as $$
 begin
   if tg_op='DELETE' and old.status in ('active','suspended','expired','terminated') then
     raise exception 'قرارداد فعال یا تاریخی حذف نمی‌شود؛ الحاقیه با نسخه جدید بسازید';
@@ -434,7 +434,7 @@ begin
     end if;
   end if;
   return new;
-end $;
+end $$;
 create trigger guard_partnership_agreement_update
   before update or delete on public.partnership_agreements for each row execute function public.guard_partnership_agreement_version();
 
@@ -498,7 +498,7 @@ create trigger guard_operational_task_update
 
 -- Validate financial corrections against a posted source record in the same agreement.
 create or replace function public.guard_partner_financial_relationship()
-returns trigger language plpgsql security definer set search_path='' as $
+returns trigger language plpgsql security definer set search_path='' as $$
 declare source public.partner_financial_entries%rowtype;
 begin
   if new.entry_type='adjustment' then
@@ -520,7 +520,7 @@ begin
     if not found then raise exception 'دریافت فروش باید به فاکتور همین قرارداد متصل شود'; end if;
   end if;
   return new;
-end $;
+end $$;
 create trigger guard_partner_financial_relationship
   before insert or update on public.partner_financial_entries for each row execute function public.guard_partner_financial_relationship();
 
