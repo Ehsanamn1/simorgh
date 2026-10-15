@@ -1,4 +1,4 @@
-const CACHE_NAME = 'simorgh-shell-v3';
+const CACHE_NAME = 'simorgh-shell-v4';
 const scopeURL = new URL(self.registration.scope);
 const isLocal = url => url.origin === self.location.origin && url.href.startsWith(scopeURL.href);
 const isSensitiveAPI = url => ['/auth/v1/', '/rest/v1/', '/storage/v1/'].some(part => url.pathname.includes(part));
@@ -26,7 +26,7 @@ self.addEventListener('fetch', event => {
 
   if (request.mode === 'navigate') {
     event.respondWith(
-      fetch(request).then(response => {
+      fetch(new Request(request, { cache: 'no-store' })).then(response => {
         if (response.ok) void caches.open(CACHE_NAME).then(cache => cache.put(scopeURL.href, response.clone()));
         return response;
       }).catch(async () => (await caches.match(scopeURL.href)) || Response.error())
