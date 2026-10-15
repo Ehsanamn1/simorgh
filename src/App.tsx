@@ -440,6 +440,13 @@ function Dashboard({ membership }: { membership: Membership }) {
     <PageHeading eyebrow="مرکز فرمان مدیریتی" title="مرکز فرمان عملیات" description="وضعیت امروز مجموعه، اهداف، سفارش، ظرفیت، حمل، انحراف‌ها و حساب‌وکتاب در یک نمای مدیریتی." action={<Button variant="soft" onClick={() => void load()} disabled={loading}><Activity size={15}/> {loading ? 'در حال تازه‌سازی…' : 'تازه‌سازی داده‌ها'}</Button>}/>
     {error && <InlineError error={error} retry={() => void load()}/>}
     <div className="tower-freshness"><span className="tower-live-dot"/><span>آخرین به‌روزرسانی: {lastUpdated ? dateTimeFa(lastUpdated) : 'در انتظار دریافت'}</span><span>شاخص‌ها از داده‌های ثبت‌شده‌ی مجموعه خوانده می‌شوند.</span></div>
+    <section className="stats-grid tower-stats">
+      <article className="stat-card"><div className="stat-card-top"><span>سفارش‌ها</span><span className="stat-icon"><FileText size={17}/></span></div><b>{loading ? '—' : numberFa(counts.orders)}</b><small>رکوردهای این مجموعه</small></article>
+      <article className="stat-card"><div className="stat-card-top"><span>مشتریان</span><span className="stat-icon"><Users size={17}/></span></div><b>{loading ? '—' : numberFa(counts.customers)}</b><small>حساب‌های ثبت‌شده</small></article>
+      <article className="stat-card"><div className="stat-card-top"><span>تأمین‌کنندگان</span><span className="stat-icon"><Factory size={17}/></span></div><b>{loading ? '—' : numberFa(counts.suppliers)}</b><small>شبکه تأمین ثبت‌شده</small></article>
+      <article className="stat-card"><div className="stat-card-top"><span>ارسال‌های باز</span><span className="stat-icon"><Truck size={17}/></span></div><b>{loading ? '—' : numberFa(counts.shipments)}</b><small>تحویل‌نشده و در جریان</small></article>
+      <article className="stat-card"><div className="stat-card-top"><span>بازه‌های ظرفیت</span><span className="stat-icon"><Warehouse size={17}/></span></div><b>{loading ? '—' : numberFa(counts.capacity)}</b><small>تأییدشده یا متعهد و جاری</small></article>
+    </section>
     {canManage && <section className="panel objective-progress-panel">
       <div className="panel-heading">
         <div><span className="section-number"><Target size={15}/></span><div><h3>اهداف مدیریتی</h3><p>پیشرفت بر اساس شاخص‌های واقعی و هدف‌های تعریف‌شده‌ی شرکت</p></div></div>
@@ -465,13 +472,6 @@ function Dashboard({ membership }: { membership: Membership }) {
         })}
       </div> : <div className="objective-progress-empty"><Target size={20}/><div><b>هنوز هدفی تعریف نشده</b><p>یک هدف قابل اندازه‌گیری ثبت کن؛ مقدار جاری از دیتابیس می‌آید و پیشرفت ساختگی ساخته نمی‌شود.</p></div><Link to="/app/objectives">تعریف اولین هدف <ArrowLeft size={14}/></Link></div>}
     </section>}
-    <section className="stats-grid tower-stats">
-      <article className="stat-card"><div className="stat-card-top"><span>سفارش‌ها</span><span className="stat-icon"><FileText size={17}/></span></div><b>{loading ? '—' : numberFa(counts.orders)}</b><small>رکوردهای این مجموعه</small></article>
-      <article className="stat-card"><div className="stat-card-top"><span>مشتریان</span><span className="stat-icon"><Users size={17}/></span></div><b>{loading ? '—' : numberFa(counts.customers)}</b><small>حساب‌های ثبت‌شده</small></article>
-      <article className="stat-card"><div className="stat-card-top"><span>تأمین‌کنندگان</span><span className="stat-icon"><Factory size={17}/></span></div><b>{loading ? '—' : numberFa(counts.suppliers)}</b><small>شبکه تأمین ثبت‌شده</small></article>
-      <article className="stat-card"><div className="stat-card-top"><span>ارسال‌های باز</span><span className="stat-icon"><Truck size={17}/></span></div><b>{loading ? '—' : numberFa(counts.shipments)}</b><small>تحویل‌نشده و در جریان</small></article>
-      <article className="stat-card"><div className="stat-card-top"><span>بازه‌های ظرفیت</span><span className="stat-icon"><Warehouse size={17}/></span></div><b>{loading ? '—' : numberFa(counts.capacity)}</b><small>تأییدشده یا متعهد و جاری</small></article>
-    </section>
     {counts.orders === 0 && counts.customers === 0 && counts.suppliers === 0 && <div className="tower-onboarding"><ShieldCheck size={18}/><div><b>داده‌ی عملیاتی هنوز ثبت نشده</b><p>برای شروع، محصولات، تأمین‌کنندگان و مشتریان واقعی را ثبت کن. سامانه تا آن زمان عدد ساختگی نمایش نمی‌دهد.</p></div><div className="tower-onboarding-links"><Link to="/app/products">تعریف محصول</Link><Link to="/app/suppliers">ثبت تأمین‌کننده</Link><Link to="/app/customers">ثبت مشتری</Link></div></div>}
     <section className="tower-quick-access" aria-label="دسترسی سریع عملیات">
       <div className="tower-quick-heading"><div><span className="tower-quick-heading-icon"><Zap size={16}/></span><div><h3>دسترسی سریع</h3><p>ماژول‌های پرکاربرد مدیریت روزانه</p></div></div><small>انتخاب سریع، یک لمس تا مقصد</small></div>
