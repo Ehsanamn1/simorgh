@@ -213,6 +213,8 @@ create table public.task_evidence (
   unique(company_id,id),
   foreign key(company_id,task_id) references public.operational_tasks(company_id,id) on delete restrict,
   check ((evidence_type in ('photo','document') and storage_path is not null) or (evidence_type in ('note','measurement'))),
+  check (storage_path is null or storage_path like company_id::text || '/' || task_id::text || '/%'),
+  check (evidence_type <> 'note' or length(trim(coalesce(note,'')))>0),
   check (evidence_type <> 'measurement' or measurement_value is not null)
 );
 create index task_evidence_task_idx on public.task_evidence(company_id,task_id,captured_at desc);
@@ -292,7 +294,9 @@ create table public.partner_financial_entries (
   check (entry_type <> 'partner_advance' or direction in ('company_to_partner','partner_to_company')),
   check (entry_type <> 'settlement_payment' or direction in ('company_to_partner','partner_to_company')),
   check ((entry_type='adjustment' and linked_entry_id is not null and adjustment_effect is not null) or (entry_type<>'adjustment' and adjustment_effect is null)),
-  check (status <> 'posted' or (posted_at is not null and posted_by is not null))
+  check (status <> 'posted' or (posted_at is not null and posted_by is not null)),
+  check (entry_type <> 'sale_collection' or status <> 'posted' or (paid_amount=amount and payment_status='paid' and external_reference is not null)),
+  check (entry_type not in ('partner_advance','settlement_payment') or status <> 'posted' or (paid_amount=amount and payment_status='paid' and external_reference is not null))
 );
 create index partner_financial_supplier_date_idx on public.partner_financial_entries(company_id,supplier_id,recognized_on desc);
 create index partner_financial_agreement_date_idx on public.partner_financial_entries(company_id,agreement_id,recognized_on,status,entry_type);
@@ -605,7 +609,7 @@ begin
     where e.company_id=t.company_id and e.task_id=t.id
       and ((e.evidence_type='note' and length(trim(coalesce(e.note,'')))>0)
         or (e.evidence_type='measurement' and e.measurement_value is not null)
-        or (e.evidence_type in ('photo','document') and e.storage_path is not null and exists(
+        or (e.evidence_type in ('photo','document') and e.storage_path like t.company_id::text || '/' || t.id::text || '/%' and exists(
           select 1 from storage.objects o where o.bucket_id='operational-evidence' and o.name=e.storage_path
         )))
   ) then raise exception 'برای تکمیل این وظیفه مدرک واقعی لازم است'; end if;
@@ -820,6 +824,7 @@ begin
   if p.balance_due_to_partner<=0 then raise exception 'این دوره مبلغی برای پرداخت به شریک ندارد'; end if;
   remaining:=p.balance_due_to_partner-p.settled_amount;
   if _amount>remaining then raise exception 'مبلغ پرداخت بیشتر از مانده دوره است'; end if;
+  if _amount>greatest(0,p.recorded_cash_available-p.settled_amount) then raise exception 'مبلغ پرداخت از وجه نقد محاسبه‌شده در اسناد دوره بیشتر است'; end if;
   insert into public.partner_financial_entries(
     company_id,supplier_id,agreement_id,entry_type,status,direction,amount,paid_amount,currency,
     paid_by,payment_status,recognized_on,external_reference,source_table,source_record_id,notes,
@@ -905,7 +910,7 @@ with check (
       select 1 from public.operational_tasks t
       where t.company_id=((storage.foldername(name))[1])::uuid
         and t.id=((storage.foldername(name))[2])::uuid
-        and t.evidence_required
+        and public.is_company_member(t.company_id)
         and (t.assignee_user_id=auth.uid() or t.assignee_supplier_id in (select public.my_supplier_ids()))
     )
   )
