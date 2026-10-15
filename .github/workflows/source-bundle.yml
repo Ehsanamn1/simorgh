@@ -1,0 +1,46 @@
+name: Bundle full Simorgh source
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  bundle:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact source revision
+        uses: actions/checkout@v7
+      - name: Create complete source snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          SHA="$(git rev-parse HEAD)"
+          git archive --format=zip --prefix=simorgh/ HEAD -o simorgh-project.zip
+          {
+            echo "Project: Simorgh — Network Operations"
+            echo "Repository: https://github.com/Ehsanamn1/simorgh"
+            echo "Branch: main"
+            echo "Commit: $SHA"
+            echo "Generated at (UTC): $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+            echo "Archive: simorgh-project.zip"
+            echo
+            echo "Includes all tracked source/config/docs/migrations/workflows at this commit."
+            echo "Excludes .git history, node_modules, build output and secrets."
+            echo
+            sha256sum simorgh-project.zip
+          } > SOURCE_MANIFEST.txt
+          test -s simorgh-project.zip
+          unzip -t simorgh-project.zip
+      - name: Upload source archive and handoff
+        uses: actions/upload-artifact@v5
+        with:
+          name: simorgh-full-project
+          path: |
+            simorgh-project.zip
+            SOURCE_MANIFEST.txt
+            docs/PROJECT_HANDOFF.md
+          if-no-files-found: error
+          retention-days: 30
