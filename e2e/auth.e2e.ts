@@ -21,7 +21,7 @@ test('the app opens the Persian operational workspace with no sign-in page or pr
   await expect(page.getByRole('heading', { name: 'مرکز فرمان شبکه' })).toBeVisible();
   await expect(page.getByText('دسترسی سریع')).toBeVisible();
   await expect(page.locator('.ops-live-quick-card')).toHaveCount(4);
-  await expect(page.getByText(/داده‌های شرکت در انتظار فعال‌سازی حساب مالک/)).toBeVisible();
+  await expect(page.locator('.ops-live-status')).toContainText('داده‌های شرکت در انتظار فعال‌سازی حساب مالک');
 
   const dimensions = await page.evaluate(() => ({ viewport: innerWidth, document: document.documentElement.scrollWidth, body: document.body.scrollWidth }));
   expect(dimensions.document).toBeLessThanOrEqual(dimensions.viewport);
@@ -51,9 +51,14 @@ test('dark and light themes work, and the four quick-access cards navigate to th
   await expect(page.locator('.simorgh-signin-layer')).toHaveCount(0);
 });
 
-test('map module contains a real geographic guide and no invented shipment marker', async ({ page }) => {
+test('map module contains a real geographic guide and no invented shipment marker', async ({ page }, testInfo) => {
+  const viewportWidth = Number((testInfo.project.use as { viewport?: { width?: number } }).viewport?.width || 1365);
   await page.goto('/simorgh/app/command', { waitUntil: 'domcontentloaded' });
-  await page.locator('.ops-live-sidebar').getByRole('button', { name: 'نقشه و راهنما' }).click();
+  if (viewportWidth <= 850) {
+    await page.locator('.ops-live-bottom-nav').getByRole('button', { name: 'نقشه' }).click();
+  } else {
+    await page.locator('.ops-live-sidebar').getByRole('button', { name: 'نقشه و راهنما' }).click();
+  }
   await expect(page.getByRole('heading', { name: 'نقشه و راهنما', level: 1 })).toBeVisible();
   await expect(page.getByTitle('نقشه جغرافیایی ایران')).toBeVisible();
   await expect(page.getByText('نقطه‌ی عملیاتی ثبت نشده')).toBeVisible();
