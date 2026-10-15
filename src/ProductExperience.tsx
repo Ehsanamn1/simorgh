@@ -69,7 +69,7 @@ export default function ProductExperience() {
   const [requestId, setRequestId] = useState('');
   const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
   const protectedRoute = location.pathname.includes('/app');
-  const signInOpen = mode === 'recovery' || (location.hash === '#signin' && (!user || mode === 'recovery')) || (protectedRoute && !user && !loading);
+  const signInOpen = mode === 'recovery' || (location.hash === '#signin' && !user) || (protectedRoute && !user && !loading);
   const normalizedPath = location.pathname.startsWith(basePath) ? location.pathname.slice(basePath.length) || '/' : location.pathname;
   const protectedDestination = normalizedPath.startsWith('/app') ? normalizedPath : '/app';
 
