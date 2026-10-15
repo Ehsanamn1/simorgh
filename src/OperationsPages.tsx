@@ -272,6 +272,13 @@ export function OperationsWorkspacePage({kind,membership,search}:{kind:Operation
     const yes=(k:string)=>draft[k]===true;
     const base:Record<string,unknown>={company_id:membership.company_id};
     let payload:Record<string,unknown>=base;
+    if(kind==='daily-production' && (num('eggs_rejected')??0)>(num('eggs_collected')??0)){
+      setBusy(false);setError('تعداد تخم مردود نمی‌تواند بیشتر از تخم جمع‌آوری‌شده باشد.');return;
+    }
+    if(kind==='incidents' && membership.role==='supplier'){
+      const site=refs.sites.find(r=>String(r.id)===str('farm_site_id')&&String(r.supplier_id)===String(membership.supplier_id));
+      if(!site){setBusy(false);setError('برای ثبت رخداد از حساب تأمین‌کننده، سایت متعلق به همان تأمین‌کننده را انتخاب کن.');return;}
+    }
     if(kind==='farm-sites'){
       payload={...base,site_code:str('site_code'),name:str('name'),supplier_id:str('supplier_id')||null,province:str('province')||'گلستان',
         city:str('city')||null,address:str('address')||null,registration_reference:str('registration_reference')||null,
@@ -320,6 +327,7 @@ export function OperationsWorkspacePage({kind,membership,search}:{kind:Operation
       const expense=entryType==='expense';const collection=entryType==='sale_collection';const advance=entryType==='partner_advance';
       const paidAmount=collection||advance?amount:paidInput;
       const paymentStatus=collection||advance?'paid':paidAmount<=0?(expense?'unpaid':'not_applicable'):paidAmount>=amount?'paid':'partial';
+      if(paidAmount>amount){setBusy(false);setError('مبلغ پرداخت‌شده نمی‌تواند از مبلغ کل سند بیشتر باشد.');return;}
       if(expense&&!str('expense_category')){setBusy(false);setError('برای هزینه، دسته هزینه لازم است.');return;}
       if(expense&&yes('is_shared_cost')){
         const agreement=refs.agreements.find(r=>String(r.id)===str('agreement_id'));
@@ -418,7 +426,7 @@ export function OperationsWorkspacePage({kind,membership,search}:{kind:Operation
       storage_path:path,note:evidenceNote.trim()||null,uploaded_by:membership.user_id,
       measurement_value:evidenceType==='measurement'?Number(measurement):null,measurement_unit:evidenceType==='measurement'?(unit.trim()||null):null};
     const result=await supabase.from('task_evidence').insert(payload);
-    setBusy(false);if(result.error){setError(result.error.message);return;}
+    setBusy(false);if(result.error){if(path){await supabase.storage.from('operational-evidence').remove([path]);}setError(result.error.message);return;}
     setEvidenceTask('');setEvidenceType('note');setEvidenceNote('');setMeasurement('');setUnit('');setEvidenceFile(null);
     setNotice('مدرک به وظیفه متصل شد.');await load();
   };
@@ -433,7 +441,7 @@ export function OperationsWorkspacePage({kind,membership,search}:{kind:Operation
     const up=await supabase.storage.from('contract-documents').upload(path,file,{upsert:false,contentType:file.type});
     if(up.error){setBusy(false);setError(up.error.message);return;}
     const result=await updateRow('partnership_agreements',agreement.id,{signed_document_path:path,signed_at:new Date().toISOString(),status:'active'});
-    setBusy(false);if(result.error){setError(result.error.message);return;}
+    setBusy(false);if(result.error){await supabase.storage.from('contract-documents').remove([path]);setError(result.error.message);return;}
     setUploadAgreementId('');setNotice('سند امضاشده بارگذاری شد؛ فعال‌سازی در دیتابیس کنترل شد.');await load();
   };
 
