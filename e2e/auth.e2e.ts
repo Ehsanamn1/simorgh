@@ -14,6 +14,7 @@ test('app-first guest entry opens the Obsidian workspace without a login or sign
   await expect(page).toHaveTitle(/سیمرغ \| Obsidian Intelligence/);
   await expect(page).toHaveURL(/\/simorgh\/app\/command$/);
   await expect(page.locator('.sim-preview-app')).toBeVisible();
+  await expect(page.locator('#app-boot-screen')).toHaveCount(0);
   await expect(page.locator('.portal')).toHaveCount(0);
   await expect(page.locator('.simorgh-signin-layer')).toHaveCount(0);
   await expect(page.locator('.sim-preview-sidebar')).toBeVisible();
