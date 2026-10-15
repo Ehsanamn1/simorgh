@@ -493,6 +493,12 @@ begin
     if nullif(trim(coalesce(new.signed_document_path,'')),'') is null or new.signed_at is null then
       raise exception 'فعال‌سازی قرارداد نیازمند سند امضاشده واقعی است';
     end if;
+    if new.signed_document_path not like (new.company_id::text || '/' || new.supplier_id::text || '/%') then
+      raise exception 'مسیر سند قرارداد باید به همان شرکت و تأمین‌کننده متصل باشد';
+    end if;
+    if not exists(select 1 from storage.objects o where o.bucket_id='contract-documents' and o.name=new.signed_document_path) then
+      raise exception 'فایل قرارداد امضاشده در فضای خصوصی پیدا نشد';
+    end if;
     if coalesce(cardinality(new.shared_expense_categories),0)=0 then
       raise exception 'دسته‌های هزینه مشترک باید طبق قرارداد تعریف شوند';
     end if;
@@ -1005,6 +1011,82 @@ with check (
         and public.is_company_member(t.company_id)
         and (t.assignee_user_id=auth.uid() or t.assignee_supplier_id in (select public.my_supplier_ids()))
     )
+  )
+);
+
+
+-- Signed agreement files are private; object path: <company_uuid>/<supplier_uuid>/<filename>.
+insert into storage.buckets(id,name,public,file_size_limit,allowed_mime_types)
+values('contract-documents','contract-documents',false,20971520,array['application/pdf','image/jpeg','image/png'])
+on conflict(id) do nothing;
+
+create policy contract_documents_storage_read on storage.objects for select to authenticated
+using (
+  bucket_id='contract-documents'
+  and (storage.foldername(name))[1] ~* '^[0-9a-f-]{36}revoke all on public.farm_sites,public.partnership_agreements,public.flock_cycles,public.production_batches,
+  public.daily_production_records,public.task_templates,public.operational_tasks,public.task_evidence,
+  public.operational_incidents,public.partner_financial_entries,public.partner_settlement_periods from anon;
+grant select,insert,update,delete on public.farm_sites,public.partnership_agreements,public.flock_cycles,
+  public.production_batches,public.daily_production_records,public.task_templates,public.operational_tasks,
+  public.task_evidence,public.operational_incidents,public.partner_financial_entries,public.partner_settlement_periods
+to authenticated;
+-- Settlement periods can be mutated only through the guarded SECURITY DEFINER RPCs above.
+revoke insert,update,delete on public.partner_settlement_periods from authenticated;
+grant select on public.partner_settlement_periods to authenticated;
+
+  and (storage.foldername(name))[2] ~* '^[0-9a-f-]{36}revoke all on public.farm_sites,public.partnership_agreements,public.flock_cycles,public.production_batches,
+  public.daily_production_records,public.task_templates,public.operational_tasks,public.task_evidence,
+  public.operational_incidents,public.partner_financial_entries,public.partner_settlement_periods from anon;
+grant select,insert,update,delete on public.farm_sites,public.partnership_agreements,public.flock_cycles,
+  public.production_batches,public.daily_production_records,public.task_templates,public.operational_tasks,
+  public.task_evidence,public.operational_incidents,public.partner_financial_entries,public.partner_settlement_periods
+to authenticated;
+-- Settlement periods can be mutated only through the guarded SECURITY DEFINER RPCs above.
+revoke insert,update,delete on public.partner_settlement_periods from authenticated;
+grant select on public.partner_settlement_periods to authenticated;
+
+  and (
+    public.is_company_manager(((storage.foldername(name))[1])::uuid)
+    or exists(
+      select 1 from public.partnership_agreements pa
+      where pa.company_id=((storage.foldername(name))[1])::uuid
+        and pa.supplier_id=((storage.foldername(name))[2])::uuid
+        and pa.supplier_id in (select public.my_supplier_ids())
+        and pa.signed_document_path=name
+        and pa.status in ('active','suspended','expired','terminated')
+    )
+  )
+);
+create policy contract_documents_storage_insert on storage.objects for insert to authenticated
+with check (
+  bucket_id='contract-documents'
+  and (storage.foldername(name))[1] ~* '^[0-9a-f-]{36}revoke all on public.farm_sites,public.partnership_agreements,public.flock_cycles,public.production_batches,
+  public.daily_production_records,public.task_templates,public.operational_tasks,public.task_evidence,
+  public.operational_incidents,public.partner_financial_entries,public.partner_settlement_periods from anon;
+grant select,insert,update,delete on public.farm_sites,public.partnership_agreements,public.flock_cycles,
+  public.production_batches,public.daily_production_records,public.task_templates,public.operational_tasks,
+  public.task_evidence,public.operational_incidents,public.partner_financial_entries,public.partner_settlement_periods
+to authenticated;
+-- Settlement periods can be mutated only through the guarded SECURITY DEFINER RPCs above.
+revoke insert,update,delete on public.partner_settlement_periods from authenticated;
+grant select on public.partner_settlement_periods to authenticated;
+
+  and (storage.foldername(name))[2] ~* '^[0-9a-f-]{36}revoke all on public.farm_sites,public.partnership_agreements,public.flock_cycles,public.production_batches,
+  public.daily_production_records,public.task_templates,public.operational_tasks,public.task_evidence,
+  public.operational_incidents,public.partner_financial_entries,public.partner_settlement_periods from anon;
+grant select,insert,update,delete on public.farm_sites,public.partnership_agreements,public.flock_cycles,
+  public.production_batches,public.daily_production_records,public.task_templates,public.operational_tasks,
+  public.task_evidence,public.operational_incidents,public.partner_financial_entries,public.partner_settlement_periods
+to authenticated;
+-- Settlement periods can be mutated only through the guarded SECURITY DEFINER RPCs above.
+revoke insert,update,delete on public.partner_settlement_periods from authenticated;
+grant select on public.partner_settlement_periods to authenticated;
+
+  and public.is_company_manager(((storage.foldername(name))[1])::uuid)
+  and exists(
+    select 1 from public.suppliers su
+    where su.company_id=((storage.foldername(name))[1])::uuid
+      and su.id=((storage.foldername(name))[2])::uuid
   )
 );
 
