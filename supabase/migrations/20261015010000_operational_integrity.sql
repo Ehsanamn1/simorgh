@@ -466,7 +466,7 @@ begin
   end if;
   if tg_op='DELETE' then return old; end if;
   return new;
-end $;
+end $$;
 create trigger guard_approved_task_template_update
   before update or delete on public.task_templates for each row execute function public.guard_approved_task_template();
 
@@ -585,7 +585,7 @@ begin
   end if;
   if tg_op='DELETE' then return old; end if;
   return new;
-end $;
+end $$;
 create trigger guard_partner_settlement_period_update
   before update or delete on public.partner_settlement_periods for each row execute function public.guard_partner_settlement_period_update();
 
