@@ -501,7 +501,7 @@ begin
   return new;
 end $$;
 create trigger guard_partnership_agreement_update
-  before update or delete on public.partnership_agreements for each row execute function public.guard_partnership_agreement_version();
+  before insert or update or delete on public.partnership_agreements for each row execute function public.guard_partnership_agreement_version();
 
 -- Keep approved procedures versioned and completed task history unchanged.
 create or replace function public.guard_approved_task_template()
@@ -530,34 +530,30 @@ begin
   return new;
 end $$;
 create trigger guard_approved_task_template_update
-  before update or delete on public.task_templates for each row execute function public.guard_approved_task_template();
+  before insert or update or delete on public.task_templates for each row execute function public.guard_approved_task_template();
 
 create or replace function public.guard_task_status_transition()
 returns trigger language plpgsql set search_path='' as $$
 begin
-  if tg_op='UPDATE' then
-    if old.status='approved' and (to_jsonb(new) - 'updated_at') is distinct from (to_jsonb(old) - 'updated_at') then
-      raise exception 'وظیفه تأییدشده قابل بازنویسی نیست؛ یک وظیفه یا رخداد اصلاحی ایجاد کنید';
-    end if;
-    if new.status is distinct from old.status and not (
-      (old.status='pending' and new.status in ('in_progress','submitted','blocked','cancelled')) or
-      (old.status='in_progress' and new.status in ('submitted','blocked','cancelled')) or
-      (old.status='submitted' and new.status in ('approved','rejected')) or
-      (old.status='rejected' and new.status in ('in_progress','submitted','cancelled')) or
-      (old.status='blocked' and new.status in ('pending','in_progress','cancelled'))
-    ) then
-      raise exception 'انتقال وضعیت وظیفه مجاز نیست';
-    end if;
-    if new.status='submitted' and old.status<>'submitted' and new.submitted_at is null then new.submitted_at:=now(); end if;
-    if new.status='approved' and old.status<>'approved' then
-      new.reviewed_at:=coalesce(new.reviewed_at,now());
-      new.reviewed_by:=coalesce(new.reviewed_by,auth.uid());
-    end if;
+  if tg_op='INSERT' then
+    if new.status<>'pending' then raise exception 'وظیفه جدید باید در وضعیت در انتظار ایجاد شود'; end if;
+    if new.assigned_by is distinct from auth.uid() then raise exception 'ثبت‌کننده وظیفه باید کاربر جاری باشد'; end if;
+    return new;
   end if;
+  if old.status='approved' then raise exception 'وظیفه تأییدشده قابل بازنویسی نیست؛ یک وظیفه اصلاحی بسازید'; end if;
+  if new.status is distinct from old.status and not (
+    (old.status='pending' and new.status in ('in_progress','submitted','blocked','cancelled')) or
+    (old.status='in_progress' and new.status in ('submitted','blocked','cancelled')) or
+    (old.status='submitted' and new.status in ('approved','rejected')) or
+    (old.status='rejected' and new.status in ('in_progress','submitted','cancelled')) or
+    (old.status='blocked' and new.status in ('pending','in_progress','cancelled'))
+  ) then raise exception 'انتقال وضعیت وظیفه مجاز نیست'; end if;
+  if new.status='submitted' and old.status is distinct from 'submitted' then new.submitted_at:=now(); end if;
+  if new.status='approved' and old.status is distinct from 'approved' then new.reviewed_at:=now(); new.reviewed_by:=auth.uid(); end if;
   return new;
 end $$;
 create trigger guard_operational_task_update
-  before update on public.operational_tasks for each row execute function public.guard_task_status_transition();
+  before insert or update on public.operational_tasks for each row execute function public.guard_task_status_transition();
 
 
 -- Validate financial corrections against a posted source record in the same agreement.
@@ -602,30 +598,44 @@ create trigger guard_partner_financial_relationship
 create or replace function public.guard_posted_partner_financial_entry()
 returns trigger language plpgsql set search_path='' as $$
 begin
-  if tg_op='DELETE' and old.status='posted' then
-    raise exception 'سند مالی ثبت‌شده حذف نمی‌شود؛ سند اصلاحی ثبت کنید';
+  if tg_op='INSERT' then
+    if new.status<>'draft' then raise exception 'سند مالی جدید باید پیش‌نویس باشد'; end if;
+    new.created_by:=auth.uid();
+    new.submitted_by:=null; new.submitted_at:=null;
+    new.approved_by:=null; new.approved_at:=null;
+    new.posted_by:=null; new.posted_at:=null;
+    return new;
   end if;
-  if tg_op='DELETE' then return old; end if;
-  if tg_op='UPDATE' and old.status='posted' then
-    raise exception 'سند مالی ثبت‌شده تغییر نمی‌کند؛ سند اصلاحی ثبت کنید';
+  if tg_op='DELETE' then
+    if old.status<>'draft' then raise exception 'فقط پیش‌نویس مالی قابل حذف است؛ سایر موارد را با سند تعدیلی اصلاح کنید'; end if;
+    return old;
   end if;
-  if tg_op='UPDATE' and new.status is distinct from old.status and not (
+  if old.status='posted' then raise exception 'سند مالی ثبت‌شده تغییر نمی‌کند؛ سند اصلاحی ثبت کنید'; end if;
+  if new.status is distinct from old.status and not (
     (old.status='draft' and new.status in ('submitted','rejected')) or
     (old.status='submitted' and new.status in ('approved','rejected')) or
-    (old.status='approved' and new.status in ('posted','rejected'))
-  ) then
-    raise exception 'انتقال وضعیت سند مالی مجاز نیست';
+    (old.status='approved' and new.status in ('posted','rejected')) or
+    (old.status='rejected' and new.status='draft')
+  ) then raise exception 'انتقال وضعیت سند مالی مجاز نیست'; end if;
+  if old.status='submitted' and
+    (to_jsonb(new) - array['status','approved_by','approved_at','updated_at'])
+    is distinct from (to_jsonb(old) - array['status','approved_by','approved_at','updated_at']) then
+    raise exception 'سند ارسال‌شده فقط قابل تأیید یا رد است؛ در صورت رد آن را به پیش‌نویس بازگردانید';
   end if;
-  if new.status='submitted' and new.submitted_at is null then
-    new.submitted_at:=now(); new.submitted_by:=coalesce(new.submitted_by,auth.uid());
+  if old.status='approved' and
+    (to_jsonb(new) - array['status','posted_by','posted_at','updated_at'])
+    is distinct from (to_jsonb(old) - array['status','posted_by','posted_at','updated_at']) then
+    raise exception 'سند تأییدشده قبل از ثبت نهایی قابل تغییر نیست';
   end if;
-  if new.status='approved' and new.approved_at is null then
-    new.approved_at:=now(); new.approved_by:=coalesce(new.approved_by,auth.uid());
+  if new.status='submitted' and old.status is distinct from 'submitted' then
+    new.submitted_at:=now(); new.submitted_by:=auth.uid();
   end if;
-  if new.status='posted' and new.posted_at is null then
-    new.posted_at:=now(); new.posted_by:=coalesce(new.posted_by,auth.uid());
+  if new.status='approved' and old.status is distinct from 'approved' then
+    new.approved_at:=now(); new.approved_by:=auth.uid();
   end if;
-  if tg_op='DELETE' then return old; end if;
+  if new.status='posted' and old.status is distinct from 'posted' then
+    new.posted_at:=now(); new.posted_by:=auth.uid();
+  end if;
   return new;
 end $$;
 create trigger guard_partner_financial_entry_update
