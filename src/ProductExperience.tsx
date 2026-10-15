@@ -106,8 +106,8 @@ export default function ProductExperience() {
   const mobileLinks = useMemo(() => {
     const keys = new Set(allowedLinks.map((item) => item.key));
     const workspace = keys.has('catalog') ? 'customer'
-      : keys.has('supplier-capacity') || keys.has('supplier-work') || keys.has('daily-production') ? 'supplier'
-        : keys.has('command') ? 'manager' : 'driver';
+      : keys.has('command') ? 'manager'
+        : keys.has('supplier-capacity') || keys.has('supplier-work') || keys.has('daily-production') ? 'supplier' : 'driver';
     return priorities[workspace].filter((key) => keys.has(key)).map((key) => ({
       key,
       label: shortLabels[key] || allowedLinks.find((item) => item.key === key)?.label || key,
