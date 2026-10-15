@@ -29,6 +29,9 @@ jobs:
 
       - name: Build application assets
         run: npm run build
+        env:
+          VITE_SUPABASE_URL: https://aoxerjimfiwusidaparx.supabase.co
+          VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_oTgVCJWw9BfK-kFUxTcaMQ_aeAUWXC5
 
       - name: Generate iOS project
         run: npx cap add ios
