@@ -70,7 +70,7 @@ test('manager workspace retains operations and captures a real rendered control-
   await installIsolatedSession(page, 'owner');
   await page.goto('/simorgh/app/command', { waitUntil: 'domcontentloaded' });
   await expect(page.getByRole('heading', { name: /مرکز فرمان شبکه/ })).toBeVisible();
-  await expect(page.getByRole('link', { name: /سفارش‌ها/ })).toBeVisible();
+  await expect(page.locator('.side-nav').getByRole('link', { name: /سفارش‌ها/ })).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath('manager-control-tower.png'), fullPage: true });
 
   const paths = [
