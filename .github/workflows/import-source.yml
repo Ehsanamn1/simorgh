@@ -2,7 +2,7 @@ name: Import Simorgh source
 on:
   push:
     paths:
-      - 'simorgh-source.bundle.b64'
+      - 'simorgh-bundle/READY'
   workflow_dispatch:
 permissions:
   contents: write
@@ -22,10 +22,11 @@ jobs:
             echo "Application source already exists; nothing to import."
             exit 0
           fi
-          base64 --decode simorgh-source.bundle.b64 > "$RUNNER_TEMP/simorgh.bundle"
+          cat simorgh-bundle/part-* > "$RUNNER_TEMP/simorgh.bundle.b64"
+          base64 --decode "$RUNNER_TEMP/simorgh.bundle.b64" > "$RUNNER_TEMP/simorgh.bundle"
           git clone "$RUNNER_TEMP/simorgh.bundle" "$RUNNER_TEMP/source"
           rsync -a --exclude='.git' "$RUNNER_TEMP/source/" "$GITHUB_WORKSPACE/"
-          rm -f simorgh-source.bundle.b64 .github/workflows/import-source.yml
+          rm -rf simorgh-bundle .github/workflows/import-source.yml
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
