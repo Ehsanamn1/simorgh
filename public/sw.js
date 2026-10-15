@@ -1,4 +1,4 @@
-const CACHE_NAME = 'simorgh-shell-v4';
+const CACHE_NAME = 'simorgh-shell-v5';
 const scopeURL = new URL(self.registration.scope);
 const isLocal = url => url.origin === self.location.origin && url.href.startsWith(scopeURL.href);
 const isSensitiveAPI = url => ['/auth/v1/', '/rest/v1/', '/storage/v1/'].some(part => url.pathname.includes(part));
