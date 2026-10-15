@@ -78,7 +78,7 @@ flowchart TD
 - The manager preview explicitly surfaces user/role assignment and change history. Role selection itself does not assign access or expose private records.
 - Refined typographic scale, spacing, accessible touch targets, tables/forms, Persian labels, mobile search, and real links replace the earlier tiny admin-template style.
 - Motion design includes orbit rings, animated supply-chain nodes/flow indicators, soft reveals, focus/hover transitions, and reduced-motion support.
-- Verified in CI run [38757452211](https://github.com/Ehsanamn1/simorgh/actions/runs/38757452211): 18 Playwright tests and 4 Vitest tests passed. Typecheck, lint, production audit (0 findings), and Pages base-path build also passed. The current site was deployed successfully in [run 38757731921](https://github.com/Ehsanamn1/simorgh/actions/runs/38757731921). These checks verify the public role-screening experience only; role isolation against actual Supabase accounts remains unverified.
+- Verified in CI run [38769548002](https://github.com/Ehsanamn1/simorgh/actions/runs/38769548002): 21 Playwright tests and 4 Vitest tests passed. Typecheck, lint, production audit (0 production vulnerabilities), and Pages base-path build also passed. The same runtime commit was deployed successfully in [run 38769835859](https://github.com/Ehsanamn1/simorgh/actions/runs/38769835859). These checks verify the public role-screening experience only; role isolation against actual Supabase accounts remains unverified.
 
 ### Reference research used for principles, not for copying
 - [TraceFarm — platform screens](https://tracefarm.eu/screens): the product groups task/deadline and financial views alongside the farm dashboard.
