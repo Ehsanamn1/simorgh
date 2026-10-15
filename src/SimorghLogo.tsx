@@ -16,6 +16,6 @@ function SimorghBirdMark(props: SVGProps<SVGSVGElement>) {
 export function SimorghLogo({ compact = false, className = '' }: { compact?: boolean; className?: string }) {
   return <div className={`brand-lockup simorgh-lockup ${compact ? 'compact' : ''} ${className}`}>
     <span className="brand-symbol"><SimorghBirdMark/></span>
-    {!compact && <span className="brand-words"><b>Simorgh</b><small>Obsidian Intelligence</small></span>}
+    {!compact && <span className="brand-words"><b>سیمرغ</b><small>مدیریت یکپارچه عملیات</small></span>}
   </div>;
 }
