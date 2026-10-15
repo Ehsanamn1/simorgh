@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Activity, ArrowLeft, Boxes, Building2, Check, ClipboardCheck, CreditCard, Factory, FileText, Home, LayoutDashboard, ListTodo, LogIn, Menu, Package, ShieldCheck, Truck, Warehouse, X, UserPlus, Eye, EyeOff, KeyRound, RotateCcw } from 'lucide-react';
+import { Activity, ArrowLeft, Boxes, Building2, Camera, Check, ClipboardCheck, CreditCard, Factory, FileText, Home, LayoutDashboard, ListTodo, LogIn, MapPin, Menu, Package, ShieldCheck, Truck, Warehouse, X, UserPlus, Eye, EyeOff, KeyRound, RotateCcw } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useAuth } from './lib/AuthContext';
 import { isSupabaseConfigured, supabase } from './lib/supabase';
@@ -23,9 +23,9 @@ const routeIcons: Record<string, LucideIcon> = {
   'operational-tasks': ListTodo, 'partner-finance': CreditCard, 'farm-sites': Warehouse, incidents: Activity,
 };
 const priorities: Record<string, string[]> = {
-  manager: ['command', 'orders', 'shipments', 'finance'],
-  supplier: ['operational-tasks', 'daily-production', 'supplier-capacity', 'partner-finance'],
-  driver: ['driver-work'], customer: ['catalog', 'my-orders', 'finance', 'my-account'],
+  manager: ['command', 'orders', 'shipments'],
+  supplier: ['operational-tasks', 'daily-production', 'supplier-capacity'],
+  driver: ['driver-work'], customer: ['catalog', 'my-orders', 'my-account'],
 };
 const shortLabels: Record<string, string> = {
   command: 'نمای کلی', orders: 'سفارش‌ها', shipments: 'ارسال‌ها', finance: 'مالی', catalog: 'خرید',
@@ -146,8 +146,16 @@ export default function ProductExperience() {
     const keys = new Set(allowedLinks.map(item => item.key));
     const workspace = keys.has('catalog') ? 'customer' : keys.has('command') ? 'manager'
       : keys.has('supplier-capacity') || keys.has('supplier-work') || keys.has('daily-production') ? 'supplier' : 'driver';
-    return priorities[workspace].filter(key => keys.has(key)).map(key => ({
-      key, label: shortLabels[key] || allowedLinks.find(item => item.key === key)?.label || key, Icon: routeIcons[key] || Home,
+    if (workspace === 'driver' && keys.has('driver-work')) {
+      return [
+        { id: 'driver-work', key: 'driver-work', label: 'محموله‌ها', Icon: Truck, to: '/app/driver-work' },
+        { id: 'driver-location', key: 'driver-work', label: 'موقعیت', Icon: MapPin, to: '/app/driver-work#driver-location', matchHash: '#driver-location' },
+        { id: 'driver-evidence', key: 'driver-work', label: 'مدرک', Icon: Camera, to: '/app/driver-work#driver-evidence', matchHash: '#driver-evidence' },
+      ];
+    }
+    return priorities[workspace].filter(key => keys.has(key)).slice(0, 3).map(key => ({
+      id: key, key, label: shortLabels[key] || allowedLinks.find(item => item.key === key)?.label || key,
+      Icon: routeIcons[key] || Home, to: '/app/' + key, matchHash: undefined,
     }));
   }, [allowedLinks]);
 
@@ -204,9 +212,10 @@ export default function ProductExperience() {
   return <>
     {user && appMain && mobileLinks.length > 0 && createPortal(
       <nav className="mobile-workspace-nav" aria-label="ناوبری اصلی فضای کاری">
-        {mobileLinks.map(({ key, label, Icon }) => {
-          const current = location.pathname.split('/').filter(Boolean).at(-1) === key;
-          return <Link key={key} to={'/app/' + key} className={current ? 'is-active' : ''} aria-current={current ? 'page' : undefined}><Icon size={20} strokeWidth={current ? 2.3 : 1.8} aria-hidden="true"/><span>{label}</span></Link>;
+        {mobileLinks.map(({ id, key, label, Icon, to, matchHash }) => {
+          const current = location.pathname.split('/').filter(Boolean).at(-1) === key
+            && (matchHash ? location.hash === matchHash : !location.hash);
+          return <Link key={id} to={to} className={current ? 'is-active' : ''} aria-current={current ? 'page' : undefined}><Icon size={20} strokeWidth={current ? 2.3 : 1.8} aria-hidden="true"/><span>{label}</span></Link>;
         })}
         <button type="button" className="mobile-workspace-more" onClick={() => document.querySelector<HTMLButtonElement>('.mobile-menu')?.click()} aria-label="بازکردن منوی کامل"><Menu size={20} aria-hidden="true"/><span>بیشتر</span></button>
       </nav>, appMain)}
