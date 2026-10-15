@@ -8,12 +8,12 @@
 
 - **Frontend:** React 19, TypeScript, Vite, React Router, custom CSS, Lucide icons, and Recharts.
 - **Application entry:** `index.html` → `src/main.tsx` → `BrowserRouter` (base path from Vite) → `AuthProvider` → `src/App.tsx`.
-- **Authentication:** Supabase Auth email/password sign-in, sign-up, and password-reset UI in `src/App.tsx`; session and active memberships are loaded by `src/lib/AuthContext.tsx`.
+- **Authentication:** Supabase Auth and session/membership state remain in `src/lib/AuthContext.tsx`, but the public login/sign-up/password-reset forms were intentionally removed from the root UI at the user's current request. `/auth` redirects to the root role portal. If a valid session already exists, the source retains the protected operational app routes; the public role cards do not create or grant a session.
 - **Data access:** Browser-side `@supabase/supabase-js` in `src/lib/supabase.ts`. Database access depends on Postgres RLS and guarded SQL functions; hiding a UI element is not the authorization boundary.
 - **Database:** Supabase Postgres project `aoxerjimfiwusidaparx`, region `eu-central-1`. Migration `supabase/migrations/20261015000000_simorgh_core.sql` is applied. All 18 application tables report RLS enabled. Initial company row `شبکه سیمرغ` exists, with no owner membership yet.
 - **Hosting:** Static SPA on GitHub Pages at https://ehsanamn1.github.io/simorgh/; automatic deploy is gated on a successful `Simorgh CI` workflow. Optional Cloudflare Pages workflow remains in the repository.
 - **Storage:** Private Supabase Storage bucket `delivery-evidence` and associated access policies exist in the migration; upload/access scenarios still need role-by-role verification.
-- **Test baseline:** Vitest unit tests cover currency/role/order-state labels. Browser checks are being added for desktop/mobile auth entry, layout overflow, control sizes, and form-mode transitions. Final pass/fail results must come from the latest CI run, not from this plan.
+- **Test baseline:** Vitest unit tests cover currency/role/order-state labels. Playwright exercises the public workspace portal in desktop, mobile, and compact-mobile Chromium, including role-card preview navigation, no auth inputs/buttons on the root, console exceptions, and horizontal overflow. The live operational workflows still need separate account-based testing.
 
 ## 2. Architecture diagram
 
@@ -46,7 +46,7 @@ flowchart TD
 
 | Area | Current state | Notes / acceptance gap |
 |---|---|---|
-| Sign-in, sign-up, password reset | **UI implemented** | Must validate Auth redirect URLs, email verification/recovery, and actual Supabase behavior. |
+| Sign-in, sign-up, password reset | **UI intentionally disabled** | Auth/session infrastructure remains, but the public UI cannot start a new session. If the forms are re-enabled later, validate redirects, email verification/recovery and actual Supabase behavior. |
 | Organization isolation and memberships | **Implemented baseline** | First trusted owner must be assigned; test object-level access for every role. |
 | Company command dashboard | **Implemented baseline** | Four metrics are queried from real records; chart describes recent orders, not a full historical BI warehouse. Avoid fake/forecast values. |
 | Customers, suppliers, products, price agreements | **Implemented baseline** | Validate required business fields, pricing rules, and real commercial processes. |
@@ -72,12 +72,13 @@ flowchart TD
 - Three “first actions” on the command dashboard were static `div` elements rather than links, despite appearing actionable.
 - The initial dashboard uses live counts and current records; empty states explicitly avoid demo metrics. Preserve that data integrity.
 
-### UI changes started
-- A consistent typography/spacing/radius system with more legible labels, inputs, tables, and status chips.
-- Improved auth screen hierarchy and a restrained forest/leaf visual language rather than tiny developer-style metadata.
-- Persian page-section labels and a real help link.
-- Working dashboard quick-action links to customers, suppliers, and products.
-- Browser-level checks for desktop and mobile layout, input/button touch sizes, no horizontal overflow, and sign-in/sign-up/recovery mode navigation.
+### UI changes implemented
+- Public `/` now opens directly into role selection rather than a login/sign-up screen. `/auth` redirects to `/` while forms are disabled.
+- The four role cards have distinct audience labels and previews: manager/owner, supplier/farm partner, driver/transport contractor, and organizational customer.
+- The manager preview explicitly surfaces user/role assignment and change history. Role selection itself does not assign access or expose private records.
+- Refined typographic scale, spacing, accessible touch targets, tables/forms, Persian labels, mobile search, and real links replace the earlier tiny admin-template style.
+- Motion design includes orbit rings, animated supply-chain nodes/flow indicators, soft reveals, focus/hover transitions, and reduced-motion support.
+- Browser tests target desktop, standard mobile and compact mobile, role-preview navigation/capability labels, absence of auth UI, JavaScript errors, and horizontal overflow. The latest run is the source of truth for pass/fail.
 
 ### Reference research used for principles, not for copying
 - [TraceFarm — platform screens](https://tracefarm.eu/screens): the product groups task/deadline and financial views alongside the farm dashboard.
@@ -89,13 +90,13 @@ flowchart TD
 
 - RLS is enabled on each of the 18 application tables, but that alone does not prove every policy is correct. Run negative access tests using separate owner, staff, customer, supplier, and driver accounts.
 - Supabase security advisors report warnings for authenticated access to guarded `SECURITY DEFINER` RPC functions, plus RLS query-planning and index recommendations. Review function bodies and verify that unauthorized callers cannot act; do not treat an advisor warning as either proof of exploitability or proof of safety.
-- The first company exists, but at audit time there are no registered users and no owner membership. Auth redirect URLs and the first-owner bootstrap remain a setup dependency.
+- The first company exists, but at the last database check there were no registered users and no owner membership. Login/sign-up forms are intentionally disabled; a trusted owner must be created through a controlled Supabase Dashboard procedure and then granted membership before operational workspaces can be tested.
 - Keep `service_role` / database secrets off the browser and out of `VITE_` variables. Only the publishable key belongs in the static build.
 - No independent security audit has been conducted. Payment, tax invoice, SMS, Google OAuth, live GPS, live camera, and AI providers are not configured as working integrations.
 
 ## 7. Implementation order and regression risks
 
-1. **Design system + browser smoke tests** (current work): typography, spacing, responsive search/table/form behavior; avoid altering data contracts.
+1. **Role-selection portal + browser checks** (current work): polished public entry, separate workspace previews, explicit role assignment governance, motion and responsive rendering; keep auth UI disabled and avoid altering data contracts.
 2. **Owner onboarding and role-level RLS tests:** prerequisite to safe use by real users.
 3. **Farm/partner contracts and production lifecycle:** farm sites, contract versions/amendments, flock cycles, batches, approved daily tasks, evidence, and incidents. Use additive migrations.
 4. **Inventory/procurement and operational expenses:** transaction-ledger basis before balances or forecasts.

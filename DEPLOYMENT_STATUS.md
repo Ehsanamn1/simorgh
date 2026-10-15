@@ -2,30 +2,40 @@
 
 Checked: 2026-10-15.
 
-## Completed and verified
+## Current public UI
 
-- Dedicated repository: https://github.com/Ehsanamn1/simorgh, branch `main`.
-- Public site successfully deployed through GitHub Pages: https://ehsanamn1.github.io/simorgh/
-- Successful deployment run: https://github.com/Ehsanamn1/simorgh/actions/runs/38744301095. The deploy action reported success and evaluated that site URL.
-- Supabase project `aoxerjimfiwusidaparx` is `ACTIVE_HEALTHY`, region `eu-central-1` (Frankfurt), API URL `https://aoxerjimfiwusidaparx.supabase.co`.
-- Cost confirmation for the Supabase project was $0/month at project creation. Actual usage/third-party services may be subject to their own limits or charges.
-- Core migration `20261015000000_simorgh_core.sql` applied successfully. Supabase reports 18 application tables, all with RLS enabled, no demo rows, and migration `simorgh_core` recorded.
-- Fixed missing composite unique key needed by the capacity allocation foreign key; correction committed in `6332bc22d3c406db2256b4a6d6b9b43a7253fb29`.
-- GitHub Pages build checks passed: TypeScript, lint, 3 unit tests, production dependency audit (zero findings), and Vite build.
-- GitHub Actions uses a `/simorgh/` base path; BrowserRouter and auth email redirects are base-path aware.
-- The initial company `شبکه سیمرغ` exists in the database. No customer, supplier, order, or other operational sample data was inserted.
+- Site URL: https://ehsanamn1.github.io/simorgh/
+- The public root is a Persian RTL role-selection portal. It intentionally has **no login, sign-up or password-reset form** at the user's current request.
+- The four role previews are: manager/owner Control Tower, supplier/farm partner, driver/transport contractor, and organizational customer. Clicking a card changes the preview only; it does not grant a role, create an account, or load private records.
+- The actual operational routes and authenticated Supabase session/membership logic remain in the source. With no valid session and membership, these previews are not operational workspaces.
 
-## Remaining before real operational use
+## Infrastructure verified previously
 
-- No users have signed up yet (`auth.users` count was 0 at the last check), so the initial owner membership has not yet been assigned.
-- In Supabase Dashboard → Authentication → URL Configuration, set Site URL to `https://ehsanamn1.github.io/simorgh/` and add that exact URL to Redirect URLs. For local development, add `http://localhost:5173/**`.
-- Register the trusted owner's account, confirm email if enabled, and grant that account the first `owner` membership through Supabase SQL Editor (instructions and an idempotent SQL example are in README.md).
-- Test end-to-end login, signup, password reset, owner/staff/customer/supplier/driver role boundaries, RLS, private evidence storage, price agreements, capacity allocation, shipment stages, and finance workflows before entering live records.
-- Supabase security/performance advisors return warnings for authenticated SECURITY DEFINER RPCs that are intentionally guarded in function bodies, plus index and RLS performance recommendations. Review the advisories and run role-specific security tests before scaling; this is not a substitute for an independent security audit.
-- The financial screens record internal ledger status only; they do not initiate or verify bank transfers. Official tax invoices, bank integrations, SMS/transactional email and external ERP/Telegram integrations are not part of this version.
+- Repository: https://github.com/Ehsanamn1/simorgh, branch `main`.
+- Supabase project `aoxerjimfiwusidaparx`, region `eu-central-1`, URL `https://aoxerjimfiwusidaparx.supabase.co`.
+- Core migration `20261015000000_simorgh_core.sql` applied successfully. 18 application tables have RLS enabled; initial company `شبکه سیمرغ` exists.
+- Project creation cost was confirmed at $0/month at the time of creation; free-tier quotas and ancillary services may still have separate limits/charges.
+- No operational customer, supplier, order, shipment, or financial sample rows were intentionally seeded.
+- A previous version was successfully deployed at https://ehsanamn1.github.io/simorgh/; a current version is deployed only after its own CI run succeeds.
 
-## Deployment and source
+## Latest role-portal checks
 
-- Main static hosting workflow: `.github/workflows/pages.yml` (automatic on pushes to `main` and manual dispatch).
-- Optional Cloudflare Pages workflow: `.github/workflows/deploy.yml`; requires Cloudflare API token/account ID and the two public Supabase frontend variables as GitHub repository secrets.
-- Never put a Supabase secret/service-role key in a `VITE_` variable or commit private credentials to Git.
+- CI: TypeScript typecheck, lint, Vitest, production npm audit, and GitHub Pages base-path build have passed in recent runs.
+- A previous browser run failed because the portal root was held behind auth/session loading and the test could not see the role page. The loading gate was removed so the public portal does not wait for session restoration. The new CI/browser result must be checked before claiming the new portal is verified or deployed.
+- Playwright runs in three Chromium viewports (desktop 1365×900, mobile 390×844, compact mobile 360×800). It checks no auth inputs on the public root, role preview navigation/capabilities, no horizontal overflow, and browser exceptions. It does not create records in live Supabase.
+
+## Remaining before operational use
+
+- No registered user or owner membership was present at the last database check. Login/signup UI is intentionally disabled; create/invite the trusted owner through a controlled Supabase Dashboard procedure when account onboarding is ready.
+- Owner membership must be granted deliberately to the verified account; role cards never assign it.
+- Validate the manager member-assignment flow and row-level access using separate owner, staff, customer, supplier, and driver accounts before exposing real workspaces.
+- Review Supabase security/performance advisor findings (guarded SECURITY DEFINER RPCs, RLS query planning and index recommendations) and verify the function bodies/policies with negative access tests.
+- Storage evidence access, order/capacity concurrency, source-to-delivery traceability, and role boundaries are not independently security-audited.
+- Financial pages currently record internal ledger/invoice/settlement states, not bank movements. A complete contract-versioned 50/50 partnership profit/loss engine, farm site/flock/task modules, inventory/procurement ledger, live GPS/camera/AI providers, and external notifications are not implemented or not configured.
+- Never publish a Supabase secret/service-role key in a browser variable or commit private credentials.
+
+## Deployment pipeline
+
+- `.github/workflows/ci.yml`: typecheck, lint, unit tests, production audit, Pages-base build, Chromium installation, responsive browser tests, report artifact.
+- `.github/workflows/pages.yml`: deploys only after successful CI.
+- Optional Cloudflare Pages workflow remains in `.github/workflows/deploy.yml` and requires Cloudflare-specific repository secrets.
