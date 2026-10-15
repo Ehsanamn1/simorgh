@@ -816,7 +816,7 @@ html[data-theme="light"] .objective-manager-mark,html[data-theme="light"] .tower
 
 
 /* Quick navigation on the authenticated executive dashboard. */
-.tower-quick-access{margin:0 0 14px;padding:13px;border:1px solid var(--obs-border);border-radius:14px;background:linear-gradient(145deg,var(--obs-surface),color-mix(in srgb,var(--obs-surface) 78%,var(--obs-elevated));box-shadow:var(--obs-shadow)}
+.tower-quick-access{margin:0 0 14px;padding:13px;border:1px solid var(--obs-border);border-radius:14px;background:linear-gradient(145deg,var(--obs-surface),color-mix(in srgb,var(--obs-surface) 78%,var(--obs-elevated)));box-shadow:var(--obs-shadow)}
 .tower-quick-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}
 .tower-quick-heading>div{display:flex;align-items:center;gap:9px;min-width:0}
 .tower-quick-heading-icon{display:grid;place-items:center;flex:none;width:30px;height:30px;border:1px solid var(--obs-border);border-radius:9px;background:var(--obs-elevated);color:var(--obs-accent)}
