@@ -1,13 +1,12 @@
 # Simorgh — first owner provisioning
 
-The production project has one company record for «شبکه سیمرغ», but no Supabase Auth users and no active memberships. Public registration creates an Auth account; choosing a role does **not** grant access. The first trusted owner must be provisioned explicitly.
+The production project has one company record for «شبکه سیمرغ», but may have no Supabase Auth users and no active memberships. The app intentionally has no public self-registration; the first trusted owner must be provisioned explicitly from the Supabase dashboard.
 
-## Create the trusted account
+## Create the trusted owner account
 
-1. Open the deployed Simorgh site and choose **ورود / ثبت‌نام → ایجاد حساب**.
-2. Use an email address you personally control and choose a strong password. **Do not submit a role request for this account before provisioning the owner.**
-3. Complete email confirmation if Supabase requires it.
-4. In the Supabase project dashboard for `aoxerjimfiwusidaparx`, open **SQL Editor**. Replace `OWNER_EMAIL_HERE` below with the exact email you registered and run this guarded SQL after verifying the account.
+1. Open the Supabase dashboard for project `aoxerjimfiwusidaparx`, then go to **Authentication → Users → Add user**.
+2. Create the first user with an email address you personally control. Confirm/verify the email only after checking it carefully. Generate a strong, unique password and keep it in a password manager; do not send it in chat or commit it.
+3. In the project dashboard, open **SQL Editor**. Replace `OWNER_EMAIL_HERE` below with the exact email entered in Auth and run this guarded SQL after verifying the account.
 
 ```sql
 do $$
@@ -29,15 +28,15 @@ $$;
 ```
 
 5. Sign out and sign in again so the browser reads the new owner membership.
-6. Open **دسترسی کاربران**. New registrations and role requests can now be reviewed by the owner.
+6. Open **دسترسی کاربران** to review access requests from existing accounts. Until a dedicated invite workflow is implemented, create or invite additional Auth users through the Supabase dashboard; do not re-enable public signup as a shortcut.
 
 ## Credential rules
 
-- The username is the email you registered with; the password is the one you set during signup.
+- The username is the email created in Supabase Auth; the password is the unique password set for that account.
 - No default password or hidden super-admin credential is shipped in frontend code, GitHub, migrations, or logs.
 - Never put a Supabase service-role key in a `VITE_*` variable or browser bundle.
 - Run the owner SQL only in the trusted Supabase SQL Editor after verifying the target email.
 
 ## Supabase Auth configuration
 
-In **Authentication → URL Configuration**, allowlist `https://ehsanamn1.github.io/simorgh/` and `https://ehsanamn1.github.io/simorgh/#signin`. Actual email delivery, redirect allowlisting and credentials still require verification in the live Supabase dashboard.
+In **Authentication → URL Configuration**, allowlist `https://ehsanamn1.github.io/simorgh/` and `https://ehsanamn1.github.io/simorgh/#signin`. Email invitations and recovery still depend on verified SMTP and the live redirect allowlist.
