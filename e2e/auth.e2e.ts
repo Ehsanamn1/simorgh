@@ -37,7 +37,7 @@ test('role selection opens an explicit non-operational preview, not private data
   await expect(page.getByRole('heading', { name: 'فضای تأمین و مزرعه' })).toBeVisible();
   await expect(page.getByText('نمای ساختاری، نه پنل عملیاتی')).toBeVisible();
   await expect(page.getByText(/هیچ رکورد خصوصی بارگذاری یا قابل ویرایش نیست/)).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'ظرفیت تولید' })).toBeVisible();
+  await expect(page.getByText('ظرفیت تولید', { exact: true })).toBeVisible();
 
   await page.getByRole('button', { name: /بازگشت به انتخاب نقش/ }).click();
   await expect(page.getByRole('heading', { name: 'برای هر نقش، فضای خودش' })).toBeVisible();
