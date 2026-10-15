@@ -35,7 +35,7 @@ create table public.partnership_agreements (
   effective_to date,
   company_profit_share_pct numeric(5,2) not null default 50 check (company_profit_share_pct between 0 and 100),
   partner_profit_share_pct numeric(5,2) not null default 50 check (partner_profit_share_pct between 0 and 100),
-  shared_expense_categories text[] not null default array['feed','production','packaging','processing','logistics']::text[],
+  shared_expense_categories text[] not null default '{}'::text[],
   settlement_basis text not null default 'collected_cash' check (settlement_basis in ('collected_cash','accrual')),
   settlement_due_days integer not null default 14 check (settlement_due_days between 0 and 365),
   terms jsonb not null default '{}'::jsonb,
@@ -54,7 +54,7 @@ create table public.partnership_agreements (
   foreign key(company_id,supplier_id,supersedes_agreement_id) references public.partnership_agreements(company_id,supplier_id,id) on delete restrict,
   check (company_profit_share_pct + partner_profit_share_pct = 100),
   check (effective_to is null or effective_to >= effective_from),
-  check ((status <> 'active') or (signed_at is not null and approved_at is not null))
+  check ((status <> 'active') or (signed_at is not null and signed_document_path is not null and approved_by is not null and approved_at is not null and cardinality(shared_expense_categories)>0))
 );
 create index partnership_agreement_supplier_status_idx on public.partnership_agreements(company_id,supplier_id,status,effective_from desc);
 
@@ -429,15 +429,19 @@ create policy daily_production_partner_insert on public.daily_production_records
   with check (recorded_by=auth.uid() and exists(select 1 from public.production_batches b where b.company_id=daily_production_records.company_id and b.id=daily_production_records.batch_id and b.supplier_id in (select public.my_supplier_ids())));
 
 create policy task_templates_internal_all on public.task_templates for all to authenticated
-  using (public.is_company_internal(company_id)) with check (public.is_company_internal(company_id));
+  using (public.is_company_manager(company_id)) with check (public.is_company_manager(company_id));
 
-create policy operational_tasks_internal_all on public.operational_tasks for all to authenticated
-  using (public.is_company_internal(company_id)) with check (public.is_company_internal(company_id));
+create policy operational_tasks_manager_all on public.operational_tasks for all to authenticated
+  using (public.is_company_manager(company_id)) with check (public.is_company_manager(company_id));
+create policy operational_tasks_internal_read on public.operational_tasks for select to authenticated
+  using (public.is_company_internal(company_id));
 create policy operational_tasks_assigned_read on public.operational_tasks for select to authenticated
   using (public.is_company_member(company_id) and (assignee_user_id=auth.uid() or assignee_supplier_id in (select public.my_supplier_ids())));
 
-create policy task_evidence_internal_all on public.task_evidence for all to authenticated
-  using (public.is_company_internal(company_id)) with check (public.is_company_internal(company_id));
+create policy task_evidence_manager_all on public.task_evidence for all to authenticated
+  using (public.is_company_manager(company_id)) with check (public.is_company_manager(company_id));
+create policy task_evidence_internal_read on public.task_evidence for select to authenticated
+  using (public.is_company_internal(company_id));
 create policy task_evidence_assignee_read on public.task_evidence for select to authenticated
   using (exists(select 1 from public.operational_tasks t where t.company_id=task_evidence.company_id and t.id=task_evidence.task_id and public.is_company_member(t.company_id) and (t.assignee_user_id=auth.uid() or t.assignee_supplier_id in (select public.my_supplier_ids()))));
 create policy task_evidence_assignee_insert on public.task_evidence for insert to authenticated
@@ -465,25 +469,37 @@ create policy partner_settlement_supplier_read on public.partner_settlement_peri
 create or replace function public.guard_partnership_agreement_version()
 returns trigger language plpgsql set search_path='' as $$
 begin
-  if tg_op='DELETE' and old.status in ('active','suspended','expired','terminated') then
-    raise exception 'قرارداد فعال یا تاریخی حذف نمی‌شود؛ الحاقیه با نسخه جدید بسازید';
+  if tg_op='INSERT' then
+    if new.status<>'draft' then raise exception 'قرارداد جدید ابتدا باید پیش‌نویس باشد'; end if;
+    new.created_by:=auth.uid(); new.approved_by:=null; new.approved_at:=null;
+    return new;
   end if;
-  if tg_op='UPDATE' and old.status in ('active','suspended','expired','terminated') then
-    if (to_jsonb(new) - array['status','updated_at'])
-       is distinct from
-       (to_jsonb(old) - array['status','updated_at']) then
-      raise exception 'شروط قرارداد فعال/تاریخی تغییر نمی‌کند؛ نسخه جدید یا الحاقیه بسازید';
-    end if;
-    if old.status in ('expired','terminated') and new.status is distinct from old.status then
-      raise exception 'وضعیت قرارداد تاریخی قابل بازگشت نیست';
-    end if;
-    if old.status='active' and new.status not in ('active','suspended','expired','terminated') then
-      raise exception 'گذار وضعیت قرارداد فعال مجاز نیست';
-    end if;
+  if tg_op='DELETE' then
+    if old.status<>'draft' then raise exception 'قرارداد از مرحله پیش‌نویس به بعد حذف نمی‌شود؛ نسخه یا وضعیت اصلاحی ثبت کنید'; end if;
+    return old;
   end if;
-  if tg_op='DELETE' then return old; end if;
+  if old.status in ('expired','terminated') then raise exception 'قرارداد تاریخی یا خاتمه‌یافته قابل تغییر نیست'; end if;
+  if old.status in ('active','suspended') and
+    (to_jsonb(new) - array['status','updated_at']) is distinct from (to_jsonb(old) - array['status','updated_at']) then
+    raise exception 'شروط قرارداد امضاشده تغییر نمی‌کند؛ الحاقیه یا نسخه جدید بسازید';
+  end if;
+  if new.status is distinct from old.status and not (
+    (old.status='draft' and new.status in ('pending_signature','terminated')) or
+    (old.status='pending_signature' and new.status in ('active','terminated')) or
+    (old.status='active' and new.status in ('suspended','expired','terminated')) or
+    (old.status='suspended' and new.status in ('active','expired','terminated'))
+  ) then raise exception 'گذار وضعیت قرارداد مجاز نیست'; end if;
+  if new.status='active' and old.status='pending_signature' then
+    if nullif(trim(coalesce(new.signed_document_path,'')),'') is null or new.signed_at is null then
+      raise exception 'فعال‌سازی قرارداد نیازمند سند امضاشده واقعی است';
+    end if;
+    if coalesce(cardinality(new.shared_expense_categories),0)=0 then
+      raise exception 'دسته‌های هزینه مشترک باید طبق قرارداد تعریف شوند';
+    end if;
+    new.approved_by:=auth.uid(); new.approved_at:=now();
+  end if;
   return new;
-end $;
+end $$;
 create trigger guard_partnership_agreement_update
   before update or delete on public.partnership_agreements for each row execute function public.guard_partnership_agreement_version();
 
@@ -491,28 +507,26 @@ create trigger guard_partnership_agreement_update
 create or replace function public.guard_approved_task_template()
 returns trigger language plpgsql set search_path='' as $$
 begin
-  if tg_op='DELETE' and old.status='approved' then
-    raise exception 'نسخه تأییدشده دستورالعمل حذف نمی‌شود؛ نسخه جدید بسازید';
+  if tg_op='INSERT' then
+    if new.status<>'draft' then raise exception 'الگوی وظیفه جدید ابتدا باید پیش‌نویس باشد'; end if;
+    new.created_by:=auth.uid(); new.approved_by:=null; new.approved_at:=null;
+    return new;
   end if;
-  if tg_op='UPDATE' and old.status='approved' then
-    if new.company_id is distinct from old.company_id
-      or new.template_code is distinct from old.template_code
-      or new.version is distinct from old.version
-      or new.title is distinct from old.title
-      or new.instructions is distinct from old.instructions
-      or new.category is distinct from old.category
-      or new.priority is distinct from old.priority
-      or new.evidence_required is distinct from old.evidence_required
-      or new.expected_evidence_types is distinct from old.expected_evidence_types
-      or new.approved_by is distinct from old.approved_by
-      or new.approved_at is distinct from old.approved_at then
-      raise exception 'دستورالعمل تأییدشده immutable است؛ برای تغییر نسخه جدید بسازید';
-    end if;
-    if new.status not in ('approved','retired') then
-      raise exception 'نسخه تأییدشده فقط می‌تواند بازنشسته شود';
-    end if;
+  if tg_op='DELETE' then
+    if old.status<>'draft' then raise exception 'الگوی تأیید یا بازنشسته حذف نمی‌شود'; end if;
+    return old;
   end if;
-  if tg_op='DELETE' then return old; end if;
+  if old.status='retired' then raise exception 'الگوی بازنشسته قابل ویرایش نیست'; end if;
+  if old.status='approved' then
+    if (to_jsonb(new) - array['status','updated_at']) is distinct from (to_jsonb(old) - array['status','updated_at']) then
+      raise exception 'الگوی تأییدشده تغییر نمی‌کند؛ نسخه جدید بسازید';
+    end if;
+    if new.status not in ('approved','retired') then raise exception 'الگوی تأییدشده فقط می‌تواند بازنشسته شود'; end if;
+  elsif new.status='approved' then
+    new.approved_by:=auth.uid(); new.approved_at:=now();
+  elsif new.status not in ('draft','retired') then
+    raise exception 'گذار وضعیت الگو مجاز نیست';
+  end if;
   return new;
 end $$;
 create trigger guard_approved_task_template_update
