@@ -147,10 +147,6 @@ export default function ProductExperience() {
     }));
   }, [allowedLinks]);
 
-  const openSignIn = (nextMode: AuthMode = 'signin') => {
-    setError(''); setNotice(''); setMode(nextMode);
-    navigate({ pathname: location.pathname, search: location.search, hash: '#signin' });
-  };
   const closeSignIn = () => {
     setError(''); setNotice('');
     navigate({ pathname: location.pathname, search: location.search, hash: '' }, { replace: true });
@@ -158,7 +154,7 @@ export default function ProductExperience() {
 
   async function submitAuth(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!supabase || !isSupabaseConfigured) { setError('اتصال احراز هویت در این نسخه پیکربندی نشده است. ورود یا ثبت‌نام آنلاین در دسترس نیست.'); return; }
+    if (!supabase || !isSupabaseConfigured) { setError('اتصال احراز هویت در این نسخه پیکربندی نشده است. ورود آنلاین در دسترس نیست.'); return; }
     setBusy(true); setError(''); setNotice('');
     try {
       if (mode === 'reset') {
