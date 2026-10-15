@@ -1,0 +1,106 @@
+# Simorgh — Repository & Product Audit
+
+**Audit date:** 2026-10-15  
+**Scope:** Current `main` source, Supabase migration/project state, published GitHub Pages app, and CI configuration.  
+**Purpose:** Keep implementation evidence-led and extend the existing product without replacing its stack.
+
+## 1. Verified current architecture
+
+- **Frontend:** React 19, TypeScript, Vite, React Router, custom CSS, Lucide icons, and Recharts.
+- **Application entry:** `index.html` → `src/main.tsx` → `BrowserRouter` (base path from Vite) → `AuthProvider` → `src/App.tsx`.
+- **Authentication:** Supabase Auth email/password sign-in, sign-up, and password-reset UI in `src/App.tsx`; session and active memberships are loaded by `src/lib/AuthContext.tsx`.
+- **Data access:** Browser-side `@supabase/supabase-js` in `src/lib/supabase.ts`. Database access depends on Postgres RLS and guarded SQL functions; hiding a UI element is not the authorization boundary.
+- **Database:** Supabase Postgres project `aoxerjimfiwusidaparx`, region `eu-central-1`. Migration `supabase/migrations/20261015000000_simorgh_core.sql` is applied. All 18 application tables report RLS enabled. Initial company row `شبکه سیمرغ` exists, with no owner membership yet.
+- **Hosting:** Static SPA on GitHub Pages at https://ehsanamn1.github.io/simorgh/; automatic deploy is gated on a successful `Simorgh CI` workflow. Optional Cloudflare Pages workflow remains in the repository.
+- **Storage:** Private Supabase Storage bucket `delivery-evidence` and associated access policies exist in the migration; upload/access scenarios still need role-by-role verification.
+- **Test baseline:** Vitest unit tests cover currency/role/order-state labels. Browser checks are being added for desktop/mobile auth entry, layout overflow, control sizes, and form-mode transitions. Final pass/fail results must come from the latest CI run, not from this plan.
+
+## 2. Architecture diagram
+
+```mermaid
+flowchart TD
+  Browser[Browser: React + TypeScript + Vite] --> Routes[React Router / role-aware workspaces]
+  Routes --> Auth[Supabase Auth session]
+  Routes --> Client[Supabase JS client]
+  Client --> RLS[Postgres RLS policies]
+  RLS --> DB[(Supabase Postgres)]
+  Client --> Storage[Private evidence storage]
+  DB --> RPC[Guarded SQL functions and triggers]
+  GitHub[GitHub main + CI] --> Pages[GitHub Pages static deployment]
+  Pages --> Browser
+```
+
+## 3. Domain model currently represented
+
+- `companies` is the tenant root; `memberships` binds authenticated users to a company and role.
+- `customers`, `suppliers`, and `products` are company-scoped entities.
+- `price_agreements` links customer, product, unit price, minimum quantity, and validity window.
+- `orders` contains order headers; `order_items` links product and quantity to an order and can be allocated to a supplier, capacity commitment, and production lot.
+- `capacity_commitments` records supplier/product capacity over a date range, including declared, confirmed, and committed quantities.
+- `lots` and `quality_reviews` represent traceable batches and inspection outcomes.
+- `shipments` link to orders; `delivery_evidence` records proof such as images, notes, signatures, and temperature readings.
+- `invoices` and `settlements` store internal invoice and settlement states; they do not move or verify bank funds.
+- `notifications` and `audit_events` hold in-app notifications and change history.
+
+## 4. Feature matrix
+
+| Area | Current state | Notes / acceptance gap |
+|---|---|---|
+| Sign-in, sign-up, password reset | **UI implemented** | Must validate Auth redirect URLs, email verification/recovery, and actual Supabase behavior. |
+| Organization isolation and memberships | **Implemented baseline** | First trusted owner must be assigned; test object-level access for every role. |
+| Company command dashboard | **Implemented baseline** | Four metrics are queried from real records; chart describes recent orders, not a full historical BI warehouse. Avoid fake/forecast values. |
+| Customers, suppliers, products, price agreements | **Implemented baseline** | Validate required business fields, pricing rules, and real commercial processes. |
+| Orders and capacity allocation | **Implemented baseline** | SQL transition/allocating functions exist; concurrency and capacity boundaries require end-to-end tests. |
+| Lots and quality reviews | **Partial** | Basic batch/review records exist; end-to-end source-to-customer traceability and corrective-action workflows are incomplete. |
+| Shipments and delivery evidence | **Partial** | Shipment stages and private evidence exist; actual GPS collection, live map, carrier acceptance workflow, offline syncing, and discrepancy handling are not implemented. |
+| Invoices and partner settlements | **Partial** | Internal status records exist; bank movements, collection allocation, approved expenses, advances, a contract-versioned 50/50 profit/loss engine, and statement reconciliation are missing. |
+| Farm sites, flock cycles, production batches, daily tasks | **Missing** | Needed before the platform can replace daily farm production logs. |
+| Inventory and procurement | **Missing** | No stock ledger, goods receipts, reservations, purchasing lifecycle, or versioned feed-use records in current schema. |
+| Driver/transport contractors | **Partial** | Role-specific shipment list is a starting point; trip acceptance, GPS observations, stale-location state, rates, and contractor statements are absent. |
+| AI agents and approvals | **Missing** | No agent orchestration, run log, tool allowlist, approvals inbox, scheduler, or AI governance layer found in current source. |
+| Notifications/jobs | **Partial** | Notification table exists; delivery channels, idempotent job runner, retries, and visible failure monitoring are not configured. |
+| External camera / telemetry integrations | **Not configured** | Never claim a camera, GPS tracker, or sensor is connected without a verified adapter and successful device-level test. |
+| Responsive UI | **Existing responsive CSS; being refined** | The earlier styles used many 7–10px labels and hid the search field on narrow screens. Browser tests must verify mobile viewport behavior after refinement. |
+
+## 5. UI/UX audit and direction
+
+### Confirmed issues in the original source
+- Most secondary text, form labels, table cells, sidebar links, and status labels used 7–10px fonts, including mobile overrides. This is too small for a dense operational product and made the UI feel like an admin template.
+- Several page-section eyebrow labels were English internal identifiers while the actual workspace was Persian/RTL.
+- The mobile breakpoint hid the full search input, leaving only a decorative search icon.
+- The dashboard advertised a keyboard shortcut `⌘ K` without an implementation.
+- Three “first actions” on the command dashboard were static `div` elements rather than links, despite appearing actionable.
+- The initial dashboard uses live counts and current records; empty states explicitly avoid demo metrics. Preserve that data integrity.
+
+### UI changes started
+- A consistent typography/spacing/radius system with more legible labels, inputs, tables, and status chips.
+- Improved auth screen hierarchy and a restrained forest/leaf visual language rather than tiny developer-style metadata.
+- Persian page-section labels and a real help link.
+- Working dashboard quick-action links to customers, suppliers, and products.
+- Browser-level checks for desktop and mobile layout, input/button touch sizes, no horizontal overflow, and sign-in/sign-up/recovery mode navigation.
+
+### Reference research used for principles, not for copying
+- [TraceFarm — platform screens](https://tracefarm.eu/screens): the product groups task/deadline and financial views alongside the farm dashboard.
+- [FarmAct — field operations](https://givi.design/projects/farmact): a useful reference for treating mobile workers and the office control view as one workflow.
+- [Supply Chain Dashboard UX case study](https://venkateshux.com/portfolio/ux-case-study-supply-chain-dashboard/): centralizing suppliers, purchase orders, catalogue and billing.
+- [Exception-first operations dashboard concept](https://www.leeonex.com/case-studies/exception-first-operations-dashboard-concept): prioritizing actionable exceptions, freshness of data, ownership, and next action. The source labels itself a concept study, not a measured client deployment.
+
+## 6. Security and operational risks
+
+- RLS is enabled on each of the 18 application tables, but that alone does not prove every policy is correct. Run negative access tests using separate owner, staff, customer, supplier, and driver accounts.
+- Supabase security advisors report warnings for authenticated access to guarded `SECURITY DEFINER` RPC functions, plus RLS query-planning and index recommendations. Review function bodies and verify that unauthorized callers cannot act; do not treat an advisor warning as either proof of exploitability or proof of safety.
+- The first company exists, but at audit time there are no registered users and no owner membership. Auth redirect URLs and the first-owner bootstrap remain a setup dependency.
+- Keep `service_role` / database secrets off the browser and out of `VITE_` variables. Only the publishable key belongs in the static build.
+- No independent security audit has been conducted. Payment, tax invoice, SMS, Google OAuth, live GPS, live camera, and AI providers are not configured as working integrations.
+
+## 7. Implementation order and regression risks
+
+1. **Design system + browser smoke tests** (current work): typography, spacing, responsive search/table/form behavior; avoid altering data contracts.
+2. **Owner onboarding and role-level RLS tests:** prerequisite to safe use by real users.
+3. **Farm/partner contracts and production lifecycle:** farm sites, contract versions/amendments, flock cycles, batches, approved daily tasks, evidence, and incidents. Use additive migrations.
+4. **Inventory/procurement and operational expenses:** transaction-ledger basis before balances or forecasts.
+5. **Contract-versioned 50/50 reconciliation:** deterministic calculations, separate incurred/approved/paid/allocated/settled amounts, reversals and audit trail; never implement as a display-only percentage.
+6. **Logistics completion:** carrier/driver assignments, timestamps, evidence, discrepancies, GPS adapter and stale state—only after an actual device/browser capability test.
+7. **AI agents last:** bounded read tools first, auditable draft recommendations, approvals for external/financial actions; never arbitrary SQL or autonomous veterinary treatment.
+
+**Regression guardrails:** keep current route names and roles, never seed production workflows, retain current Supabase project and data, apply additive migrations, and require CI success before deploying.
