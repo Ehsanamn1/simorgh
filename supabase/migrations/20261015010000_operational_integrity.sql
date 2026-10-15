@@ -1023,28 +1023,8 @@ on conflict(id) do nothing;
 create policy contract_documents_storage_read on storage.objects for select to authenticated
 using (
   bucket_id='contract-documents'
-  and (storage.foldername(name))[1] ~* '^[0-9a-f-]{36}revoke all on public.farm_sites,public.partnership_agreements,public.flock_cycles,public.production_batches,
-  public.daily_production_records,public.task_templates,public.operational_tasks,public.task_evidence,
-  public.operational_incidents,public.partner_financial_entries,public.partner_settlement_periods from anon;
-grant select,insert,update,delete on public.farm_sites,public.partnership_agreements,public.flock_cycles,
-  public.production_batches,public.daily_production_records,public.task_templates,public.operational_tasks,
-  public.task_evidence,public.operational_incidents,public.partner_financial_entries,public.partner_settlement_periods
-to authenticated;
--- Settlement periods can be mutated only through the guarded SECURITY DEFINER RPCs above.
-revoke insert,update,delete on public.partner_settlement_periods from authenticated;
-grant select on public.partner_settlement_periods to authenticated;
-
-  and (storage.foldername(name))[2] ~* '^[0-9a-f-]{36}revoke all on public.farm_sites,public.partnership_agreements,public.flock_cycles,public.production_batches,
-  public.daily_production_records,public.task_templates,public.operational_tasks,public.task_evidence,
-  public.operational_incidents,public.partner_financial_entries,public.partner_settlement_periods from anon;
-grant select,insert,update,delete on public.farm_sites,public.partnership_agreements,public.flock_cycles,
-  public.production_batches,public.daily_production_records,public.task_templates,public.operational_tasks,
-  public.task_evidence,public.operational_incidents,public.partner_financial_entries,public.partner_settlement_periods
-to authenticated;
--- Settlement periods can be mutated only through the guarded SECURITY DEFINER RPCs above.
-revoke insert,update,delete on public.partner_settlement_periods from authenticated;
-grant select on public.partner_settlement_periods to authenticated;
-
+  and (storage.foldername(name))[1] ~* '^[0-9a-f-]{36}$'
+  and (storage.foldername(name))[2] ~* '^[0-9a-f-]{36}$'
   and (
     public.is_company_manager(((storage.foldername(name))[1])::uuid)
     or exists(
@@ -1060,28 +1040,8 @@ grant select on public.partner_settlement_periods to authenticated;
 create policy contract_documents_storage_insert on storage.objects for insert to authenticated
 with check (
   bucket_id='contract-documents'
-  and (storage.foldername(name))[1] ~* '^[0-9a-f-]{36}revoke all on public.farm_sites,public.partnership_agreements,public.flock_cycles,public.production_batches,
-  public.daily_production_records,public.task_templates,public.operational_tasks,public.task_evidence,
-  public.operational_incidents,public.partner_financial_entries,public.partner_settlement_periods from anon;
-grant select,insert,update,delete on public.farm_sites,public.partnership_agreements,public.flock_cycles,
-  public.production_batches,public.daily_production_records,public.task_templates,public.operational_tasks,
-  public.task_evidence,public.operational_incidents,public.partner_financial_entries,public.partner_settlement_periods
-to authenticated;
--- Settlement periods can be mutated only through the guarded SECURITY DEFINER RPCs above.
-revoke insert,update,delete on public.partner_settlement_periods from authenticated;
-grant select on public.partner_settlement_periods to authenticated;
-
-  and (storage.foldername(name))[2] ~* '^[0-9a-f-]{36}revoke all on public.farm_sites,public.partnership_agreements,public.flock_cycles,public.production_batches,
-  public.daily_production_records,public.task_templates,public.operational_tasks,public.task_evidence,
-  public.operational_incidents,public.partner_financial_entries,public.partner_settlement_periods from anon;
-grant select,insert,update,delete on public.farm_sites,public.partnership_agreements,public.flock_cycles,
-  public.production_batches,public.daily_production_records,public.task_templates,public.operational_tasks,
-  public.task_evidence,public.operational_incidents,public.partner_financial_entries,public.partner_settlement_periods
-to authenticated;
--- Settlement periods can be mutated only through the guarded SECURITY DEFINER RPCs above.
-revoke insert,update,delete on public.partner_settlement_periods from authenticated;
-grant select on public.partner_settlement_periods to authenticated;
-
+  and (storage.foldername(name))[1] ~* '^[0-9a-f-]{36}$'
+  and (storage.foldername(name))[2] ~* '^[0-9a-f-]{36}$'
   and public.is_company_manager(((storage.foldername(name))[1])::uuid)
   and exists(
     select 1 from public.suppliers su
@@ -1098,6 +1058,6 @@ grant select,insert,update,delete on public.farm_sites,public.partnership_agreem
   public.production_batches,public.daily_production_records,public.task_templates,public.operational_tasks,
   public.task_evidence,public.operational_incidents,public.partner_financial_entries,public.partner_settlement_periods
 to authenticated;
--- Settlement periods can be mutated only through the guarded SECURITY DEFINER RPCs above.
+-- Settlement periods mutate only through the guarded SECURITY DEFINER RPCs.
 revoke insert,update,delete on public.partner_settlement_periods from authenticated;
 grant select on public.partner_settlement_periods to authenticated;
