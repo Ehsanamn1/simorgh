@@ -1,14 +1,19 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Simorgh">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="نشان سیمرغ">
+  <defs>
+    <linearGradient id="wing" x1="18" y1="20" x2="103" y2="100" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#B8E1DF"/>
+      <stop offset="1" stop-color="#6EB9AC"/>
+    </linearGradient>
+  </defs>
   <rect width="128" height="128" rx="28" fill="#0B1012"/>
   <rect x="8" y="8" width="112" height="112" rx="23" fill="#11191C" stroke="#29373B" stroke-width="2"/>
-  <g fill="#B4DDE0">
-    <path d="M17 31c16 0 30 4 43 12l8 7-21-1c-11-2-20-5-29-9Z"/>
-    <path d="M15 46c15 0 27 4 40 10l10 8-20 1c-11-3-21-7-28-11Z"/>
-    <path d="M18 61c11 0 21 3 31 9l10 8-17 1c-10-3-18-7-24-11Z"/>
-    <path d="M29 78c14-10 28-12 42-6 8 3 13 9 18 17-14 12-32 12-46 4-6-3-11-8-14-15Z"/>
-    <path d="M53 76c9-10 16-20 22-32 5-14 13-24 25-23 9 1 14 9 10 18-2 6-7 9-14 10l-8 1-1 13 15-1-8 10-12 1c-4 11-9 18-17 22-6-5-10-10-12-19Z"/>
-    <path d="M32 91c-4 6-10 10-18 10 11 6 23 4 33-4l-5-7Z"/>
-    <path d="m105 35 16-6-9 15-6 0Z"/>
+  <g fill="url(#wing)">
+    <path d="M17 32C38 28 57 36 75 54C54 45 36 47 19 53L17 32Z"/>
+    <path d="M14 51C35 44 53 53 70 68C50 62 32 66 17 73L14 51Z" opacity=".8"/>
+    <path d="M21 72C38 65 51 73 61 84C46 81 34 86 25 94L21 72Z" opacity=".63"/>
+    <path d="M55 83C68 70 78 54 83 39C87 25 96 17 105 21C114 24 117 33 112 41C109 46 104 48 97 48L93 48L93 60L105 58L99 67L90 68C84 83 74 94 62 98C58 94 56 89 55 83Z"/>
   </g>
-  <circle cx="104" cy="31" r="2.8" fill="#0B1012"/>
+  <path d="M28 26L46 35M23 45L40 51M28 65L44 70M52 90C65 93 77 86 86 73" stroke="#B8E1DF" stroke-width="2.5" stroke-linecap="round" opacity=".45"/>
+  <circle cx="104" cy="31" r="3.1" fill="#0B1012"/>
+  <circle cx="104" cy="31" r="6.3" stroke="#B8E1DF" stroke-width="1.5" opacity=".7"/>
 </svg>
