@@ -139,7 +139,7 @@ const workspaceProfiles: {
   },
 ];
 
-function WorkspacePortal() {
+export function WorkspacePortal() {
   const [selectedKey, setSelectedKey] = useState<WorkspacePreviewKey>('manager');
   const [showPreview, setShowPreview] = useState(false);
   const selected = workspaceProfiles.find(profile => profile.key === selectedKey) ?? workspaceProfiles[0];
