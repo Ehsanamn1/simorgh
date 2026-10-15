@@ -120,13 +120,14 @@ export default function ProductExperience() {
   }, [user?.id, user?.user_metadata, memberships.length]);
 
   useEffect(() => {
+    const canCloseWithEscape: boolean = mode !== 'recovery';
     if (!signInOpen) return;
     const background = document.querySelector<HTMLElement>('.portal, .app-frame');
     const oldOverflow = document.body.style.overflow;
     if (background) background.inert = true;
     document.body.style.overflow = 'hidden';
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !protectedRoute && mode !== 'recovery') {
+      if (event.key === 'Escape' && !protectedRoute && canCloseWithEscape) {
         setError(''); setNotice('');
         navigate({ pathname: location.pathname, search: location.search, hash: '' }, { replace: true });
       }

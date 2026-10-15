@@ -2,7 +2,7 @@ import type * as React from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import {
-  Activity, ArrowLeft, ArrowUpLeft, Boxes, Building2, CheckCircle2,
+  Activity, ArrowLeft, ArrowUpLeft, Boxes, Building2, Check, CheckCircle2,
   ChevronDown, CircleHelp, ClipboardCheck, CreditCard, Factory, FileCheck2, FileText, LayoutDashboard,
   LogOut, Menu, Package, Plus, Search, Settings2, ShieldCheck, Truck, Users, UserPlus, Warehouse, X, Zap,
 } from 'lucide-react';
