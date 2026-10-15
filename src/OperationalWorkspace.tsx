@@ -106,7 +106,7 @@ export default function OperationalWorkspace({authLoading=false,hasMembership=fa
     </div>
    </section>
   </div>
-  <nav className="ops-live-bottom-nav" aria-label="ناوبری اصلی موبایل"><button className={page==='command'?'active':''} onClick={()=>go('command')} type="button"><Home size={19}/><span>خانه</span></button><button className={['orders','farms','production','tasks','inventory','shipments'].includes(page)?'active':''} onClick={()=>go('tasks')} type="button"><ClipboardCheck size={19}/><span>عملیات</span></button><button className={page==='shipments'?'active':''} onClick={()=>go('map')} type="button"><Route size={19}/><span>نقشه</span></button><button type="button" className={drawerOpen?'active':''} onClick={()=>setDrawerOpen(true)}><Menu size={19}/><span>بیشتر</span></button></nav>
+  <nav className="ops-live-bottom-nav" aria-label="ناوبری اصلی موبایل"><button className={page==='command'?'active':''} onClick={()=>go('command')} type="button"><Home size={19}/><span>خانه</span></button><button className={['orders','farms','production','tasks','inventory','shipments'].includes(page)?'active':''} onClick={()=>go('tasks')} type="button"><ClipboardCheck size={19}/><span>عملیات</span></button><button className={page==='map'?'active':''} onClick={()=>go('map')} type="button"><Route size={19}/><span>نقشه</span></button><button type="button" className={drawerOpen?'active':''} onClick={()=>setDrawerOpen(true)}><Menu size={19}/><span>بیشتر</span></button></nav>
  </main>;
 }
 function ModuleWorkspace({module,hasMembership,onHome}:{module:ModuleItem;hasMembership:boolean;onHome:()=>void}){
