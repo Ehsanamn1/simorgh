@@ -122,7 +122,7 @@ create index production_batches_supplier_idx on public.production_batches(compan
 
 -- A batch must match the actual facility owner, agreement partner, flock cycle and traced lot.
 create or replace function public.guard_production_batch_scope()
-returns trigger language plpgsql set search_path='' as $
+returns trigger language plpgsql set search_path='' as $$
 declare site_supplier uuid; agreement_supplier uuid; cycle_site uuid; lot_supplier uuid; lot_product uuid;
 begin
   select fs.supplier_id into site_supplier from public.farm_sites fs where fs.company_id=new.company_id and fs.id=new.farm_site_id;
@@ -156,7 +156,7 @@ begin
     where l.company_id=new.company_id and l.id=new.lot_id and l.status='released' and q.result='pass'
   ) then raise exception 'بچ ردیابی باید بررسی کیفیت موفق و وضعیت آزادشده داشته باشد'; end if;
   return new;
-end $;
+end $$;
 create trigger guard_production_batch_scope
   before insert or update on public.production_batches for each row execute function public.guard_production_batch_scope();
 
@@ -612,7 +612,7 @@ begin
   end if;
   if tg_op='DELETE' then return old; end if;
   return new;
-end $;
+end $$;
 create trigger guard_partner_financial_entry_update
   before update or delete on public.partner_financial_entries for each row execute function public.guard_posted_partner_financial_entry();
 
