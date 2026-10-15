@@ -5,9 +5,9 @@ Checked: 2026-10-15.
 ## Published application
 
 - **Live URL:** https://ehsanamn1.github.io/simorgh/
-- **Latest verified runtime commit:** `058a9e74a32bdc11e56dbd23b05235d89cd05f49`.
-- **Successful CI:** [Run 38769548002](https://github.com/Ehsanamn1/simorgh/actions/runs/38769548002).
-- **Successful deployment:** [Run 38769835859](https://github.com/Ehsanamn1/simorgh/actions/runs/38769835859).
+- **Latest verified runtime commit:** `bd29c4dc91b0ef600f048d5671843463cce388ec`.
+- **Successful CI:** [Run 38770634676](https://github.com/Ehsanamn1/simorgh/actions/runs/38769548002).
+- **Successful deployment:** [Run 38770881239](https://github.com/Ehsanamn1/simorgh/actions/runs/38769835859).
 - Frontend uses React 19, TypeScript, Vite, React Router and custom responsive CSS. Static hosting is GitHub Pages; Vercel is not used.
 - Supabase project `aoxerjimfiwusidaparx` in `eu-central-1` is connected by its Project URL and a browser-safe publishable key. The core migration created 18 app tables with RLS enabled, and the initial company `شبکه سیمرغ` exists.
 - Creation of the Supabase project was confirmed at $0/month. Free-tier limits and any ancillary services remain subject to their terms/limits.
@@ -19,7 +19,7 @@ On the verified runtime commit, the latest completed CI reported:
 - TypeScript typecheck: **passed**
 - ESLint: **passed**
 - Vitest unit tests: **4 passed**
-- Playwright browser tests: **21 passed** across desktop Chromium (1365×900), mobile Chromium (390×844), and compact mobile Chromium (360×800)
+- Playwright browser tests: **27 passed** across desktop Chromium (1365×900), mobile Chromium (390×844), and compact mobile Chromium (360×800)
 - Production dependency audit: **0 production vulnerabilities reported**
 - Vite production build for the Pages `/simorgh/` base path: **passed**
 - Deploy build and GitHub Pages deployment: **passed**
