@@ -22,7 +22,7 @@ jobs:
             echo "Application source already exists; nothing to import."
             exit 0
           fi
-          cat simorgh-bundle/part-* > "$RUNNER_TEMP/simorgh.bundle.b64"
+          cat simorgh-bundle/part-01 simorgh-bundle/part-02 simorgh-bundle/part-03 simorgh-bundle/part-04 simorgh-bundle/part-05 simorgh-bundle/part-06 simorgh-bundle/part-07a simorgh-bundle/part-07b simorgh-bundle/part-07c simorgh-bundle/part-08a simorgh-bundle/part-08b simorgh-bundle/part-08c simorgh-bundle/part-09a simorgh-bundle/part-09b > "$RUNNER_TEMP/simorgh.bundle.b64"
           base64 --decode "$RUNNER_TEMP/simorgh.bundle.b64" > "$RUNNER_TEMP/simorgh.bundle"
           git clone "$RUNNER_TEMP/simorgh.bundle" "$RUNNER_TEMP/source"
           rsync -a --exclude='.git' "$RUNNER_TEMP/source/" "$GITHUB_WORKSPACE/"
