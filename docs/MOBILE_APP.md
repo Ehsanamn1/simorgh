@@ -39,4 +39,5 @@ npx cap open ios
 - App launch goes directly to the operational route; no marketing page or public self-registration is part of the entry flow.
 - A fresh device must sign in using an account provisioned by the company owner.
 - Theme selection is saved locally as a user interface preference; it does not alter roles or backend data.
-- Native GPS, push notifications, barcode/QR scanning, background location, and offline write conflict handling need their own tested permission flows before being claimed as production features.
+- Shipment GPS capture is implemented as an explicit one-tap foreground action for the assigned driver. The device asks permission and database RLS restricts writes to that driver's assigned, active shipment. No background tracking is enabled.
+- Push notifications, barcode/QR scanning, background location, and offline write conflict handling are not implemented as production workflows.
