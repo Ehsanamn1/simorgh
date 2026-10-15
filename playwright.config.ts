@@ -3,6 +3,7 @@ import { env } from 'node:process';
 
 export default defineConfig({
   testDir: './e2e',
+  testMatch: '**/*.e2e.ts',
   fullyParallel: true,
   forbidOnly: Boolean(env.CI),
   retries: env.CI ? 1 : 0,
