@@ -2,37 +2,34 @@ import { expect, test } from '@playwright/test';
 
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
-    try { localStorage.removeItem('simorgh-theme'); } catch { /* no-op in restricted storage contexts */ }
+    try { localStorage.removeItem('simorgh-theme'); } catch { /* private mode may disable storage */ }
   });
 });
 
-test('app-first guest entry opens the Obsidian workspace without a login or signup screen', async ({ page }) => {
+test('the app opens the Persian operational workspace with no sign-in page or preview-role selector', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.goto('/simorgh/', { waitUntil: 'domcontentloaded' });
 
-  await expect(page).toHaveTitle(/سیمرغ \| Obsidian Intelligence/);
+  await expect(page).toHaveTitle(/سیمرغ \| مدیریت یکپارچه عملیات/);
   await expect(page).toHaveURL(/\/simorgh\/app\/command$/);
-  await expect(page.locator('.sim-preview-app')).toBeVisible();
+  await expect(page.locator('.ops-live-app')).toBeVisible();
   await expect(page.locator('#app-boot-screen')).toHaveCount(0);
   await expect(page.locator('.portal')).toHaveCount(0);
   await expect(page.locator('.simorgh-signin-layer')).toHaveCount(0);
-  await expect(page.locator('.sim-preview-sidebar')).toBeVisible();
+  await expect(page.locator('.sim-preview-palette')).toHaveCount(0);
   await expect(page.getByRole('heading', { name: 'مرکز فرمان شبکه' })).toBeVisible();
-  await expect(page.getByText(/هیچ سری داده‌ای به‌صورت نمایشی رسم نشده است/)).toBeVisible();
+  await expect(page.getByText('دسترسی سریع')).toBeVisible();
+  await expect(page.locator('.ops-live-quick-card')).toHaveCount(4);
+  await expect(page.locator('.ops-live-status')).toContainText('داده‌های شرکت در انتظار فعال‌سازی حساب مالک');
 
-  const dimensions = await page.evaluate(() => ({
-    viewport: innerWidth,
-    document: document.documentElement.scrollWidth,
-    body: document.body.scrollWidth,
-  }));
+  const dimensions = await page.evaluate(() => ({ viewport: innerWidth, document: document.documentElement.scrollWidth, body: document.body.scrollWidth }));
   expect(dimensions.document).toBeLessThanOrEqual(dimensions.viewport);
   expect(dimensions.body).toBeLessThanOrEqual(dimensions.viewport);
   expect(errors).toEqual([]);
 });
 
-
-test('a blocked application bundle shows a recovery screen rather than a blank black page', async ({ page }, testInfo) => {
+test('a blocked JavaScript bundle shows a recovery state instead of a black page', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop-chromium', 'Run the startup failure simulation once.');
   await page.route(/\/simorgh\/assets\/.*\.js(?:\?.*)?$/, route => route.abort());
   await page.goto('/simorgh/', { waitUntil: 'domcontentloaded' });
@@ -41,32 +38,28 @@ test('a blocked application bundle shows a recovery screen rather than a blank b
   await expect(page.getByRole('button', { name: 'بارگذاری دوباره' })).toBeVisible();
 });
 
-test('theme switch persists and the mobile role previews are navigable without granting access', async ({ page }) => {
+test('dark and light themes work, and the four quick-access cards navigate to their modules', async ({ page }) => {
   await page.goto('/simorgh/', { waitUntil: 'domcontentloaded' });
   await page.getByRole('button', { name: 'فعال‌کردن حالت روشن' }).click();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
-
   await page.getByRole('button', { name: 'فعال‌کردن حالت تاریک' }).click();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
 
-  await page.getByRole('group', { name: 'پیش‌نمایش فضای کاری' }).getByRole('button', { name: 'مزرعه' }).click();
-  await expect(page.getByRole('heading', { name: 'کارهای امروز مزرعه' })).toBeVisible();
+  await page.getByRole('button', { name: /مدیریت سفارش‌ها/ }).click();
+  await expect(page).toHaveURL(/module=orders/);
+  await expect(page.getByRole('heading', { name: 'سفارش‌ها', level: 1 })).toBeVisible();
   await expect(page.locator('.simorgh-signin-layer')).toHaveCount(0);
-
-  await page.getByRole('group', { name: 'پیش‌نمایش فضای کاری' }).getByRole('button', { name: 'مشتری' }).click();
-  await expect(page.getByRole('heading', { name: 'خرید سازمانی' })).toBeVisible();
-  await expect(page.getByText(/هیچ تصویر، قیمت یا موجودی فرضی نشان داده نمی‌شود/)).toBeVisible();
 });
 
-test('the map help page shows geographic context but no fabricated shipment coordinates', async ({ page }, testInfo) => {
+test('map module contains a real geographic guide and no invented shipment marker', async ({ page }, testInfo) => {
   const viewportWidth = Number((testInfo.project.use as { viewport?: { width?: number } }).viewport?.width || 1365);
   await page.goto('/simorgh/app/command', { waitUntil: 'domcontentloaded' });
-  if (viewportWidth <= 700) {
-    await page.locator('.sim-preview-bottom-nav').getByRole('button', { name: 'نقشه' }).click();
+  if (viewportWidth <= 850) {
+    await page.locator('.ops-live-bottom-nav').getByRole('button', { name: 'نقشه' }).click();
   } else {
-    await page.locator('.sim-preview-sidebar').getByRole('button', { name: 'نقشه و راهنما' }).click();
+    await page.locator('.ops-live-sidebar').getByRole('button', { name: 'نقشه و راهنما' }).click();
   }
-  await expect(page.getByRole('heading', { name: 'نقشه‌ی راهنمای شبکه' })).toBeVisible();
-  await expect(page.getByTitle('نقشه جغرافیایی ایران برای راهنمای شبکه')).toBeVisible();
-  await expect(page.getByText('نقطه‌ی واقعی برای نمایش موجود نیست')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'نقشه و راهنما', level: 1 })).toBeVisible();
+  await expect(page.getByTitle('نقشه جغرافیایی ایران')).toBeVisible();
+  await expect(page.getByText('نقطه‌ی عملیاتی ثبت نشده')).toBeVisible();
 });
