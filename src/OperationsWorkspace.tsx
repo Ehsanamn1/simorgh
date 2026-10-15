@@ -98,7 +98,7 @@ function MetricCard({ title, icon: Icon, foot, tone = 'neutral' }: { title: stri
 
 function NetworkMap({ expanded = false }: { expanded?: boolean }) {
   return <section className={`sim-workspace-panel sim-workspace-map-panel ${expanded ? 'expanded' : ''}`}>
-    <div className="sim-workspace-panel-head"><div><span className="sim-workspace-section-id">۰۱</span><div><h3>نقشه و ردیابی شبکه</h3><p>نقشه‌ی واقعی جغرافیایی؛ بدون نشانگر ساختگی محموله</p></div></div><span className="sim-workspace-live-flag"><span/> نقشه‌ی راهنما</span></div>
+    <div className="sim-workspace-panel-head"><div><span className="sim-workspace-section-id">۰۱</span><div><h3>نقشه‌ی شبکه و مسیرهای عملیات</h3><p>نقشه‌ی واقعی جغرافیایی؛ بدون نشانگر ساختگی محموله</p></div></div><span className="sim-workspace-live-flag"><span/> نقشه‌ی راهنما</span></div>
     <div className="sim-workspace-map-frame">
       <iframe title="نقشه جغرافیایی ایران برای راهنمای شبکه" loading="lazy" referrerPolicy="no-referrer-when-downgrade" src="https://www.openstreetmap.org/export/embed.html?bbox=43.2%2C24.5%2C64.8%2C40.8&layer=mapnik" />
       <div className="sim-workspace-map-note"><MapPin size={16}/><span><b>موقعیت محموله ثبت نشده</b><small>نشانگرها فقط پس از ثبت مختصات واقعی و مجاز نمایش داده می‌شوند.</small></span></div>
@@ -217,7 +217,7 @@ function FinanceWorkspace() {
 function IntelligenceWorkspace() {
   return <div className="sim-workspace-page-stack">
     <div className="sim-workspace-page-heading"><div><span className="sim-workspace-eyebrow">هوش عملیاتی سیمرغ</span><h1>هوش عملیاتی سیمرغ</h1><p>پیشنهاد به‌اندازه‌ی شواهد ارزش دارد: هر توصیه باید منبع داده، دلیل و اقدام بعدی مشخص داشته باشد.</p></div><span className="sim-workspace-readonly"><Sparkles size={14}/> نیازمند پیکربندی</span></div>
-    <div className="sim-workspace-two-columns"><section className="sim-workspace-panel"><div className="sim-workspace-panel-head"><div><h3>پیشنهادهای مدیریتی</h3><p>داده‌ی ورودی ← تحلیل ← تأیید مسئول</p></div><Sparkles size={18}/></div><EmptyState icon={Sparkles} title="تحلیلی تولید نشده" description="تا زمانی که منبع داده و ارائه‌دهنده‌ی هوش مصنوعی پیکربندی و آزمایش نشود، پاسخ یا توصیه‌ی ساختگی نمایش داده نمی‌شود."/></section><section className="sim-workspace-panel"><div className="sim-workspace-panel-head"><div><h3>دروازه‌ی اجرای عامل‌ها</h3><p>دسترسی ابزار، سقف هزینه و ردپا</p></div><ShieldCheck size={18}/></div><EmptyState icon={ShieldCheck} title="عامل اجرایی فعالی در انتظار راه‌اندازی" description="هر عامل واقعی باید مجوز ابزار، سقف هزینه، تأیید اقدامات حساس و گزارش اجرا داشته باشد."/></section></div>
+    <div className="sim-workspace-two-columns"><section className="sim-workspace-panel"><div className="sim-workspace-panel-head"><div><h3>پیشنهادهای مدیریتی</h3><p>داده‌ی ورودی ← تحلیل ← تأیید مسئول</p></div><Sparkles size={18}/></div><EmptyState icon={Sparkles} title="تحلیلی تولید نشده" description="تا زمانی که منبع داده و ارائه‌دهنده‌ی هوش مصنوعی پیکربندی و آزمایش نشود، پاسخ یا توصیه‌ی ساختگی نمایش داده نمی‌شود."/></section><section className="sim-workspace-panel"><div className="sim-workspace-panel-head"><div><h3>دروازه‌ی اجرای عامل‌ها</h3><p>دسترسی ابزار، سقف هزینه و ردپا</p></div><ShieldCheck size={18}/></div><EmptyState icon={ShieldCheck} title="عامل اجرایی فعالی پیکربندی نشده است" description="هر عامل واقعی باید مجوز ابزار، سقف هزینه، تأیید اقدامات حساس و گزارش اجرا داشته باشد."/></section></div>
   </div>;
 }
 
