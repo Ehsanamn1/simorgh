@@ -11,6 +11,7 @@ test('the actual app-first workspace matches the Obsidian direction and has no f
   await expect(page.locator('.sim-preview-sidebar')).toBeVisible();
   await expect(page.locator('.sim-preview-metric')).toHaveCount(4);
   await expect(page.locator('.sim-preview-metric strong')).toHaveText(['—', '—', '—', '—']);
+  await expect(page.locator('.sim-preview-quick-card')).toHaveCount(4);
   await expect(page.locator('.sim-preview-map-frame iframe')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'مرکز فرمان شبکه' })).toBeVisible();
 
@@ -33,6 +34,7 @@ test('preview navigation opens real page structures on desktop, tablet and mobil
 
   if (viewportWidth <= 700) {
     await expect(page.locator('.sim-preview-bottom-nav')).toBeVisible();
+    await expect(page.locator('.sim-preview-bottom-nav button')).toHaveCount(4);
     await page.getByRole('button', { name: /بازکردن منو/ }).click();
     await expect(page.locator('.sim-preview-sidebar.open')).toBeVisible();
     await page.locator('.sim-preview-sidebar').getByRole('button', { name: 'انبار و ثبت خرید' }).click();
