@@ -57,48 +57,48 @@ const batchOpt = (r: Row): Option => ({value:String(r.id),label:String(r.batch_c
 const agreementOpt = (r: Row): Option => ({value:String(r.id),label:String(r.agreement_code ?? '') + ' · نسخه ' + String(r.version ?? 1) + ' · ' + fa(r.status)});
 
 const configs: Record<OperationsKind, Config> = {
-  'farm-sites': {title:'سایت‌های مزرعه',eyebrow:'FARM / FACILITIES',description:'مزارع، واحدهای تولیدی، مجوزها و مسئولیت هر سایت را ثبت کنید.',table:'farm_sites',icon:Warehouse,columns:[
+  'farm-sites': {title:'سایت‌های مزرعه',eyebrow:'سایت‌های مزرعه',description:'مزارع، واحدهای تولیدی، مجوزها و مسئولیت هر سایت را ثبت کنید.',table:'farm_sites',icon:Warehouse,columns:[
     {key:'site_code',label:'کد سایت'},{key:'name',label:'نام سایت'},{key:'supplier_id',label:'مسئول مزرعه',value:(r,refs)=>refName(refs.suppliers,r.supplier_id,'name')},
     {key:'city',label:'شهر'},{key:'license_expires_on',label:'انقضای مجوز',value:r=>dateValue(r.license_expires_on)},{key:'active',label:'فعال',value:r=>r.active?'بله':'خیر'}]},
-  'flock-cycles': {title:'چرخه‌های گله',eyebrow:'FARM / FLOCK CYCLES',description:'تاریخ ورود گله، تعداد اولیه و برنامه پایان چرخه را ثبت کنید.',table:'flock_cycles',icon:Factory,columns:[
+  'flock-cycles': {title:'چرخه‌های گله',eyebrow:'چرخه‌های تولید',description:'تاریخ ورود گله، تعداد اولیه و برنامه پایان چرخه را ثبت کنید.',table:'flock_cycles',icon:Factory,columns:[
     {key:'cycle_code',label:'کد چرخه'},{key:'farm_site_id',label:'سایت',value:(r,refs)=>refName(refs.sites,r.farm_site_id,'name')},
     {key:'arrived_on',label:'ورود',value:r=>dateValue(r.arrived_on)},{key:'initial_bird_count',label:'تعداد اولیه',value:r=>numberFa(numeric(r.initial_bird_count))},
     {key:'planned_end_on',label:'پایان برنامه‌ای',value:r=>dateValue(r.planned_end_on)},{key:'status',label:'وضعیت',value:r=>fa(r.status)}]},
-  'production-batches': {title:'بچ‌های تولید',eyebrow:'PRODUCTION / TRACEABILITY',description:'برنامه و خروجی هر بچ را به سایت، شریک و مسیر ردیابی متصل کنید.',table:'production_batches',icon:ClipboardCheck,columns:[
+  'production-batches': {title:'بچ‌های تولید',eyebrow:'تولید و ردیابی',description:'برنامه و خروجی هر بچ را به سایت، شریک و مسیر ردیابی متصل کنید.',table:'production_batches',icon:ClipboardCheck,columns:[
     {key:'batch_code',label:'کد بچ'},{key:'production_kind',label:'نوع محصول',value:r=>fa(r.production_kind)},
     {key:'farm_site_id',label:'سایت',value:(r,refs)=>refName(refs.sites,r.farm_site_id,'name')},
     {key:'planned_quantity',label:'برنامه',value:r=>r.planned_quantity==null?'—':numberFa(numeric(r.planned_quantity))+' '+text(r.unit)},
     {key:'produced_quantity',label:'تولید',value:r=>numberFa(numeric(r.produced_quantity))+' '+text(r.unit)},
     {key:'status',label:'وضعیت',value:r=>fa(r.status)},{key:'quality_status',label:'کیفیت',value:r=>fa(r.quality_status)}]},
-  'daily-production': {title:'ثبت روزانه تولید',eyebrow:'PRODUCTION / DAILY LOG',description:'خوراک، تلفات، تخم جمع‌آوری‌شده و مقدار محصول را با تاریخ و بچ مشخص ثبت کنید.',table:'daily_production_records',icon:Activity,columns:[
+  'daily-production': {title:'ثبت روزانه تولید',eyebrow:'ثبت روزانه‌ی تولید',description:'خوراک، تلفات، تخم جمع‌آوری‌شده و مقدار محصول را با تاریخ و بچ مشخص ثبت کنید.',table:'daily_production_records',icon:Activity,columns:[
     {key:'record_date',label:'تاریخ',value:r=>dateValue(r.record_date)},{key:'batch_id',label:'بچ',value:(r,refs)=>refName(refs.batches,r.batch_id,'batch_code')},
     {key:'feed_consumed_kg',label:'خوراک (کیلوگرم)',value:r=>numberFa(numeric(r.feed_consumed_kg))},
     {key:'mortality_count',label:'تلفات',value:r=>numberFa(numeric(r.mortality_count))},
     {key:'eggs_collected',label:'تخم جمع‌آوری',value:r=>numberFa(numeric(r.eggs_collected))},{key:'eggs_rejected',label:'تخم مردود',value:r=>numberFa(numeric(r.eggs_rejected))}]},
-  'task-templates': {title:'دستورالعمل‌های کاری',eyebrow:'OPERATIONS / SOP LIBRARY',description:'دستورالعمل را پیش‌نویس کنید؛ تأیید مدیر نسخه را برای استفاده در وظایف قفل می‌کند.',table:'task_templates',icon:FileCheck2,columns:[
+  'task-templates': {title:'دستورالعمل‌های کاری',eyebrow:'دستورالعمل‌های کاری',description:'دستورالعمل را پیش‌نویس کنید؛ تأیید مدیر نسخه را برای استفاده در وظایف قفل می‌کند.',table:'task_templates',icon:FileCheck2,columns:[
     {key:'template_code',label:'کد دستورالعمل'},{key:'title',label:'عنوان'},{key:'category',label:'گروه'},
     {key:'priority',label:'اولویت',value:r=>fa(r.priority)},{key:'evidence_required',label:'مدرک لازم',value:r=>r.evidence_required?'بله':'خیر'},
     {key:'status',label:'وضعیت',value:r=>fa(r.status)}]},
-  'operational-tasks': {title:'وظایف عملیاتی',eyebrow:'OPERATIONS / TASK CONTROL',description:'مسئول، موعد، مدرک اجباری و نتیجه بازبینی را ثبت و پیگیری کنید.',table:'operational_tasks',icon:ClipboardCheck,columns:[
+  'operational-tasks': {title:'وظایف عملیاتی',eyebrow:'کنترل وظایف عملیاتی',description:'مسئول، موعد، مدرک اجباری و نتیجه بازبینی را ثبت و پیگیری کنید.',table:'operational_tasks',icon:ClipboardCheck,columns:[
     {key:'title',label:'وظیفه'},{key:'assignee_supplier_id',label:'مسئول',value:(r,refs)=>refName(refs.suppliers,r.assignee_supplier_id,'name')},
     {key:'due_at',label:'موعد',value:r=>typeof r.due_at==='string'?dateTimeFa(r.due_at):'—'},
     {key:'priority',label:'اولویت',value:r=>fa(r.priority)},{key:'evidence_required',label:'مدرک لازم',value:r=>r.evidence_required?'بله':'خیر'},
     {key:'status',label:'وضعیت',value:r=>fa(r.status)}]},
-  incidents: {title:'رخدادها و مغایرت‌ها',eyebrow:'OPERATIONS / INCIDENTS',description:'رخدادهای تولید، کیفیت، حمل یا ایمنی را ثبت و اقدام اصلاحی را پیگیری کنید.',table:'operational_incidents',icon:Activity,columns:[
+  incidents: {title:'رخدادها و مغایرت‌ها',eyebrow:'رخدادها و مغایرت‌ها',description:'رخدادهای تولید، کیفیت، حمل یا ایمنی را ثبت و اقدام اصلاحی را پیگیری کنید.',table:'operational_incidents',icon:Activity,columns:[
     {key:'title',label:'رخداد'},{key:'category',label:'گروه',value:r=>fa(r.category)},{key:'severity',label:'شدت',value:r=>fa(r.severity)},
     {key:'farm_site_id',label:'سایت',value:(r,refs)=>refName(refs.sites,r.farm_site_id,'name')},
     {key:'status',label:'وضعیت',value:r=>fa(r.status)},{key:'created_at',label:'ثبت',value:r=>typeof r.created_at==='string'?dateTimeFa(r.created_at):'—'}]},
-  'partnership-agreements': {title:'قراردادهای مشارکت',eyebrow:'PARTNERSHIPS / AGREEMENTS',description:'نسخه قرارداد، نسبت تقسیم و دسته‌های هزینه را ثبت کنید. فعال‌سازی نیازمند فایل امضاست.',table:'partnership_agreements',icon:FileText,columns:[
+  'partnership-agreements': {title:'قراردادهای مشارکت',eyebrow:'قراردادهای مشارکت',description:'نسخه قرارداد، نسبت تقسیم و دسته‌های هزینه را ثبت کنید. فعال‌سازی نیازمند فایل امضاست.',table:'partnership_agreements',icon:FileText,columns:[
     {key:'agreement_code',label:'کد قرارداد'},{key:'version',label:'نسخه'},{key:'supplier_id',label:'شریک',value:(r,refs)=>refName(refs.suppliers,r.supplier_id,'name')},
     {key:'company_profit_share_pct',label:'سهم شرکت',value:r=>numberFa(numeric(r.company_profit_share_pct))+'٪'},
     {key:'partner_profit_share_pct',label:'سهم شریک',value:r=>numberFa(numeric(r.partner_profit_share_pct))+'٪'},
     {key:'effective_from',label:'شروع',value:r=>dateValue(r.effective_from)},{key:'status',label:'وضعیت',value:r=>fa(r.status)}]},
-  'partner-finance': {title:'دفتر مالی شریک',eyebrow:'FINANCE / PARTNER LEDGER',description:'فاکتور، دریافت، هزینه و پیش‌پرداخت را با مرجع مشخص ثبت کنید؛ سامانه انتقال بانکی انجام نمی‌دهد.',table:'partner_financial_entries',icon:CreditCard,columns:[
+  'partner-finance': {title:'دفتر مالی شریک',eyebrow:'دفتر مالی شریک',description:'فاکتور، دریافت، هزینه و پیش‌پرداخت را با مرجع مشخص ثبت کنید؛ سامانه انتقال بانکی انجام نمی‌دهد.',table:'partner_financial_entries',icon:CreditCard,columns:[
     {key:'recognized_on',label:'تاریخ',value:r=>dateValue(r.recognized_on)},{key:'entry_type',label:'نوع سند',value:r=>fa(r.entry_type)},
     {key:'supplier_id',label:'شریک',value:(r,refs)=>refName(refs.suppliers,r.supplier_id,'name')},
     {key:'amount',label:'مبلغ',value:r=>moneyFa(numeric(r.amount))},{key:'paid_amount',label:'پرداخت ثبت‌شده',value:r=>moneyFa(numeric(r.paid_amount))},
     {key:'external_reference',label:'مرجع'},{key:'status',label:'وضعیت',value:r=>fa(r.status)}]},
-  'partner-settlements': {title:'دوره‌ها و تسویه شریک',eyebrow:'FINANCE / PARTNER RECONCILIATION',description:'دوره را از دفتر مالی محاسبه کنید. پرداخت فقط با مرجع واقعی و کنترل وجه ثبت‌شده قابل ثبت است.',table:'partner_settlement_periods',icon:CreditCard,columns:[
+  'partner-settlements': {title:'دوره‌ها و تسویه شریک',eyebrow:'تسویه‌ی مشارکت',description:'دوره را از دفتر مالی محاسبه کنید. پرداخت فقط با مرجع واقعی و کنترل وجه ثبت‌شده قابل ثبت است.',table:'partner_settlement_periods',icon:CreditCard,columns:[
     {key:'period_start',label:'شروع دوره',value:r=>dateValue(r.period_start)},{key:'period_end',label:'پایان دوره',value:r=>dateValue(r.period_end)},
     {key:'supplier_id',label:'شریک',value:(r,refs)=>refName(refs.suppliers,r.supplier_id,'name')},
     {key:'collected_revenue',label:'وصول‌شده',value:r=>moneyFa(numeric(r.collected_revenue))},
@@ -516,7 +516,7 @@ export function OperationsWorkspacePage({kind,membership,search}:{kind:Operation
 
     {openForm&&<div className="ops-modal-backdrop" role="presentation" onMouseDown={e=>{if(e.target===e.currentTarget){setOpenForm(false);setDraft({});}}}>
       <div className="ops-modal" role="dialog" aria-modal="true" aria-label={'ثبت رکورد '+cfg.title}>
-        <header><div><span className="ops-eyebrow">NEW RECORD / CONTROLLED INPUT</span><h2>{kind==='partner-settlements'?'ایجاد دوره تسویه':'ثبت '+cfg.title}</h2><p>وضعیت اولیه و مجوزها توسط PostgreSQL کنترل می‌شوند.</p></div><button className="ops-refresh" onClick={()=>{setOpenForm(false);setDraft({});}} aria-label="بستن"><X size={18}/></button></header>
+        <header><div><span className="ops-eyebrow">ثبت اطلاعات / کنترل‌شده</span><h2>{kind==='partner-settlements'?'ایجاد دوره تسویه':'ثبت '+cfg.title}</h2><p>وضعیت اولیه و مجوزها توسط PostgreSQL کنترل می‌شوند.</p></div><button className="ops-refresh" onClick={()=>{setOpenForm(false);setDraft({});}} aria-label="بستن"><X size={18}/></button></header>
         {kind==='partner-settlements'
           ?<form className="ops-form" onSubmit={createPeriod}>
             <label className="ops-field full"><span>قرارداد امضاشده</span><select required value={String(draft.agreement_id??'')} onChange={e=>assignDraft('agreement_id',e.target.value)}><option value="">انتخاب قرارداد</option>{refs.agreements.filter(a=>['active','suspended','expired','terminated'].includes(String(a.status))).map(a=><option value={String(a.id)} key={String(a.id)}>{String(a.agreement_code)} · نسخه {String(a.version)}</option>)}</select></label>
@@ -533,7 +533,7 @@ export function OperationsWorkspacePage({kind,membership,search}:{kind:Operation
 
     {evidenceTask&&<div className="ops-modal-backdrop" role="presentation" onMouseDown={e=>{if(e.target===e.currentTarget)setEvidenceTask('');}}>
       <div className="ops-modal compact" role="dialog" aria-modal="true" aria-label="ثبت مدرک وظیفه">
-        <header><div><span className="ops-eyebrow">TASK / EVIDENCE</span><h2>ثبت مدرک انجام کار</h2><p>فایل‌ها در فضای خصوصی و با مسیر محدود به همان شرکت و وظیفه ذخیره می‌شوند.</p></div><button className="ops-refresh" onClick={()=>setEvidenceTask('')} aria-label="بستن"><X size={18}/></button></header>
+        <header><div><span className="ops-eyebrow">وظیفه / مدرک</span><h2>ثبت مدرک انجام کار</h2><p>فایل‌ها در فضای خصوصی و با مسیر محدود به همان شرکت و وظیفه ذخیره می‌شوند.</p></div><button className="ops-refresh" onClick={()=>setEvidenceTask('')} aria-label="بستن"><X size={18}/></button></header>
         <form className="ops-form" onSubmit={addEvidence}>
           <label className="ops-field"><span>نوع مدرک</span><select value={evidenceType} onChange={e=>setEvidenceType(e.target.value)}>{evidenceTypes.map(t=><option key={t.value} value={t.value}>{t.label}</option>)}</select></label>
           {(evidenceType==='photo'||evidenceType==='document')&&<label className="ops-field full"><span>فایل</span><input type="file" accept={evidenceType==='photo'?'image/*':'.pdf,.jpg,.jpeg,.png'} required onChange={e=>setEvidenceFile(e.target.files?.[0]??null)}/></label>}
@@ -546,7 +546,7 @@ export function OperationsWorkspacePage({kind,membership,search}:{kind:Operation
 
     {paymentPeriod&&<div className="ops-modal-backdrop" role="presentation" onMouseDown={e=>{if(e.target===e.currentTarget)setPaymentPeriod(null);}}>
       <div className="ops-modal compact" role="dialog" aria-modal="true" aria-label="ثبت مرجع پرداخت">
-        <header><div><span className="ops-eyebrow">FINANCE / PAYMENT PROOF</span><h2>ثبت مدرک پرداخت واقعی</h2><p>انتقال وجه توسط سامانه انجام نمی‌شود؛ مرجع واقعی پرداخت در دفتر ثبت می‌شود.</p></div><button className="ops-refresh" onClick={()=>setPaymentPeriod(null)} aria-label="بستن"><X size={18}/></button></header>
+        <header><div><span className="ops-eyebrow">مالی / مدرک پرداخت</span><h2>ثبت مدرک پرداخت واقعی</h2><p>انتقال وجه توسط سامانه انجام نمی‌شود؛ مرجع واقعی پرداخت در دفتر ثبت می‌شود.</p></div><button className="ops-refresh" onClick={()=>setPaymentPeriod(null)} aria-label="بستن"><X size={18}/></button></header>
         <form className="ops-form" onSubmit={payPeriod}>
           <label className="ops-field"><span>مبلغ (تومان)</span><input type="number" min="1" max={Math.max(1,numeric(paymentPeriod.balance_due_to_partner)-numeric(paymentPeriod.settled_amount))} step="1" required value={paymentAmount} onChange={e=>setPaymentAmount(e.target.value)}/></label>
           <label className="ops-field"><span>مرجع رسید / تراکنش</span><input required value={paymentRef} onChange={e=>setPaymentRef(e.target.value)} placeholder="شناسه واقعی رسید"/></label>
