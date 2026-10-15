@@ -8,6 +8,16 @@
   --sim-danger:#9f3f37; --sim-danger-bg:#fff1ef; --sim-info:#17657a; --sim-info-bg:#edf8fb;
   --sim-radius-sm:8px; --sim-radius-md:12px; --sim-radius-lg:18px; --sim-radius-xl:24px;
   --sim-shadow-card:0 3px 14px rgb(14 41 35 / 4%); --sim-shadow-raised:0 18px 50px rgb(14 41 35 / 14%);
+  --sim-space-1:4px; --sim-space-2:8px; --sim-space-3:12px; --sim-space-4:16px;
+  --sim-space-5:20px; --sim-space-6:24px; --sim-space-7:32px; --sim-space-8:40px; --sim-space-9:48px;
+  --sim-font-xs:11px; --sim-font-sm:12px; --sim-font-md:14px; --sim-font-lg:16px; --sim-font-xl:20px; --sim-font-2xl:28px; --sim-font-display:clamp(32px,4vw,56px);
+  --sim-breakpoint-compact:380px; --sim-breakpoint-phone:640px; --sim-breakpoint-navigation:860px; --sim-breakpoint-wide:1100px;
+  --sim-focus-ring:3px solid #4a997a; --sim-focus-offset:3px;
+  --sim-status-success:#216b4b; --sim-status-success-bg:#eaf5ec;
+  --sim-status-warning:#8a5b12; --sim-status-warning-bg:#fff7e7;
+  --sim-status-danger:#9f3f37; --sim-status-danger-bg:#fff1ef;
+  --sim-status-info:#17657a; --sim-status-info-bg:#edf8fb;
+  --sim-chart-1:#24785a; --sim-chart-2:#7ba55b; --sim-chart-3:#537e91; --sim-chart-4:#c58d39; --sim-chart-5:#8b78ab;
   --sim-control-height:46px; --sim-touch-target:46px; --sim-motion-fast:140ms; --sim-motion-normal:200ms;
   --forest:var(--sim-forest-900); --forest-2:var(--sim-forest-800); --lime:var(--sim-lime);
   --paper:var(--sim-canvas); --line:var(--sim-border); --muted:var(--sim-muted); --soft:var(--sim-soft);
@@ -18,7 +28,7 @@ html{background:var(--sim-canvas);scroll-padding-top:92px}
 body{min-width:320px;background:var(--sim-canvas);color:var(--sim-text);font-family:Vazirmatn,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:14px;line-height:1.75;text-rendering:optimizeLegibility}
 button,input,select,textarea{font-family:inherit}
 button,a,input,select,textarea{-webkit-tap-highlight-color:transparent}
-:focus-visible{outline:3px solid #4a997a;outline-offset:3px}
+:focus-visible{outline:var(--sim-focus-ring);outline-offset:var(--sim-focus-offset)}
 button:disabled{cursor:not-allowed;opacity:.6}
 .portal-header{min-height:72px;gap:clamp(12px,2vw,28px)}
 .portal-header-nav{flex:1}
