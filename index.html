@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#0B1012" />
     <meta name="color-scheme" content="light dark" />
-    <meta name="description" content="سیمرغ — سیستم عملیاتی شبکه تأمین بلدرچین، سفارش، ظرفیت، کیفیت و ارسال." />
+    <meta name="description" content="سیمرغ — سیستم عملیاتی شبکه تأمین، سفارش، ظرفیت، کیفیت و ارسال." />
     <title>سیمرغ | Obsidian Intelligence</title>
     <link rel="manifest" href="%BASE_URL%manifest.webmanifest" />
     <link rel="icon" type="image/svg+xml" href="%BASE_URL%simorgh-icon.svg" />
@@ -14,9 +14,45 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+    <style>
+      html,body{margin:0;min-width:320px;min-height:100%;background:#0B1012;color:#EAF0F0;font-family:Vazirmatn,Tahoma,sans-serif}
+      #app-boot-screen{position:fixed;inset:0;z-index:99999;display:grid;place-items:center;padding:24px;background:radial-gradient(ellipse at 50% 20%,rgba(112,154,168,.12),transparent 42%),#0B1012;transition:opacity .18s ease}
+      .boot-card{width:min(100%,380px);box-sizing:border-box;padding:28px;border:1px solid #29373B;border-radius:20px;background:#11191C;text-align:center;box-shadow:0 24px 80px rgba(0,0,0,.3)}
+      .boot-mark{display:grid;place-items:center;width:54px;height:54px;margin:0 auto 16px;border:1px solid #365050;border-radius:16px;background:#203536;color:#B4DDE0;font-size:26px;font-weight:900}
+      .boot-brand{font-size:21px;font-weight:850;letter-spacing:-.03em}
+      .boot-brand-sub{display:block;margin-top:2px;color:#6EB9AC;font-size:11px}
+      .boot-spinner{width:23px;height:23px;margin:22px auto 14px;border:2px solid #29373B;border-top-color:#6EB9AC;border-radius:50%;animation:boot-spin .8s linear infinite}
+      .boot-wait{color:#A0B0B2;font-size:11px;line-height:1.9}
+      .boot-failure{display:none;margin-top:14px}
+      .boot-failure p{color:#A0B0B2;font-size:11px;line-height:1.9}
+      .boot-failure button{width:100%;min-height:44px;border:1px solid #6EB9AC;border-radius:11px;background:#6EB9AC;color:#071311;font:inherit;font-size:12px;font-weight:850;cursor:pointer}
+      #app-boot-screen.has-error .boot-spinner,#app-boot-screen.has-error .boot-wait{display:none}
+      #app-boot-screen.has-error .boot-failure{display:block}
+      @keyframes boot-spin{to{transform:rotate(360deg)}}
+      @media(prefers-reduced-motion:reduce){.boot-spinner{animation:none}#app-boot-screen{transition:none}}
+    </style>
   </head>
   <body>
+    <div id="app-boot-screen" role="status" aria-live="polite">
+      <div class="boot-card">
+        <div class="boot-mark" aria-hidden="true">س</div>
+        <div class="boot-brand">Simorgh<span class="boot-brand-sub">Obsidian Intelligence</span></div>
+        <div class="boot-spinner" aria-hidden="true"></div>
+        <div class="boot-wait">در حال راه‌اندازی محیط عملیاتی…</div>
+        <div class="boot-failure" role="alert">
+          <p><b>برنامه بارگذاری نشد.</b><br/>اتصال فایل‌های برنامه کامل نشد. بارگذاری تازه را امتحان کن؛ صفحه‌ی سیاه نمایش داده نمی‌شود.</p>
+          <button type="button" onclick="window.location.reload()">بارگذاری دوباره</button>
+          <p>اگر مشکل ادامه داشت، شبکه یا افزونه‌های مسدودکننده‌ی اسکریپت را بررسی کن.</p>
+        </div>
+      </div>
+    </div>
     <div id="root"></div>
+    <script>
+      window.setTimeout(function () {
+        var screen = document.getElementById('app-boot-screen');
+        if (screen && document.documentElement.dataset.simorghReady !== 'true') screen.classList.add('has-error');
+      }, 9000);
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
