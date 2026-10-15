@@ -36,6 +36,11 @@ jobs:
       - name: Synchronize native assets
         run: npx cap sync ios
 
+      - name: Configure foreground location permission text
+        run: |
+          PLIST="ios/App/App/Info.plist"
+          /usr/libexec/PlistBuddy -c "Add :NSLocationWhenInUseUsageDescription string Simorgh uses your location only when you explicitly tap Send GPS for an assigned shipment." "$PLIST" || /usr/libexec/PlistBuddy -c "Set :NSLocationWhenInUseUsageDescription Simorgh uses your location only when you explicitly tap Send GPS for an assigned shipment." "$PLIST"
+
       - name: Build unsigned iOS Simulator app
         run: |
           xcodebuild \
