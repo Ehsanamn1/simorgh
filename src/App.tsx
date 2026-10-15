@@ -494,6 +494,144 @@ function AllocationModal({membership,order,onClose,onDone}:{membership:Membershi
  return <Modal title={`تخصیص ظرفیت به سفارش ${String(order.reference??'')}`} subtitle="تخصیص فقط از ظرفیت تأییدشده و با بررسی موجودی آزاد انجام می‌شود." onClose={onClose}><div className="allocation-modal-body">{error&&<InlineError error={error} retry={()=>void load()}/ >}{loading?<div className="panel-loading"><span className="spinner small"/></div>:!items.length?<EmptyState title="این سفارش قلمی ندارد" description="برای تخصیص تأمین، ابتدا حداقل یک قلم محصول به سفارش اضافه شود." icon={Package}/>:<><div className="allocation-order-meta"><span>موعد تحویل</span><b>{dateFa(due)}</b><span>وضعیت سفارش</span><Badge value={String(order.status)}/></div>{items.map(item=>{const p=item.products as any;const assigned=Boolean(item.supplier_id||item.capacity_commitment_id);const options=matches(item);const current=item.capacity_commitments as any;return <article className="allocation-item" key={String(item.id)}><div className="allocation-item-title"><div><b>{String(p?.name??'محصول')}</b><small>{numberFa(String(item.quantity))} {String(p?.unit??'واحد')}</small></div>{assigned?<Badge value="تخصیص‌یافته"/>:<Badge value={options.length?'آماده تخصیص':'ظرفیت کافی نیست'}/>}</div>{assigned?<div className="allocation-assigned"><CheckCircle2 size={15}/><span>تخصیص به {String((item.suppliers as any)?.name??'تأمین‌کننده')} · {current?.period_start?`${dateFa(String(current.period_start))} تا ${dateFa(String(current.period_end))}`:'ظرفیت متعهدشده'}</span></div>:<div className="allocation-select-row"><select value={choices[String(item.id)]??''} onChange={e=>setChoices(v=>({...v,[String(item.id)]:e.target.value}))} disabled={!options.length||busy===String(item.id)}><option value="">انتخاب ظرفیت تأییدشده…</option>{options.map(cap=><option value={String(cap.id)} key={String(cap.id)}>{String((cap.suppliers as any)?.name??'تأمین‌کننده')} · آزاد {numberFa(String(Number(cap.confirmed_qty??0)-Number(cap.committed_qty??0)))} · {dateFa(String(cap.period_start))} تا {dateFa(String(cap.period_end))}</option>)}</select><Button onClick={()=>void allocate(item)} disabled={!options.length||busy===String(item.id)}>{busy===String(item.id)?'در حال تخصیص…':'تخصیص اتمیک'}</Button></div>}</article>})}{!pending.length&&<div className="form-success allocation-done"><CheckCircle2 size={17}/> تمام اقلام این سفارش تخصیص یافته‌اند؛ وضعیت سفارش پس از آخرین تخصیص در دیتابیس به‌روزرسانی می‌شود.</div>}</> }<div className="allocation-modal-foot"><ShieldCheck size={16}/><span>دیتابیس دوباره محصول، موعد تحویل و ظرفیت آزاد را بررسی می‌کند و جلوی تخصیص هم‌زمان بیش از ظرفیت را می‌گیرد.</span></div></div></Modal>;
 }
 
+
+const inventoryMovementLabels: Record<string,string> = {
+  purchase_in: 'رسید خرید / ورود',
+  sale_out: 'خروج بابت سفارش',
+  adjustment_in: 'اصلاح افزایشی',
+  adjustment_out: 'اصلاح کاهشی',
+  waste_out: 'ضایعات',
+  return_in: 'مرجوعی / برگشت',
+};
+
+function InventoryPage({membership,search}:{membership:Membership;search:string}) {
+  const [balances,setBalances]=useState<Row[]>([]);
+  const [movements,setMovements]=useState<Row[]>([]);
+  const [products,setProducts]=useState<Row[]>([]);
+  const [suppliers,setSuppliers]=useState<Row[]>([]);
+  const [orders,setOrders]=useState<Row[]>([]);
+  const [loading,setLoading]=useState(true);
+  const [busy,setBusy]=useState(false);
+  const [error,setError]=useState('');
+  const [notice,setNotice]=useState('');
+  const [open,setOpen]=useState(false);
+  const [form,setForm]=useState({product_id:'',movement_type:'purchase_in',quantity:'',unit_cost:'',supplier_id:'',order_id:'',reference_code:'',note:''});
+
+  const load=async()=>{
+    if(!supabase){setError('اتصال پایگاه داده پیکربندی نشده است.');setLoading(false);return;}
+    setLoading(true);setError('');
+    const [b,m,p,s,o]=await Promise.all([
+      supabase.from('inventory_balances').select('*').eq('company_id',membership.company_id).order('product_name').limit(500),
+      supabase.from('inventory_movements').select('*').eq('company_id',membership.company_id).order('occurred_at',{ascending:false}).limit(250),
+      supabase.from('products').select('id,sku,name,unit,active').eq('company_id',membership.company_id).eq('active',true).order('name').limit(500),
+      supabase.from('suppliers').select('id,name,active').eq('company_id',membership.company_id).eq('active',true).order('name').limit(300),
+      supabase.from('orders').select('id,reference,status').eq('company_id',membership.company_id).not('status','in','(cancelled,delivered)').order('created_at',{ascending:false}).limit(300),
+    ]);
+    const firstError=b.error??m.error??p.error??s.error??o.error;
+    if(firstError){setError(firstError.message);setBalances([]);setMovements([]);}
+    else {setBalances((b.data??[]) as Row[]);setMovements((m.data??[]) as Row[]);}
+    setProducts((p.data??[]) as Row[]);
+    setSuppliers((s.data??[]) as Row[]);
+    setOrders((o.data??[]) as Row[]);
+    setLoading(false);
+  };
+  useEffect(()=>{void load();},[membership.company_id]);
+
+  const movementSubmit=async(event:React.FormEvent<HTMLFormElement>)=>{
+    event.preventDefault();
+    if(!supabase)return;
+    setBusy(true);setError('');setNotice('');
+    try {
+      const movementType=form.movement_type;
+      const {error:rpcError}=await supabase.rpc('record_inventory_movement',{
+        _company:membership.company_id,
+        _product:form.product_id,
+        _movement_type:movementType,
+        _quantity:Number(form.quantity),
+        _unit_cost:movementType==='purchase_in'&&form.unit_cost!==''?Number(form.unit_cost):null,
+        _supplier:movementType==='purchase_in'?(form.supplier_id||null):null,
+        _order:movementType==='sale_out'?(form.order_id||null):null,
+        _lot:null,
+        _reference_code:form.reference_code.trim()||null,
+        _note:form.note.trim()||null,
+      });
+      if(rpcError)throw new Error(rpcError.message);
+      setNotice('گردش انبار در پایگاه داده ثبت شد. سوابق قبلی حذف یا بازنویسی نمی‌شوند.');
+      setOpen(false);
+      setForm({product_id:'',movement_type:'purchase_in',quantity:'',unit_cost:'',supplier_id:'',order_id:'',reference_code:'',note:''});
+      await load();
+    } catch(err) {
+      setError(err instanceof Error?err.message:'ثبت گردش انبار انجام نشد.');
+    } finally {setBusy(false);}
+  };
+
+  const visibleBalances=balances.filter(r=>!search||`${r.sku??''} ${r.product_name??''} ${r.unit??''}`.toLowerCase().includes(search.toLowerCase()));
+  const visibleMovements=movements.filter(r=>{
+    const product=products.find(p=>String(p.id)===String(r.product_id));
+    const supplier=suppliers.find(s=>String(s.id)===String(r.supplier_id));
+    const order=orders.find(o=>String(o.id)===String(r.order_id));
+    return !search||`${product?.sku??''} ${product?.name??''} ${supplier?.name??''} ${order?.reference??''} ${r.reference_code??''} ${r.note??''} ${r.movement_type??''}`.toLowerCase().includes(search.toLowerCase());
+  });
+  const positiveCount=balances.filter(r=>Number(r.quantity_on_hand)>0).length;
+  const totalUnitsLabel=balances.length?'محاسبه برحسب واحد هر محصول':'هنوز محصولی برای ردیابی نیست';
+
+  return <>
+    <PageHeading eyebrow="WAREHOUSE / STOCK LEDGER" title="موجودی و ثبت خرید" description="مانده از دفتر ورود و خروج محاسبه می‌شود؛ خروج بیش از موجودی از سمت دیتابیس رد می‌شود و سوابق تغییرناپذیر می‌مانند." action={<Button onClick={()=>{setError('');setNotice('');setOpen(true);}}><Plus size={16}/> ثبت گردش</Button>}/>
+    {error&&<InlineError error={error} retry={()=>void load()}/>}
+    {notice&&<div className="form-success notice-wide"><CheckCircle2 size={16}/>{notice}</div>}
+    <section className="stats-grid tower-stats inventory-stats">
+      <article className="stat-card"><div className="stat-card-top"><span>محصولات ثبت‌شده</span><i className="stat-icon"><Package size={18}/></i></div><b>{numberFa(String(balances.length))}</b><small>از کاتالوگ شرکت</small></article>
+      <article className="stat-card"><div className="stat-card-top"><span>دارای موجودی مثبت</span><i className="stat-icon"><Warehouse size={18}/></i></div><b>{numberFa(String(positiveCount))}</b><small>{totalUnitsLabel}</small></article>
+      <article className="stat-card"><div className="stat-card-top"><span>گردش‌های اخیر</span><i className="stat-icon"><Activity size={18}/></i></div><b>{numberFa(String(movements.length))}</b><small>حداکثر ۲۵۰ گردش ثبت‌شده اخیر</small></article>
+    </section>
+    <section className="panel entity-panel">
+      <div className="panel-heading"><div><span className="section-number">۰۱</span><div><h3>مانده موجودی</h3><p>موجودی واقعی از جمع گردش‌های ثبت‌شده</p></div></div><Button variant="soft" onClick={()=>void load()} disabled={loading}><RefreshCw size={14}/> تازه‌سازی</Button></div>
+      {loading?<div className="panel-loading"><span className="spinner small"/></div>:visibleBalances.length?<DataTable rows={visibleBalances} columns={[
+        {key:'sku',label:'کد کالا'},
+        {key:'product_name',label:'محصول'},
+        {key:'unit',label:'واحد'},
+        {key:'quantity_on_hand',label:'موجودی',render:r=><strong className={Number(r.quantity_on_hand)>0?'inventory-positive':'inventory-zero'}>{numberFa(String(r.quantity_on_hand??0))}</strong>},
+        {key:'latest_unit_cost',label:'آخرین بهای واحد',render:r=>r.latest_unit_cost==null?'—':moneyFa(Number(r.latest_unit_cost))},
+        {key:'last_movement_at',label:'آخرین گردش',render:r=>dateTimeFa(String(r.last_movement_at??''))},
+        {key:'product_active',label:'وضعیت کالا',render:r=><Badge value={r.product_active?'active':'inactive'}/>}
+      ]}/>:<EmptyState title="دفتر موجودی هنوز خالی است" description="از «ثبت گردش» رسید خرید یا اصلاح موجودی مستند را ثبت کن. تا وقتی سندی ثبت نشود، موجودی مثبت فرض نمی‌شود." icon={Warehouse}/>}
+    </section>
+    <section className="panel recent-panel">
+      <div className="panel-heading"><div><span className="section-number">۰۲</span><div><h3>دفتر گردش انبار</h3><p>سوابق ثبت‌شده، بدون حذف یا ویرایش مستقیم</p></div></div></div>
+      {loading?<div className="panel-loading"><span className="spinner small"/></div>:visibleMovements.length?<DataTable rows={visibleMovements} columns={[
+        {key:'occurred_at',label:'زمان',render:r=>dateTimeFa(String(r.occurred_at??r.created_at??''))},
+        {key:'movement_type',label:'نوع گردش',render:r=><span className="inventory-movement-type">{inventoryMovementLabels[String(r.movement_type)]??String(r.movement_type)}</span>},
+        {key:'product_id',label:'محصول',render:r=>{const product=products.find(p=>String(p.id)===String(r.product_id));return <span>{String(product?.name??'—')}<small className="table-subtext">{String(product?.sku??'')}</small></span>}},
+        {key:'quantity',label:'مقدار',render:r=>numberFa(String(r.quantity??0))},
+        {key:'unit_cost',label:'بهای واحد',render:r=>r.unit_cost==null?'—':moneyFa(Number(r.unit_cost))},
+        {key:'supplier_id',label:'تأمین‌کننده',render:r=>suppliers.find(s=>String(s.id)===String(r.supplier_id))?.name??'—'},
+        {key:'order_id',label:'سفارش',render:r=>orders.find(o=>String(o.id)===String(r.order_id))?.reference??'—'},
+        {key:'reference_code',label:'شماره سند',render:r=>String(r.reference_code??'—')},
+        {key:'note',label:'توضیح',render:r=>String(r.note??'—')}
+      ]}/>:<EmptyState title="هنوز گردش انباری ثبت نشده" description="رسید خرید، خروج سفارش، مرجوعی، ضایعات و اصلاحات با کاربر ثبت‌کننده و زمان واقعی در دفتر نگهداری می‌شوند." icon={FileText}/>}
+    </section>
+    {open&&<Modal title="ثبت گردش انبار" subtitle="ثبت نهایی در دیتابیس انجام می‌شود؛ خروجی که موجودی را منفی کند پذیرفته نمی‌شود." onClose={()=>setOpen(false)}>
+      <form className="record-form" onSubmit={movementSubmit}>
+        <label>نوع گردش<select required value={form.movement_type} onChange={e=>setForm({...form,movement_type:e.target.value})}>
+          <option value="purchase_in">رسید خرید / ورود کالا</option><option value="sale_out">خروج بابت سفارش فروش</option>
+          <option value="return_in">مرجوعی / برگشت به انبار</option><option value="adjustment_in">اصلاح افزایشی</option>
+          <option value="adjustment_out">اصلاح کاهشی</option><option value="waste_out">ثبت ضایعات</option>
+        </select></label>
+        <label>محصول<select required value={form.product_id} onChange={e=>setForm({...form,product_id:e.target.value})}><option value="">انتخاب محصول…</option>{products.map(p=><option key={String(p.id)} value={String(p.id)}>{String(p.sku)} · {String(p.name)} ({String(p.unit)})</option>)}</select></label>
+        <label>مقدار<input type="number" min="0.001" step="0.001" required value={form.quantity} onChange={e=>setForm({...form,quantity:e.target.value})}/></label>
+        {form.movement_type==='purchase_in'&&<>
+          <label>تأمین‌کننده<select required value={form.supplier_id} onChange={e=>setForm({...form,supplier_id:e.target.value})}><option value="">انتخاب تأمین‌کننده…</option>{suppliers.map(s=><option key={String(s.id)} value={String(s.id)}>{String(s.name)}</option>)}</select></label>
+          <label>بهای تمام‌شده هر واحد (تومان)<input type="number" min="0" step="0.01" required value={form.unit_cost} onChange={e=>setForm({...form,unit_cost:e.target.value})}/></label>
+        </>}
+        {form.movement_type==='sale_out'&&<label>سفارش فروش<select required value={form.order_id} onChange={e=>setForm({...form,order_id:e.target.value})}><option value="">انتخاب سفارش…</option>{orders.map(o=><option key={String(o.id)} value={String(o.id)}>{String(o.reference)} · {String(o.status)}</option>)}</select></label>}
+        <label>شماره سند یا مرجع<input maxLength={120} value={form.reference_code} onChange={e=>setForm({...form,reference_code:e.target.value})} placeholder="فاکتور خرید، حواله، صورت‌جلسه…"/></label>
+        <label className="full-span">یادداشت / دلیل{['adjustment_in','adjustment_out','waste_out'].includes(form.movement_type)&&<span className="required-note"> · اجباری</span>}<textarea rows={3} maxLength={2000} required={['adjustment_in','adjustment_out','waste_out'].includes(form.movement_type)} value={form.note} onChange={e=>setForm({...form,note:e.target.value})} placeholder="علت سند یا توضیح کالا را وارد کن…"/></label>
+        <div className="modal-actions"><Button variant="soft" onClick={()=>setOpen(false)}>انصراف</Button><Button type="submit" disabled={busy||!products.length||(form.movement_type==='purchase_in'&&!suppliers.length)||(form.movement_type==='sale_out'&&!orders.length)}>{busy?'در حال ثبت…':'ثبت گردش در دفتر'}</Button></div>
+      </form>
+    </Modal>}
+  </>;
+}
+
 function CapacityPage({membership,search}:{membership:Membership;search:string}) {
  const [rows,setRows]=useState<Row[]>([]);const [suppliers,setSuppliers]=useState<Row[]>([]);const [products,setProducts]=useState<Row[]>([]);const [loading,setLoading]=useState(true);const [error,setError]=useState('');const [open,setOpen]=useState(false);const [busy,setBusy]=useState(false);const [form,setForm]=useState({supplier_id:'',product_id:'',period_start:new Date().toISOString().slice(0,10),period_end:new Date().toISOString().slice(0,10),declared_qty:'',note:''});
  const load=async()=>{if(!supabase)return;setLoading(true);const [a,b,c]=await Promise.all([supabase.from('capacity_commitments').select('*,suppliers(name),products(name,unit)').eq('company_id',membership.company_id).order('created_at',{ascending:false}).limit(300),supabase.from('suppliers').select('id,name').eq('company_id',membership.company_id).eq('active',true).order('name'),supabase.from('products').select('id,name,unit').eq('company_id',membership.company_id).eq('active',true).order('name')]);const err=a.error??b.error??c.error;if(err)setError(err.message);setRows((a.data??[]) as Row[]);setSuppliers((b.data??[]) as Row[]);setProducts((c.data??[]) as Row[]);setLoading(false);};useEffect(()=>{void load()},[membership.company_id]);
