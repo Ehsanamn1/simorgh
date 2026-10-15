@@ -1,35 +1,35 @@
-# Simorgh Obsidian Intelligence — reference-board mapping
+# سیمرغ — نگاشت طراحی به ماژول‌های عملیاتی
 
-## Product state and direct entry
+## اصل طراحی
 
-The default route now opens the application workspace rather than a marketing landing page or login form. When there is no authenticated Supabase session, `WorkspaceGate` renders `PreviewWorkspace`: a navigable, read-only product preview. Public sign-in UI remains behind the build flag `VITE_ENABLE_AUTH_UI=true`, so account activation can be the final rollout step.
+تصویر مرجع جهت بصری بود، نه قالبی برای کپی‌کردن. رابط فعلی یک سامانه‌ی مدیریتی فارسی و راست‌چین است: رنگ‌های زغالی و فیروزه‌ای محدود، فونت وزیر، نشان اختصاصی سیمرغ و چیدمان کم‌حاشیه. سواچ‌های رنگ، انتخاب‌گر نمایشی نقش و برچسب‌های انگلیسیِ برد طراحی از رابط حذف شده‌اند.
 
-The preview never queries operational tables, never writes to Supabase and never creates fake production rows. All metric values are rendered as an em dash with an explanation. The actual authenticated application still renders `AppShell`, with role-filtered navigation and the existing server-side Supabase RLS policies.
+## ساختار واقعی سامانه
 
-## Reference elements → implementation
-
-| Reference element | Application implementation | Data/permission contract |
+| بخش | پیاده‌سازی | منبع و مرز دسترسی |
 | --- | --- | --- |
-| Simorgh bird, wordmark and Obsidian Intelligence | Shared `src/SimorghLogo.tsx`, used by the operational shell and preview | SVG mark, brand label, Persian RTL and Vazirmatn typography |
-| Obsidian, Surface, Elevated, Border, Text, Secondary, Accent and status swatches | Central tokens in `src/design-system.css`; swatches displayed in the preview masthead | Dark palette is default; `data-theme=light` overrides tokens; preference stored locally |
-| Desktop sidebar and active navigation | `PreviewWorkspace` grouped navigation for guest preview; existing `navDefinitions` for signed-in users | Preview navigation is not an authorization grant; the real shell still derives routes from the authenticated membership role |
-| Four KPI cards | Live dashboard in `App.tsx`; visually aligned KPI placeholders in the guest preview | Guest values remain blank; authenticated dashboard values/counts are queried from Supabase |
-| Network map | Real OpenStreetMap embed in `PreviewWorkspace`; existing shipment GPS display in the authenticated shipment screen | Preview has no shipment markers. Actual markers require a real authorized GPS record |
-| Production/sales trend | Existing Recharts-backed dashboard; empty chart frame in guest preview | No generated trend line; authenticated series must come from stored history |
-| Recent orders | Existing dashboard query and Orders route; clean empty state in preview | No fabricated order, customer, price or delivery status |
-| Capacity utilization | Existing capacity commitments page; empty dashboard panel in preview | No assumed capacity ratio; authenticated commitments determine the result |
-| Finance and 50/50 partnership statement | Existing `partnership-agreements`, `partner-finance` and settlement routes; contract model preview | The 50/50 ring is explicitly labelled as the desired contract model, not a live balance or profit figure. Actual shares must come from a versioned agreement and ledger entries |
-| Farm partner mobile home | Preview route backed by the daily-production/operational-task concept; authenticated routes remain intact | No task, production quantity, camera asset or approval is invented |
-| Driver mobile app | Preview route and authenticated DriverWork/Shipments screens | Foreground GPS capture is separate and explicit; preview does not request device permissions or simulate live tracking |
-| Customer mobile portal | Preview route and authenticated catalogue/order/account routes | No imaginary product, price, inventory, invoice or delivery ETA |
-| Contextual AI recommendations | Preview route for the intelligence experience | No AI output is fabricated. Operational recommendations require a configured provider, grounded source records, permission checks, approval policy and execution logging |
-| Mobile bottom navigation, safe areas and menu drawer | `PreviewWorkspace` plus existing authenticated `mobile-workspace-nav` | Responsive tests run against representative Playwright viewports |
-| Motion and interaction feedback | Shared hover/focus transitions, small route transition, mobile drawer; reduced-motion override | Motion does not change business state |
+| هویت و پوسته | `src/SimorghLogo.tsx` و توکن‌های `src/design-system.css` | نشان و نام فارسی؛ پوسته‌ی روشن/تاریک با ذخیره‌ی انتخاب |
+| مرکز فرمان مدیر | `Dashboard` در `src/App.tsx` | شمارش سفارش، مشتری، تأمین‌کننده، ارسال، ظرفیت، هشدارها و ممیزی از Supabase؛ بدون شاخص نمونه |
+| اهداف شرکت | `ObjectivesPage` و جدول `company_objectives` | هدف‌های قابل تعریف/ویرایش/توقف/بایگانی؛ فقط مالک/مدیر و با RLS |
+| دسترسی سریع | کارت‌های صفحه‌ی مرکزی در `src/OperationsWorkspace.tsx` و داشبورد احرازشده | میان‌بر به سفارش، موجودی، نقشه و مالی؛ خود میان‌بر مجوز دسترسی نمی‌دهد |
+| نقشه‌ی شبکه | نقشه‌ی راهنما در پوسته‌ی عملیاتی و پنل GPS در مرکز فرمان | OpenStreetMap؛ نشانگر حمل فقط از مختصات واقعی مجاز در جدول موقعیت محموله ساخته می‌شود |
+| سفارش و ارسال | صفحات `orders` و `shipments` | شماره سفارش، مراحل حمل و موعد از دیتابیس؛ راننده فقط محموله‌های واگذارشده را تغییر می‌دهد |
+| مزرعه و تولید | سایت مزرعه، چرخه‌ی گله، تولید روزانه و وظایف عملیاتی | ثبت‌های واقعی، مدارک و وضعیت بررسی؛ بدون عدد تولید فرضی |
+| انبار و خرید | دفتر گردش کالا و موجودی محاسبه‌شده | رسید، خروج، برگشت و تعدیل؛ کنترل سمت دیتابیس جلوی موجودی منفی را می‌گیرد |
+| مالی و مشارکت | قرارداد مشارکت، دفتر مالی شریک و دوره‌های تسویه | مبالغ باید از قرارداد نسخه‌دار و اسناد ثبت‌شده محاسبه شوند؛ نمودار ۵۰/۵۰ در رابط به‌تنهایی تراز واقعی نیست |
+| هوش عملیاتی | ماژول هوش و کنترل عامل‌ها | خروجی فقط پس از پیکربندی ارائه‌دهنده، منبع قابل استناد، سطح مجوز، تأیید اقدام حساس و گزارش اجرا مجاز است |
 
-## Verification
+## تجربه‌ی موبایل
 
-- The public entry must render the workspace on `/simorgh/` and `/simorgh/app/command` with no marketing portal or auth overlay.
-- Dark/light theme toggling and persistence are checked by browser tests.
-- Guest navigation, map help and desktop/mobile viewport overflow are checked by browser tests. CI screenshots capture the actual rendered preview.
-- Authenticated workflows remain separately tested with browser-only sessions and mocked API responses; those tests do not write fixture rows to production.
-- Real Supabase table reads/writes are intentionally not part of the guest preview. Production data is visible only after the owner provisions an account and the user obtains an active company membership.
+نوار پایین دقیقاً چهار جایگاه دارد. برای مدیر: خانه، سفارش‌ها، ارسال و بیشتر؛ برای شریک مزرعه: وظایف، ثبت تولید، ظرفیت و بیشتر؛ برای راننده: محموله‌ها، موقعیت، مدرک و بیشتر؛ برای مشتری: خرید، سفارش‌های من، حساب و بیشتر. «بیشتر» منوی کامل مسیرهای مجاز همان عضویت را باز می‌کند.
+
+## وضعیت ورود و داده‌ها
+
+رابط عمومی ورود/ثبت‌نام فعلاً پنهان است تا این مرحله روی تجربه‌ی عملیاتی تمرکز کند. بازدیدکننده بدون نشست می‌تواند ساختار و ناوبری سامانه را ببیند، اما خواندن داده‌ی خصوصی یا نوشتن عملیات از این حالت انجام نمی‌شود. پس از ساخت امن حساب مالک و عضویت فعال، پوسته‌ی احرازشده‌ی اصلی با خواندن/نوشتن واقعی Supabase و سیاست‌های RLS به کار می‌رود.
+
+## بررسی فنی
+
+- CI شامل TypeScript، ESLint، تست‌های واحد، ممیزی وابستگی‌ها، build مسیر `/simorgh/` و تست مرورگر است.
+- تست مرورگر مسیر شروع، عدم نمایش فرم ورود، سوییچ روشن/تاریک، چهار میان‌بر، چهار آیتم نوار موبایل، نمایش نقشه، نبود overflow افقی و صفحه‌ی بازیابی خطای بارگذاری را بررسی می‌کند.
+- Service Worker فقط پوسته‌ی استاتیک را نگه می‌دارد؛ API احراز هویت، داده، فایل خصوصی و درخواست‌های نوشتن کش نمی‌شوند.
+- صف تغییرات آفلاین و حل تعارض هنوز تکمیل نشده‌اند. ثبت GPS پس‌زمینه هم فعال نیست؛ راننده موقعیت را با اقدام صریح و اجازه‌ی دستگاه ثبت می‌کند.
