@@ -13,7 +13,7 @@ import { useAuth } from './lib/AuthContext';
 import { supabase, isSupabaseConfigured } from './lib/supabase';
 import { pageSectionLabel } from './lib/pageSections';
 import { OperationsWorkspacePage } from './OperationsPages';
-import PreviewWorkspace from './PreviewWorkspace';
+import OperationalWorkspace from './OperationalWorkspace';
 import { SimorghLogo as Logo } from './SimorghLogo';
 import type { AppRole, Membership, PageKey, Row } from './lib/types';
 import { dateFa, dateTimeFa, moneyFa, numberFa, orderLabel, roleLabel, statusLabel, statusTone } from './lib/format';
@@ -726,11 +726,13 @@ function SupplierCapacityPage({membership,search}:{membership:Membership;search:
 function SupplierSettlementPage({membership,search}:{membership:Membership;search:string}) {const {rows,loading,error,refresh}=useDbRows('settlements',membership,{order:'created_at'});const shown=rows.filter(r=>(!membership.supplier_id||r.supplier_id===membership.supplier_id)&&(!search||`${r.invoice_ref??''} ${r.status}`.toLowerCase().includes(search.toLowerCase())));return <><PageHeading eyebrow="SUPPLIER / SETTLEMENT" title="تسویه‌های من" description="مبالغ و وضعیت تسویه را بر اساس رکوردهای داخلی ببین؛ وضعیت «پرداخت‌شده» باید پس از تطبیق واقعی ثبت شود." action={<Button variant="soft" onClick={()=>void refresh()}>تازه‌سازی</Button>}/>{error&&<InlineError error={error} retry={()=>void refresh()}/>}<section className="panel entity-panel">{loading?<div className="panel-loading"><span className="spinner small"/></div>:shown.length?<DataTable rows={shown} columns={[{key:'invoice_ref',label:'مرجع سند'},{key:'amount',label:'مبلغ',render:r=>moneyFa(String(r.amount))},{key:'due_date',label:'سررسید'},{key:'status',label:'وضعیت',render:r=><Badge value={r.status}/>},{key:'note',label:'یادداشت'}]}/>:<EmptyState title="تسویه‌ای برای نمایش وجود ندارد" description="سوابق تسویه پس از ثبت توسط تیم مالی مجموعه اینجا قرار می‌گیرند." icon={CreditCard}/>}</section></>}
 
 function WorkspaceGate() {
-  const { user, memberships } = useAuth();
-  // Only a user with an actual active company membership enters the operational shell.
-  // Stale/ownerless sessions stay in the read-only preview instead of landing on a
-  // role-waiting screen that can look empty; Supabase RLS remains the data boundary.
-  return user && memberships.length > 0 ? <AppShell/> : <PreviewWorkspace/>;
+  const { user, memberships, loading } = useAuth();
+  // Authenticated members enter the real, role-filtered application. Before the
+  // final account-provisioning step, guests see the operational product shell,
+  // never a role picker or "preview" experience. Supabase RLS still protects records.
+  return user && memberships.length > 0
+    ? <AppShell/>
+    : <OperationalWorkspace authLoading={loading} hasMembership={false}/>;
 }
 
 export default function App() {
