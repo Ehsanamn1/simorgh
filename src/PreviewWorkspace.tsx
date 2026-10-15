@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  Activity, AlertTriangle, ArrowDownLeft, ArrowLeft, ArrowUpLeft, BarChart3, Bell,
-  Boxes, Camera, CheckCircle2, ChevronDown, CircleHelp, ClipboardCheck, Clock3,
+  Activity, AlertTriangle, ArrowLeft, ArrowUpLeft, BarChart3, Bell,
+  Boxes, Camera, CheckCircle2, ClipboardCheck, Clock3,
   CreditCard, Factory, FileText, Gauge, Home, Layers3, Map, MapPin, Menu, Moon,
   Package, Search, Settings2, ShieldCheck, Sparkles, Sun, Truck, Users, Warehouse, X,
 } from 'lucide-react';
@@ -246,7 +246,6 @@ export default function PreviewWorkspace() {
     navigate(routeForPage(next));
   };
   const visibleGroups = navGroups.map(group => ({ ...group, items: group.items.filter(item => !search || item.label.toLowerCase().includes(search.toLowerCase()) || pageInfo[item.key].title.toLowerCase().includes(search.toLowerCase())) })).filter(group => group.items.length);
-  const PageIcon = info.icon;
 
   const content = page === 'command' ? <ControlTower navigate={goTo}/>
     : page === 'farm' ? <FarmPreview/>
@@ -256,7 +255,7 @@ export default function PreviewWorkspace() {
             : page === 'intelligence' ? <IntelligencePreview/>
               : page === 'map' ? <div className="sim-preview-page-stack"><div className="sim-preview-page-heading"><div><span className="sim-preview-eyebrow">{info.eyebrow}</span><h1>{info.title}</h1><p>{info.description}</p></div><span className="sim-preview-readonly"><MapPin size={14}/> بدون مختصات ساختگی</span></div><NetworkMap expanded/><section className="sim-preview-panel"><div className="sim-preview-panel-head"><div><h3>آخرین مختصات مجاز</h3><p>فقط GPSهایی که راننده با اقدام صریح ثبت کرده باشد</p></div><MapPin size={18}/></div><EmptyState icon={MapPin} title="نقطه‌ی واقعی برای نمایش موجود نیست" description="پیش‌نمایش موقعیت دستگاه را نمی‌خواند. موقعیت محموله فقط پس از ورود مجاز و اجازه‌ی صریح راننده نمایش داده خواهد شد."/></section></div>
                 : page === 'orders' ? <div className="sim-preview-page-stack"><div className="sim-preview-page-heading"><div><span className="sim-preview-eyebrow">{info.eyebrow}</span><h1>{info.title}</h1><p>{info.description}</p></div><span className="sim-preview-readonly"><FileText size={14}/> بدون سفارش نمونه</span></div><section className="sim-preview-panel"><div className="sim-preview-panel-head"><div><h3>دفتر سفارش‌ها</h3><p>شماره سفارش، مشتری، وضعیت، موعد تحویل و مبلغ ثبت‌شده</p></div><FileText size={18}/></div><EmptyState icon={FileText} title="سفارش واقعی بارگذاری نشده" description="اطلاعات سفارش پس از فعال‌شدن دسترسی کاربر خوانده می‌شود؛ هیچ سفارش نمونه‌ای ساخته نشده است."/></section></div>
-                  : page === 'finance' ? <FinancePreview/> : page === 'settings' ? <GenericPreview page="settings"/> : page === 'quality' || page === 'inventory' || page === 'partners' ? <GenericPreview page={page}/> : <GenericPreview page={page}/>;
+                  : page === 'settings' ? <GenericPreview page="settings"/> : page === 'quality' || page === 'inventory' || page === 'partners' ? <GenericPreview page={page}/> : <GenericPreview page={page}/>;
 
   return <main className="sim-preview-app" dir="rtl" data-theme={theme}>
     <PreviewHeader theme={theme} onThemeToggle={() => setTheme(current => current === 'dark' ? 'light' : 'dark')} role={role} onRoleChange={setRole} onNavigate={goTo}/>
