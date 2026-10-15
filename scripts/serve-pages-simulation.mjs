@@ -2,6 +2,8 @@
 import { createServer } from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
+import process from 'node:process';
+import { URL } from 'node:url';
 
 const root = path.resolve('dist');
 const prefix = '/simorgh';
