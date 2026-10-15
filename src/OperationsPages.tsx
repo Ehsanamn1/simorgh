@@ -492,7 +492,7 @@ export function OperationsWorkspacePage({kind,membership,search}:{kind:Operation
   };
   const cell=(row:Row,col:Column)=>{
     const value=col.value?col.value(row,refs):row[col.key];
-    if(col.key==='status')return <span className={'ops-status '+statusTone(row.status)}>{text(value)==='—'?'—':value}</span>;
+    if(col.key==='status')return <span className={'ops-status '+statusTone(row.status)}>{text(value)}</span>;
     return text(value);
   };
 
