@@ -196,6 +196,7 @@ export default function ProductExperience() {
         if (password !== confirmPassword) { setError('تکرار گذرواژه یکسان نیست.'); return; }
         const { error: updateError } = await supabase.auth.updateUser({ password });
         if (updateError) { setError('تغییر گذرواژه انجام نشد. لینک بازیابی ممکن است منقضی شده باشد.'); return; }
+        await supabase.auth.signOut();
         setPassword(''); setConfirmPassword(''); setMode('signin'); setNotice('گذرواژه تغییر کرد. حالا با گذرواژه جدید وارد شو.');
       } else {
         const { error: authError } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
