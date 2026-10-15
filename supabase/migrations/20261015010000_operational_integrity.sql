@@ -148,9 +148,13 @@ begin
       raise exception 'بچ ردیابی محصول با تأمین‌کننده یا محصول این بچ تطابق ندارد';
     end if;
   end if;
-  if new.status='completed' and new.quality_status<>'passed' then
-    raise exception 'بچ تولید فقط پس از تأیید کیفیت قابل تکمیل است';
+  if new.status='completed' and (new.quality_status<>'passed' or new.lot_id is null) then
+    raise exception 'بچ تولید فقط پس از تأیید کیفیت و اتصال به بچ ردیابی قابل تکمیل است';
   end if;
+  if new.status='completed' and not exists(
+    select 1 from public.lots l join public.quality_reviews q on q.company_id=l.company_id and q.lot_id=l.id
+    where l.company_id=new.company_id and l.id=new.lot_id and l.status='released' and q.result='pass'
+  ) then raise exception 'بچ ردیابی باید بررسی کیفیت موفق و وضعیت آزادشده داشته باشد'; end if;
   return new;
 end $;
 create trigger guard_production_batch_scope
@@ -544,10 +548,13 @@ create trigger guard_operational_task_update
 -- Validate financial corrections against a posted source record in the same agreement.
 create or replace function public.guard_partner_financial_relationship()
 returns trigger language plpgsql security definer set search_path='' as $$
-declare source public.partner_financial_entries%rowtype;
+declare source public.partner_financial_entries%rowtype; allowed_categories text[];
 begin
-  if not exists(select 1 from public.partnership_agreements a where a.id=new.agreement_id and a.company_id=new.company_id and a.supplier_id=new.supplier_id) then
-    raise exception 'سند مالی باید به قرارداد همان تأمین‌کننده متصل باشد';
+  select a.shared_expense_categories into allowed_categories from public.partnership_agreements a
+   where a.id=new.agreement_id and a.company_id=new.company_id and a.supplier_id=new.supplier_id;
+  if not found then raise exception 'سند مالی باید به قرارداد همان تأمین‌کننده متصل باشد'; end if;
+  if new.entry_type='expense' and new.is_shared_cost and not (new.expense_category=any(allowed_categories)) then
+    raise exception 'این دسته هزینه طبق قرارداد برای تقسیم مشترک تأیید نشده است';
   end if;
   if new.entry_type='adjustment' then
     select * into source from public.partner_financial_entries
@@ -789,7 +796,7 @@ begin
   select * into a from public.partnership_agreements where id=_agreement;
   if not found then raise exception 'قرارداد مشارکت پیدا نشد'; end if;
   if not public.is_company_manager(a.company_id) then raise exception 'ایجاد دوره فقط برای مالک یا مدیر مجاز است'; end if;
-  if a.status not in ('active','expired') then raise exception 'قرارداد باید تأیید و فعال شده باشد'; end if;
+  if a.status not in ('active','suspended','expired','terminated') then raise exception 'قرارداد باید امضا و تأیید شده باشد'; end if;
   if _period_start is null or _period_end is null or _period_end<_period_start then raise exception 'بازه زمانی دوره نامعتبر است'; end if;
   if _period_end>current_date then raise exception 'دوره تسویه آینده قابل ایجاد نیست'; end if;
   perform pg_advisory_xact_lock(hashtext(_agreement::text));
