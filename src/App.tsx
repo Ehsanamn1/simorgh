@@ -3,13 +3,13 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import {
   Activity, ArrowLeft, ArrowUpLeft, Boxes, Building2, CheckCircle2,
-  ChevronDown, CircleHelp, ClipboardCheck, CreditCard, Factory, FileText, LayoutDashboard,
+  ChevronDown, CircleHelp, ClipboardCheck, CreditCard, Factory, FileCheck2, FileText, LayoutDashboard,
   LogOut, Menu, Package, Plus, Search, Settings2, ShieldCheck, Truck, Users, Warehouse, X, Zap,
 } from 'lucide-react';
 import { useAuth } from './lib/AuthContext';
 import { supabase, isSupabaseConfigured } from './lib/supabase';
 import { pageSectionLabel } from './lib/pageSections';
-import { OperationsWorkspacePage, type OperationsKind } from './OperationsPages';
+import { OperationsWorkspacePage } from './OperationsPages';
 import type { AppRole, Membership, PageKey, Row } from './lib/types';
 import { dateFa, dateTimeFa, moneyFa, numberFa, orderLabel, roleLabel, statusLabel, statusTone } from './lib/format';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
