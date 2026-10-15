@@ -71,6 +71,7 @@ test('manager workspace retains operations and captures a real rendered control-
   await page.goto('/simorgh/app/command', { waitUntil: 'domcontentloaded' });
   await expect(page.getByRole('heading', { name: /مرکز فرمان شبکه/ })).toBeVisible();
   await expect(page.locator('.side-nav').getByRole('link', { name: /سفارش‌ها/ })).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('manager-control-tower-viewport.png') });
   await page.screenshot({ path: testInfo.outputPath('manager-control-tower.png'), fullPage: true });
 
   const paths = [
@@ -101,6 +102,7 @@ test('supplier workspace keeps manager-only routes out of the allowed menu', asy
   await installIsolatedSession(page, 'supplier');
   await page.goto('/simorgh/app/operational-tasks', { waitUntil: 'domcontentloaded' });
   await expect(page.getByRole('heading', { name: 'وظایف عملیاتی' })).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('supplier-task-workspace-viewport.png') });
   await page.screenshot({ path: testInfo.outputPath('supplier-task-workspace.png'), fullPage: true });
   await expect(page.getByRole('link', { name: /وظایف عملیاتی/ })).toBeVisible();
   await expect(page.getByRole('link', { name: /دستورالعمل‌های کاری/ })).toHaveCount(0);
@@ -109,6 +111,24 @@ test('supplier workspace keeps manager-only routes out of the allowed menu', asy
   expect(errors).toEqual([]);
 });
 
+test('manager bottom navigation stays manager-specific on mobile and tablet', async ({ page }, testInfo) => {
+  const viewportWidth = Number((testInfo.project.use as { viewport?: { width?: number } }).viewport?.width || 1365);
+  await installIsolatedSession(page, 'owner');
+  await page.goto('/simorgh/app/command', { waitUntil: 'domcontentloaded' });
+  await expect(page.getByRole('heading', { name: /مرکز فرمان شبکه/ })).toBeVisible();
+  const mobileNav = page.locator('.mobile-workspace-nav');
+  if (viewportWidth <= 860) {
+    await expect(mobileNav).toBeVisible();
+    for (const label of ['نمای کلی', 'سفارش‌ها', 'ارسال‌ها', 'مالی']) {
+      await expect(mobileNav.getByRole('link', { name: label, exact: true })).toBeVisible();
+    }
+    await expect(mobileNav.getByRole('link', { name: 'وظایف', exact: true })).toHaveCount(0);
+    await expect(mobileNav.getByRole('link', { name: 'ثبت تولید', exact: true })).toHaveCount(0);
+    await expect(mobileNav.getByRole('link', { name: 'دفتر شریک', exact: true })).toHaveCount(0);
+  } else {
+    await expect(mobileNav).toBeHidden();
+  }
+});
 test('mobile navigation is role-specific and only mirrors permitted real routes', async ({ page }, testInfo) => {
   const viewportWidth = Number((testInfo.project.use as { viewport?: { width?: number } }).viewport?.width || 1365);
   await installIsolatedSession(page, 'supplier');
