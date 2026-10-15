@@ -135,6 +135,7 @@ create table public.daily_production_records (
   note text,
   recorded_by uuid references auth.users(id) on delete set null default auth.uid(),
   recorded_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
   unique(company_id,id),
   foreign key(company_id,batch_id) references public.production_batches(company_id,id) on delete restrict
 );
@@ -210,10 +211,11 @@ create table public.task_evidence (
   uploaded_by uuid references auth.users(id) on delete set null default auth.uid(),
   captured_at timestamptz not null default now(),
   created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
   unique(company_id,id),
   foreign key(company_id,task_id) references public.operational_tasks(company_id,id) on delete restrict,
   check ((evidence_type in ('photo','document') and storage_path is not null) or (evidence_type in ('note','measurement'))),
-  check (storage_path is null or storage_path like company_id::text || '/' || task_id::text || '/%'),
+  check (storage_path is null or storage_path like (company_id::text || '/' || task_id::text || '/%')),
   check (evidence_type <> 'note' or length(trim(coalesce(note,'')))>0),
   check (evidence_type <> 'measurement' or measurement_value is not null)
 );
@@ -563,8 +565,9 @@ begin
   if new.status='posted' and new.posted_at is null then
     new.posted_at:=now(); new.posted_by:=coalesce(new.posted_by,auth.uid());
   end if;
+  if tg_op='DELETE' then return old; end if;
   return new;
-end $$;
+end $;
 create trigger guard_partner_financial_entry_update
   before update or delete on public.partner_financial_entries for each row execute function public.guard_posted_partner_financial_entry();
 
