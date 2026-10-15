@@ -13,7 +13,7 @@
 - **Database:** Supabase Postgres project `aoxerjimfiwusidaparx`, region `eu-central-1`. Migration `supabase/migrations/20261015000000_simorgh_core.sql` is applied. All 18 application tables report RLS enabled. Initial company row `شبکه سیمرغ` exists, with no owner membership yet.
 - **Hosting:** Static SPA on GitHub Pages at https://ehsanamn1.github.io/simorgh/; automatic deploy is gated on a successful `Simorgh CI` workflow. Optional Cloudflare Pages workflow remains in the repository.
 - **Storage:** Private Supabase Storage bucket `delivery-evidence` and associated access policies exist in the migration; upload/access scenarios still need role-by-role verification.
-- **Test baseline:** Vitest unit tests cover currency/role/order-state labels. Playwright exercises the public workspace portal in desktop, mobile, and compact-mobile Chromium, including role-card preview navigation, no auth inputs/buttons on the root, console exceptions, and horizontal overflow. The live operational workflows still need separate account-based testing.
+- **Latest verified test baseline (2026-10-15):** [CI run 38757452211](https://github.com/Ehsanamn1/simorgh/actions/runs/38757452211) succeeded. Vitest: 4 passed. Playwright: 18 passed in desktop (1365×900), mobile (390×844), and compact mobile (360×800) Chromium. Production npm audit reported 0 vulnerabilities, and the /simorgh/ production build succeeded. Tests cover public-role UI and responsive behavior, not operational RLS boundaries.
 
 ## 2. Architecture diagram
 
@@ -60,7 +60,7 @@ flowchart TD
 | AI agents and approvals | **Missing** | No agent orchestration, run log, tool allowlist, approvals inbox, scheduler, or AI governance layer found in current source. |
 | Notifications/jobs | **Partial** | Notification table exists; delivery channels, idempotent job runner, retries, and visible failure monitoring are not configured. |
 | External camera / telemetry integrations | **Not configured** | Never claim a camera, GPS tracker, or sensor is connected without a verified adapter and successful device-level test. |
-| Responsive UI | **Existing responsive CSS; being refined** | The earlier styles used many 7–10px labels and hid the search field on narrow screens. Browser tests must verify mobile viewport behavior after refinement. |
+| Public role-selection portal | **Implemented and browser-tested** | Four structural role previews; no auth forms on /; motion honors reduced-motion preference. Tests verify the public UI at 3 viewport sizes, but they do not constitute real-role authorization tests. |
 
 ## 5. UI/UX audit and direction
 
@@ -78,7 +78,7 @@ flowchart TD
 - The manager preview explicitly surfaces user/role assignment and change history. Role selection itself does not assign access or expose private records.
 - Refined typographic scale, spacing, accessible touch targets, tables/forms, Persian labels, mobile search, and real links replace the earlier tiny admin-template style.
 - Motion design includes orbit rings, animated supply-chain nodes/flow indicators, soft reveals, focus/hover transitions, and reduced-motion support.
-- Browser tests target desktop, standard mobile and compact mobile, role-preview navigation/capability labels, absence of auth UI, JavaScript errors, and horizontal overflow. The latest run is the source of truth for pass/fail.
+- Verified in CI run [38757452211](https://github.com/Ehsanamn1/simorgh/actions/runs/38757452211): 18 Playwright tests and 4 Vitest tests passed. Typecheck, lint, production audit (0 findings), and Pages base-path build also passed. The current site was deployed successfully in [run 38757731921](https://github.com/Ehsanamn1/simorgh/actions/runs/38757731921). These checks verify the public role-screening experience only; role isolation against actual Supabase accounts remains unverified.
 
 ### Reference research used for principles, not for copying
 - [TraceFarm — platform screens](https://tracefarm.eu/screens): the product groups task/deadline and financial views alongside the farm dashboard.
@@ -94,10 +94,26 @@ flowchart TD
 - Keep `service_role` / database secrets off the browser and out of `VITE_` variables. Only the publishable key belongs in the static build.
 - No independent security audit has been conducted. Payment, tax invoice, SMS, Google OAuth, live GPS, live camera, and AI providers are not configured as working integrations.
 
-## 7. Implementation order and regression risks
+## 7. Latest automated acceptance and remaining gates
 
-1. **Role-selection portal + browser checks** (current work): polished public entry, separate workspace previews, explicit role assignment governance, motion and responsive rendering; keep auth UI disabled and avoid altering data contracts.
-2. **Owner onboarding and role-level RLS tests:** prerequisite to safe use by real users.
+### Passed for the public role-screening release
+- The unauthenticated root renders the RTL role-selection page and does not show login, sign-up, or password-reset fields.
+- Manager/owner, farm/supplier partner, driver/transport contractor and customer role cards render distinct structural previews.
+- Preview navigation and capability labels work; role selection does not create authorization or query private rows.
+- Desktop/mobile/compact-mobile Chromium checks passed with no horizontal page overflow and no uncaught page exceptions in the covered flows.
+- Vitest 4/4, Playwright 18/18, TypeScript, ESLint, production audit, Pages build and deployment passed on the referenced workflow runs.
+
+### Not accepted as operationally complete
+- New authentication/onboarding is intentionally disabled. There is still no owner membership documented as provisioned; previews are not live operational role panels.
+- No separate authenticated-account test has proven customer-to-customer, farm-to-farm or driver-to-unassigned-trip isolation. RLS being enabled does not by itself prove each policy is correct.
+- Production/farm/task lifecycle, inventory/procurement, contract-versioned 50/50 settlement, fully assigned driver tracking, and AI job/approval integrations remain missing or partial as documented above.
+
+See [ACCEPTANCE_CHECKLIST.md](ACCEPTANCE_CHECKLIST.md) for release gates mapped to the master implementation prompt.
+
+## 8. Implementation order and regression risks
+
+1. **Public role-selection portal + browser smoke checks** (completed for this release): polished public entry, four structural workspace previews, explicit role-assignment governance, motion and responsive rendering; keep auth UI disabled per request.
+2. **Owner onboarding and role-level RLS tests (next operational gate):** prerequisite to safe use by real users.
 3. **Farm/partner contracts and production lifecycle:** farm sites, contract versions/amendments, flock cycles, batches, approved daily tasks, evidence, and incidents. Use additive migrations.
 4. **Inventory/procurement and operational expenses:** transaction-ledger basis before balances or forecasts.
 5. **Contract-versioned 50/50 reconciliation:** deterministic calculations, separate incurred/approved/paid/allocated/settled amounts, reversals and audit trail; never implement as a display-only percentage.
