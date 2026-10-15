@@ -774,3 +774,25 @@ html[data-theme="light"] .tower-quick-access{background:linear-gradient(145deg,#
 html[data-theme="light"] .tower-quick-grid>a{background:#f7fafa}
 @media(max-width:860px){.tower-quick-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:640px){.tower-quick-access{padding:10px;margin-bottom:11px}.tower-quick-head h3{font-size:10px}.tower-quick-grid{gap:7px}.tower-quick-grid>a{grid-template-columns:30px minmax(0,1fr) 11px;min-height:59px;padding:8px;gap:2px 7px}.tower-quick-grid>a>span{width:30px;height:30px}.tower-quick-grid>a>b{font-size:9px}.tower-quick-grid>a>small{font-size:7px}}
+
+.driver-mobile-panel{scroll-margin-top:90px}
+.driver-map-frame{padding:10px}
+.driver-map-frame iframe{display:block;width:100%;height:300px;border:1px solid var(--obs-border);border-radius:11px;background:var(--obs-surface-2);filter:invert(.88) hue-rotate(180deg) saturate(.46) brightness(.84) contrast(.92)}
+.driver-map-points{display:grid;padding:0 12px 12px}
+.driver-map-points>a{display:flex;align-items:center;gap:9px;padding:10px 3px;border-top:1px solid var(--obs-border);color:var(--obs-text);text-decoration:none}
+.driver-map-points>a>svg{flex:none;color:var(--obs-accent)}
+.driver-map-points>a>span{display:grid;gap:3px;min-width:0;flex:1}
+.driver-map-points>a b{font-size:10px}
+.driver-map-points>a small{font-size:8px;color:var(--obs-subtle)}
+.driver-proof-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 15px;border-bottom:1px solid var(--obs-border)}
+.driver-proof-row:last-child{border-bottom:0}
+.driver-proof-row>span{display:grid;gap:3px;min-width:0}
+.driver-proof-row b{font-size:10px;color:var(--obs-text)}
+.driver-proof-row small{font-size:9px;color:var(--obs-subtle)}
+html[data-theme="light"] .driver-map-frame iframe{filter:saturate(.75) contrast(.97)}
+@media(max-width:600px){
+ .driver-map-frame{padding:8px}
+ .driver-map-frame iframe{height:245px}
+ .driver-proof-row{align-items:flex-start;padding:10px 12px}
+ .driver-proof-row .button-soft{min-height:36px;white-space:nowrap;font-size:9px}
+}
