@@ -2,7 +2,7 @@ import type * as React from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import {
-  Activity, ArrowLeft, ArrowUpLeft, Boxes, Building2, Check, CheckCircle2,
+  Activity, AlertTriangle, ArrowLeft, ArrowUpLeft, Boxes, Building2, Check, CheckCircle2,
   ChevronDown, CircleHelp, ClipboardCheck, CreditCard, Factory, FileCheck2, FileText, LayoutDashboard,
   LogOut, Menu, Package, Plus, Search, Settings2, ShieldCheck, Truck, Users, UserPlus, Warehouse, X, Zap,
 } from 'lucide-react';
@@ -307,17 +307,110 @@ function useDbRows(table: string, membership: Membership, options?: { select?: s
 }
 function Stat({ label, value, note, icon: Icon, tone = 'green' }: { label:string; value:string; note:string; icon:typeof Boxes; tone?:string }) { return <article className="stat-card"><div className="stat-card-top"><span>{label}</span><i className={`stat-icon ${tone}`}><Icon size={18}/></i></div><b>{value}</b><small>{note}</small></article>; }
 function Dashboard({ membership }: { membership: Membership }) {
-  const [orders,setOrders]=useState<Row[]>([]); const [counts,setCounts]=useState({orders:0,customers:0,suppliers:0,shipments:0}); const [loading,setLoading]=useState(true); const [error,setError]=useState('');
-  const load=async()=>{if(!supabase)return;setLoading(true);setError('');const [o,c,s,sh,cap]=await Promise.all([
-    supabase.from('orders').select('id,reference,status,requested_delivery,created_at,customers(name)',{count:'exact'}).eq('company_id',membership.company_id).order('created_at',{ascending:false}).limit(8),
-    supabase.from('customers').select('id',{count:'exact',head:true}).eq('company_id',membership.company_id),
-    supabase.from('suppliers').select('id',{count:'exact',head:true}).eq('company_id',membership.company_id),
-    supabase.from('shipments').select('id',{count:'exact',head:true}).eq('company_id',membership.company_id).not('stage','in','(delivered,returned,failed)'),
-    supabase.from('capacity_commitments').select('id',{count:'exact',head:true}).eq('company_id',membership.company_id).eq('status','confirmed'),
-  ]);const err=o.error??s.error??sh.error??cap.error;if(err)setError(err.message);setOrders((o.data??[]) as Row[]);setCounts({orders:o.count??o.data?.length??0,customers:c.count??0,suppliers:s.count??0,shipments:sh.count??0});setLoading(false);};
-  useEffect(()=>{void load();},[membership.company_id]);
-  const chart=useMemo(()=>{const names=['draft','submitted','confirmed','allocated','in_fulfillment','dispatched','delivered','cancelled'];return names.map(k=>({name:orderLabel[k],count:orders.filter(o=>o.status===k).length})).filter(x=>x.count>0);},[orders]);
-  return <><PageHeading eyebrow="CONTROL CENTER / 01" title="مرکز فرمان شبکه" description="آنچه در پایگاه داده ثبت شده، آنچه در جریان است و قدم بعدی برای پیگیری." action={<Button variant="soft" onClick={()=>void load()}><Activity size={15}/> تازه‌سازی داده‌ها</Button>}/>{error&&<InlineError error={error} retry={()=>void load()}/>}<section className="stats-grid"><Stat label="سفارش‌های ثبت‌شده" value={loading?'—':numberFa(counts.orders)} note="بر پایه رکوردهای قابل دسترس" icon={FileText}/><Stat label="مشتریان سازمانی" value={loading?'—':numberFa(counts.customers)} note="حساب‌های ثبت‌شده" icon={Users} tone="blue"/><Stat label="تأمین‌کنندگان" value={loading?'—':numberFa(counts.suppliers)} note="اعضای شبکه تأمین" icon={Factory} tone="amber"/><Stat label="ارسال‌های باز" value={loading?'—':numberFa(counts.shipments)} note="تحویل‌نشده و در جریان" icon={Truck} tone="slate"/></section><section className="dashboard-grid"><article className="panel chart-panel"><div className="panel-heading"><div><span className="section-number">۰۱</span><div><h3>وضعیت سفارش‌ها</h3><p>توزیع سفارش‌های اخیر بر اساس مرحله واقعی</p></div></div></div>{loading?<div className="panel-loading"><span className="spinner small"/></div>:chart.length?<div className="chart-container"><ResponsiveContainer width="100%" height={250}><BarChart data={chart} margin={{top:10,right:4,left:4,bottom:0}}><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e8ece4"/><XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize:11,fill:'#7b8b7d'}}/><YAxis allowDecimals={false} axisLine={false} tickLine={false} tick={{fontSize:10,fill:'#98a497'}}/><Tooltip cursor={{fill:'#f2f6ee'}} contentStyle={{border:'1px solid #dfe7dc',borderRadius:10,fontFamily:'Vazirmatn',fontSize:12}}/><Bar dataKey="count" name="تعداد سفارش" fill="#2f7352" radius={[5,5,0,0]} maxBarSize={36}/></BarChart></ResponsiveContainer></div>:<EmptyState title="هنوز سفارش ثبت نشده" description="با ثبت اولین سفارش واقعی، نمودار وضعیت‌ها در این بخش ظاهر می‌شود." icon={Activity}/>}</article><article className="panel action-panel"><div className="panel-heading"><div><span className="section-number orange">۰۲</span><div><h3>اولین اقدام‌های پیشنهادی</h3><p>شروع کار بدون داده ساختگی</p></div></div></div><div className="action-list"><Link to="/app/customers" className="action-list-link"><span className="action-symbol"><Building2 size={17}/></span><span><b>ثبت مشتریان واقعی</b><small>شرایط خرید و اطلاعات تماس</small></span><ArrowLeft size={16}/></Link><Link to="/app/suppliers" className="action-list-link"><span className="action-symbol amber"><Factory size={17}/></span><span><b>ثبت شبکه تأمین</b><small>اطلاعات تولیدکنندگان و ظرفیت</small></span><ArrowLeft size={16}/></Link><Link to="/app/products" className="action-list-link"><span className="action-symbol blue"><Package size={17}/></span><span><b>ساخت کاتالوگ محصول</b><small>واحد، بسته‌بندی و شرایط فروش</small></span><ArrowLeft size={16}/></Link></div><div className="action-note"><ShieldCheck size={17}/><p>شاخص سود تنها پس از ثبت قیمت فروش و هزینه‌های واقعی سفارش محاسبه می‌شود. تا آن زمان، این سامانه عمداً عددی تخمین نمی‌زند.</p></div></article></section><section className="panel recent-panel"><div className="panel-heading"><div><span className="section-number">۰۳</span><div><h3>آخرین سفارش‌ها</h3><p>جدیدترین رکوردهای ثبت‌شده در مجموعه</p></div></div><Link className="link-action" to="/app/orders">همه سفارش‌ها <ArrowLeft size={14}/></Link></div>{loading?<div className="panel-loading"><span className="spinner small"/></div>:orders.length?<DataTable columns={[{key:'reference',label:'شماره سفارش'},{key:'customers',label:'مشتری',render:r=>(r.customers as any)?.name??'—'},{key:'status',label:'وضعیت',render:r=><Badge value={r.status}/>},{key:'requested_delivery',label:'تاریخ تحویل',render:r=>dateFa(String(r.requested_delivery??''))},{key:'created_at',label:'تاریخ ثبت',render:r=>dateTimeFa(String(r.created_at??''))}]} rows={orders}/>:<EmptyState title="صف سفارش خالی است" description="هنوز سفارشی در این شرکت ثبت نشده. پس از ورود داده‌های واقعی، آخرین فعالیت‌ها اینجا نمایش داده می‌شود." icon={FileText}/>}</section></>;
+  const [orders, setOrders] = useState<Row[]>([]);
+  const [counts, setCounts] = useState({ orders: 0, customers: 0, suppliers: 0, shipments: 0, capacity: 0, lateOrders: 0, overdueTasks: 0, reviewTasks: 0, incidents: 0, invoices: 0, failedShipments: 0, expiringLicenses: 0, pendingRequests: 0 });
+  const [signals, setSignals] = useState({ lateOrders: [] as Row[], overdueTasks: [] as Row[], reviewTasks: [] as Row[], incidents: [] as Row[], invoices: [] as Row[], failedShipments: [] as Row[], expiringLicenses: [] as Row[], pendingRequests: [] as Row[], audit: [] as Row[] });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [lastUpdated, setLastUpdated] = useState('');
+  const canManage = membership.role === 'owner' || membership.role === 'admin';
+
+  const load = async () => {
+    if (!supabase) return;
+    setLoading(true);
+    setError('');
+    const parts = Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Tehran', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date()).map(part => [part.type, part.value]));
+    const today = `${parts.year}-${parts.month}-${parts.day}`;
+    const horizonParts = Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Tehran', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date(Date.now() + 30 * 86400000)).map(part => [part.type, part.value]));
+    const horizon = `${horizonParts.year}-${horizonParts.month}-${horizonParts.day}`;
+    const now = new Date().toISOString();
+    const company = membership.company_id;
+    const [o, c, s, sh, cap, late, due, review, incidents, invoices, failed, licenses, requests, audit] = await Promise.all([
+      supabase.from('orders').select('id,reference,status,requested_delivery,created_at,customers(name)', { count: 'exact' }).eq('company_id', company).order('created_at', { ascending: false }).limit(8),
+      supabase.from('customers').select('id', { count: 'exact', head: true }).eq('company_id', company),
+      supabase.from('suppliers').select('id', { count: 'exact', head: true }).eq('company_id', company),
+      supabase.from('shipments').select('id', { count: 'exact', head: true }).eq('company_id', company).not('stage', 'in', '(delivered,returned,failed)'),
+      supabase.from('capacity_commitments').select('id', { count: 'exact', head: true }).eq('company_id', company).in('status', ['confirmed','committed']).gte('period_end', today),
+      supabase.from('orders').select('id,reference,status,requested_delivery', { count: 'exact' }).eq('company_id', company).lt('requested_delivery', today).not('status', 'in', '(delivered,cancelled)').order('requested_delivery', { ascending: true }).limit(4),
+      supabase.from('operational_tasks').select('id,title,status,priority,due_at', { count: 'exact' }).eq('company_id', company).lt('due_at', now).not('status', 'in', '(approved,cancelled)').order('due_at', { ascending: true }).limit(4),
+      supabase.from('operational_tasks').select('id,title,status,priority,due_at,submitted_at', { count: 'exact' }).eq('company_id', company).eq('status', 'submitted').order('submitted_at', { ascending: true }).limit(4),
+      supabase.from('operational_incidents').select('id,title,severity,status,created_at', { count: 'exact' }).eq('company_id', company).not('status', 'in', '(resolved,closed,cancelled)').order('created_at', { ascending: false }).limit(4),
+      supabase.from('invoices').select('id,reference,amount,due_date,status', { count: 'exact' }).eq('company_id', company).lt('due_date', today).in('status', ['issued','partially_paid','overdue']).order('due_date', { ascending: true }).limit(4),
+      supabase.from('shipments').select('id,stage,failure_reason,order_id', { count: 'exact' }).eq('company_id', company).eq('stage', 'failed').order('updated_at', { ascending: false }).limit(3),
+      supabase.from('farm_sites').select('id,name,license_expires_on', { count: 'exact' }).eq('company_id', company).eq('active', true).not('license_expires_on', 'is', null).lte('license_expires_on', horizon).order('license_expires_on', { ascending: true }).limit(3),
+      supabase.from('access_requests').select('id,email,full_name,requested_role,organization_name,created_at', { count: 'exact' }).eq('company_id', company).eq('status', 'pending').order('created_at', { ascending: true }).limit(3),
+      supabase.from('audit_events').select('id,table_name,action,record_id,occurred_at', { count: 'exact' }).eq('company_id', company).order('occurred_at', { ascending: false }).limit(5),
+    ]);
+    const dbError = o.error ?? c.error ?? s.error ?? sh.error ?? cap.error ?? late.error ?? due.error ?? review.error ?? incidents.error ?? invoices.error ?? failed.error ?? licenses.error ?? requests.error ?? audit.error;
+    if (dbError) setError(dbError.message);
+    const rowCount = (result: { count: number | null; data: unknown[] | null }) => result.count ?? result.data?.length ?? 0;
+    setOrders((o.data ?? []) as Row[]);
+    setCounts({
+      orders: rowCount(o), customers: rowCount(c), suppliers: rowCount(s), shipments: rowCount(sh), capacity: rowCount(cap),
+      lateOrders: rowCount(late), overdueTasks: rowCount(due), reviewTasks: canManage ? rowCount(review) : 0,
+      incidents: rowCount(incidents), invoices: rowCount(invoices), failedShipments: rowCount(failed),
+      expiringLicenses: rowCount(licenses), pendingRequests: canManage ? rowCount(requests) : 0,
+    });
+    setSignals({
+      lateOrders: (late.data ?? []) as Row[], overdueTasks: (due.data ?? []) as Row[],
+      reviewTasks: (review.data ?? []) as Row[], incidents: (incidents.data ?? []) as Row[],
+      invoices: (invoices.data ?? []) as Row[], failedShipments: (failed.data ?? []) as Row[],
+      expiringLicenses: (licenses.data ?? []) as Row[], pendingRequests: (requests.data ?? []) as Row[],
+      audit: (audit.data ?? []) as Row[],
+    });
+    setLastUpdated(new Date().toISOString());
+    setLoading(false);
+  };
+
+  useEffect(() => { void load(); }, [membership.company_id, membership.role]);
+  const chart = useMemo(() => {
+    const names = ['draft','submitted','confirmed','allocated','in_fulfillment','dispatched','delivered','cancelled'];
+    return names.map(key => ({ name: orderLabel[key], count: orders.filter(order => order.status === key).length })).filter(item => item.count > 0);
+  }, [orders]);
+
+  const alerts: { id: string; title: string; detail: string; to: string; tone: 'critical' | 'warning' | 'info'; rank: number }[] = [];
+  signals.incidents.forEach(row => alerts.push({ id: 'incident-' + String(row.id), title: 'رخداد نیازمند بررسی: ' + String(row.title ?? 'بدون عنوان'), detail: 'شدت: ' + String(row.severity ?? 'ثبت‌نشده') + ' · وضعیت: ' + (statusLabel[String(row.status)] ?? String(row.status ?? 'ثبت‌نشده')), to: '/app/incidents', tone: ['critical','high','urgent'].includes(String(row.severity).toLowerCase()) ? 'critical' : 'warning', rank: 1 }));
+  signals.failedShipments.forEach(row => alerts.push({ id: 'shipment-' + String(row.id), title: 'محموله با وضعیت خطا ثبت شده است', detail: String(row.failure_reason ?? 'علت خطا ثبت نشده') + ' · شناسه ' + String(row.id).slice(0, 8), to: '/app/shipments', tone: 'critical', rank: 2 }));
+  signals.lateOrders.forEach(row => alerts.push({ id: 'late-order-' + String(row.id), title: 'سفارش ' + String(row.reference ?? String(row.id).slice(0,8)) + ' از موعد گذشته', detail: 'موعد تحویل: ' + dateFa(String(row.requested_delivery ?? '')), to: '/app/orders', tone: 'critical', rank: 3 }));
+  signals.invoices.forEach(row => alerts.push({ id: 'invoice-' + String(row.id), title: 'فاکتور ' + String(row.reference ?? String(row.id).slice(0,8)) + ' سررسید گذشته', detail: 'مبلغ: ' + moneyFa(String(row.amount ?? 0)) + ' · سررسید: ' + dateFa(String(row.due_date ?? '')), to: '/app/finance', tone: 'warning', rank: 4 }));
+  if (canManage) signals.reviewTasks.forEach(row => alerts.push({ id: 'review-task-' + String(row.id), title: 'وظیفه منتظر بررسی مدیر: ' + String(row.title ?? 'بدون عنوان'), detail: 'اولویت: ' + (statusLabel[String(row.priority)] ?? String(row.priority ?? 'ثبت‌نشده')) + ' · ارسال: ' + dateTimeFa(String(row.submitted_at ?? row.due_at ?? '')), to: '/app/operational-tasks', tone: 'warning', rank: 5 }));
+  signals.overdueTasks.forEach(row => alerts.push({ id: 'due-task-' + String(row.id), title: 'وظیفه از موعد گذشته: ' + String(row.title ?? 'بدون عنوان'), detail: 'سررسید: ' + dateTimeFa(String(row.due_at ?? '')) + ' · وضعیت: ' + (statusLabel[String(row.status)] ?? String(row.status ?? '')), to: '/app/operational-tasks', tone: 'warning', rank: 6 }));
+  signals.expiringLicenses.forEach(row => { const expiry = String(row.license_expires_on ?? ''); const expired = expiry !== '' && expiry < todayForDisplay(); alerts.push({ id: 'license-' + String(row.id), title: (expired ? 'مجوز سایت منقضی شده: ' : 'مجوز سایت نزدیک به انقضا: ') + String(row.name ?? 'بدون نام'), detail: 'انقضا: ' + dateFa(expiry), to: '/app/farm-sites', tone: expired ? 'critical' : 'warning', rank: 7 }); });
+  if (canManage) signals.pendingRequests.forEach(row => alerts.push({ id: 'request-' + String(row.id), title: 'درخواست دسترسی: ' + String(row.full_name ?? row.email ?? 'کاربر جدید'), detail: (roleLabel[String(row.requested_role)] ?? String(row.requested_role ?? '')) + ' · ثبت ' + dateFa(String(row.created_at ?? '')), to: '/app/members', tone: 'info', rank: 8 }));
+  alerts.sort((a,b) => a.rank - b.rank);
+  const visibleAlerts = alerts.slice(0,12);
+  const actionCount = counts.lateOrders + counts.overdueTasks + counts.reviewTasks + counts.incidents + counts.invoices + counts.failedShipments + counts.expiringLicenses + counts.pendingRequests;
+
+  return <>
+    <PageHeading eyebrow="CONTROL CENTER / 01" title="مرکز فرمان شبکه" description="نمای عملیاتی بر مبنای رکوردهای واقعی؛ هشدارهای برجسته به محل پیگیری متصل هستند." action={<Button variant="soft" onClick={() => void load()} disabled={loading}><Activity size={15}/> {loading ? 'در حال تازه‌سازی…' : 'تازه‌سازی داده‌ها'}</Button>}/>
+    {error && <InlineError error={error} retry={() => void load()}/>}
+    <div className="tower-freshness"><span className="tower-live-dot"/><span>آخرین دریافت: {lastUpdated ? dateTimeFa(lastUpdated) : 'در انتظار دریافت'}</span><span>این نما از داده‌ی نمایشی استفاده نمی‌کند.</span></div>
+    <section className="stats-grid tower-stats">
+      <Stat label="سفارش‌ها" value={loading ? '—' : numberFa(counts.orders)} note="رکوردهای این مجموعه" icon={FileText}/>
+      <Stat label="مشتریان" value={loading ? '—' : numberFa(counts.customers)} note="حساب‌های ثبت‌شده" icon={Users} tone="blue"/>
+      <Stat label="تأمین‌کنندگان" value={loading ? '—' : numberFa(counts.suppliers)} note="شبکه تأمین ثبت‌شده" icon={Factory} tone="amber"/>
+      <Stat label="ارسال‌های باز" value={loading ? '—' : numberFa(counts.shipments)} note="تحویل‌نشده و در جریان" icon={Truck} tone="slate"/>
+      <Stat label="بازه‌های ظرفیت" value={loading ? '—' : numberFa(counts.capacity)} note="تأییدشده یا متعهد و جاری" icon={Warehouse}/>
+    </section>
+    {counts.orders === 0 && counts.customers === 0 && counts.suppliers === 0 && <div className="tower-onboarding"><ShieldCheck size={18}/><div><b>داده‌ی عملیاتی هنوز ثبت نشده</b><p>برای شروع، محصولات، تأمین‌کنندگان و مشتریان واقعی را ثبت کن. سامانه تا آن زمان عدد ساختگی نمایش نمی‌دهد.</p></div><div className="tower-onboarding-links"><Link to="/app/products">تعریف محصول</Link><Link to="/app/suppliers">ثبت تأمین‌کننده</Link><Link to="/app/customers">ثبت مشتری</Link></div></div>}
+    <div className="dashboard-grid tower-main-grid">
+      <section className="panel chart-panel"><div className="panel-heading"><div><span className="section-number">۰۱</span><div><h3>وضعیت سفارش‌های اخیر</h3><p>توزیع رکوردهای واقعی، بدون پیش‌بینی</p></div></div><Badge value={loading ? 'در حال دریافت' : numberFa(orders.length) + ' رکورد'}/></div>
+        {loading ? <div className="panel-loading"><span className="spinner small"/></div> : chart.length ? <div className="chart-wrap"><ResponsiveContainer width="100%" height={270}><BarChart data={chart} margin={{top:8,right:8,left:-14,bottom:8}}><CartesianGrid stroke="#29373B" strokeDasharray="4 4" vertical={false}/><XAxis dataKey="name" tick={{fill:'#A0B0B2',fontSize:11}} axisLine={{stroke:'#29373B'}} tickLine={{stroke:'#29373B'}}/><YAxis allowDecimals={false} tick={{fill:'#77898C',fontSize:10}} axisLine={false} tickLine={false}/><Tooltip contentStyle={{backgroundColor:'#11191C',border:'1px solid #29373B',borderRadius:12,color:'#EAF0F0'}} labelStyle={{color:'#EAF0F0'}} cursor={{fill:'#1D292D'}}/><Bar dataKey="count" name="تعداد سفارش" fill="#6EB9AC" radius={[6,6,0,0]} maxBarSize={54}/></BarChart></ResponsiveContainer></div> : <EmptyState title="هنوز سفارش ثبت نشده" description="با ثبت سفارش واقعی، نمودار وضعیت‌ها اینجا ظاهر می‌شود." icon={FileText}/>}
+        {orders.length > 0 && <div className="tower-recent-orders"><div><b>آخرین سفارش‌ها</b><small>تا چهار رکورد اخیر</small></div>{orders.slice(0,4).map(row => <Link to="/app/orders" className="tower-order-row" key={String(row.id)}><span><b>{String(row.reference ?? 'بدون شماره')}</b><small>{dateFa(String(row.created_at ?? ''))}</small></span><Badge value={String(row.status ?? 'ثبت‌نشده')}/></Link>)}</div>}
+      </section>
+      <section className="panel action-panel"><div className="panel-heading"><div><span className="section-number orange">۰۲</span><div><h3>استثناهای نیازمند اقدام</h3><p>با لینک مستقیم به محل پیگیری</p></div></div><Badge value={numberFa(actionCount) + ' وضعیت'}/></div>
+        {loading ? <div className="panel-loading"><span className="spinner small"/></div> : visibleAlerts.length ? <div className="tower-alert-list">{visibleAlerts.map(alert => <Link className={'tower-alert-row ' + alert.tone} to={alert.to} key={alert.id}><span className="tower-alert-mark"><AlertTriangle size={16}/></span><span className="tower-alert-copy"><b>{alert.title}</b><small>{alert.detail}</small></span><span className="tower-alert-go">پیگیری <ArrowLeft size={14}/></span></Link>)}</div> : <EmptyState title="استثنای فعالی برای نمایش پیدا نشد" description="بر اساس داده‌های موجود، وضعیت بازِ قابل نمایش در دسته‌های پیگیری پیدا نشد." icon={CheckCircle2}/>}
+        {actionCount > visibleAlerts.length && <div className="tower-alert-foot">حداکثر ۱۲ ردیف برجسته نمایش داده می‌شود. ممکن است یک رکورد هم‌زمان چند وضعیت پیگیری داشته باشد.</div>}
+      </section>
+    </div>
+    <section className="panel tower-audit-panel"><div className="panel-heading"><div><span className="section-number">۰۳</span><div><h3>آخرین رویدادهای ممیزی</h3><p>عملیات ثبت‌شده در audit log موجود</p></div></div><Button variant="soft" onClick={() => void load()}><Activity size={15}/> تازه‌سازی</Button></div>
+      {loading ? <div className="panel-loading"><span className="spinner small"/></div> : signals.audit.length ? <div className="tower-audit-list">{signals.audit.map(row => <div className="tower-audit-row" key={String(row.id)}><span className="tower-audit-mark"><Activity size={15}/></span><div><b>{({INSERT:'ایجاد',UPDATE:'ویرایش',DELETE:'حذف'} as Record<string,string>)[String(row.action).toUpperCase()] ?? String(row.action ?? 'رویداد')} · {pageSectionLabel(String(row.table_name ?? ''))}</b><small>شناسه رکورد: {String(row.record_id ?? '—').slice(0,12)}</small></div><time>{dateTimeFa(String(row.occurred_at ?? ''))}</time></div>)}</div> : <EmptyState title="رویداد ممیزی ثبت نشده" description="پس از تغییر جدول‌های تحت ممیزی، رویدادهای واقعی اینجا ظاهر می‌شوند." icon={Activity}/>}
+    </section>
+  </>;
+}
+function todayForDisplay() {
+  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-CA', {timeZone:'Asia/Tehran',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date()).map(part => [part.type,part.value]));
+  return `${parts.year}-${parts.month}-${parts.day}`;
 }
 type Column = {key:string;label:string;render?:(row:Row)=>React.ReactNode};
 function DataTable({ columns, rows, actions }: { columns:Column[]; rows:Row[]; actions?:(row:Row)=>React.ReactNode }) { return <div className="table-scroll"><table className="data-table"><thead><tr>{columns.map(c=><th key={c.key}>{c.label}</th>)}{actions&&<th>اقدام</th>}</tr></thead><tbody>{rows.map((r,i)=><tr key={String(r.id??i)}>{columns.map(c=><td key={c.key}>{c.render?c.render(r):formatCell(r[c.key],c.key)}</td>)}{actions&&<td>{actions(r)}</td>}</tr>)}</tbody></table></div>; }
