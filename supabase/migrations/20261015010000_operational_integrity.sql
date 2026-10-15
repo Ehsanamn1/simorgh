@@ -644,27 +644,42 @@ create trigger guard_partner_financial_entry_update
 create or replace function public.guard_partner_settlement_period_update()
 returns trigger language plpgsql set search_path='' as $$
 begin
-  if tg_op='DELETE' and old.status in ('approved','settled') then
-    raise exception 'دوره تأییدشده یا تسویه‌شده حذف نمی‌شود';
+  if tg_op='INSERT' then
+    if new.status<>'draft' then raise exception 'دوره تسویه جدید باید پیش‌نویس باشد'; end if;
+    new.created_by:=auth.uid();
+    new.approved_by:=null; new.approved_at:=null; new.settled_by:=null; new.settled_at:=null;
+    return new;
   end if;
-  if tg_op='UPDATE' and old.status='settled' then
-    raise exception 'دوره تسویه‌شده تغییر نمی‌کند؛ سند تعدیلی بسازید';
+  if tg_op='DELETE' then
+    if old.status not in ('draft','cancelled') then raise exception 'دوره تأییدشده یا تاریخی حذف نمی‌شود'; end if;
+    return old;
   end if;
-  if tg_op='UPDATE' and old.status='approved' then
+  if old.status in ('settled','cancelled') then raise exception 'دوره تسویه‌شده یا لغوشده قابل تغییر نیست'; end if;
+  if old.status='approved' then
     if (to_jsonb(new) - array['status','settled_amount','settled_by','settled_at','updated_at'])
-       is distinct from
-       (to_jsonb(old) - array['status','settled_amount','settled_by','settled_at','updated_at']) then
+       is distinct from (to_jsonb(old) - array['status','settled_amount','settled_by','settled_at','updated_at']) then
       raise exception 'مقادیر دوره تأییدشده immutable است؛ سند تعدیلی بسازید';
     end if;
     if new.status not in ('approved','settled') then
       raise exception 'دوره تأییدشده فقط پس از پرداخت واقعی قابل تسویه است';
     end if;
   end if;
-  if tg_op='DELETE' then return old; end if;
+  if new.status is distinct from old.status and not (
+    (old.status='draft' and new.status in ('approved','cancelled')) or
+    (old.status='approved' and new.status='settled')
+  ) then raise exception 'انتقال وضعیت دوره تسویه مجاز نیست'; end if;
+  if new.status='approved' and old.status<>'approved' then
+    new.approved_by:=auth.uid(); new.approved_at:=now();
+  end if;
+  if new.status='settled' then
+    if new.settled_amount<new.balance_due_to_partner or new.settled_by is null or new.settled_at is null then
+      raise exception 'تسویه نهایی باید مطابق مانده و پرداخت واقعی ثبت شود';
+    end if;
+  end if;
   return new;
 end $$;
 create trigger guard_partner_settlement_period_update
-  before update or delete on public.partner_settlement_periods for each row execute function public.guard_partner_settlement_period_update();
+  before insert or update or delete on public.partner_settlement_periods for each row execute function public.guard_partner_settlement_period_update();
 
 -- Only assigned users/partners can submit a task. Reviews require company manager privilege.
 create or replace function public.submit_operational_task(_task uuid, _completion_note text default null)
@@ -888,7 +903,7 @@ end $$;
 
 create or replace function public.record_partner_settlement_payment(_period uuid, _amount numeric, _payment_reference text, _paid_at timestamptz default now())
 returns void language plpgsql security definer set search_path='' as $$
-declare p public.partner_settlement_periods%rowtype; remaining numeric(16,0);
+declare p public.partner_settlement_periods%rowtype; remaining numeric(16,0); payment_entry uuid;
 begin
   select * into p from public.partner_settlement_periods where id=_period for update;
   if not found then raise exception 'دوره تسویه پیدا نشد'; end if;
@@ -901,14 +916,15 @@ begin
   if _amount>greatest(0,p.recorded_cash_available-p.settled_amount) then raise exception 'مبلغ پرداخت از وجه نقد محاسبه‌شده در اسناد دوره بیشتر است'; end if;
   insert into public.partner_financial_entries(
     company_id,supplier_id,agreement_id,entry_type,status,direction,amount,paid_amount,currency,
-    paid_by,payment_status,recognized_on,external_reference,source_table,source_record_id,notes,
-    approved_by,approved_at,posted_by,posted_at,created_by
+    paid_by,payment_status,recognized_on,external_reference,source_table,source_record_id,notes,created_by
   ) values(
-    p.company_id,p.supplier_id,p.agreement_id,'settlement_payment','posted','company_to_partner',_amount,_amount,p.currency,
+    p.company_id,p.supplier_id,p.agreement_id,'settlement_payment','draft','company_to_partner',_amount,_amount,p.currency,
     'company','paid',(_paid_at at time zone 'Asia/Tehran')::date,_payment_reference,'partner_settlement_periods',p.id,
-    'پرداخت توسط مدیر ثبت و تأیید شده؛ انتقال بانکی توسط سامانه اجرا نمی‌شود.',
-    auth.uid(),now(),auth.uid(),now(),auth.uid()
-  );
+    'پرداخت توسط مدیر ثبت و تأیید شده؛ انتقال بانکی توسط سامانه اجرا نمی‌شود.',auth.uid()
+  ) returning id into payment_entry;
+  update public.partner_financial_entries set status='submitted' where id=payment_entry;
+  update public.partner_financial_entries set status='approved' where id=payment_entry;
+  update public.partner_financial_entries set status='posted' where id=payment_entry;
   update public.partner_settlement_periods set settled_amount=settled_amount+_amount,
     status=case when settled_amount+_amount>=balance_due_to_partner then 'settled' else 'approved' end,
     settled_at=case when settled_amount+_amount>=balance_due_to_partner then coalesce(_paid_at,now()) else null end,
@@ -1000,3 +1016,6 @@ grant select,insert,update,delete on public.farm_sites,public.partnership_agreem
   public.production_batches,public.daily_production_records,public.task_templates,public.operational_tasks,
   public.task_evidence,public.operational_incidents,public.partner_financial_entries,public.partner_settlement_periods
 to authenticated;
+-- Settlement periods can be mutated only through the guarded SECURITY DEFINER RPCs above.
+revoke insert,update,delete on public.partner_settlement_periods from authenticated;
+grant select on public.partner_settlement_periods to authenticated;
