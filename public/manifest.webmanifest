@@ -1,7 +1,7 @@
 {
-  "name": "Simorgh — Obsidian Intelligence",
-  "short_name": "Simorgh",
-  "description": "پلتفرم عملیات شبکه تأمین سیمرغ",
+  "name": "سیمرغ | مدیریت یکپارچه عملیات",
+  "short_name": "سیمرغ",
+  "description": "سامانه‌ی یکپارچه‌ی مدیریت مزرعه، عملیات، سفارش، کیفیت، ارسال و امور مالی",
   "lang": "fa",
   "dir": "rtl",
   "start_url": "./",
