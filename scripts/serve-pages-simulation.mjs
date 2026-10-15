@@ -1,3 +1,4 @@
+/* global process, URL */
 import { createServer } from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
@@ -37,7 +38,9 @@ async function resolveFile(urlPath) {
   try {
     const info = await stat(target);
     if (info.isFile()) return target;
-  } catch {}
+  } catch {
+    // Missing files are handled by the caller as a 404 or SPA fallback.
+  }
   // Match single-page application hosting: only non-file-looking paths fall back to index.
   if (!path.extname(relative)) return path.join(root, 'index.html');
   return null;
