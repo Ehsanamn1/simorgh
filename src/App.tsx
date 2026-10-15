@@ -7,7 +7,7 @@ import { Link, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import {
   Activity, AlertTriangle, ArrowLeft, ArrowUpLeft, Boxes, Building2, Check, CheckCircle2,
   ChevronDown, CircleHelp, ClipboardCheck, CreditCard, Factory, FileCheck2, FileText, LayoutDashboard,
-  LogOut, MapPin, Menu, Moon, Package, Plus, Search, Settings2, ShieldCheck, Sun, Truck, Users, UserPlus, Warehouse, X, Zap,
+  LogOut, MapPin, Menu, Moon, Package, Plus, RefreshCw, Search, Settings2, ShieldCheck, Sun, Truck, Users, UserPlus, Warehouse, X, Zap,
 } from 'lucide-react';
 import { useAuth } from './lib/AuthContext';
 import { supabase, isSupabaseConfigured } from './lib/supabase';
@@ -604,8 +604,8 @@ function InventoryPage({membership,search}:{membership:Membership;search:string}
         {key:'product_id',label:'محصول',render:r=>{const product=products.find(p=>String(p.id)===String(r.product_id));return <span>{String(product?.name??'—')}<small className="table-subtext">{String(product?.sku??'')}</small></span>}},
         {key:'quantity',label:'مقدار',render:r=>numberFa(String(r.quantity??0))},
         {key:'unit_cost',label:'بهای واحد',render:r=>r.unit_cost==null?'—':moneyFa(Number(r.unit_cost))},
-        {key:'supplier_id',label:'تأمین‌کننده',render:r=>suppliers.find(s=>String(s.id)===String(r.supplier_id))?.name??'—'},
-        {key:'order_id',label:'سفارش',render:r=>orders.find(o=>String(o.id)===String(r.order_id))?.reference??'—'},
+        {key:'supplier_id',label:'تأمین‌کننده',render:r=>String(suppliers.find(s=>String(s.id)===String(r.supplier_id))?.name??'—')},
+        {key:'order_id',label:'سفارش',render:r=>String(orders.find(o=>String(o.id)===String(r.order_id))?.reference??'—')},
         {key:'reference_code',label:'شماره سند',render:r=>String(r.reference_code??'—')},
         {key:'note',label:'توضیح',render:r=>String(r.note??'—')}
       ]}/>:<EmptyState title="هنوز گردش انباری ثبت نشده" description="رسید خرید، خروج سفارش، مرجوعی، ضایعات و اصلاحات با کاربر ثبت‌کننده و زمان واقعی در دفتر نگهداری می‌شوند." icon={FileText}/>}
