@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { ChangeEvent, FormEvent } from 'react';
 import { Activity, AlertTriangle, CheckCircle2, ClipboardCheck, CreditCard, FileCheck2, FileText, Factory, Plus, RefreshCw, ShieldCheck, Warehouse, X } from 'lucide-react';
 import { supabase } from './lib/supabase';
@@ -143,7 +143,6 @@ export function OperationsWorkspacePage({kind,membership,search}:{kind:Operation
   const [paymentRef,setPaymentRef]=useState('');
   const [periodStart,setPeriodStart]=useState('');
   const [periodEnd,setPeriodEnd]=useState('');
-  const agreementFile=useRef<HTMLInputElement>(null);
 
   const load=async()=>{
     if(!supabase){setError('اتصال Supabase در این build تنظیم نشده است.');setLoading(false);return;}
@@ -261,11 +260,6 @@ export function OperationsWorkspacePage({kind,membership,search}:{kind:Operation
   },[rows,search]);
 
   const assignDraft=(key:string,value:unknown)=>setDraft(old=>({...old,[key]:value}));
-  const openFormDialog=()=>{
-    const initial:Record<string,unknown>={};
-    fields.forEach(f=>{if(f.defaultValue!==undefined)initial[f.name]=f.defaultValue;});
-    setDraft(initial);setError('');setNotice('');setOpenForm(true);
-  };
   const closeForm=()=>{setOpenForm(false);setDraft({});};
 
   const submitCreate=async(event:FormEvent<HTMLFormElement>)=>{
