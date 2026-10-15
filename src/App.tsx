@@ -339,7 +339,9 @@ function useDbRows(table: string, membership: Membership, options?: { select?: s
 }
 function Dashboard({ membership }: { membership: Membership }) {
   const [orders, setOrders] = useState<Row[]>([]);
-  const [counts, setCounts] = useState({ orders: 0, customers: 0, suppliers: 0, shipments: 0, capacity: 0, lateOrders: 0, overdueTasks: 0, reviewTasks: 0, incidents: 0, invoices: 0, failedShipments: 0, expiringLicenses: 0, pendingRequests: 0 });
+  const [objectives, setObjectives] = useState<Row[]>([]);
+  const [locations, setLocations] = useState<Row[]>([]);
+  const [counts, setCounts = useState({ orders: 0, customers: 0, suppliers: 0, shipments: 0, capacity: 0, lateOrders: 0, overdueTasks: 0, reviewTasks: 0, incidents: 0, invoices: 0, failedShipments: 0, expiringLicenses: 0, pendingRequests: 0 });
   const [signals, setSignals] = useState({ lateOrders: [] as Row[], overdueTasks: [] as Row[], reviewTasks: [] as Row[], incidents: [] as Row[], invoices: [] as Row[], failedShipments: [] as Row[], expiringLicenses: [] as Row[], pendingRequests: [] as Row[], audit: [] as Row[] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -356,7 +358,13 @@ function Dashboard({ membership }: { membership: Membership }) {
     const horizon = `${horizonParts.year}-${horizonParts.month}-${horizonParts.day}`;
     const now = new Date().toISOString();
     const company = membership.company_id;
-    const [o, c, s, sh, cap, late, due, review, incidents, invoices, failed, licenses, requests, audit] = await Promise.all([
+    const objectiveQuery = canManage
+      ? supabase.from('company_objectives').select('*').eq('company_id', company).eq('status', 'active').order('created_at', { ascending: false }).limit(8)
+      : Promise.resolve({ data: [] as Row[], error: null });
+    const gpsQuery = canManage
+      ? supabase.from('shipment_locations').select('id,shipment_id,latitude,longitude,accuracy_m,captured_at,driver_user_id').eq('company_id', company).order('captured_at', { ascending: false }).limit(20)
+      : Promise.resolve({ data: [] as Row[], error: null });
+    const [o, c, s, sh, cap, late, due, review, incidents, invoices, failed, licenses, requests, audit, objectiveResult, gpsResult] = await Promise.all([
       supabase.from('orders').select('id,reference,status,requested_delivery,created_at,customers(name)', { count: 'exact' }).eq('company_id', company).order('created_at', { ascending: false }).limit(8),
       supabase.from('customers').select('id', { count: 'exact', head: true }).eq('company_id', company),
       supabase.from('suppliers').select('id', { count: 'exact', head: true }).eq('company_id', company),
@@ -371,11 +379,15 @@ function Dashboard({ membership }: { membership: Membership }) {
       supabase.from('farm_sites').select('id,name,license_expires_on', { count: 'exact' }).eq('company_id', company).eq('active', true).not('license_expires_on', 'is', null).lte('license_expires_on', horizon).order('license_expires_on', { ascending: true }).limit(3),
       supabase.from('access_requests').select('id,email,full_name,requested_role,organization_name,created_at', { count: 'exact' }).eq('company_id', company).eq('status', 'pending').order('created_at', { ascending: true }).limit(3),
       supabase.from('audit_events').select('id,table_name,action,record_id,occurred_at', { count: 'exact' }).eq('company_id', company).order('occurred_at', { ascending: false }).limit(5),
+      objectiveQuery,
+      gpsQuery,
     ]);
-    const dbError = o.error ?? c.error ?? s.error ?? sh.error ?? cap.error ?? late.error ?? due.error ?? review.error ?? incidents.error ?? invoices.error ?? failed.error ?? licenses.error ?? requests.error ?? audit.error;
+    const dbError = o.error ?? c.error ?? s.error ?? sh.error ?? cap.error ?? late.error ?? due.error ?? review.error ?? incidents.error ?? invoices.error ?? failed.error ?? licenses.error ?? requests.error ?? audit.error ?? objectiveResult.error ?? gpsResult.error;
     if (dbError) setError(dbError.message);
     const rowCount = (result: { count: number | null; data: unknown[] | null }) => result.count ?? result.data?.length ?? 0;
     setOrders((o.data ?? []) as Row[]);
+    setObjectives((objectiveResult.data ?? []) as Row[]);
+    setLocations((gpsResult.data ?? []) as Row[]);
     setCounts({
       orders: rowCount(o), customers: rowCount(c), suppliers: rowCount(s), shipments: rowCount(sh), capacity: rowCount(cap),
       lateOrders: rowCount(late), overdueTasks: rowCount(due), reviewTasks: canManage ? rowCount(review) : 0,
@@ -411,11 +423,48 @@ function Dashboard({ membership }: { membership: Membership }) {
   alerts.sort((a,b) => a.rank - b.rank);
   const visibleAlerts = alerts.slice(0,12);
   const actionCount = counts.lateOrders + counts.overdueTasks + counts.reviewTasks + counts.incidents + counts.invoices + counts.failedShipments + counts.expiringLicenses + counts.pendingRequests;
+  const objectiveToday = todayForDisplay();
+  const activeObjectives = objectives.filter(row => String(row.starts_on ?? '') <= objectiveToday && (!row.ends_on || String(row.ends_on) >= objectiveToday));
+  const latestLocation = locations.find(row => {
+    const latitude = Number(row.latitude);
+    const longitude = Number(row.longitude);
+    return Number.isFinite(latitude) && latitude >= -90 && latitude <= 90 && Number.isFinite(longitude) && longitude >= -180 && longitude <= 180;
+  });
+  const latitude = latestLocation ? Number(latestLocation.latitude) : null;
+  const longitude = latestLocation ? Number(latestLocation.longitude) : null;
+  const networkMapUrl = latitude !== null && longitude !== null
+    ? `https://www.openstreetmap.org/export/embed.html?bbox=${longitude - 0.18}%2C${latitude - 0.12}%2C${longitude + 0.18}%2C${latitude + 0.12}&layer=mapnik&marker=${latitude}%2C${longitude}`
+    : 'https://www.openstreetmap.org/export/embed.html?bbox=43.2%2C24.5%2C64.8%2C40.8&layer=mapnik';
 
   return <>
-    <PageHeading eyebrow="CONTROL CENTER / 01" title="مرکز فرمان شبکه" description="نمای عملیاتی بر مبنای رکوردهای واقعی؛ هشدارهای برجسته به محل پیگیری متصل هستند." action={<Button variant="soft" onClick={() => void load()} disabled={loading}><Activity size={15}/> {loading ? 'در حال تازه‌سازی…' : 'تازه‌سازی داده‌ها'}</Button>}/>
+    <PageHeading eyebrow="مرکز فرمان مدیریتی" title="مرکز فرمان عملیات" description="وضعیت امروز مجموعه، اهداف، سفارش، ظرفیت، حمل، انحراف‌ها و حساب‌وکتاب در یک نمای مدیریتی." action={<Button variant="soft" onClick={() => void load()} disabled={loading}><Activity size={15}/> {loading ? 'در حال تازه‌سازی…' : 'تازه‌سازی داده‌ها'}</Button>}/>
     {error && <InlineError error={error} retry={() => void load()}/>}
-    <div className="tower-freshness"><span className="tower-live-dot"/><span>آخرین دریافت: {lastUpdated ? dateTimeFa(lastUpdated) : 'در انتظار دریافت'}</span><span>این نما از داده‌ی نمایشی استفاده نمی‌کند.</span></div>
+    <div className="tower-freshness"><span className="tower-live-dot"/><span>آخرین به‌روزرسانی: {lastUpdated ? dateTimeFa(lastUpdated) : 'در انتظار دریافت'}</span><span>شاخص‌ها از داده‌های ثبت‌شده‌ی مجموعه خوانده می‌شوند.</span></div>
+    {canManage && <section className="panel objective-progress-panel">
+      <div className="panel-heading">
+        <div><span className="section-number"><Target size={15}/></span><div><h3>اهداف مدیریتی</h3><p>پیشرفت بر اساس شاخص‌های واقعی و هدف‌های تعریف‌شده‌ی شرکت</p></div></div>
+        <Link className="objective-manage-link" to="/app/objectives">مدیریت هدف‌ها <ArrowLeft size={14}/></Link>
+      </div>
+      {loading ? <div className="panel-loading"><span className="spinner small"/></div> : error ? <EmptyState title="پیشرفت هدف‌ها در دسترس نیست" description="برای جلوگیری از نمایش عدد نادرست، ابتدا اتصال داده را بررسی کن." icon={Target}/> : activeObjectives.length ? <div className="objective-progress-grid">
+        {activeObjectives.map(row => {
+          const metricKey = String(row.metric_key ?? '');
+          const countKey = objectiveCountKey[metricKey];
+          const current = countKey ? Number(counts[countKey as keyof typeof counts]) : NaN;
+          const target = Number(row.target_value);
+          const atMost = row.target_direction === 'at_most';
+          const valid = Number.isFinite(current) && Number.isFinite(target) && target > 0;
+          const reached = valid && (atMost ? current <= target : current >= target);
+          const percentage = valid ? (atMost ? (reached ? 100 : Math.max(0, Math.round((target / Math.max(current, 1)) * 100))) : Math.min(100, Math.round((current / target) * 100))) : 0;
+          return <article className="objective-progress-card" key={String(row.id)}>
+            <div className="objective-progress-card-top"><span className="objective-progress-icon"><Target size={16}/></span><span className={`objective-progress-state ${reached ? 'reached' : 'pending'}`}>{reached ? 'هدف محقق شد' : 'در حال پیگیری'}</span></div>
+            <b className="objective-progress-title">{String(row.title ?? 'هدف بدون عنوان')}</b>
+            <small>{objectiveMetricLabels[metricKey] ?? 'شاخص عملیاتی'}</small>
+            <div className="objective-progress-numbers"><strong>{loading || error || !valid ? '—' : numberFa(String(current))}</strong><span>{atMost ? 'حداکثر' : 'از هدف'} {numberFa(String(target))}</span></div>
+            <div className="objective-progress-bar" role="progressbar" aria-label={String(row.title ?? 'پیشرفت هدف')} aria-valuemin={0} aria-valuemax={100} aria-valuenow={loading || error ? 0 : percentage}><span style={{ width: loading || error ? '0%' : `${percentage}%` }}/></div>
+          </article>;
+        })}
+      </div> : <div className="objective-progress-empty"><Target size={20}/><div><b>هنوز هدفی تعریف نشده</b><p>یک هدف قابل اندازه‌گیری ثبت کن؛ مقدار جاری از دیتابیس می‌آید و پیشرفت ساختگی ساخته نمی‌شود.</p></div><Link to="/app/objectives">تعریف اولین هدف <ArrowLeft size={14}/></Link></div>}
+    </section>}
     <section className="stats-grid tower-stats">
       <article className="stat-card"><div className="stat-card-top"><span>سفارش‌ها</span><span className="stat-icon"><FileText size={17}/></span></div><b>{loading ? '—' : numberFa(counts.orders)}</b><small>رکوردهای این مجموعه</small></article>
       <article className="stat-card"><div className="stat-card-top"><span>مشتریان</span><span className="stat-icon"><Users size={17}/></span></div><b>{loading ? '—' : numberFa(counts.customers)}</b><small>حساب‌های ثبت‌شده</small></article>
@@ -434,6 +483,16 @@ function Dashboard({ membership }: { membership: Membership }) {
         {actionCount > visibleAlerts.length && <div className="tower-alert-foot">حداکثر ۱۲ ردیف برجسته نمایش داده می‌شود. ممکن است یک رکورد هم‌زمان چند وضعیت پیگیری داشته باشد.</div>}
       </section>
     </div>
+    {canManage && <section className="panel tower-map-panel">
+      <div className="panel-heading"><div><span className="section-number"><MapPin size={15}/></span><div><h3>نقشه‌ی شبکه و آخرین موقعیت‌های ثبت‌شده</h3><p>نقشه‌ی راهنما بدون موقعیت ساختگی؛ نقاط فقط از گزارش GPS مجاز خوانده می‌شوند.</p></div></div><Link className="objective-manage-link" to="/app/shipments">ارسال و تحویل <ArrowLeft size={14}/></Link></div>
+      <div className="tower-map-layout">
+        <div className="tower-osm-frame"><iframe title="نقشه‌ی واقعی شبکه‌ی سیمرغ" loading="lazy" referrerPolicy="no-referrer-when-downgrade" src={networkMapUrl}/><div className="tower-map-attribution">نقشه از OpenStreetMap · موقعیت فقط از GPS ثبت‌شده</div></div>
+        <div className="tower-location-list">
+          <div className="tower-location-list-heading"><b>آخرین موقعیت‌ها</b><small>{loading ? 'در حال دریافت' : numberFa(locations.length) + ' رکورد در بازه‌ی اخیر'}</small></div>
+          {loading ? <div className="panel-loading"><span className="spinner small"/></div> : latestLocation ? locations.filter(row => Number.isFinite(Number(row.latitude)) && Number.isFinite(Number(row.longitude)) && Number(row.latitude) >= -90 && Number(row.latitude) <= 90 && Number(row.longitude) >= -180 && Number(row.longitude) <= 180).slice(0,5).map(row => <a className="tower-location-row" key={String(row.id)} href={`https://www.openstreetmap.org/?mlat=${Number(row.latitude)}&mlon=${Number(row.longitude)}#map=12/${Number(row.latitude)}/${Number(row.longitude)}`} target="_blank" rel="noreferrer"><span><MapPin size={15}/></span><span><b>محموله {String(row.shipment_id ?? '').slice(0,8)}</b><small>{dateTimeFa(String(row.captured_at ?? ''))}{row.accuracy_m != null ? ' · دقت ±' + numberFa(String(Math.round(Number(row.accuracy_m)))) + ' متر' : ''}</small></span><ArrowLeft size={14}/></a>) : <EmptyState title="موقعیت واقعی ثبت نشده" description="پس از ثبت موقعیت با اجازه‌ی راننده، نقطه‌ی واقعی روی نقشه و فهرست کناری دیده می‌شود." icon={MapPin}/>}
+        </div>
+      </div>
+    </section>}
     <section className="panel tower-audit-panel"><div className="panel-heading"><div><span className="section-number">۰۳</span><div><h3>آخرین رویدادهای ممیزی</h3><p>عملیات ثبت‌شده در audit log موجود</p></div></div><Button variant="soft" onClick={() => void load()}><Activity size={15}/> تازه‌سازی</Button></div>
       {loading ? <div className="panel-loading"><span className="spinner small"/></div> : signals.audit.length ? <div className="tower-audit-list">{signals.audit.map(row => <div className="tower-audit-row" key={String(row.id)}><span className="tower-audit-mark"><Activity size={15}/></span><div><b>{({INSERT:'ایجاد',UPDATE:'ویرایش',DELETE:'حذف'} as Record<string,string>)[String(row.action).toUpperCase()] ?? String(row.action ?? 'رویداد')} · {pageSectionLabel(String(row.table_name ?? ''))}</b><small>شناسه رکورد: {String(row.record_id ?? '—').slice(0,12)}</small></div><time>{dateTimeFa(String(row.occurred_at ?? ''))}</time></div>)}</div> : <EmptyState title="رویداد ممیزی ثبت نشده" description="پس از تغییر جدول‌های تحت ممیزی، رویدادهای واقعی اینجا ظاهر می‌شوند." icon={Activity}/>}
     </section>
