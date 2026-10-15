@@ -15,6 +15,20 @@ jobs:
         with:
           node-version: 22
       - run: npm install
+      - name: Summarize all dependency advisories
+        shell: bash
+        run: |
+          npm audit --json > "$RUNNER_TEMP/npm-audit.json" || true
+          node - "$RUNNER_TEMP/npm-audit.json" <<'NODE'
+          const fs = require('node:fs');
+          const report = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          const items = Object.entries(report.vulnerabilities || {}).map(([name, v]) => ({
+            name, severity: v.severity, direct: v.isDirect, range: v.range,
+            fixAvailable: v.fixAvailable,
+            via: (v.via || []).map(x => typeof x === 'string' ? x : x.title)
+          }));
+          console.log(JSON.stringify({ summary: report.metadata?.vulnerabilities, items }, null, 2));
+          NODE
       - run: npm run typecheck
       - run: npm run lint
       - run: npm run test
