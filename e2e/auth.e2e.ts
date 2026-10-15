@@ -120,7 +120,7 @@ test('invited user can sign in through Supabase and then receives only membershi
   await page.goto('/simorgh/', { waitUntil: 'domcontentloaded' });
   await page.getByLabel('ایمیل').fill('invited-owner@example.test');
   await page.getByLabel('گذرواژه').fill('test-only-password');
-  await page.getByRole('button', { name: /ورود به سیمرغ/ }).click();
+  await page.getByRole('button', { name: /ورود به فضای کار/ }).click();
   await expect(page.locator('.app-frame')).toBeVisible();
   await expect(page.getByRole('heading', { name: /مرکز فرمان شبکه/ })).toBeVisible();
   await expect(page.locator('.simorgh-signin-layer')).toHaveCount(0);
