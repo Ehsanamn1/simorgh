@@ -106,8 +106,15 @@ npm run test:e2e
 این یک اپ SPA است؛ خروجی `dist/` را می‌توان روی هر وب‌سرور استاتیک با fallback به `index.html` منتشر کرد. برای Nginx باید مسیرهای SPA به `index.html` fallback شوند. دیتابیس/Auth/Storage مستقل از میزبان front-end در Supabase می‌ماند. اگر در آینده Supabase را نیز self-host کنی، اتصال‌ها، ایمیل، بکاپ، HTTPS، Storage و ارتقای نسخه‌ها جداگانه باید نگهداری شوند.
 
 
-## Mobile install and authentication
+## Native mobile application
 
-The app provides an installable PWA shell. Its service worker caches only the static app shell and same-origin build assets; it deliberately does not cache Supabase Auth, REST, Storage, private records, or form submissions. Offline queueing and conflict resolution are not implemented, so edits must be made while online.
+Simorgh now has a Capacitor Android/iOS application target. The main route opens directly into the secure operational workspace, without a marketing landing screen or public self-registration. The mobile app shell supports a persistent dark/light theme, mobile navigation, native status-bar styling, and device permission scaffolding.
 
-New users may register with email/password and request an operational role (customer, supplier, driver, or staff). These registrations never grant membership automatically. A current owner/manager must review and approve requests. Owner/admin access is not self-service; see [docs/OWNER_PROVISIONING.md](docs/OWNER_PROVISIONING.md).
+- [Native mobile build and release notes](docs/MOBILE_APP.md)
+- [First owner provisioning](docs/OWNER_PROVISIONING.md)
+
+GitHub Actions builds an internal Android debug APK and an unsigned iOS Simulator app on supported pushes/PRs and manual dispatch. These are test artifacts, not store releases: Android Play Store publishing needs a release signing key; a physical iPhone/TestFlight build needs Apple signing and provisioning. Do not commit any signing credentials.
+
+The app still requires an owner-provisioned account for private company data. Public self-registration is intentionally disabled. Only an authenticated, authorized account receives a role-backed workspace, and Supabase RLS remains the server-side access boundary.
+
+The hosted preview may continue to use a service worker for static app shell/assets only. Auth, database records, private files, and writes are never cached. Offline mutation queueing and conflict resolution are not implemented; records must be changed online. Native GPS/push/background services must be tested through explicit permissions before production use.
