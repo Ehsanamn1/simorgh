@@ -4,6 +4,8 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
+    "mobile:build": "npm run build && cap sync",
+    "mobile:android:prepare": "npm run build && cap add android && cap sync android",
     "dev": "vite --host 0.0.0.0",
     "build": "npm run typecheck && vite build",
     "typecheck": "tsc --noEmit --pretty false",
@@ -14,6 +16,9 @@
     "serve:pages:test": "node scripts/serve-pages-simulation.mjs"
   },
   "dependencies": {
+    "@capacitor/android": "^8.5.0",
+    "@capacitor/core": "^8.5.0",
+    "@capacitor/ios": "^8.5.0",
     "@supabase/supabase-js": "^2.75.0",
     "lucide-react": "^0.468.0",
     "react": "^19.1.0",
@@ -22,6 +27,7 @@
     "recharts": "^2.15.4"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.5.0",
     "@eslint/js": "^9.38.0",
     "@types/react": "^19.1.16",
     "@types/react-dom": "^19.1.9",
