@@ -47,9 +47,14 @@ test('theme switch persists and the mobile role previews are navigable without g
   await expect(page.getByText(/هیچ تصویر، قیمت یا موجودی فرضی نشان داده نمی‌شود/)).toBeVisible();
 });
 
-test('the map help page shows geographic context but no fabricated shipment coordinates', async ({ page }) => {
+test('the map help page shows geographic context but no fabricated shipment coordinates', async ({ page }, testInfo) => {
+  const viewportWidth = Number((testInfo.project.use as { viewport?: { width?: number } }).viewport?.width || 1365);
   await page.goto('/simorgh/app/command', { waitUntil: 'domcontentloaded' });
-  await page.getByRole('button', { name: 'نقشه و راهنما' }).click();
+  if (viewportWidth <= 700) {
+    await page.locator('.sim-preview-bottom-nav').getByRole('button', { name: 'نقشه' }).click();
+  } else {
+    await page.locator('.sim-preview-sidebar').getByRole('button', { name: 'نقشه و راهنما' }).click();
+  }
   await expect(page.getByRole('heading', { name: 'نقشه‌ی راهنمای شبکه' })).toBeVisible();
   await expect(page.getByTitle('نقشه جغرافیایی ایران برای راهنمای شبکه')).toBeVisible();
   await expect(page.getByText('نقطه‌ی واقعی برای نمایش موجود نیست')).toBeVisible();
