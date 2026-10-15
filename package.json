@@ -10,7 +10,8 @@
     "lint": "eslint .",
     "test": "vitest run",
     "build:pages": "npm run typecheck && vite build --base=/simorgh/",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "serve:pages:test": "node scripts/serve-pages-simulation.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.75.0",
