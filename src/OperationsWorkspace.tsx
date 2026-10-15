@@ -103,7 +103,7 @@ function NetworkMap({ expanded = false }: { expanded?: boolean }) {
       <iframe title="نقشه جغرافیایی ایران برای راهنمای شبکه" loading="lazy" referrerPolicy="no-referrer-when-downgrade" src="https://www.openstreetmap.org/export/embed.html?bbox=43.2%2C24.5%2C64.8%2C40.8&layer=mapnik" />
       <div className="sim-workspace-map-note"><MapPin size={16}/><span><b>موقعیت محموله ثبت نشده</b><small>نشانگرها فقط پس از ثبت مختصات واقعی و مجاز نمایش داده می‌شوند.</small></span></div>
     </div>
-    <div className="sim-workspace-map-foot"><span><MapPin size={14}/> مختصات GPS: هنوز ثبت نشده</span><button type="button" onClick={() => window.open('https://www.openstreetmap.org/#map=5/32.5/53.5', '_blank', 'noopener,noreferrer')}>بازکردن نقشه <ArrowUpLeft size={14}/></button></div>
+    <div className="sim-workspace-map-foot"><span><MapPin size={14}/> مختصات موقعیت مکانی هنوز ثبت نشده</span><button type="button" onClick={() => window.open('https://www.openstreetmap.org/#map=5/32.5/53.5', '_blank', 'noopener,noreferrer')}>بازکردن نقشه <ArrowUpLeft size={14}/></button></div>
   </section>;
 }
 
@@ -148,7 +148,7 @@ function ObjectivesPanel({ navigate }: { navigate: (page: WorkspacePage) => void
 
 function ControlTower({ navigate }: { navigate: (page: WorkspacePage) => void }) {
   return <>
-    <div className="sim-workspace-page-heading"><div><span className="sim-workspace-eyebrow">مرکز فرمان مدیریتی</span><h1>مرکز فرمان شبکه</h1><p>نمای کلان عملیات، از تولید و تأمین تا تحویل و تسویه.</p></div><div className="sim-workspace-heading-meta"><span className="sim-workspace-readonly"><ShieldCheck size={14}/> محیط مشاهده‌ی عملیات</span><small>داده‌های واقعی پس از فعال‌شدن حساب مالک و دریافت مجوزهای شرکت خوانده می‌شوند.</small></div></div>
+    <div className="sim-workspace-page-heading"><div><span className="sim-workspace-eyebrow">مرکز فرمان مدیریتی</span><h1>مرکز فرمان شبکه</h1><p>نمای کلان عملیات، از تولید و تأمین تا تحویل و تسویه.</p></div><div className="sim-workspace-heading-meta"><span className="sim-workspace-readonly"><ShieldCheck size={14}/> مرکز فرمان مدیریتی</span><small>داده‌های واقعی پس از فعال‌شدن حساب مالک و دریافت مجوزهای شرکت خوانده می‌شوند.</small></div></div>
     <div className="sim-workspace-metric-grid">
       <MetricCard title="هشدارهای عملیاتی" icon={AlertTriangle} tone="red" foot="پس از خواندن رخدادهای واقعی" />
       <MetricCard title="سفارش‌های در جریان" icon={Boxes} tone="teal" foot="بدون داده‌ی سفارش در عملیات" />
@@ -172,9 +172,9 @@ function ControlTower({ navigate }: { navigate: (page: WorkspacePage) => void })
     </div>
     <div className="sim-workspace-feature-strip">
       <button type="button" onClick={() => navigate('finance')}><span><CreditCard size={17}/></span><b>صورت مالی ۵۰/۵۰</b><small>نمای قرارداد و تسویه</small></button>
-      <button type="button" onClick={() => navigate('quality')}><span><Camera size={17}/></span><b>مدرک و تصاویر</b><small>فایل واقعی پس از مجوز</small></button>
+      <button type="button" onClick={() => navigate('quality')}><span><Camera size={17}/></span><b>مدارک و تصاویر</b><small>فایل واقعی پس از مجوز</small></button>
       <button type="button" onClick={() => navigate('intelligence')}><span><Sparkles size={17}/></span><b>هوش عملیاتی</b><small>بدون پاسخ هوش مصنوعی ساختگی</small></button>
-      <button type="button" onClick={() => navigate('map')}><span><MapPin size={17}/></span><b>نقشه‌ی شبکه</b><small>نقاط فقط از GPS واقعی</small></button>
+      <button type="button" onClick={() => navigate('map')}><span><MapPin size={17}/></span><b>نقشه‌ی شبکه</b><small>نقاط فقط از موقعیت مکانی ثبت‌شده</small></button>
     </div>
   </>;
 }
@@ -182,7 +182,7 @@ function ControlTower({ navigate }: { navigate: (page: WorkspacePage) => void })
 function FarmWorkspace() {
   return <div className="sim-workspace-page-stack">
     <div className="sim-workspace-page-heading"><div><span className="sim-workspace-eyebrow">عملیات مزرعه</span><h1>کارهای امروز مزرعه</h1><p>وظایف روزانه، ثبت تولید و مدرک تصویری در یک مسیر ساده.</p></div><span className="sim-workspace-readonly"><Factory size={14}/> نمای شریک مزرعه</span></div>
-    <div className="sim-workspace-metric-grid two"><MetricCard title="وظایف سررسیدشده" icon={ClipboardCheck} foot="بر اساس برنامه‌ی واقعی"/> <MetricCard title="ثبت تولید امروز" icon={Activity} foot="از دفتر تولید روزانه"/></div>
+    <div className="sim-workspace-metric-grid two"><MetricCard title="وظایف سررسیدشده" icon={ClipboardCheck} foot="بر اساس برنامه‌ی واقعی"/> <MetricCard title="ثبت تولید امروز" icon={Activity} foot="بر اساس دفتر تولید روزانه"/></div>
     <div className="sim-workspace-two-columns">
       <section className="sim-workspace-panel"><div className="sim-workspace-panel-head"><div><h3>چک‌لیست روزانه</h3><p>موعد، مسئول و وضعیت تأیید</p></div><Clock3 size={18}/></div><EmptyState icon={ClipboardCheck} title="وظیفه‌ی واقعی بارگذاری نشده" description="اینجا چک‌لیست تعیین‌شده برای همین مزرعه نمایش داده می‌شود؛ موردی به‌صورت فرضی اضافه نشده است."/></section>
       <section className="sim-workspace-panel"><div className="sim-workspace-panel-head"><div><h3>ثبت تولید و مدرک</h3><p>عدد تولید و تصویر مستند</p></div><Camera size={18}/></div><EmptyState icon={Camera} title="داده‌ی تولید یا تصویر موجود نیست" description="مجوز دوربین و ارسال فایل فقط هنگام ورود مجاز و اقدام واقعی کاربر فعال می‌شوند."/></section>
@@ -210,14 +210,14 @@ function FinanceWorkspace() {
   return <div className="sim-workspace-page-stack">
     <div className="sim-workspace-page-heading"><div><span className="sim-workspace-eyebrow">حسابداری شفاف مشارکت</span><h1>دفتر مالی مشارکت</h1><p>هر قلم مالی باید به قرارداد، سند، تاریخ و تأیید مربوط متصل باشد.</p></div><span className="sim-workspace-readonly"><ShieldCheck size={14}/> بدون تراکنش فرضی</span></div>
     <div className="sim-workspace-two-columns"><section className="sim-workspace-panel"><div className="sim-workspace-panel-head"><div><h3>الگوی تقسیم مشارکت</h3><p>الگوی تقسیم قرارداد ۵۰/۵۰؛ بدون ساخت مبلغ فرضی</p></div><Layers3 size={18}/></div><div className="sim-workspace-split-model"><span className="split-ring"><b>۵۰/۵۰</b></span><div><b>الگوی قراردادی</b><p>سهم واقعی طرفین فقط از نسخه‌ی قرارداد فعال خوانده می‌شود. این بخش تا زمان بارگذاری قرارداد، مانده یا سود را نمایش نمی‌دهد.</p><span className="sim-workspace-readonly"><ShieldCheck size={13}/> قرارداد فعال خوانده نشده</span></div></div></section><section className="sim-workspace-panel"><div className="sim-workspace-panel-head"><div><h3>گردش مالی و تسویه</h3><p>اقلام تأییدشده، کسورات و مانده</p></div><CreditCard size={18}/></div><EmptyState icon={CreditCard} title="سند مالی بارگذاری نشده" description="مبالغ قرارداد، درآمد، هزینه، سهم طرفین و مانده‌ی تسویه از دیتابیس مجاز محاسبه می‌شود؛ مبلغ نمونه ساخته نمی‌شود."/></section></div>
-    <section className="sim-workspace-panel"><div className="sim-workspace-panel-head"><div><h3>دفتر تغییرناپذیر اقلام مالی</h3><p>سند، کاربر ثبت‌کننده، زمان و وضعیت تأیید</p></div><Activity size={18}/></div><EmptyState icon={FileText} title="دفتر تسویه آماده‌ی نمایش داده‌ی واقعی است" description="ردیف‌های مالی تنها پس از ثبت و تأیید در دیتابیس نمایش داده خواهند شد."/></section>
+    <section className="sim-workspace-panel"><div className="sim-workspace-panel-head"><div><h3>دفتر تغییرناپذیر اقلام مالی</h3><p>سند، ثبت‌کننده، زمان و وضعیت تأیید</p></div><Activity size={18}/></div><EmptyState icon={FileText} title="دفتر تسویه آماده‌ی نمایش داده‌ی واقعی است" description="ردیف‌های مالی تنها پس از ثبت و تأیید در دیتابیس نمایش داده خواهند شد."/></section>
   </div>;
 }
 
 function IntelligenceWorkspace() {
   return <div className="sim-workspace-page-stack">
-    <div className="sim-workspace-page-heading"><div><span className="sim-workspace-eyebrow">هوش عملیاتی سیمرغ</span><h1>هوش عملیاتی سیمرغ</h1><p>پیشنهاد به‌اندازه‌ی شواهد ارزش دارد: هر توصیه باید منبع داده، دلیل و اقدام بعدی مشخص داشته باشد.</p></div><span className="sim-workspace-readonly"><Sparkles size={14}/> آماده‌ی پیکربندی</span></div>
-    <div className="sim-workspace-two-columns"><section className="sim-workspace-panel"><div className="sim-workspace-panel-head"><div><h3>پیشنهادهای مدیریتی</h3><p>داده‌ی ورودی ← تحلیل ← تأیید مسئول</p></div><Sparkles size={18}/></div><EmptyState icon={Sparkles} title="تحلیلی تولید نشده" description="تا زمانی که منبع داده و ارائه‌دهنده‌ی هوش مصنوعی پیکربندی و آزمایش نشود، پاسخ یا توصیه‌ی ساختگی نمایش داده نمی‌شود."/></section><section className="sim-workspace-panel"><div className="sim-workspace-panel-head"><div><h3>دروازه‌ی اجرای عامل‌ها</h3><p>دسترسی ابزار، سقف هزینه و ردپا</p></div><ShieldCheck size={18}/></div><EmptyState icon={ShieldCheck} title="عامل اجرایی فعالی در انتظار راه‌اندازی" description="هر عامل واقعی باید مجوز ابزار، سقف هزینه، تأیید اقدامات حساس و لاگ اجرا داشته باشد."/></section></div>
+    <div className="sim-workspace-page-heading"><div><span className="sim-workspace-eyebrow">هوش عملیاتی سیمرغ</span><h1>هوش عملیاتی سیمرغ</h1><p>پیشنهاد به‌اندازه‌ی شواهد ارزش دارد: هر توصیه باید منبع داده، دلیل و اقدام بعدی مشخص داشته باشد.</p></div><span className="sim-workspace-readonly"><Sparkles size={14}/> نیازمند پیکربندی</span></div>
+    <div className="sim-workspace-two-columns"><section className="sim-workspace-panel"><div className="sim-workspace-panel-head"><div><h3>پیشنهادهای مدیریتی</h3><p>داده‌ی ورودی ← تحلیل ← تأیید مسئول</p></div><Sparkles size={18}/></div><EmptyState icon={Sparkles} title="تحلیلی تولید نشده" description="تا زمانی که منبع داده و ارائه‌دهنده‌ی هوش مصنوعی پیکربندی و آزمایش نشود، پاسخ یا توصیه‌ی ساختگی نمایش داده نمی‌شود."/></section><section className="sim-workspace-panel"><div className="sim-workspace-panel-head"><div><h3>دروازه‌ی اجرای عامل‌ها</h3><p>دسترسی ابزار، سقف هزینه و ردپا</p></div><ShieldCheck size={18}/></div><EmptyState icon={ShieldCheck} title="عامل اجرایی فعالی در انتظار راه‌اندازی" description="هر عامل واقعی باید مجوز ابزار، سقف هزینه، تأیید اقدامات حساس و گزارش اجرا داشته باشد."/></section></div>
   </div>;
 }
 
@@ -283,10 +283,10 @@ export default function OperationsWorkspace() {
         <nav className="sim-workspace-nav" aria-label="بخش‌های سیمرغ">
           {visibleGroups.map(group => <div className="sim-workspace-nav-group" key={group.title}><span>{group.title}</span>{group.items.map(item => {const Icon=item.icon;return <button type="button" key={item.key} className={page===item.key?'active':''} onClick={()=>goTo(item.key)}><Icon size={16}/><span>{item.label}</span>{page===item.key&&<i/>}</button>;})}</div>)}
         </nav>
-        <div className="sim-workspace-sidebar-footer"><div className="sim-workspace-footer-orb"><ShieldCheck size={16}/></div><span><b>محیط عملیات</b><small>بدون نشست و بدون نوشتن در دیتابیس</small></span><span className="sim-workspace-readonly-dot"/></div>
+        <div className="sim-workspace-sidebar-footer"><div className="sim-workspace-footer-orb"><ShieldCheck size={16}/></div><span><b>محیط عملیات</b><small>اطلاعات شرکت تا فعال‌سازی حساب مالک در دسترس نیست</small></span><span className="sim-workspace-readonly-dot"/></div>
       </aside>
       <section className="sim-workspace-main">
-        <div className="sim-workspace-toolbar"><button type="button" className="sim-workspace-menu-button" onClick={() => setMobileSidebar(true)} aria-label="بازکردن منو"><Menu size={19}/></button><div className="sim-workspace-breadcrumb"><span>سیمرغ</span><i>/</i><b>{activeNav?.label ?? info.title}</b></div><div className="sim-workspace-toolbar-actions"><span className="sim-workspace-session-label"><ShieldCheck size={14}/> داده‌ی شرکت در دسترس نیست</span><button type="button" aria-label="هشدارها" title="هشدارها در عملیات موجود نیست" className="sim-workspace-icon-button" onClick={() => goTo('command')}><Bell size={16}/></button><button type="button" aria-label="تنظیمات" title="تنظیمات" className="sim-workspace-icon-button" onClick={() => goTo('settings')}><Settings2 size={16}/></button></div></div>
+        <div className="sim-workspace-toolbar"><button type="button" className="sim-workspace-menu-button" onClick={() => setMobileSidebar(true)} aria-label="بازکردن منو"><Menu size={19}/></button><div className="sim-workspace-breadcrumb"><span>سیمرغ</span><i>/</i><b>{activeNav?.label ?? info.title}</b></div><div className="sim-workspace-toolbar-actions"><span className="sim-workspace-session-label"><ShieldCheck size={14}/> اتصال به حساب شرکت لازم است</span><button type="button" aria-label="هشدارها" title="هشدارها در عملیات موجود نیست" className="sim-workspace-icon-button" onClick={() => goTo('command')}><Bell size={16}/></button><button type="button" aria-label="تنظیمات" title="تنظیمات" className="sim-workspace-icon-button" onClick={() => goTo('settings')}><Settings2 size={16}/></button></div></div>
         <div className="sim-workspace-content" key={page}>
           {content}
           <footer className="sim-workspace-footer-note"><span><ShieldCheck size={14}/> سیمرغ / مدیریت یکپارچه‌ی عملیات</span><span>سیمرغ؛ سامانه‌ی یکپارچه‌ی مدیریت مزرعه و عملیات. داده‌های شرکت از منبع مجاز و به‌روز خوانده می‌شوند.</span></footer>
