@@ -1,8 +1,8 @@
-# Simorgh — Network Operations
+# سیمرغ — مدیریت یکپارچه‌ی مزرعه و عملیات
 
-سیمرغ یک نرم‌افزار عملیاتی برای شبکه تأمین تخم و گوشت بلدرچین است: مشتری، تأمین‌کننده، سفارش، ظرفیت، کیفیت، ارسال، فاکتور، تسویه و کنترل دسترسی.
+سیمرغ یک سامانه‌ی یکپارچه برای مدیریت مزرعه، تولید، سفارش، موجودی، ظرفیت، کیفیت، ارسال، حساب‌وکتاب، شرکا و کنترل دسترسی است؛ ساختار آن به یک گونه یا محصول خاص محدود نیست.
 
-**وضعیت فعلی رابط (۱۵ اکتبر ۲۰۲۶):** صفحه‌ی عمومی [GitHub Pages](https://ehsanamn1.github.io/simorgh/) با طراحی RTL فارسی، موشن کنترل‌شده و چهار پیش‌نمایش مجزای مدیر/مالک، تأمین‌کننده/مزرعه، راننده/حمل و مشتری سازمانی منتشر شده است. فرم ورود و ثبت‌نام بنا به تصمیم فعلی غیرفعال‌اند. انتخاب کارت نقش فقط ساختار و قابلیت‌های پیشنهادی آن فضا را نشان می‌دهد؛ دسترسی واقعی، نشست کاربری یا داده‌ی خصوصی ایجاد نمی‌کند. CI شامل ۲۷ آزمون مرورگر در سه اندازه‌ی صفحه و ۴ تست واحد است؛ هر دو موفق شده‌اند. آخرین بررسی موفق: [CI](https://github.com/Ehsanamn1/simorgh/actions/runs/38770634676) و [انتشار](https://github.com/Ehsanamn1/simorgh/actions/runs/38770881239). با این حال حساب مالک هنوز bootstrap نشده و جداسازی دسترسی‌ها با حساب‌های واقعی end-to-end آزموده نشده، بنابراین پیش‌نمایش عمومی را برای ثبت عملیات تجاری نهایی استفاده نکن.
+**وضعیت فعلی سامانه (۱۶ اکتبر ۲۰۲۶):** مسیر اصلی GitHub Pages مستقیم به مرکز فرمان عملیات می‌رود؛ صفحه‌ی معرفی، کارت‌های نمونه‌ی نقش و فرم‌های ورود/ثبت‌نام در این مرحله نمایش داده نمی‌شوند. در حالت بدون نشست می‌توان ماژول‌ها، نقشه، اهداف و دسترسی سریع را مرور کرد، اما داده‌های خصوصی شرکت و تغییرات عملیاتی فقط با حساب مجاز و عضویت فعال قابل دسترسی‌اند. شاخص‌های شرکت از داده‌ی ساختگی پر نمی‌شوند. تست‌های CI و مرورگر برای شروع مستقیم، پوسته‌ی روشن/تاریک، چهار آیتم نوار موبایل و بازیابی خطاهای بارگذاری اجرا می‌شوند. حساب مالک هنوز در مرحله‌ی راه‌اندازی امن قرار دارد؛ بنابراین ثبت عملیات تجاری باید پس از ایجاد حساب مالک و بازبینی RLS انجام شود.
 
 ## فناوری‌ها
 
@@ -31,34 +31,13 @@ npm run dev
 - Migration `supabase/migrations/20261015000000_simorgh_core.sql` اجرا شده و ۱۸ جدول اپلیکیشن با RLS فعال دارد.
 - کلید قابل استفاده در مرورگر از نوع publishable است. کلید secret/service-role نباید در سورس یا متغیر `VITE_` قرار گیرد.
 
-### ورود و تعیین نقش — فرم‌های عمومی موقتاً غیرفعال
+### ورود و تعیین نقش — مرحله‌ی پایانی راه‌اندازی
 
-در نسخه‌ی فعلی، صفحه‌ی عمومی فقط برای معرفی و غربال اولیه‌ی فضاهای کاری است؛ فرم ورود/ثبت‌نام و بازیابی رمز عبور نمایش داده نمی‌شود. کد Supabase Auth و پنل عملیاتی نقش‌محور در پروژه باقی مانده‌اند، اما برای آغاز نشست جدید فعلاً از رابط عمومی راهی وجود ندارد. بنابراین کارت مدیر، تأمین‌کننده، راننده یا مشتری صرفاً پیش‌نمایش است و نباید به‌عنوان ورود یا تخصیص نقش تلقی شود.
+در نسخه‌ی فعلی، اپ مستقیماً به محیط عملیاتی می‌رود و فرم ورود/ثبت‌نام از رابط عمومی پنهان است. ساختار و صفحه‌های مدیریتی داخل خود اپ قرار دارند؛ مرکز فرمانِ عضو مجاز، داده‌های واقعی Supabase را می‌خواند و قابلیت‌های نوشتن آن با نقش کاربر و سیاست‌های RLS محدود می‌شوند. در حالت بدون نشست هیچ رکورد خصوصی خوانده یا نوشته نمی‌شود.
 
-برای آماده‌سازی حساب مالک در مرحله‌ی راه‌اندازی کنترل‌شده، حساب مورداعتماد باید از Supabase Dashboard با روند امن دعوت/ایجاد کاربر ساخته شود. اگر بعدها فرم ورود دوباره فعال شد، در داشبورد Supabase → **Authentication → URL Configuration** مقدار **Site URL** را روی `https://ehsanamn1.github.io/simorgh/` بگذار و همین آدرس دقیق را به **Redirect URLs** اضافه کن؛ برای توسعه محلی نیز `http://localhost:5173/**` را اضافه کن.
+برای بهره‌برداری واقعی، باید حساب مالک از مسیر کنترل‌شده‌ی Supabase ساخته شود، عضویت فعال شرکت به او اختصاص یابد و سپس احراز هویت در آخرین مرحله فعال شود. انتخاب یک فضای کاری یا بازکردن صفحه به‌تنهایی مجوز دسترسی ایجاد نمی‌کند.
 
-پس از ایجاد حساب واقعی (و تأیید ایمیل، اگر فعال است)، عضویت سازمانی را با نقش postgres از SQL Editor و برای همان ایمیل معتبر اختصاص بده. این دستور را فقط برای حساب مالک مورداعتماد اجرا کن:
-
-```sql
-insert into public.memberships (company_id, user_id, role, active)
-select c.id, u.id, 'owner', true
-from public.companies c
-join auth.users u on lower(u.email) = lower('OWNER_EMAIL_HERE')
-where c.name = 'شبکه سیمرغ'
-  and not exists (
-    select 1 from public.memberships m
-    where m.company_id = c.id and m.user_id = u.id and m.role = 'owner'
-  );
-```
-
-کاربر عمومی نمی‌تواند برای خودش نقش مالک/مدیر بسازد؛ عضویت اولیه عمداً نیازمند اقدام کنترل‌شده است. چون ورود از رابط عمومی فعلاً غیرفعال است، بعداً که مسیر امن ورود فعال شد، باید نشست و دسترسی مالک نیز جداگانه آزموده شود.
-
-`.env.local`:
-
-```dotenv
-VITE_SUPABASE_URL=https://YOUR_PROJECT.supabase.co
-VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
-```
+[راهنمای ساخت امن حساب مالک](docs/OWNER_PROVISIONING.md)
 
 ### امنیت و محدودیت‌هایی که باید پیش از بهره‌برداری بازبینی شوند
 
@@ -92,7 +71,7 @@ npm run test:e2e
 
 ### پیش از استفاده واقعی
 
-1. تا زمانی که احراز هویت از رابط عمومی غیرفعال است، از پیش‌نمایش نقش‌ها برای عملیات واقعی استفاده نکن.
+1. تا زمانی که احراز هویت از رابط عمومی غیرفعال است، از محیط بدون نشست نقش‌ها برای عملیات واقعی استفاده نکن.
 2. در راه‌اندازی کنترل‌شده یک حساب مالک امن ایجاد کن، آن را به شرکت «شبکه سیمرغ» متصل کن و سیاست تخصیص نقش را بازبینی کن.
 3. پیش از فعال‌کردن مجدد ورود، نشست، بازیابی رمز، و دسترسی جداگانه مالک، کارمند، مشتری، تأمین‌کننده و راننده را end-to-end آزمایش کن.
 4. پیش از ثبت تراکنش واقعی، RLS، ذخیره‌سازی مدارک، قیمت توافقی، ظرفیت و گردش سفارش را با حساب‌های آزمایشی جداگانه در محیط غیرعملیاتی بررسی کن.
@@ -106,18 +85,24 @@ npm run test:e2e
 این یک اپ SPA است؛ خروجی `dist/` را می‌توان روی هر وب‌سرور استاتیک با fallback به `index.html` منتشر کرد. برای Nginx باید مسیرهای SPA به `index.html` fallback شوند. دیتابیس/Auth/Storage مستقل از میزبان front-end در Supabase می‌ماند. اگر در آینده Supabase را نیز self-host کنی، اتصال‌ها، ایمیل، بکاپ، HTTPS، Storage و ارتقای نسخه‌ها جداگانه باید نگهداری شوند.
 
 
-## App-first preview and native mobile application
+## رابط عملیاتی و اپ موبایل
 
-The default route opens directly into an interactive **read-only workspace preview**. There is no marketing landing page and the login/registration UI is intentionally hidden until the final onboarding phase. Use the sidebar, role-preview selector, map page and dark/light control to inspect the product across desktop and mobile layouts.
+اپ با React و Vite ساخته می‌شود و روی GitHub Pages با مسیر پایه‌ی `/simorgh/` منتشر می‌شود. ورود مستقیم صفحه را به مرکز فرمان می‌برد؛ هویت بصری سیمرغ فارسی و راست‌چین است، حالت روشن/تاریک دارد، و برای گوشی نوار چهارآیتمی خانه، عملیات، نقشه و بخش‌های بیشتر ارائه می‌کند. مدیر از مرکز فرمان و دسترسی سریع به سفارش، موجودی، نقشه و مالی استفاده می‌کند؛ کاربران دارای نقش تأییدشده در اپ واقعی، فقط مسیرهای مجاز همان نقش را می‌بینند.
 
-The guest preview makes no operational writes and deliberately does not query private company records. KPI values, inventory, orders, financial balances, GPS markers and AI recommendations are left empty until there are authorized source records. It uses a real geographic OpenStreetMap layer as a map guide, but displays no fabricated shipment markers.
+- [تطبیق اجزای رابط با ماژول‌های واقعی و قرارداد داده](docs/REFERENCE_BOARD_MAPPING.md)
+- [راهنمای ساخت امن حساب مالک](docs/OWNER_PROVISIONING.md)
+- [راهنمای ساخت اپ‌های بومی موبایل](docs/MOBILE_APP.md)
 
-- [Reference-board mapping to real screens and data contracts](docs/REFERENCE_BOARD_MAPPING.md)
-- [Native mobile build and release notes](docs/MOBILE_APP.md)
-- [First owner provisioning](docs/OWNER_PROVISIONING.md)
+### داده‌ی عملیاتی و ایمنی
 
-Authentication implementation and membership checks remain in place, but the public auth UI is gated behind the build flag `VITE_ENABLE_AUTH_UI=true`. Keep it unset while reviewing the UI; turn it on only after the owner account is provisioned and the full secure onboarding flow is ready. App data and mutations remain protected by Supabase Auth and RLS.
+- مرکز فرمان احرازشده از شمارش‌ها و رکوردهای Supabase استفاده می‌کند و زمان آخرین به‌روزرسانی را نشان می‌دهد.
+- در حالت بدون نشست، عدد مالی، سفارش، تولید، GPS یا خروجی هوش مصنوعی جعل نمی‌شود. این حالت مجوز عمومی به دیتابیس شرکت ایجاد نمی‌کند.
+- نقشه‌ی راهنما از OpenStreetMap استفاده می‌کند. نشانگر محموله فقط زمانی نمایش داده می‌شود که مختصات واقعی از رکورد مجاز ثبت شده باشد.
+- ثبت موقعیت راننده با اقدام صریح و اجازه‌ی دستگاه انجام می‌شود؛ ردیابی پس‌زمینه فعال نیست.
+- Service Worker فقط پوسته و فایل‌های ثابت اپ را نگه می‌دارد و API، احراز هویت، فایل‌های خصوصی و عملیات نوشتن را کش نمی‌کند.
+- صف تغییرات آفلاین و حل تعارض هنوز پیاده‌سازی نشده‌اند؛ تغییرات تجاری باید با اتصال شبکه انجام شوند.
 
-GitHub Actions builds an internal Android debug APK and an unsigned iOS Simulator app on supported pushes/PRs and manual dispatch. These are test artifacts, not store releases: Android Play Store publishing needs a release signing key; a physical iPhone/TestFlight build needs Apple signing and provisioning. Do not commit any signing credentials.
+### ساخت بومی
 
-The hosted preview caches only the static app shell/build assets. Auth, database records, private files, and writes are never cached. Offline mutation queueing and conflict resolution are not implemented; records must be changed online. Native foreground GPS capture exists only for an assigned shipment after an explicit driver action and device permission; background tracking is not enabled.
+GitHub Actions بسته‌ی آزمایشی APK اندروید و اپ شبیه‌ساز iOS را می‌سازد. این خروجی‌ها نسخه‌های فروشگاهی امضاشده نیستند: انتشار در Google Play نیازمند کلید امضای انتشار است و نصب روی آیفون واقعی به امضای Apple و provisioning نیاز دارد. هیچ کلید امضایی را در مخزن قرار نده.
+
