@@ -73,15 +73,30 @@ npm run build
 
 ## GitHub → Cloudflare Pages
 
-1. یک مخزن مستقل به نام `simorgh` بساز؛ به `cortex-ai` push نکن.
-2. سورس این پوشه را در ریشه مخزن قرار بده و `package-lock.json` یا `bun.lock` را commit کن.
-3. Cloudflare Dashboard → Workers & Pages → Create → Pages → Connect to Git را انتخاب و همان مخزن را وصل کن.
-4. تنظیم Build command برابر `npm run build` و Build output directory برابر `dist` باشد.
-5. دو متغیر `VITE_SUPABASE_URL` و `VITE_SUPABASE_PUBLISHABLE_KEY` را برای Production (و بعداً Preview در صورت نیاز) در تنظیمات پروژه قرار بده. چون متغیرهای `VITE_` هنگام build وارد bundle سمت مرورگر می‌شوند، آن‌ها باید فقط مقادیر عمومی باشند.
-6. اولین deploy را بازبینی کن؛ سپس تست ورود/خروج، ثبت سفارش و RLS را با نقش‌های واقعی و حساب‌های جدا اجرا کن.
+سورس در مخزن [Ehsanamn1/simorgh](https://github.com/Ehsanamn1/simorgh) روی شاخه `main` ثبت شده است. اجرای CI در commit `0d9430a8cc2db87260576f73ff70d5a1c6e2ad78` شامل typecheck، lint، test و build با موفقیت کامل شد.
 
-Workflow موجود در `.github/workflows/ci.yml` تنها CI را اجرا می‌کند؛ عمداً هیچ توکن مخفی یا deploy خودکاری به Cloudflare در آن تعبیه نشده است. بعد از ساخت مخزن و تأیید دسترسی Cloudflare می‌توان Git integration خود Cloudflare را فعال کرد.
+دو روش انتشار وجود دارد:
 
+### انتشار از GitHub Actions
+
+Workflow آماده در `.github/workflows/deploy.yml` به صورت دستی اجرا می‌شود تا قبل از تنظیم اطلاعات محرمانه، deployment تکراری و ناموفق ایجاد نکند.
+
+1. در GitHub → **Settings → Secrets and variables → Actions** این چهار Repository Secret را تعریف کن:
+   - `CLOUDFLARE_API_TOKEN`: توکن Cloudflare با دسترسی Account → Cloudflare Pages: Edit برای همان اکانت.
+   - `CLOUDFLARE_ACCOUNT_ID`: شناسه اکانت Cloudflare.
+   - `VITE_SUPABASE_URL`: آدرس پروژه Supabase فعال.
+   - `VITE_SUPABASE_PUBLISHABLE_KEY`: کلید عمومی publishable همان پروژه.
+2. در GitHub → **Actions → Deploy Simorgh to Cloudflare Pages → Run workflow** را اجرا کن.
+3. Workflow پروژه Pages با نام `simorgh-network` را ایجاد (اگر از قبل وجود نداشته باشد)، خروجی `dist/` را build و منتشر می‌کند.
+
+Workflow تا وقتی همه چهار Secret حاضر نباشند deploy را انجام نمی‌دهد. کلید `service_role` یا هر کلید مخفی دیتابیس را در متغیر `VITE_` قرار نده؛ کلید publishable به مرورگر می‌رسد و باید فقط با RLS درست استفاده شود.
+
+### انتشار از طریق Cloudflare Git Integration
+
+از داشبورد Cloudflare به **Workers & Pages → Create → Pages → Connect to Git** برو، مخزن `Ehsanamn1/simorgh` و شاخه `main` را انتخاب کن، build command را `npm run build` و output directory را `dist` قرار بده. متغیرهای عمومی `VITE_SUPABASE_URL` و `VITE_SUPABASE_PUBLISHABLE_KEY` باید پیش از اولین build در Production تنظیم شوند.
+
+CI گیت‌هاب با هر push روی `main` آزمون‌ها را اجرا می‌کند؛ deploy خودکار را فقط پس از ایجاد و آزمون اتصال Supabase فعال کن.
+ 
 ## انتقال به هاست خودت
 
 این یک اپ SPA است؛ خروجی `dist/` را می‌توان روی هر وب‌سرور استاتیک با fallback به `index.html` منتشر کرد. برای Nginx باید مسیرهای SPA به `index.html` fallback شوند. دیتابیس/Auth/Storage مستقل از میزبان front-end در Supabase می‌ماند. اگر در آینده Supabase را نیز self-host کنی، اتصال‌ها، ایمیل، بکاپ، HTTPS، Storage و ارتقای نسخه‌ها جداگانه باید نگهداری شوند.
