@@ -412,15 +412,24 @@ function Dashboard({ membership }: { membership: Membership }) {
   const actionCount = counts.lateOrders + counts.overdueTasks + counts.reviewTasks + counts.incidents + counts.invoices + counts.failedShipments + counts.expiringLicenses + counts.pendingRequests;
 
   return <>
-    <PageHeading eyebrow="CONTROL CENTER / 01" title="مرکز فرمان شبکه" description="نمای عملیاتی بر مبنای رکوردهای واقعی؛ هشدارهای برجسته به محل پیگیری متصل هستند." action={<Button variant="soft" onClick={() => void load()} disabled={loading}><Activity size={15}/> {loading ? 'در حال تازه‌سازی…' : 'تازه‌سازی داده‌ها'}</Button>}/>
+    <PageHeading eyebrow="مدیریت عملیات" title="مرکز فرمان شبکه" description="نمای عملیاتی بر مبنای رکوردهای واقعی؛ هشدارهای برجسته به محل پیگیری متصل هستند." action={<Button variant="soft" onClick={() => void load()} disabled={loading}><Activity size={15}/> {loading ? 'در حال تازه‌سازی…' : 'تازه‌سازی داده‌ها'}</Button>}/>
     {error && <InlineError error={error} retry={() => void load()}/>}
-    <div className="tower-freshness"><span className="tower-live-dot"/><span>آخرین دریافت: {lastUpdated ? dateTimeFa(lastUpdated) : 'در انتظار دریافت'}</span><span>این نما از داده‌ی نمایشی استفاده نمی‌کند.</span></div>
+    <div className="tower-freshness"><span className="tower-live-dot"/><span>آخرین دریافت: {lastUpdated ? dateTimeFa(lastUpdated) : 'در انتظار دریافت'}</span><span>شاخص‌ها بر پایه‌ی رکوردهای ثبت‌شده به‌روز می‌شوند.</span></div>
     <section className="stats-grid tower-stats">
       <article className="stat-card"><div className="stat-card-top"><span>سفارش‌ها</span><span className="stat-icon"><FileText size={17}/></span></div><b>{loading ? '—' : numberFa(counts.orders)}</b><small>رکوردهای این مجموعه</small></article>
       <article className="stat-card"><div className="stat-card-top"><span>مشتریان</span><span className="stat-icon"><Users size={17}/></span></div><b>{loading ? '—' : numberFa(counts.customers)}</b><small>حساب‌های ثبت‌شده</small></article>
       <article className="stat-card"><div className="stat-card-top"><span>تأمین‌کنندگان</span><span className="stat-icon"><Factory size={17}/></span></div><b>{loading ? '—' : numberFa(counts.suppliers)}</b><small>شبکه تأمین ثبت‌شده</small></article>
       <article className="stat-card"><div className="stat-card-top"><span>ارسال‌های باز</span><span className="stat-icon"><Truck size={17}/></span></div><b>{loading ? '—' : numberFa(counts.shipments)}</b><small>تحویل‌نشده و در جریان</small></article>
       <article className="stat-card"><div className="stat-card-top"><span>بازه‌های ظرفیت</span><span className="stat-icon"><Warehouse size={17}/></span></div><b>{loading ? '—' : numberFa(counts.capacity)}</b><small>تأییدشده یا متعهد و جاری</small></article>
+    </section>
+    <section className="tower-quick-access" aria-label="دسترسی سریع">
+      <div className="tower-quick-head"><div><span className="section-number">۰۱</span><div><h3>دسترسی سریع</h3><p>ورود مستقیم به کارهای پرتکرار</p></div></div></div>
+      <div className="tower-quick-grid">
+        <Link to="/app/orders"><span><FileText size={18}/></span><b>سفارش‌ها</b><small>ثبت و پیگیری</small><ArrowLeft size={14}/></Link>
+        <Link to="/app/inventory"><span><Warehouse size={18}/></span><b>انبار و خرید</b><small>موجودی و گردش کالا</small><ArrowLeft size={14}/></Link>
+        <Link to="/app/operational-tasks"><span><ClipboardCheck size={18}/></span><b>وظایف عملیاتی</b><small>کارهای باز و موعد</small><ArrowLeft size={14}/></Link>
+        <Link to="/app/finance"><span><CreditCard size={18}/></span><b>مالی و تسویه</b><small>دفتر و اسناد مالی</small><ArrowLeft size={14}/></Link>
+      </div>
     </section>
     {counts.orders === 0 && counts.customers === 0 && counts.suppliers === 0 && <div className="tower-onboarding"><ShieldCheck size={18}/><div><b>داده‌ی عملیاتی هنوز ثبت نشده</b><p>برای شروع، محصولات، تأمین‌کنندگان و مشتریان واقعی را ثبت کن. سامانه تا آن زمان عدد ساختگی نمایش نمی‌دهد.</p></div><div className="tower-onboarding-links"><Link to="/app/products">تعریف محصول</Link><Link to="/app/suppliers">ثبت تأمین‌کننده</Link><Link to="/app/customers">ثبت مشتری</Link></div></div>}
     <div className="dashboard-grid tower-main-grid">
