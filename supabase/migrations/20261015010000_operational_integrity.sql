@@ -48,9 +48,10 @@ create table public.partnership_agreements (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   unique(company_id,id),
+  unique(company_id,supplier_id,id),
   unique(company_id,agreement_code,version),
   foreign key(company_id,supplier_id) references public.suppliers(company_id,id) on delete restrict,
-  foreign key(company_id,supersedes_agreement_id) references public.partnership_agreements(company_id,id) on delete restrict,
+  foreign key(company_id,supplier_id,supersedes_agreement_id) references public.partnership_agreements(company_id,supplier_id,id) on delete restrict,
   check (company_profit_share_pct + partner_profit_share_pct = 100),
   check (effective_to is null or effective_to >= effective_from),
   check ((status <> 'active') or (signed_at is not null and approved_at is not null))
@@ -305,7 +306,7 @@ create table public.partner_settlement_periods (
   period_start date not null,
   period_end date not null,
   status text not null default 'draft' check (status in ('draft','approved','settled','disputed','cancelled')),
-  currency text not null default 'IRR' check (currency in ('IRR','TOMAN')),
+  currency text not null default 'TOMAN' check (currency in ('IRR','TOMAN')),
   invoiced_revenue numeric(16,0) not null default 0,
   collected_revenue numeric(16,0) not null default 0,
   recognized_revenue numeric(16,0) not null default 0,
@@ -386,7 +387,7 @@ create policy task_templates_internal_all on public.task_templates for all to au
 create policy operational_tasks_internal_all on public.operational_tasks for all to authenticated
   using (public.is_company_internal(company_id)) with check (public.is_company_internal(company_id));
 create policy operational_tasks_assigned_read on public.operational_tasks for select to authenticated
-  using (assignee_user_id=auth.uid() or assignee_supplier_id in (select public.my_supplier_ids()));
+  using (public.is_company_member(company_id) and (assignee_user_id=auth.uid() or assignee_supplier_id in (select public.my_supplier_ids())));
 
 create policy task_evidence_internal_all on public.task_evidence for all to authenticated
   using (public.is_company_internal(company_id)) with check (public.is_company_internal(company_id));
@@ -400,7 +401,7 @@ create policy operational_incidents_internal_all on public.operational_incidents
 create policy operational_incidents_partner_read on public.operational_incidents for select to authenticated
   using (reported_supplier_id in (select public.my_supplier_ids()) or exists(select 1 from public.farm_sites fs where fs.company_id=operational_incidents.company_id and fs.id=operational_incidents.farm_site_id and fs.supplier_id in (select public.my_supplier_ids())));
 create policy operational_incidents_partner_insert on public.operational_incidents for insert to authenticated
-  with check (reported_by=auth.uid() and (reported_supplier_id in (select public.my_supplier_ids()) or exists(select 1 from public.farm_sites fs where fs.company_id=operational_incidents.company_id and fs.id=operational_incidents.farm_site_id and fs.supplier_id in (select public.my_supplier_ids()))));
+  with check (reported_by=auth.uid() and farm_site_id is not null and exists(select 1 from public.farm_sites fs where fs.company_id=operational_incidents.company_id and fs.id=operational_incidents.farm_site_id and fs.supplier_id in (select public.my_supplier_ids())));
 
 create policy partner_financial_internal_all on public.partner_financial_entries for all to authenticated
   using (public.is_company_manager(company_id)) with check (public.is_company_manager(company_id));
@@ -463,8 +464,9 @@ begin
       raise exception 'نسخه تأییدشده فقط می‌تواند بازنشسته شود';
     end if;
   end if;
-  return case when tg_op='DELETE' then old else new end;
-end $$;
+  if tg_op='DELETE' then return old; end if;
+  return new;
+end $;
 create trigger guard_approved_task_template_update
   before update or delete on public.task_templates for each row execute function public.guard_approved_task_template();
 
@@ -501,6 +503,9 @@ create or replace function public.guard_partner_financial_relationship()
 returns trigger language plpgsql security definer set search_path='' as $$
 declare source public.partner_financial_entries%rowtype;
 begin
+  if not exists(select 1 from public.partnership_agreements a where a.id=new.agreement_id and a.company_id=new.company_id and a.supplier_id=new.supplier_id) then
+    raise exception 'سند مالی باید به قرارداد همان تأمین‌کننده متصل باشد';
+  end if;
   if new.entry_type='adjustment' then
     select * into source from public.partner_financial_entries
      where id=new.linked_entry_id and company_id=new.company_id
@@ -518,6 +523,11 @@ begin
        and supplier_id=new.supplier_id and agreement_id=new.agreement_id
        and entry_type='sale_invoice';
     if not found then raise exception 'دریافت فروش باید به فاکتور همین قرارداد متصل شود'; end if;
+    if new.status='posted' then
+      if (select coalesce(sum(c.amount),0) from public.partner_financial_entries c where c.company_id=new.company_id and c.linked_entry_id=new.linked_entry_id and c.entry_type='sale_collection' and c.status='posted' and c.id is distinct from new.id) + new.amount > source.amount then
+        raise exception 'جمع دریافت‌های ثبت‌شده از مبلغ فاکتور بیشتر می‌شود';
+      end if;
+    end if;
   end if;
   return new;
 end $$;
@@ -573,8 +583,9 @@ begin
       raise exception 'دوره تأییدشده فقط پس از پرداخت واقعی قابل تسویه است';
     end if;
   end if;
-  return case when tg_op='DELETE' then old else new end;
-end $$;
+  if tg_op='DELETE' then return old; end if;
+  return new;
+end $;
 create trigger guard_partner_settlement_period_update
   before update or delete on public.partner_settlement_periods for each row execute function public.guard_partner_settlement_period_update();
 
@@ -589,9 +600,15 @@ begin
     raise exception 'این وظیفه به شما واگذار نشده است';
   end if;
   if t.status not in ('pending','in_progress','rejected') then raise exception 'وضعیت فعلی اجازه ارسال پایان کار نمی‌دهد'; end if;
-  if t.evidence_required and not exists(select 1 from public.task_evidence e where e.company_id=t.company_id and e.task_id=t.id) then
-    raise exception 'برای تکمیل این وظیفه مدرک لازم است';
-  end if;
+  if t.evidence_required and not exists(
+    select 1 from public.task_evidence e
+    where e.company_id=t.company_id and e.task_id=t.id
+      and ((e.evidence_type='note' and length(trim(coalesce(e.note,'')))>0)
+        or (e.evidence_type='measurement' and e.measurement_value is not null)
+        or (e.evidence_type in ('photo','document') and e.storage_path is not null and exists(
+          select 1 from storage.objects o where o.bucket_id='operational-evidence' and o.name=e.storage_path
+        )))
+  ) then raise exception 'برای تکمیل این وظیفه مدرک واقعی لازم است'; end if;
   update public.operational_tasks set status='submitted', submitted_at=now(), completion_note=nullif(trim(_completion_note),''), updated_at=now()
    where id=t.id;
 end $$;
@@ -646,10 +663,26 @@ begin
   end if;
 
   select
-    coalesce(sum(e.amount) filter(where e.entry_type='sale_invoice' and e.status='posted'),0),
-    coalesce(sum(e.amount) filter(where e.entry_type='sale_collection' and e.status='posted'),0),
-    coalesce(sum(e.amount) filter(where e.entry_type='expense' and e.is_shared_cost and e.status in ('approved','posted')),0),
-    coalesce(sum(e.amount-e.paid_amount) filter(where e.entry_type='expense' and e.is_shared_cost and e.status in ('approved','posted')),0),
+    coalesce(sum(case
+      when e.entry_type='sale_invoice' and e.status='posted' then e.amount
+      when e.entry_type='adjustment' and target.entry_type='sale_invoice' and e.status='posted'
+        then e.amount * case when e.adjustment_effect='increase' then 1 else -1 end
+      else 0 end),0),
+    coalesce(sum(case
+      when e.entry_type='sale_collection' and e.status='posted' then e.amount
+      when e.entry_type='adjustment' and target.entry_type='sale_collection' and e.status='posted'
+        then e.amount * case when e.adjustment_effect='increase' then 1 else -1 end
+      else 0 end),0),
+    greatest(0,coalesce(sum(case
+      when e.entry_type='expense' and e.is_shared_cost and e.status in ('approved','posted') then e.amount
+      when e.entry_type='adjustment' and target.entry_type='expense' and target.is_shared_cost and e.status='posted'
+        then e.amount * case when e.adjustment_effect='increase' then 1 else -1 end
+      else 0 end),0)),
+    greatest(0,coalesce(sum(case
+      when e.entry_type='expense' and e.is_shared_cost and e.status in ('approved','posted') then e.amount-e.paid_amount
+      when e.entry_type='adjustment' and target.entry_type='expense' and target.is_shared_cost and e.status='posted'
+        then e.amount * case when e.adjustment_effect='increase' then 1 else -1 end
+      else 0 end),0)),
     coalesce(sum(e.paid_amount) filter(where e.entry_type='expense' and e.is_shared_cost and e.status in ('approved','posted') and e.paid_by='company'),0),
     coalesce(sum(e.paid_amount) filter(where e.entry_type='expense' and e.is_shared_cost and e.status in ('approved','posted') and e.paid_by='partner'),0),
     coalesce(sum(e.amount) filter(where e.entry_type='partner_advance' and e.status='posted' and e.direction='company_to_partner'),0),
@@ -659,6 +692,9 @@ begin
   into invoice_total,collection_total,expense_total,unpaid_expense_total,company_paid_total,partner_paid_total,
        company_advance_total,partner_advance_total,paid_to_partner_total,paid_to_company_total
   from public.partner_financial_entries e
+  left join public.partner_financial_entries target
+    on target.company_id=e.company_id and target.id=e.linked_entry_id
+   and target.supplier_id=e.supplier_id and target.agreement_id=e.agreement_id
   where e.company_id=a.company_id and e.supplier_id=a.supplier_id and e.agreement_id=a.id
     and e.recognized_on between _period_start and _period_end;
 
@@ -675,7 +711,7 @@ begin
     'id',e.id,'type',e.entry_type,'status',e.status,'amount',e.amount,'paid_amount',e.paid_amount,
     'currency',e.currency,'category',e.expense_category,'shared_cost',e.is_shared_cost,'paid_by',e.paid_by,
     'date',e.recognized_on,'reference',e.external_reference,'source_table',e.source_table,'source_record_id',e.source_record_id,
-    'linked_entry_id',e.linked_entry_id,'notes',e.notes
+    'linked_entry_id',e.linked_entry_id,'adjustment_effect',e.adjustment_effect,'notes',e.notes
   ) order by e.recognized_on,e.created_at,e.id),'[]'::jsonb)
   into lines
   from public.partner_financial_entries e
