@@ -86,7 +86,7 @@ create table public.production_batches (
   id uuid primary key default gen_random_uuid(),
   company_id uuid not null references public.companies(id) on delete cascade,
   farm_site_id uuid not null,
-  supplier_id uuid not null,
+  supplier_id uuid,
   agreement_id uuid,
   flock_cycle_id uuid,
   product_id uuid,
@@ -119,6 +119,43 @@ create table public.production_batches (
 );
 create index production_batches_site_status_idx on public.production_batches(company_id,farm_site_id,status,expected_on);
 create index production_batches_supplier_idx on public.production_batches(company_id,supplier_id,created_at desc);
+
+-- A batch must match the actual facility owner, agreement partner, flock cycle and traced lot.
+create or replace function public.guard_production_batch_scope()
+returns trigger language plpgsql set search_path='' as $
+declare site_supplier uuid; agreement_supplier uuid; cycle_site uuid; lot_supplier uuid; lot_product uuid;
+begin
+  select fs.supplier_id into site_supplier from public.farm_sites fs where fs.company_id=new.company_id and fs.id=new.farm_site_id;
+  if not found then raise exception 'سایت تولید متعلق به این شرکت نیست'; end if;
+  if site_supplier is distinct from new.supplier_id then
+    raise exception 'تأمین‌کننده بچ تولید باید با مالک سایت تولید یکسان باشد';
+  end if;
+  if new.agreement_id is not null then
+    select pa.supplier_id into agreement_supplier from public.partnership_agreements pa where pa.company_id=new.company_id and pa.id=new.agreement_id;
+    if not found or agreement_supplier is distinct from new.supplier_id then
+      raise exception 'قرارداد مشارکت متعلق به تأمین‌کننده این بچ نیست';
+    end if;
+  end if;
+  if new.flock_cycle_id is not null then
+    select fc.farm_site_id into cycle_site from public.flock_cycles fc where fc.company_id=new.company_id and fc.id=new.flock_cycle_id;
+    if not found or cycle_site is distinct from new.farm_site_id then
+      raise exception 'چرخه گله باید متعلق به همان سایت تولید باشد';
+    end if;
+  end if;
+  if new.lot_id is not null then
+    select l.supplier_id,l.product_id into lot_supplier,lot_product from public.lots l where l.company_id=new.company_id and l.id=new.lot_id;
+    if not found or lot_supplier is distinct from new.supplier_id or (new.product_id is not null and lot_product is distinct from new.product_id) then
+      raise exception 'بچ ردیابی محصول با تأمین‌کننده یا محصول این بچ تطابق ندارد';
+    end if;
+  end if;
+  if new.status='completed' and new.quality_status<>'passed' then
+    raise exception 'بچ تولید فقط پس از تأیید کیفیت قابل تکمیل است';
+  end if;
+  return new;
+end $;
+create trigger guard_production_batch_scope
+  before insert or update on public.production_batches for each row execute function public.guard_production_batch_scope();
+
 
 create table public.daily_production_records (
   id uuid primary key default gen_random_uuid(),
@@ -546,6 +583,7 @@ begin
   if tg_op='DELETE' and old.status='posted' then
     raise exception 'سند مالی ثبت‌شده حذف نمی‌شود؛ سند اصلاحی ثبت کنید';
   end if;
+  if tg_op='DELETE' then return old; end if;
   if tg_op='UPDATE' and old.status='posted' then
     raise exception 'سند مالی ثبت‌شده تغییر نمی‌کند؛ سند اصلاحی ثبت کنید';
   end if;
@@ -849,6 +887,7 @@ end $$;
 -- Expose only role-checked RPC entry points; no anonymous access.
 revoke all on function public.guard_approved_task_template() from public,anon,authenticated;
 revoke all on function public.guard_partnership_agreement_version() from public,anon,authenticated;
+revoke all on function public.guard_production_batch_scope() from public,anon,authenticated;
 revoke all on function public.guard_partner_financial_relationship() from public,anon,authenticated;
 revoke all on function public.guard_task_status_transition() from public,anon,authenticated;
 revoke all on function public.guard_posted_partner_financial_entry() from public,anon,authenticated;
