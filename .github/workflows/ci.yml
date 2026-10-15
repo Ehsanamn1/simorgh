@@ -18,4 +18,6 @@ jobs:
       - run: npm run typecheck
       - run: npm run lint
       - run: npm run test
+      - name: Audit production dependencies
+        run: npm audit --omit=dev
       - run: npm run build
