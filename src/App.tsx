@@ -1,6 +1,6 @@
 import type * as React from 'react';
 import { useEffect, useMemo, useState } from 'react';
-import { Link, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
+import { Link, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import {
   Activity, ArrowLeft, ArrowUpLeft, Boxes, Building2, CheckCircle2,
   ChevronDown, CircleHelp, ClipboardCheck, CreditCard, Factory, FileText, LayoutDashboard,
@@ -40,25 +40,215 @@ function Logo({ compact = false }: { compact?: boolean }) {
 function ConfigScreen() {
   return <main className="setup-screen" dir="rtl"><div className="setup-grid"><div className="setup-brand"><Logo/><span className="setup-chip"><span/> آماده استقرار · نیازمند پیکربندی</span><h1>شبکه‌ی تأمین را<br/><em>با داده واقعی</em> اداره کنید.</h1><p>سیمرغ برای اتصال سفارش، ظرفیت، کیفیت، ارسال و تسویه در یک جریان عملیاتی ساخته شده است. تا قبل از اتصال دیتابیس هیچ داده نمونه یا شاخص ساختگی نمایش داده نمی‌شود.</p><div className="setup-features"><span><ShieldCheck/> کنترل دسترسی نقش‌محور</span><span><Activity/> ثبت تغییرات و پیگیری</span><span><Boxes/> مسیر مستقل مشتری و تأمین‌کننده</span></div></div><section className="setup-panel"><div className="setup-panel-icon"><Settings2/></div><span className="eyebrow">INITIAL CONFIGURATION</span><h2>اتصال پایگاه داده لازم است</h2><p>برای فعال‌شدن ورود کاربران و عملیات واقعی، یک پروژه اختصاصی Supabase بساز و متغیرهای زیر را در محیط محلی یا Cloudflare Pages قرار بده.</p><div className="env-item"><label>VITE_SUPABASE_URL</label><code>https://YOUR_PROJECT.supabase.co</code><button onClick={() => void navigator.clipboard?.writeText('VITE_SUPABASE_URL=')}>کپی نام متغیر</button></div><div className="env-item"><label>VITE_SUPABASE_PUBLISHABLE_KEY</label><code>sb_publishable_…</code><button onClick={() => void navigator.clipboard?.writeText('VITE_SUPABASE_PUBLISHABLE_KEY=')}>کپی نام متغیر</button></div><div className="setup-warning"><ShieldCheck size={17}/><span>کلید publishable تنها کلید قابل استفاده در مرورگر است. هرگز service-role یا secret key را در VITE_ قرار نده.</span></div><div className="setup-steps"><b>مراحل راه‌اندازی</b><span><i>۱</i> ساخت پروژه Supabase و اجرای migration</span><span><i>۲</i> تنظیم دو متغیر محیطی</span><span><i>۳</i> ساخت اولین شرکت و اعطای نقش مالک از SQL Editor</span></div><a className="button-primary setup-doc-link" href="https://supabase.com/dashboard" target="_blank" rel="noreferrer">رفتن به Supabase <ArrowUpLeft size={15}/></a></section></div><footer className="setup-footer"><span>SIMORGH / SYSTEM INITIALIZATION</span><span>هیچ داده‌ای تا اتصال واقعی ساخته نشده است.</span></footer></main>;
 }
-function AuthPage() {
-  const [mode, setMode] = useState<'signin' | 'signup' | 'reset'>('signin');
-  const [email, setEmail] = useState(''); const [password, setPassword] = useState(''); const [name, setName] = useState('');
-  const [busy, setBusy] = useState(false); const [message, setMessage] = useState(''); const [error, setError] = useState('');
-  const navigate = useNavigate();
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault(); if (!supabase) return; setBusy(true); setError(''); setMessage('');
-    try {
-      if (mode === 'signin') { const { error: err } = await supabase.auth.signInWithPassword({ email: email.trim(), password }); if (err) throw err; navigate('/app'); }
-      else if (mode === 'signup') { const { data, error: err } = await supabase.auth.signUp({ email: email.trim(), password, options: { data: { full_name: name.trim() }, emailRedirectTo: new URL(import.meta.env.BASE_URL, window.location.origin).toString() } }); if (err) throw err; setMessage(data.session ? 'حساب ساخته شد. برای ورود به مجموعه باید مالک شما را به مجموعه متصل کند.' : 'لینک تأیید به ایمیل شما ارسال شد. پس از تأیید، از مالک مجموعه درخواست دسترسی کنید.'); setMode('signin'); }
-      else { const { error: err } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo: new URL(import.meta.env.BASE_URL, window.location.origin).toString() }); if (err) throw err; setMessage('اگر این ایمیل در سامانه ثبت شده باشد، پیام بازیابی ارسال می‌شود.'); }
-    } catch (err) { setError(err instanceof Error ? err.message : 'عملیات انجام نشد. دوباره تلاش کن.'); } finally { setBusy(false); }
+type WorkspacePreviewKey = 'manager' | 'supplier' | 'driver' | 'customer';
+
+const workspaceProfiles: {
+  key: WorkspacePreviewKey;
+  eyebrow: string;
+  title: string;
+  shortTitle: string;
+  description: string;
+  audience: string;
+  accent: string;
+  icon: typeof LayoutDashboard;
+  capabilities: { icon: typeof Activity; title: string; description: string }[];
+  navigation: string[];
+  readiness: string;
+}[] = [
+  {
+    key: 'manager',
+    eyebrow: '01 / CONTROL TOWER',
+    title: 'مرکز فرمان شرکت',
+    shortTitle: 'مدیر و مالک شبکه',
+    description: 'دید یکپارچه برای مدیریت سفارش، ظرفیت تولید، کیفیت، ارسال، هزینه‌ها و عملکرد شرکای شبکه.',
+    audience: 'مالک، مدیر و کارشناس عملیات',
+    accent: 'forest',
+    icon: LayoutDashboard,
+    capabilities: [
+      { icon: Activity, title: 'نمای عملیاتی شبکه', description: 'سفارش‌های در معرض تأخیر، کمبود ظرفیت و موارد نیازمند پیگیری.' },
+      { icon: Factory, title: 'شرکا و ظرفیت', description: 'اطلاعات تأمین‌کنندگان، ظرفیت تأییدشده و توافق‌های همکاری.' },
+      { icon: CreditCard, title: 'مالی و تسویه', description: 'دفتر داخلی، فاکتورها، هزینه‌ها و اقلام در انتظار بررسی.' },
+    ],
+    navigation: ['مرکز فرمان', 'سفارش‌ها', 'مشتریان و تأمین‌کنندگان', 'کیفیت و محموله', 'مالی و تسویه', 'دسترسی و تاریخچه'],
+    readiness: 'پس از فعال‌شدن دسترسی مدیر، داده‌های واقعی شرکت در این فضا بارگذاری می‌شوند.',
+  },
+  {
+    key: 'supplier',
+    eyebrow: '02 / FARM PARTNER',
+    title: 'فضای تأمین و مزرعه',
+    shortTitle: 'تأمین‌کننده و شریک مزرعه',
+    description: 'فضای اختصاصی برای ظرفیت اعلام‌شده، کارهای واگذارشده، مدارک کیفیت و صورت‌وضعیت همکاری.',
+    audience: 'تأمین‌کننده یا شریک تولید',
+    accent: 'leaf',
+    icon: Factory,
+    capabilities: [
+      { icon: ClipboardCheck, title: 'کارهای واگذارشده', description: 'وظایف، موعد تحویل، مدارک موردنیاز و وضعیت بررسی.' },
+      { icon: Warehouse, title: 'ظرفیت تولید', description: 'اعلام ظرفیت و مشاهده مقدار تأییدشده و تعهدشده.' },
+      { icon: CreditCard, title: 'صورت‌وضعیت همکاری', description: 'نمایش اقلام مجاز و وضعیت تسویه همان شریک.' },
+    ],
+    navigation: ['نمای کلی همکاری', 'کارهای من', 'ظرفیت تولید', 'مدارک و کیفیت', 'صورت‌وضعیت من'],
+    readiness: 'این فضا فقط باید سوابق همان تأمین‌کننده را نشان بدهد؛ اطلاعات شرکای دیگر در دسترس نخواهد بود.',
+  },
+  {
+    key: 'driver',
+    eyebrow: '03 / TRANSPORT',
+    title: 'فضای راننده و حمل',
+    shortTitle: 'راننده و پیمانکار حمل',
+    description: 'مسیر ساده و موبایل‌محور برای دیدن محموله‌های واگذارشده و ثبت رویدادهای دریافت و تحویل.',
+    audience: 'راننده یا شرکت حمل طرف قرارداد',
+    accent: 'sky',
+    icon: Truck,
+    capabilities: [
+      { icon: Truck, title: 'محموله‌های واگذارشده', description: 'آدرس، بازه زمانی، تعداد مجاز و وضعیت مأموریت‌های اختصاص‌یافته.' },
+      { icon: CheckCircle2, title: 'تأیید دریافت و تحویل', description: 'ثبت تأیید و مدرک تحویل برای محموله مربوط به همان مأموریت.' },
+      { icon: Activity, title: 'تأخیر و مغایرت', description: 'گزارش تأخیر، کسری، رد تحویل یا رخداد مسیر.' },
+    ],
+    navigation: ['مأموریت‌های من', 'اطلاعات دریافت', 'تحویل و مدرک', 'تأخیر و مغایرت'],
+    readiness: 'موقعیت زنده GPS هنوز در این نسخه به دستگاه یا سرویس واقعی متصل نشده و به‌عنوان قابلیت فعال نمایش داده نمی‌شود.',
+  },
+  {
+    key: 'customer',
+    eyebrow: '04 / CUSTOMER PORTAL',
+    title: 'فضای مشتری سازمانی',
+    shortTitle: 'مشتری و خریدار عمده',
+    description: 'مسیر اختصاصی برای مشاهده کاتالوگ مجاز، ثبت سفارش، پیگیری تحویل و بررسی فاکتورهای سازمان.',
+    audience: 'خریدار یا مشتری سازمانی',
+    accent: 'sand',
+    icon: Boxes,
+    capabilities: [
+      { icon: Package, title: 'کاتالوگ و سفارش', description: 'محصولات قابل سفارش و سوابق خرید مجاز همان مشتری.' },
+      { icon: Truck, title: 'پیگیری تحویل', description: 'مرحله فعلی سفارش و اطلاعات ارسال در دسترس.' },
+      { icon: FileText, title: 'اسناد حساب', description: 'فاکتورها، وضعیت پرداخت ثبت‌شده و درخواست پشتیبانی.' },
+    ],
+    navigation: ['کاتالوگ', 'سفارش‌های من', 'ارسال‌ها', 'فاکتور و حساب', 'پیگیری درخواست'],
+    readiness: 'ظرفیت قابل سفارش باید از ظرفیت واقعی تأییدشده محاسبه شود؛ این پیش‌نمایش عدد یا موجودی فرضی نشان نمی‌دهد.',
+  },
+];
+
+function WorkspacePortal() {
+  const [selectedKey, setSelectedKey] = useState<WorkspacePreviewKey>('manager');
+  const [showPreview, setShowPreview] = useState(false);
+  const selected = workspaceProfiles.find(profile => profile.key === selectedKey) ?? workspaceProfiles[0];
+  const PreviewIcon = selected.icon;
+  const openPreview = (key: WorkspacePreviewKey) => {
+    setSelectedKey(key);
+    setShowPreview(true);
+    window.setTimeout(() => document.getElementById('workspace-preview')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 40);
   };
-  return <main className="auth-screen" dir="rtl"><div className="auth-side"><div className="auth-side-brand"><Logo/></div><div className="auth-wordmark"><span className="eyebrow">مدیریت یکپارچه شبکه تأمین</span><h1>از ظرفیت تا تحویل.<br/><em>بدون نقطه کور.</em></h1><p>سامانه عملیاتی شبکه سیمرغ برای مدیریت دقیق سفارش، تأمین، کیفیت و ارسال.</p></div><div className="auth-side-bottom"><span>برنامه‌ریزی شفاف</span><span>تأمین هماهنگ</span><span>تحویل قابل پیگیری</span></div></div><section className="auth-form-side"><div className="auth-mobile-brand"><Logo/></div><div className="auth-form-wrap"><span className="eyebrow">ورود امن به فضای کاری</span><h2>{mode === 'signin' ? 'ورود به سیمرغ' : mode === 'signup' ? 'ساخت حساب کاربری' : 'بازیابی رمز عبور'}</h2><p>{mode === 'signin' ? 'برای ورود به فضای کاری اختصاصی خود ادامه بده.' : mode === 'signup' ? 'حساب بساز؛ دسترسی تجاری پس از تأیید مالک فعال می‌شود.' : 'ایمیل حساب را وارد کن تا لینک بازیابی ارسال شود.'}</p><form onSubmit={submit} className="auth-fields">{mode === 'signup' && <label>نام و نام خانوادگی<input value={name} onChange={e => setName(e.target.value)} minLength={2} required placeholder="نام کامل" autoComplete="name"/></label>}<label>ایمیل سازمانی<input value={email} onChange={e => setEmail(e.target.value)} type="email" required placeholder="name@company.com" autoComplete="email" dir="ltr"/></label>{mode !== 'reset' && <label>رمز عبور<input value={password} onChange={e => setPassword(e.target.value)} type="password" minLength={8} required placeholder="حداقل ۸ کاراکتر" autoComplete={mode === 'signin' ? 'current-password' : 'new-password'} dir="ltr"/></label>}{mode === 'signin' && <button className="auth-forgot" type="button" onClick={() => {setMode('reset');setError('');setMessage('');}}>رمز عبور را فراموش کرده‌ام</button>}{error && <div className="form-error">{error}</div>}{message && <div className="form-success"><CheckCircle2 size={17}/>{message}</div>}<button className="button-primary auth-submit" disabled={busy}>{busy ? <span className="spinner small"/> : null}{mode === 'signin' ? 'ورود امن' : mode === 'signup' ? 'ساخت حساب' : 'ارسال لینک بازیابی'}<ArrowLeft size={16}/></button></form><div className="auth-toggle">{mode === 'signin' ? <>حساب نداری؟ <button onClick={() => {setMode('signup');setError('');setMessage('');}}>ثبت‌نام</button></> : <><button onClick={() => {setMode('signin');setError('');setMessage('');}}>بازگشت به ورود</button></>}</div><div className="auth-security"><ShieldCheck size={15}/> سطح دسترسی با عضویت تأییدشده در دیتابیس تعیین می‌شود؛ هیچ نقش مدیریتی از فرم ثبت‌نام پذیرفته نمی‌شود.</div></div><footer className="auth-footer">SIMORGH · NETWORK OPERATIONS <span>نسخه آماده استقرار</span></footer></section></main>;
+
+  return <main className="portal" dir="rtl">
+    <header className="portal-header">
+      <a className="portal-brand" href="#top" aria-label="سیمرغ، ابتدای صفحه"><Logo/></a>
+      <nav className="portal-header-nav" aria-label="بخش‌های صفحه">
+        <a href="#workspaces">فضاهای کاری</a>
+        <a href="#role-governance">مدیریت نقش‌ها</a>
+        <a href="#how-it-works">روش کار</a>
+      </nav>
+      <div className="portal-header-state"><span className="portal-state-dot"/><span>محیط معرفی سامانه</span></div>
+    </header>
+
+    <section className="portal-hero" id="top">
+      <div className="portal-hero-copy">
+        <div className="portal-kicker"><span className="portal-kicker-mark"><Zap size={14}/></span> SIMORGH · NETWORK OPERATIONS</div>
+        <h1>از ظرفیت تولید<br/>تا تحویل نهایی،<br/><em>یک شبکه هماهنگ.</em></h1>
+        <p className="portal-hero-lead">سیمرغ نقطه اتصال عملیات شرکت، شرکای مزرعه، خریداران عمده و پیمانکاران حمل است؛ با مسئولیت روشن، اطلاعات قابل پیگیری و یک مسیر مشترک برای هر سفارش.</p>
+        <div className="portal-hero-actions">
+          <a href="#workspaces" className="portal-primary-action">انتخاب فضای کاری <ArrowLeft size={17}/></a>
+          <a href="#role-governance" className="portal-secondary-action">ساختار دسترسی‌ها <ArrowUpLeft size={16}/></a>
+        </div>
+        <div className="portal-proofline"><ShieldCheck size={17}/><span>نمایش نقش‌ها بدون بازکردن اطلاعات خصوصی یا ساخت داده آزمایشی در دیتابیس.</span></div>
+      </div>
+
+      <div className="portal-hero-art" aria-label="نمای مفهومی جریان تأمین، سفارش، کیفیت و تحویل">
+        <div className="portal-art-glow"/>
+        <div className="portal-art-orbit orbit-one"><span/><span/><span/></div>
+        <div className="portal-art-orbit orbit-two"><span/><span/></div>
+        <div className="portal-flow-line flow-one"/>
+        <div className="portal-flow-line flow-two"/>
+        <div className="portal-flow-line flow-three"/>
+        <div className="portal-art-center">
+          <div className="portal-art-emblem"><Logo compact/></div>
+          <strong>سیمرغ</strong>
+          <small>هماهنگی شبکه</small>
+          <span className="portal-art-pulse"/>
+        </div>
+        <div className="portal-node node-farm"><span className="portal-node-icon"><Factory size={20}/></span><span><b>تولید</b><small>ظرفیت و کیفیت</small></span><i/></div>
+        <div className="portal-node node-orders"><span className="portal-node-icon"><Boxes size={20}/></span><span><b>سفارش</b><small>تقاضای هماهنگ</small></span><i/></div>
+        <div className="portal-node node-delivery"><span className="portal-node-icon"><Truck size={20}/></span><span><b>تحویل</b><small>مدرک و وضعیت</small></span><i/></div>
+        <div className="portal-node node-finance"><span className="portal-node-icon"><CreditCard size={19}/></span><span><b>تسویه</b><small>سوابق شفاف</small></span><i/></div>
+        <div className="portal-art-caption"><span><span className="portal-caption-dot"/> شبکه عملیاتی</span><b>هر نقش، محدوده مشخص</b></div>
+      </div>
+    </section>
+
+    <section className="portal-signal-row" aria-label="ویژگی‌های اصلی">
+      <div><span className="portal-signal-number">۰۱</span><span><b>مالکیت و مسئولیت مشخص</b><small>هر اقدام به نقش و مجموعه مربوط است</small></span></div>
+      <div><span className="portal-signal-number">۰۲</span><span><b>جریان قابل ردیابی</b><small>از سفارش تا مدرک تحویل</small></span></div>
+      <div><span className="portal-signal-number">۰۳</span><span><b>اطلاعات بدون عددسازی</b><small>نمایش داده فقط از منبع معتبر</small></span></div>
+    </section>
+
+    <section className="portal-workspaces" id="workspaces">
+      <div className="portal-section-heading">
+        <div><span className="portal-overline">WORKSPACES / 04</span><h2>برای هر نقش، فضای خودش</h2><p>نوع همکاری را انتخاب کن تا محدوده و ساختار پنل مربوط را ببینی.</p></div>
+        <span className="portal-section-count">۴ فضای کاری</span>
+      </div>
+      <div className="portal-role-grid">
+        {workspaceProfiles.map((profile, index) => {
+          const RoleIcon = profile.icon;
+          const isSelected = selectedKey === profile.key;
+          return <button type="button" key={profile.key} className={`portal-role-card ${profile.accent} ${isSelected ? 'is-selected' : ''}`} onClick={() => { setSelectedKey(profile.key); setShowPreview(false); }} aria-pressed={isSelected}>
+            <div className="portal-card-top"><span className="portal-card-index">۰{index + 1}</span><span className="portal-card-icon"><RoleIcon size={22}/></span></div>
+            <span className="portal-card-audience">{profile.audience}</span>
+            <strong>{profile.shortTitle}</strong>
+            <p>{profile.description}</p>
+            <span className="portal-card-bottom"><span>{profile.navigation.length} بخش اختصاصی</span><span className="portal-card-arrow"><ArrowLeft size={16}/></span></span>
+          </button>;
+        })}
+      </div>
+      <div className="portal-selection-bar">
+        <div className="portal-selection-symbol"><PreviewIcon size={19}/></div>
+        <div><small>فضای انتخاب‌شده</small><b>{selected.title}</b></div>
+        <button type="button" className="portal-selection-button" onClick={() => openPreview(selected.key)}>نمایش ساختار پنل <ArrowLeft size={16}/></button>
+      </div>
+    </section>
+
+    {showPreview && <section className={`portal-preview ${selected.accent}`} id="workspace-preview" aria-live="polite">
+      <div className="portal-preview-aside">
+        <div className="portal-preview-brand"><Logo compact/><span><b>سیمرغ</b><small>{selected.shortTitle}</small></span></div>
+        <div className="portal-preview-section-label">منوی فضای کاری</div>
+        <nav className="portal-preview-nav" aria-label={`منوی پیش‌نمایش ${selected.shortTitle}`}>
+          {selected.navigation.map((item,index)=><div key={item} className={index===0?'active':''}><span>{index===0?<LayoutDashboard size={16}/>:index===1?<ClipboardCheck size={16}/>:index===2?<Package size={16}/>:index===3?<Truck size={16}/>:<FileText size={16}/>}</span>{item}{index===0&&<i/>}</div>)}
+        </nav>
+        <div className="portal-preview-private"><ShieldCheck size={17}/><span>محدوده خصوصی هر مجموعه</span></div>
+      </div>
+      <div className="portal-preview-main">
+        <div className="portal-preview-topline"><span>پیش‌نمایش ساختار · بدون داده واقعی</span><span className="portal-preview-disabled">ورود و ثبت‌نام فعلاً غیرفعال است</span></div>
+        <div className="portal-preview-heading"><div><span className="portal-overline">{selected.eyebrow}</span><h2>{selected.title}</h2><p>{selected.description}</p></div><span className="portal-preview-role-icon"><PreviewIcon size={25}/></span></div>
+        <div className="portal-preview-capabilities">
+          {selected.capabilities.map((cap,index)=>{const CapIcon=cap.icon;return <article key={cap.title} className="portal-capability" style={{animationDelay:`${index*70}ms`}}><span><CapIcon size={19}/></span><b>{cap.title}</b><p>{cap.description}</p></article>;})}
+        </div>
+        <div className="portal-preview-notice"><span><ShieldCheck size={18}/></span><div><b>نمای ساختاری، نه پنل عملیاتی</b><p>{selected.readiness} برای جلوگیری از افشای اطلاعات، در این مرحله هیچ رکورد خصوصی بارگذاری یا قابل ویرایش نیست.</p></div></div>
+        <button type="button" className="portal-preview-back" onClick={() => { setShowPreview(false); document.getElementById('workspaces')?.scrollIntoView({behavior:'smooth',block:'start'}); }}><ArrowLeft size={15}/> بازگشت به انتخاب نقش</button>
+      </div>
+    </section>}
+
+    <section className="portal-governance" id="role-governance">
+      <div className="portal-governance-copy"><span className="portal-overline">ACCESS / GOVERNANCE</span><h2>نقش با انتخاب کارت فعال نمی‌شود.</h2><p>این صفحه برای معرفی فضای کاری و غربال اولیه نقش‌هاست. نقش واقعی هر کاربر باید از سوی مالک یا مدیر مجاز، به حساب تأییدشده و مجموعه درست تخصیص داده شود.</p></div>
+      <div className="portal-governance-steps">
+        <div><span>۱</span><b>تعریف مجموعه</b><small>شرکت و رابطه همکاری مشخص می‌شود.</small></div>
+        <div><span>۲</span><b>تخصیص نقش</b><small>دسترسی فقط بر اساس عضویت معتبر تعیین می‌شود.</small></div>
+        <div><span>۳</span><b>ردیابی اقدامات</b><small>تغییرات حساس باید مجوز و سابقه داشته باشند.</small></div>
+      </div>
+    </section>
+
+    <section className="portal-how" id="how-it-works">
+      <div><span className="portal-overline">BUILT FOR REAL OPERATIONS</span><h2>اول صحت عملیات؛ بعد هوشمندی.</h2><p>سیمرغ ابتدا باید ظرفیت، سفارش، کیفیت، مدرک تحویل و تسویه را قابل اتکا ثبت کند. پیش‌بینی و عامل‌های هوش مصنوعی فقط وقتی وارد می‌شوند که داده معتبر، مجوز مشخص و امکان بازبینی انسانی وجود داشته باشد.</p></div>
+      <div className="portal-how-list"><span><CheckCircle2 size={17}/> ثبت و ردیابی رویدادهای واقعی</span><span><CheckCircle2 size={17}/> کنترل دسترسی در سمت دیتابیس</span><span><CheckCircle2 size={17}/> بدون موجودی یا شاخص ساختگی</span><span><CheckCircle2 size={17}/> موشن کنترل‌شده و سازگار با تنظیمات کاهش حرکت</span></div>
+    </section>
+
+    <footer className="portal-footer"><Logo compact/><span>سیمرغ · مدیریت شبکه تأمین</span><a href="#top">بازگشت به بالا <ArrowUpLeft size={15}/></a><small>محیط معرفی سامانه · عملیات واقعی در این صفحه اجرا نمی‌شود</small></footer>
+  </main>;
 }
-function WaitingAccess({ membershipsError }: { membershipsError: string | null }) {
-  const { user, signOut, refreshMemberships } = useAuth();
-  return <main className="waiting-screen" dir="rtl"><Logo/><div className="waiting-mark"><ShieldCheck size={30}/></div><span className="eyebrow">ACCESS REVIEW</span><h1>حساب شما هنوز به مجموعه‌ای متصل نیست.</h1><p>حساب کاربری ثبت شده، اما دسترسی عملیاتی فقط با دعوت یا تأیید مالک/مدیر مجموعه فعال می‌شود. این صفحه هیچ نقشی را به‌طور خودکار به شما اختصاص نمی‌دهد.</p><div className="waiting-email"><span>حساب</span><b dir="ltr">{user?.email}</b></div>{membershipsError && <div className="form-error">خواندن سطح دسترسی ناموفق بود: {membershipsError}</div>}<button className="button-primary" onClick={() => void refreshMemberships()}>بررسی دوباره دسترسی <Activity size={16}/></button><button className="button-ghost" onClick={() => void signOut()}>خروج از حساب <LogOut size={15}/></button><small>مالک مجموعه باید از بخش «دسترسی کاربران» یا تابع امن grant_membership شما را اضافه کند.</small></main>;
-}
+
 function AppShell() {
   const { user, memberships, signOut, loading, error } = useAuth();
   const location = useLocation();
@@ -69,7 +259,7 @@ function AppShell() {
   const navItems = useMemo(() => navDefinitions.filter(n => role && n.roles.includes(role)), [role]);
   const allowed = navItems.some(n => n.key === location.pathname.split('/').pop());
   const active = navItems.find(n => n.key === location.pathname.split('/').pop()) ?? navItems[0];
-  if (!user) return <AuthPage/>;
+  if (!user) return <WorkspacePortal/>;
   if (loading) return <LoadingScreen label="در حال بررسی نشست و دسترسی…"/>;
   if (!memberships.length) return <WaitingAccess membershipsError={error}/>;
   const companyName = membership?.company?.name || 'مجموعه سیمرغ';
@@ -228,6 +418,6 @@ function SupplierSettlementPage({membership,search}:{membership:Membership;searc
 export default function App() {
   const { user, loading } = useAuth();
   if (!isSupabaseConfigured) return <ConfigScreen/>;
-  if (loading && !user) return <LoadingScreen label="در حال بررسی نشست کاربری…"/>;
-  return <Routes><Route path="/auth" element={user?<Navigate to="/app" replace/>:<AuthPage/>}/><Route path="/app/*" element={<AppShell/>}/><Route path="*" element={<Navigate to={user?'/app':'/auth'} replace/>}/></Routes>;
+  if (loading && !user) return <LoadingScreen label="در حال آماده‌سازی فضای کاری…"/>;
+  return <Routes><Route path="/" element={user ? <Navigate to="/app" replace/> : <WorkspacePortal/>}/><Route path="/auth" element={<Navigate to="/" replace/>}/><Route path="/app/*" element={<AppShell/>}/><Route path="*" element={<Navigate to="/" replace/>}/></Routes>;
 }
