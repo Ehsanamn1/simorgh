@@ -16,7 +16,7 @@ npx cap sync android
 npx cap open android
 ```
 
-The iOS target is declared as a dependency; creating/running an iOS app requires macOS and Xcode:
+The iOS target is declared as a dependency; creating/running an iOS app requires macOS and Xcode. The simulator workflow includes the iOS location permission description for foreground-only GPS capture:
 
 ```sh
 npm install
