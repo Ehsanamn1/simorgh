@@ -19,9 +19,9 @@ for (const panel of panels) {
     await page.getByRole('button', { name: 'نمایش ساختار پنل' }).click();
 
     await expect(page.getByRole('heading', { name: panel.title })).toBeVisible();
-    await expect(page.getByRole('navigation', { name: new RegExp(panel.title.split(' ')[0]) })).toBeVisible().catch(() => undefined);
+    await expect(page.getByRole('navigation', { name: /منوی پیش‌نمایش/ })).toBeVisible();
     await expect(page.getByText('ورود و ثبت‌نام فعلاً غیرفعال است')).toBeVisible();
-    await expect(page.getByRole('heading', { name: panel.item })).toBeVisible();
+    await expect(page.getByText(panel.item, { exact: true })).toBeVisible();
     await expect(page.getByText('نمای ساختاری، نه پنل عملیاتی')).toBeVisible();
     expect(errors).toEqual([]);
   });
