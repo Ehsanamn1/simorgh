@@ -10,7 +10,7 @@ test('app-first entry opens a secure mobile workspace without public marketing o
   await expect(page.locator('.portal')).toHaveCount(0);
   await expect(page.locator('.simorgh-signin-layer')).toBeVisible();
   await expect(page.getByLabel('ایمیل')).toBeVisible();
-  await expect(page.getByLabel('گذرواژه')).toBeVisible();
+  await expect(page.getByLabel('گذرواژه', { exact: true })).toBeVisible();
   await expect(page.getByRole('tab', { name: 'ایجاد حساب' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: /ورود \/ ثبت‌نام/ })).toHaveCount(0);
   await expect(page.getByText(/ثبت‌نام عمومی غیرفعال است/)).toBeVisible();
@@ -32,7 +32,7 @@ test('direct navigation opens the secure app gate and does not grant an operatin
   await expect(page.locator('.mobile-access-screen')).toBeVisible();
   await expect(page.locator('.simorgh-signin-layer')).toBeVisible();
   await expect(page.getByLabel('ایمیل')).toBeVisible();
-  await expect(page.getByLabel('گذرواژه')).toBeVisible();
+  await expect(page.getByLabel('گذرواژه', { exact: true })).toBeVisible();
   await expect(page.getByRole('tab', { name: 'ایجاد حساب' })).toHaveCount(0);
   await expect(page.locator('.app-frame')).toHaveCount(0);
   const dimensions = await page.evaluate(() => ({
@@ -119,7 +119,7 @@ test('invited user can sign in through Supabase and then receives only membershi
 
   await page.goto('/simorgh/', { waitUntil: 'domcontentloaded' });
   await page.getByLabel('ایمیل').fill('invited-owner@example.test');
-  await page.getByLabel('گذرواژه').fill('test-only-password');
+  await page.getByLabel('گذرواژه', { exact: true }).fill('test-only-password');
   await page.getByRole('button', { name: /ورود به فضای کار/ }).click();
   await expect(page.locator('.app-frame')).toBeVisible();
   await expect(page.getByRole('heading', { name: /مرکز فرمان شبکه/ })).toBeVisible();
