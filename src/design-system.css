@@ -716,3 +716,100 @@ html[data-theme="light"] .sim-workspace-goal:hover{background:#EEF5F3}
  .sim-workspace-goal-state{font-size:7px}
  .sim-workspace-goal-arrow{width:12px;height:12px}
 }
+
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Objectives, progress ledger, actual GPS map and compact mobile shortcuts
+   ────────────────────────────────────────────────────────────────────────── */
+.objective-manage-link{display:inline-flex;align-items:center;gap:6px;min-height:36px;padding:0 10px;border:1px solid var(--obs-border);border-radius:9px;background:var(--obs-surface);color:var(--obs-accent);font:inherit;font-size:10px;font-weight:800;text-decoration:none;white-space:nowrap;transition:border-color 150ms,background 150ms}
+.objective-manage-link:hover{border-color:var(--obs-accent-2);background:var(--obs-surface-2)}
+.objective-progress-panel{margin:0 0 14px;overflow:hidden}
+.objective-progress-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;padding:13px}
+.objective-progress-card{display:flex;flex-direction:column;gap:7px;min-width:0;padding:12px;border:1px solid var(--obs-border);border-radius:12px;background:linear-gradient(150deg,var(--obs-surface),var(--obs-bg))}
+.objective-progress-card-top{display:flex;align-items:center;justify-content:space-between;gap:7px}
+.objective-progress-icon{display:grid;place-items:center;width:30px;height:30px;border:1px solid var(--obs-border);border-radius:9px;background:var(--obs-elevated);color:var(--obs-accent)}
+.objective-progress-state{font-size:8px;font-weight:800;white-space:nowrap}
+.objective-progress-state.reached{color:var(--obs-positive)}
+.objective-progress-state.pending{color:var(--obs-warning)}
+.objective-progress-title{overflow-wrap:anywhere;color:var(--obs-text);font-size:10px;font-weight:850;line-height:1.65}
+.objective-progress-card>small{color:var(--obs-subtle);font-size:8px;line-height:1.65}
+.objective-progress-numbers{display:flex;align-items:baseline;gap:6px;flex-wrap:wrap;margin-top:2px}
+.objective-progress-numbers strong{color:var(--obs-text);font-size:22px;font-weight:900;line-height:1.2}
+.objective-progress-numbers span{color:var(--obs-muted);font-size:8px}
+.objective-progress-bar{height:5px;overflow:hidden;border-radius:99px;background:var(--obs-elevated);border:1px solid var(--obs-border)}
+.objective-progress-bar span{display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,var(--obs-accent-2),var(--obs-accent));transition:width 300ms ease}
+.objective-progress-empty{display:flex;align-items:center;gap:12px;padding:17px 16px}
+.objective-progress-empty>svg{flex:none;color:var(--obs-accent-2)}
+.objective-progress-empty>div{flex:1;min-width:0}
+.objective-progress-empty b{color:var(--obs-text);font-size:10px}
+.objective-progress-empty p{margin:3px 0 0;color:var(--obs-muted);font-size:9px;line-height:1.8}
+.objective-progress-empty>a{display:inline-flex;align-items:center;gap:6px;flex:none;color:var(--obs-accent);font-size:9px;font-weight:850;text-decoration:none}
+.objective-manager-panel{overflow:hidden}
+.objective-manager-list{display:grid;gap:0}
+.objective-manager-row{display:grid;grid-template-columns:38px minmax(0,1fr) auto minmax(190px,auto);align-items:center;gap:12px;padding:13px 15px;border-bottom:1px solid var(--obs-border)}
+.objective-manager-row:last-child{border-bottom:0}
+.objective-manager-mark{display:grid;place-items:center;width:36px;height:36px;border:1px solid var(--obs-border);border-radius:10px;background:var(--obs-elevated);color:var(--obs-accent)}
+.objective-manager-copy{display:grid;gap:3px;min-width:0}
+.objective-manager-copy>b,.objective-manager-copy b{color:var(--obs-text);font-size:10px;font-weight:850;overflow-wrap:anywhere}
+.objective-manager-copy p{margin:0;color:var(--obs-muted);font-size:9px;line-height:1.7}
+.objective-manager-copy small{color:var(--obs-subtle);font-size:8px;line-height:1.6}
+.objective-manager-status{display:inline-flex;align-items:center;justify-content:center;min-height:27px;padding:3px 8px;border:1px solid var(--obs-border);border-radius:8px;color:var(--obs-muted);font-size:8px;white-space:nowrap}
+.objective-manager-status.active{color:var(--obs-positive);background:rgb(142 200 180 / 6%)}
+.objective-manager-status.paused{color:var(--obs-warning)}
+.objective-manager-status.completed{color:var(--obs-accent-2)}
+.objective-manager-actions{display:flex;justify-content:flex-start;flex-wrap:wrap;gap:5px}
+.objective-manager-actions button{min-height:32px!important;padding:0 9px!important;font-size:9px!important}
+.tower-map-panel{margin:0 0 14px;overflow:hidden}
+.tower-map-layout{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(260px,.65fr);gap:0;min-height:315px}
+.tower-osm-frame{position:relative;min-width:0;min-height:315px;padding:12px;border-inline-end:1px solid var(--obs-border)}
+.tower-osm-frame iframe{display:block;width:100%;height:290px;border:1px solid var(--obs-border);border-radius:11px;background:var(--obs-surface-2)}
+html:not([data-theme="light"]) .tower-osm-frame iframe{filter:invert(.87) hue-rotate(180deg) saturate(.48) brightness(.86) contrast(.93)}
+html[data-theme="light"] .tower-osm-frame iframe{filter:saturate(.75) contrast(.96)}
+.tower-map-attribution{position:absolute;left:23px;bottom:21px;padding:5px 8px;border:1px solid var(--obs-border);border-radius:7px;background:color-mix(in srgb,var(--obs-surface) 91%,transparent);color:var(--obs-muted);font-size:8px;backdrop-filter:blur(8px)}
+.tower-location-list{display:flex;flex-direction:column;gap:0;min-width:0;padding:12px}
+.tower-location-list-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:0 1px 10px}
+.tower-location-list-heading b{color:var(--obs-text);font-size:10px;font-weight:850}
+.tower-location-list-heading small{color:var(--obs-subtle);font-size:8px;text-align:left}
+.tower-location-row{display:flex;align-items:center;gap:9px;min-width:0;padding:10px 3px;border-top:1px solid var(--obs-border);color:inherit;text-decoration:none;transition:background 150ms}
+.tower-location-row:hover{background:var(--obs-surface-2)}
+.tower-location-row>span:first-child{display:grid;place-items:center;flex:none;width:31px;height:31px;border:1px solid var(--obs-border);border-radius:9px;background:var(--obs-elevated);color:var(--obs-accent-2)}
+.tower-location-row>span:nth-child(2){display:grid;gap:3px;min-width:0;flex:1}
+.tower-location-row b{color:var(--obs-text);font-size:9px;font-weight:850}
+.tower-location-row small{color:var(--obs-subtle);font-size:8px;line-height:1.65;overflow-wrap:anywhere}
+.tower-location-row>svg{flex:none;color:var(--obs-subtle)}
+.driver-evidence-shortcut{display:flex;align-items:center;gap:10px;margin:12px 14px;padding:11px;border:1px solid var(--obs-border);border-radius:11px;background:var(--obs-surface)}
+.driver-evidence-shortcut>span{display:grid;place-items:center;width:34px;height:34px;flex:none;border:1px solid var(--obs-border);border-radius:10px;background:var(--obs-elevated);color:var(--obs-accent)}
+.driver-evidence-shortcut>div{display:grid;gap:2px;min-width:0}
+.driver-evidence-shortcut b{color:var(--obs-text);font-size:10px}
+.driver-evidence-shortcut small{color:var(--obs-muted);font-size:8px;line-height:1.75}
+html[data-theme="light"] .objective-progress-card{background:linear-gradient(150deg,#FFFFFF,#F6F9F9)}
+html[data-theme="light"] .objective-progress-bar{background:#E7EEEE}
+html[data-theme="light"] .objective-progress-empty,html[data-theme="light"] .driver-evidence-shortcut{background:#FFFFFF}
+html[data-theme="light"] .objective-manager-mark,html[data-theme="light"] .tower-location-row>span:first-child{background:#EDF3F3}
+@media(max-width:1160px){
+ .objective-progress-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .objective-manager-row{grid-template-columns:36px minmax(0,1fr) auto;gap:10px}
+ .objective-manager-actions{grid-column:2/-1}
+ .tower-map-layout{grid-template-columns:minmax(0,1.15fr) minmax(240px,.85fr)}
+}
+@media(max-width:700px){
+ .objective-progress-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;padding:9px}
+ .objective-progress-card{padding:9px;gap:6px}
+ .objective-progress-title{font-size:9px}
+ .objective-progress-numbers strong{font-size:19px}
+ .objective-progress-empty{align-items:flex-start;flex-wrap:wrap;padding:13px}
+ .objective-progress-empty>div{flex:1 1 calc(100% - 36px)}
+ .objective-progress-empty>a{margin-inline-start:32px}
+ .objective-manage-link{min-height:32px;padding-inline:7px;font-size:8px}
+ .objective-manager-row{grid-template-columns:31px minmax(0,1fr);gap:8px;padding:11px}
+ .objective-manager-mark{width:30px;height:30px}
+ .objective-manager-status{grid-column:2;justify-self:start}
+ .objective-manager-actions{grid-column:2;justify-content:flex-start}
+ .tower-map-layout{grid-template-columns:minmax(0,1fr)}
+ .tower-osm-frame{min-height:270px;padding:9px;border-inline-end:0;border-bottom:1px solid var(--obs-border)}
+ .tower-osm-frame iframe{height:250px}
+ .tower-map-attribution{left:17px;bottom:18px;max-width:calc(100% - 34px);font-size:7px}
+ .tower-location-list{padding:10px}
+ .tower-location-list-heading b{font-size:9px}
+ .tower-location-row{padding:9px 2px}
+}
