@@ -33,6 +33,16 @@ export default defineConfig({
         hasTouch: true,
       },
     },
+    {
+      name: 'compact-mobile-chromium',
+      use: {
+        ...devices['iPhone 13'],
+        browserName: 'chromium',
+        viewport: { width: 360, height: 800 },
+        isMobile: true,
+        hasTouch: true,
+      },
+    },
   ],
   webServer: {
     command: 'npx vite preview --host 127.0.0.1 --port 4173 --strictPort',
