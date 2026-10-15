@@ -210,7 +210,7 @@ export default function ProductExperience() {
         })}
         <button type="button" className="mobile-workspace-more" onClick={() => document.querySelector<HTMLButtonElement>('.mobile-menu')?.click()} aria-label="بازکردن منوی کامل"><Menu size={20} aria-hidden="true"/><span>بیشتر</span></button>
       </nav>, appMain)}
-    {user && waitingScreen && memberships.length === 0 && createPortal(
+    {authUiEnabled && user && waitingScreen && memberships.length === 0 && createPortal(
       <section className="access-request-card" dir="rtl" aria-labelledby="access-request-title">
         <div className="access-request-heading"><span className="access-request-icon"><UserPlus size={20}/></span><div><span className="obsidian-eyebrow">ROLE REQUEST</span><h2 id="access-request-title">درخواست فضای کاری</h2><p>نقش را مشخص کن؛ مدیر پس از بررسی آن را تأیید یا رد می‌کند.</p></div></div>
         <form className="access-request-form" onSubmit={submitRoleRequest}>
