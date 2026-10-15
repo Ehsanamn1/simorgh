@@ -31,6 +31,16 @@ test('app-first guest entry opens the Obsidian workspace without a login or sign
   expect(errors).toEqual([]);
 });
 
+
+test('a blocked application bundle shows a recovery screen rather than a blank black page', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop-chromium', 'Run the startup failure simulation once.');
+  await page.route(/\/simorgh\/assets\/.*\.js(?:\?.*)?$/, route => route.abort());
+  await page.goto('/simorgh/', { waitUntil: 'domcontentloaded' });
+  await expect(page.locator('#app-boot-screen')).toHaveClass(/has-error/, { timeout: 12_000 });
+  await expect(page.getByRole('alert')).toContainText('برنامه بارگذاری نشد');
+  await expect(page.getByRole('button', { name: 'بارگذاری دوباره' })).toBeVisible();
+});
+
 test('theme switch persists and the mobile role previews are navigable without granting access', async ({ page }) => {
   await page.goto('/simorgh/', { waitUntil: 'domcontentloaded' });
   await page.getByRole('button', { name: 'فعال‌کردن حالت روشن' }).click();
