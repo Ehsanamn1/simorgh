@@ -2,29 +2,30 @@
 
 Checked: 2026-10-15.
 
-## Done and verified
+## Completed and verified
 
-- Source is published in the dedicated repository: https://github.com/Ehsanamn1/simorgh (branch `main`).
-- The app is a React + TypeScript + Vite SPA, with Supabase client setup, a seed-free PostgreSQL migration, and Cloudflare Pages SPA fallback.
-- Static syntax checks for TypeScript/TSX, CSS, HTML, and JSON passed in the authoring environment.
-- GitHub Actions CI passed on application commit `0d9430a8cc2db87260576f73ff70d5a1c6e2ad78`: npm install, TypeScript typecheck, ESLint, Vitest, and Vite production build succeeded.
-- The full npm audit reports zero vulnerabilities after upgrading Vitest to 5.0.4; production-only audit also reports zero vulnerabilities.
-- A manual Cloudflare Pages deployment workflow is present at `.github/workflows/deploy.yml`; it needs four repository secrets before it can deploy.
-- The application migration defines 18 application tables and enables RLS on all 18.
+- Dedicated repository: https://github.com/Ehsanamn1/simorgh, branch `main`.
+- Public site successfully deployed through GitHub Pages: https://ehsanamn1.github.io/simorgh/
+- Successful deployment run: https://github.com/Ehsanamn1/simorgh/actions/runs/38744301095. The deploy action reported success and evaluated that site URL.
+- Supabase project `aoxerjimfiwusidaparx` is `ACTIVE_HEALTHY`, region `eu-central-1` (Frankfurt), API URL `https://aoxerjimfiwusidaparx.supabase.co`.
+- Cost confirmation for the Supabase project was $0/month at project creation. Actual usage/third-party services may be subject to their own limits or charges.
+- Core migration `20261015000000_simorgh_core.sql` applied successfully. Supabase reports 18 application tables, all with RLS enabled, no demo rows, and migration `simorgh_core` recorded.
+- Fixed missing composite unique key needed by the capacity allocation foreign key; correction committed in `6332bc22d3c406db2256b4a6d6b9b43a7253fb29`.
+- GitHub Pages build checks passed: TypeScript, lint, 3 unit tests, production dependency audit (zero findings), and Vite build.
+- GitHub Actions uses a `/simorgh/` base path; BrowserRouter and auth email redirects are base-path aware.
+- The initial company `شبکه سیمرغ` exists in the database. No customer, supplier, order, or other operational sample data was inserted.
 
-## Not yet connected or verified
+## Remaining before real operational use
 
-- There is currently no Supabase project in the connected Supabase account; the migration has not been applied to a live database.
-- The application has not been deployed to Cloudflare Pages. No authenticated Cloudflare API integration or token is available in this environment, so the deployment workflow needs the user's Cloudflare token and account ID saved as GitHub repository secrets.
-- Real account creation, memberships, role boundaries, RLS policies, private evidence storage, and the order-to-settlement flow have not been end-to-end tested against a live project.
-- Vite manual chunks separate React, Supabase, and chart libraries. Latest output: app entry 161.63 kB (42.88 kB gzip), React 221.96 kB (69.06 kB gzip), Supabase 223.38 kB (58.50 kB gzip), and charts 382.64 kB (105.82 kB gzip); the previous single-bundle size warning no longer appears.
+- No users have signed up yet (`auth.users` count was 0 at the last check), so the initial owner membership has not yet been assigned.
+- In Supabase Dashboard → Authentication → URL Configuration, set Site URL to `https://ehsanamn1.github.io/simorgh/` and add that exact URL to Redirect URLs. For local development, add `http://localhost:5173/**`.
+- Register the trusted owner's account, confirm email if enabled, and grant that account the first `owner` membership through Supabase SQL Editor (instructions and an idempotent SQL example are in README.md).
+- Test end-to-end login, signup, password reset, owner/staff/customer/supplier/driver role boundaries, RLS, private evidence storage, price agreements, capacity allocation, shipment stages, and finance workflows before entering live records.
+- Supabase security/performance advisors return warnings for authenticated SECURITY DEFINER RPCs that are intentionally guarded in function bodies, plus index and RLS performance recommendations. Review the advisories and run role-specific security tests before scaling; this is not a substitute for an independent security audit.
+- The financial screens record internal ledger status only; they do not initiate or verify bank transfers. Official tax invoices, bank integrations, SMS/transactional email and external ERP/Telegram integrations are not part of this version.
 
-## Required next steps
+## Deployment and source
 
-1. Create/select a dedicated Supabase project. Confirm the organization and project cost before creation. Review and apply `supabase/migrations/20261015000000_simorgh_core.sql`, create the first owner membership, configure Auth URLs, and validate RLS using separate owner, staff, customer, supplier, and driver users.
-2. Add these GitHub repository secrets: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `VITE_SUPABASE_URL`, and `VITE_SUPABASE_PUBLISHABLE_KEY`.
-3. Run **Actions → Deploy Simorgh to Cloudflare Pages → Run workflow**. It creates/uses the Pages project `simorgh-network` and publishes `dist/`.
-4. Confirm a successful deployment URL; then test login, all role permissions, real price agreements, capacity allocation, shipments, storage evidence, and billing status flows before operational use.
-5. Review any dependency security advisories and keep a reproducible lockfile in the repo.
-
-Never put a Supabase service-role/secret key in a `VITE_` variable or commit credentials to Git.
+- Main static hosting workflow: `.github/workflows/pages.yml` (automatic on pushes to `main` and manual dispatch).
+- Optional Cloudflare Pages workflow: `.github/workflows/deploy.yml`; requires Cloudflare API token/account ID and the two public Supabase frontend variables as GitHub repository secrets.
+- Never put a Supabase secret/service-role key in a `VITE_` variable or commit private credentials to Git.
