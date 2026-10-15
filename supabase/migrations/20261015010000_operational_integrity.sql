@@ -439,26 +439,26 @@ create policy operational_tasks_assigned_read on public.operational_tasks for se
 create policy task_evidence_internal_all on public.task_evidence for all to authenticated
   using (public.is_company_internal(company_id)) with check (public.is_company_internal(company_id));
 create policy task_evidence_assignee_read on public.task_evidence for select to authenticated
-  using (exists(select 1 from public.operational_tasks t where t.company_id=task_evidence.company_id and t.id=task_evidence.task_id and (t.assignee_user_id=auth.uid() or t.assignee_supplier_id in (select public.my_supplier_ids()))));
+  using (exists(select 1 from public.operational_tasks t where t.company_id=task_evidence.company_id and t.id=task_evidence.task_id and public.is_company_member(t.company_id) and (t.assignee_user_id=auth.uid() or t.assignee_supplier_id in (select public.my_supplier_ids()))));
 create policy task_evidence_assignee_insert on public.task_evidence for insert to authenticated
-  with check (uploaded_by=auth.uid() and exists(select 1 from public.operational_tasks t where t.company_id=task_evidence.company_id and t.id=task_evidence.task_id and (t.assignee_user_id=auth.uid() or t.assignee_supplier_id in (select public.my_supplier_ids()))));
+  with check (uploaded_by=auth.uid() and exists(select 1 from public.operational_tasks t where t.company_id=task_evidence.company_id and t.id=task_evidence.task_id and public.is_company_member(t.company_id) and (t.assignee_user_id=auth.uid() or t.assignee_supplier_id in (select public.my_supplier_ids()))));
 
 create policy operational_incidents_internal_all on public.operational_incidents for all to authenticated
   using (public.is_company_internal(company_id)) with check (public.is_company_internal(company_id));
 create policy operational_incidents_partner_read on public.operational_incidents for select to authenticated
   using (reported_supplier_id in (select public.my_supplier_ids()) or exists(select 1 from public.farm_sites fs where fs.company_id=operational_incidents.company_id and fs.id=operational_incidents.farm_site_id and fs.supplier_id in (select public.my_supplier_ids())));
 create policy operational_incidents_partner_insert on public.operational_incidents for insert to authenticated
-  with check (reported_by=auth.uid() and farm_site_id is not null and exists(select 1 from public.farm_sites fs where fs.company_id=operational_incidents.company_id and fs.id=operational_incidents.farm_site_id and fs.supplier_id in (select public.my_supplier_ids())));
+  with check (reported_by=auth.uid() and farm_site_id is not null and reported_supplier_id in (select public.my_supplier_ids()) and exists(select 1 from public.farm_sites fs where fs.company_id=operational_incidents.company_id and fs.id=operational_incidents.farm_site_id and fs.supplier_id=operational_incidents.reported_supplier_id));
 
 create policy partner_financial_internal_all on public.partner_financial_entries for all to authenticated
   using (public.is_company_manager(company_id)) with check (public.is_company_manager(company_id));
 create policy partner_financial_supplier_read on public.partner_financial_entries for select to authenticated
-  using (supplier_id in (select public.my_supplier_ids()));
+  using (supplier_id in (select public.my_supplier_ids()) and status in ('approved','posted'));
 
 create policy partner_settlement_internal_all on public.partner_settlement_periods for all to authenticated
   using (public.is_company_manager(company_id)) with check (public.is_company_manager(company_id));
 create policy partner_settlement_supplier_read on public.partner_settlement_periods for select to authenticated
-  using (supplier_id in (select public.my_supplier_ids()));
+  using (supplier_id in (select public.my_supplier_ids()) and status in ('approved','settled','disputed'));
 
 
 -- Signed/active agreement terms are versioned and cannot be edited in place.
@@ -481,8 +481,9 @@ begin
       raise exception 'گذار وضعیت قرارداد فعال مجاز نیست';
     end if;
   end if;
+  if tg_op='DELETE' then return old; end if;
   return new;
-end $$;
+end $;
 create trigger guard_partnership_agreement_update
   before update or delete on public.partnership_agreements for each row execute function public.guard_partnership_agreement_version();
 
@@ -754,7 +755,7 @@ begin
   net_total:=revenue_used-expense_total;
   company_share_total:=round(net_total*a.company_profit_share_pct/100.0,0);
   partner_share_total:=round(net_total*a.partner_profit_share_pct/100.0,0);
-  balance_partner:=partner_share_total+partner_paid_total+partner_advance_total-company_advance_total-paid_to_partner_total-paid_to_company_total;
+  balance_partner:=partner_share_total+partner_paid_total-(expense_total*a.partner_profit_share_pct/100.0)+partner_advance_total+paid_to_company_total-company_advance_total-paid_to_partner_total;
   balance_company:=case when balance_partner < 0 then abs(balance_partner) else 0 end;
   balance_partner:=case when balance_partner > 0 then balance_partner else 0 end;
   cash_available:=collection_total-company_paid_total-company_advance_total-paid_to_partner_total+partner_advance_total+paid_to_company_total;
@@ -768,6 +769,7 @@ begin
   into lines
   from public.partner_financial_entries e
   where e.company_id=a.company_id and e.supplier_id=a.supplier_id and e.agreement_id=a.id
+    and e.status in ('approved','posted')
     and e.recognized_on between _period_start and _period_end;
 
   return jsonb_build_object(
@@ -944,6 +946,7 @@ using (
       select 1 from public.operational_tasks t
       where t.company_id=((storage.foldername(name))[1])::uuid
         and t.id=((storage.foldername(name))[2])::uuid
+        and public.is_company_member(t.company_id)
         and (t.assignee_user_id=auth.uid() or t.assignee_supplier_id in (select public.my_supplier_ids()))
     )
   )
