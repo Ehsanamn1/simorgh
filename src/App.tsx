@@ -13,7 +13,7 @@ import { useAuth } from './lib/AuthContext';
 import { supabase, isSupabaseConfigured } from './lib/supabase';
 import { pageSectionLabel } from './lib/pageSections';
 import { OperationsWorkspacePage } from './OperationsPages';
-import PreviewWorkspace from './PreviewWorkspace';
+import OperationsWorkspace from './OperationsWorkspace';
 import { SimorghLogo as Logo } from './SimorghLogo';
 import type { AppRole, Membership, PageKey, Row } from './lib/types';
 import { dateFa, dateTimeFa, moneyFa, numberFa, orderLabel, roleLabel, statusLabel, statusTone } from './lib/format';
@@ -727,10 +727,10 @@ function SupplierSettlementPage({membership,search}:{membership:Membership;searc
 
 function WorkspaceGate() {
   const { user, memberships } = useAuth();
-  // Only a user with an actual active company membership enters the operational shell.
-  // Stale/ownerless sessions stay in the read-only preview instead of landing on a
-  // role-waiting screen that can look empty; Supabase RLS remains the data boundary.
-  return user && memberships.length > 0 ? <AppShell/> : <PreviewWorkspace/>;
+  // A provisioned member enters the database-backed operational shell.
+  // Unprovisioned visitors can navigate the operational interface, but company data
+  // and mutations stay protected by Supabase membership checks and RLS.
+  return user && memberships.length > 0 ? <AppShell/> : <OperationsWorkspace/>;
 }
 
 export default function App() {
