@@ -57,7 +57,7 @@ const palette = [
 
 const routeToPage = (pathname: string, search: string): PreviewPage => {
   const queryPage = new URLSearchParams(search).get('preview');
-  if (queryPage && queryPage in pageInfo) return queryPage as PreviewPage;
+  if (queryPage && Object.prototype.hasOwnProperty.call(pageInfo, queryPage)) return queryPage as PreviewPage;
   const tail = pathname.split('/').filter(Boolean).pop();
   const direct: Record<string, PreviewPage> = {
     command: 'command', orders: 'orders', 'daily-production': 'farm', 'driver-work': 'driver',
