@@ -11,6 +11,7 @@ test('the Persian operations command center opens with no fabricated KPI values'
   await expect(page.locator('.sim-workspace-sidebar')).toBeVisible();
   await expect(page.locator('.sim-workspace-metric')).toHaveCount(4);
   await expect(page.locator('.sim-workspace-metric strong')).toHaveText(['—', '—', '—', '—']);
+  await expect(page.locator('.sim-workspace-goal')).toHaveCount(4);
   await expect(page.locator('.sim-workspace-quick-card')).toHaveCount(4);
   await expect(page.locator('.sim-workspace-map-frame iframe')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'مرکز فرمان شبکه' })).toBeVisible();
