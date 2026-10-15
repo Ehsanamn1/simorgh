@@ -146,6 +146,7 @@ create table if not exists public.capacity_commitments (
   created_at timestamptz not null default now(), updated_at timestamptz not null default now(), created_by uuid references auth.users(id),
   foreign key(company_id,supplier_id) references public.suppliers(company_id,id) on delete cascade,
   foreign key(company_id,product_id) references public.products(company_id,id) on delete restrict,
+  unique(company_id,id),
   check(period_end>=period_start), check(confirmed_qty is null or confirmed_qty<=declared_qty),
   check(committed_qty is null or confirmed_qty is null or committed_qty<=confirmed_qty)
 );
