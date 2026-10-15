@@ -36,12 +36,12 @@ test('preview navigation opens real page structures on desktop, tablet and mobil
     await page.getByRole('button', { name: /بازکردن منو/ }).click();
     await expect(page.locator('.sim-preview-sidebar.open')).toBeVisible();
     await page.locator('.sim-preview-sidebar').getByRole('button', { name: 'انبار و ثبت خرید' }).click();
-    await expect(page.getByRole('heading', { name: 'انبار و ثبت خرید' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'انبار و ثبت خرید', level: 1 })).toBeVisible();
     await page.locator('.sim-preview-bottom-nav').getByRole('button', { name: 'نقشه' }).click();
   } else {
     await expect(page.locator('.sim-preview-bottom-nav')).toBeHidden();
     await page.locator('.sim-preview-sidebar').getByRole('button', { name: 'انبار و ثبت خرید' }).click();
-    await expect(page.getByRole('heading', { name: 'انبار و ثبت خرید' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'انبار و ثبت خرید', level: 1 })).toBeVisible();
     await page.locator('.sim-preview-sidebar').getByRole('button', { name: 'نقشه و راهنما' }).click();
   }
   await expect(page.getByRole('heading', { name: 'نقشه‌ی راهنمای شبکه' })).toBeVisible();
