@@ -4,4 +4,4 @@ export type Membership = {
   supplier_id: string | null; active: boolean; company?: { name: string };
 };
 export type Row = Record<string, unknown>;
-export type PageKey = 'command' | 'orders' | 'customers' | 'suppliers' | 'products' | 'capacity' | 'quality' | 'shipments' | 'finance' | 'members' | 'audit' | 'catalog' | 'my-orders' | 'my-account' | 'supplier-work' | 'supplier-capacity' | 'supplier-settlement' | 'driver-work';
+export type PageKey = 'command' | 'orders' | 'customers' | 'suppliers' | 'products' | 'capacity' | 'quality' | 'shipments' | 'finance' | 'members' | 'audit' | 'catalog' | 'my-orders' | 'my-account' | 'supplier-work' | 'supplier-capacity' | 'supplier-settlement' | 'driver-work' | 'farm-sites' | 'flock-cycles' | 'production-batches' | 'daily-production' | 'task-templates' | 'operational-tasks' | 'incidents' | 'partnership-agreements' | 'partner-finance' | 'partner-settlements';
