@@ -1,21 +1,21 @@
 import type { SVGProps } from 'react';
 
-function SimorghBirdMark(props: SVGProps<SVGSVGElement>) {
-  return <svg viewBox="0 0 100 84" fill="none" aria-hidden="true" focusable="false" {...props}>
-    <path d="M7 20c14 0 26 3 40 10l8 7-17-1C27 34 17 31 9 28Z" fill="currentColor" opacity=".94"/>
-    <path d="M5 32c13 0 24 3 36 9l10 7-17 1C23 46 14 43 7 41Z" fill="currentColor" opacity=".94"/>
-    <path d="M9 46c10 0 18 2 28 8l10 8-14 1C22 59 14 55 10 53Z" fill="currentColor" opacity=".94"/>
-    <path d="M20 60c12-8 25-10 37-5 7 3 12 8 16 14-13 10-28 11-41 4-6-3-10-7-12-13Z" fill="currentColor"/>
-    <path d="M40 58c8-9 15-18 20-28C65 18 72 9 82 10c8 1 12 8 9 15-2 5-6 8-12 9l-7 1-1 11 13-1-7 9-10 1c-3 9-8 16-15 20-6-4-10-9-12-17Z" fill="currentColor"/>
-    <path d="M23 69c-3 5-8 8-15 8 9 5 19 4 28-3l-4-6Z" fill="currentColor"/>
-    <path d="m83 20 14-5-8 13-5 0Z" fill="currentColor"/>
-    <circle cx="82" cy="17" r="2.1" fill="#0B1012"/>
+function SimorghSymbol(props: SVGProps<SVGSVGElement>) {
+  return <svg viewBox="0 0 100 84" fill="none" role="img" aria-label="نشان سیمرغ" focusable="false" {...props}>
+    <path d="M10 24C29 21 47 29 60 43C43 36 28 37 12 42L10 24Z" fill="currentColor" opacity=".96"/>
+    <path d="M7 39C26 34 44 42 56 54C39 49 24 53 10 58L7 39Z" fill="currentColor" opacity=".78"/>
+    <path d="M12 55C28 49 42 57 50 66C36 64 25 68 17 74L12 55Z" fill="currentColor" opacity=".56"/>
+    <path d="M40 60C52 50 61 39 67 26C71 17 79 10 87 13C94 15 97 22 94 28C92 33 87 36 81 36L77 36L77 46L88 44L82 53L74 54C68 67 59 74 48 77C44 72 41 66 40 60Z" fill="currentColor"/>
+    <path d="M23 17L37 24M17 31L32 37M20 47L34 51" stroke="currentColor" strokeWidth="2" strokeLinecap="round" opacity=".4"/>
+    <path d="M38 69C50 71 61 65 69 55" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" opacity=".7"/>
+    <circle cx="85" cy="21" r="3" fill="#0B1012"/>
+    <circle cx="85" cy="21" r="5.5" stroke="currentColor" strokeWidth="1.5" opacity=".65"/>
   </svg>;
 }
 
 export function SimorghLogo({ compact = false, className = '' }: { compact?: boolean; className?: string }) {
-  return <div className={`brand-lockup simorgh-lockup ${compact ? 'compact' : ''} ${className}`}>
-    <span className="brand-symbol"><SimorghBirdMark/></span>
-    {!compact && <span className="brand-words"><b>Simorgh</b><small>Obsidian Intelligence</small></span>}
+  return <div className={"brand-lockup simorgh-lockup " + (compact ? 'compact ' : '') + className} aria-label="سیمرغ، مدیریت یکپارچه‌ی مزرعه و عملیات">
+    <span className="brand-symbol"><SimorghSymbol/></span>
+    {!compact && <span className="brand-words"><b>سیمرغ</b><small>مدیریت یکپارچه‌ی مزرعه و عملیات</small></span>}
   </div>;
 }
