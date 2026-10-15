@@ -4,8 +4,9 @@ const projectUrl = 'https://aoxerjimfiwusidaparx.supabase.co';
 const userId = '00000000-0000-4000-8000-000000000011';
 const companyId = '00000000-0000-4000-8000-000000000022';
 const supplierId = '00000000-0000-4000-8000-000000000033';
+const customerId = '00000000-0000-4000-8000-000000000055';
 
-async function installIsolatedSession(page: Page, role: 'owner' | 'supplier') {
+async function installIsolatedSession(page: Page, role: 'owner' | 'supplier' | 'driver' | 'customer') {
   const now = Math.floor(Date.now() / 1000);
   await page.addInitScript(({ storageKey, session }) => {
     window.localStorage.setItem(storageKey, JSON.stringify(session));
@@ -21,7 +22,7 @@ async function installIsolatedSession(page: Page, role: 'owner' | 'supplier') {
         id: userId, aud: 'authenticated', role: 'authenticated',
         email: role + '@example.test', email_confirmed_at: new Date().toISOString(),
         app_metadata: { provider: 'email', providers: ['email'] },
-        user_metadata: { full_name: role === 'owner' ? 'مالک تست سیمرغ' : 'تأمین‌کننده تست سیمرغ' },
+        user_metadata: { full_name: role === 'owner' ? 'مالک تست سیمرغ' : role === 'supplier' ? 'تأمین‌کننده تست سیمرغ' : role === 'driver' ? 'راننده تست سیمرغ' : 'مشتری تست سیمرغ' },
         created_at: new Date().toISOString(),
       },
     },
@@ -50,7 +51,7 @@ async function installIsolatedSession(page: Page, role: 'owner' | 'supplier') {
         body: JSON.stringify([{
           id: '00000000-0000-4000-8000-000000000044',
           company_id: companyId, user_id: userId, role,
-          customer_id: null, supplier_id: role === 'supplier' ? supplierId : null,
+          customer_id: role === 'customer' ? customerId : null, supplier_id: role === 'supplier' ? supplierId : null,
           active: true, companies: { name: 'شبکه سیمرغ' },
         }]),
       });
@@ -68,7 +69,7 @@ test('manager workspace retains operations and captures a real rendered control-
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   await installIsolatedSession(page, 'owner');
-  await page.goto('/simorgh/app/command', { waitUntil: 'domcontentloaded' });
+  await page.goto('/simorgh/app', { waitUntil: 'domcontentloaded' });
   await expect(page.getByRole('heading', { name: /مرکز فرمان شبکه/ })).toBeVisible();
   await expect(page.locator('.side-nav').getByRole('link', { name: /سفارش‌ها/ })).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath('manager-control-tower-viewport.png') });
@@ -100,7 +101,7 @@ test('supplier workspace keeps manager-only routes out of the allowed menu', asy
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   await installIsolatedSession(page, 'supplier');
-  await page.goto('/simorgh/app/operational-tasks', { waitUntil: 'domcontentloaded' });
+  await page.goto('/simorgh/app', { waitUntil: 'domcontentloaded' });
   await expect(page.getByRole('heading', { name: 'وظایف عملیاتی' })).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath('supplier-task-workspace-viewport.png') });
   await page.screenshot({ path: testInfo.outputPath('supplier-task-workspace.png'), fullPage: true });
@@ -146,4 +147,56 @@ test('mobile navigation is role-specific and only mirrors permitted real routes'
   } else {
     await expect(mobileNav).toBeHidden();
   }
+});
+
+ 
+test('customer lands in their authorized catalogue and sees customer-specific mobile navigation', async ({ page }, testInfo) => {
+  const viewportWidth = Number((testInfo.project.use as { viewport?: { width?: number } }).viewport?.width || 1365);
+  const errors: string[] = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await installIsolatedSession(page, 'customer');
+  await page.goto('/simorgh/app', { waitUntil: 'domcontentloaded' });
+  await expect(page).toHaveURL(/\/simorgh\/app\/catalog$/);
+  await expect(page.getByRole('heading', { name: 'کاتالوگ اختصاصی شما' })).toBeVisible();
+  await expect(page.locator('.side-nav').getByRole('link', { name: 'خرید سازمانی' })).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('customer-catalog-viewport.png') });
+  if (viewportWidth <= 860) {
+    const nav = page.locator('.mobile-workspace-nav');
+    await expect(nav).toBeVisible();
+    for (const label of ['خرید', 'سفارش‌های من', 'مالی', 'حساب']) {
+      await expect(nav.getByRole('link', { name: label, exact: true })).toBeVisible();
+    }
+    await expect(nav.getByRole('link', { name: 'وظایف', exact: true })).toHaveCount(0);
+  } else {
+    await expect(page.locator('.mobile-workspace-nav')).toBeHidden();
+  }
+  const dimensions = await page.evaluate(() => ({ viewport: innerWidth, document: document.documentElement.scrollWidth, body: document.body.scrollWidth }));
+  expect(dimensions.document).toBeLessThanOrEqual(dimensions.viewport);
+  expect(dimensions.body).toBeLessThanOrEqual(dimensions.viewport);
+  expect(errors).toEqual([]);
+});
+
+test('driver lands in assigned shipments and does not get customer or manager navigation', async ({ page }, testInfo) => {
+  const viewportWidth = Number((testInfo.project.use as { viewport?: { width?: number } }).viewport?.width || 1365);
+  const errors: string[] = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await installIsolatedSession(page, 'driver');
+  await page.goto('/simorgh/app', { waitUntil: 'domcontentloaded' });
+  await expect(page).toHaveURL(/\/simorgh\/app\/driver-work$/);
+  await expect(page.getByRole('heading', { name: 'محموله‌های من' })).toBeVisible();
+  await expect(page.locator('.side-nav').getByRole('link', { name: 'محموله‌های من' })).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('driver-shipments-viewport.png') });
+  if (viewportWidth <= 860) {
+    const nav = page.locator('.mobile-workspace-nav');
+    await expect(nav).toBeVisible();
+    await expect(nav.getByRole('link', { name: 'محموله‌ها', exact: true })).toBeVisible();
+    await expect(nav.getByRole('link', { name: 'خرید', exact: true })).toHaveCount(0);
+    await expect(nav.getByRole('link', { name: 'وظایف', exact: true })).toHaveCount(0);
+  } else {
+    await expect(page.locator('.mobile-workspace-nav')).toBeHidden();
+  }
+  const dimensions = await page.evaluate(() => ({ viewport: innerWidth, document: document.documentElement.scrollWidth, body: document.body.scrollWidth }));
+  expect(dimensions.document).toBeLessThanOrEqual(dimensions.viewport);
+  expect(dimensions.body).toBeLessThanOrEqual(dimensions.viewport);
+  expect(errors).toEqual([]);
 });
