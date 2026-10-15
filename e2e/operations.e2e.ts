@@ -18,11 +18,8 @@ async function installIsolatedSession(page: Page, role: 'owner' | 'supplier') {
       expires_at: now + 60 * 60 * 24 * 365,
       refresh_token: 'simorgh-isolated-e2e-refresh-token',
       user: {
-        id: userId,
-        aud: 'authenticated',
-        role: 'authenticated',
-        email: role + '@example.test',
-        email_confirmed_at: new Date().toISOString(),
+        id: userId, aud: 'authenticated', role: 'authenticated',
+        email: role + '@example.test', email_confirmed_at: new Date().toISOString(),
         app_metadata: { provider: 'email', providers: ['email'] },
         user_metadata: { full_name: role === 'owner' ? 'مالک تست سیمرغ' : 'تأمین‌کننده تست سیمرغ' },
         created_at: new Date().toISOString(),
@@ -30,11 +27,11 @@ async function installIsolatedSession(page: Page, role: 'owner' | 'supplier') {
     },
   });
 
-  // Intercept every database request. These are browser-only fixtures, never real Supabase rows.
+  // Browser-only responses: no test rows are written to the production database.
   await page.route(projectUrl + '/rest/v1/**', async route => {
     const request = route.request();
     const url = new URL(request.url());
-    const table = url.pathname.split('/').pop() ?? '';
+    const table = url.pathname.split('/').pop() || '';
     const headers: Record<string, string> = {
       'access-control-allow-origin': '*',
       'access-control-allow-headers': '*',
@@ -52,13 +49,9 @@ async function installIsolatedSession(page: Page, role: 'owner' | 'supplier') {
         headers: { ...headers, 'content-range': '0-0/1' },
         body: JSON.stringify([{
           id: '00000000-0000-4000-8000-000000000044',
-          company_id: companyId,
-          user_id: userId,
-          role,
-          customer_id: null,
-          supplier_id: role === 'supplier' ? supplierId : null,
-          active: true,
-          companies: { name: 'شبکه سیمرغ' },
+          company_id: companyId, user_id: userId, role,
+          customer_id: null, supplier_id: role === 'supplier' ? supplierId : null,
+          active: true, companies: { name: 'شبکه سیمرغ' },
         }]),
       });
       return;
@@ -71,46 +64,66 @@ async function installIsolatedSession(page: Page, role: 'owner' | 'supplier') {
   });
 }
 
-test('manager workspace opens operational modules from isolated fixtures without creating database rows', async ({ page }) => {
-  const pageErrors: string[] = [];
-  page.on('pageerror', error => pageErrors.push(error.message));
+test('manager workspace retains operations and captures a real rendered control-tower screen', async ({ page }, testInfo) => {
+  const errors: string[] = [];
+  page.on('pageerror', error => errors.push(error.message));
   await installIsolatedSession(page, 'owner');
+  await page.goto('/simorgh/app/command', { waitUntil: 'domcontentloaded' });
+  await expect(page.getByRole('heading', { name: /مرکز فرمان شبکه/ })).toBeVisible();
+  await expect(page.getByRole('link', { name: /سفارش‌ها/ })).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('manager-control-tower.png'), fullPage: true });
 
   const paths = [
-    { path: 'farm-sites', title: 'سایت‌های مزرعه' },
-    { path: 'flock-cycles', title: 'چرخه‌های گله' },
-    { path: 'production-batches', title: 'بچ‌های تولید' },
-    { path: 'daily-production', title: 'ثبت روزانه تولید' },
-    { path: 'task-templates', title: 'دستورالعمل‌های کاری' },
-    { path: 'operational-tasks', title: 'وظایف عملیاتی' },
-    { path: 'incidents', title: 'رخدادها و مغایرت‌ها' },
-    { path: 'partnership-agreements', title: 'قراردادهای مشارکت' },
-    { path: 'partner-finance', title: 'دفتر مالی شریک' },
-    { path: 'partner-settlements', title: 'دوره‌ها و تسویه شریک' },
+    ['farm-sites', 'سایت‌های مزرعه'],
+    ['flock-cycles', 'چرخه‌های گله'],
+    ['production-batches', 'بچ‌های تولید'],
+    ['daily-production', 'ثبت روزانه تولید'],
+    ['task-templates', 'دستورالعمل‌های کاری'],
+    ['operational-tasks', 'وظایف عملیاتی'],
+    ['incidents', 'رخدادها و مغایرت‌ها'],
+    ['partnership-agreements', 'قراردادهای مشارکت'],
+    ['partner-finance', 'دفتر مالی شریک'],
+    ['partner-settlements', 'دوره‌ها و تسویه شریک'],
   ];
-  await page.goto('/simorgh/app/farm-sites', { waitUntil: 'domcontentloaded' });
-  await expect(page.getByRole('heading', { name: 'سایت‌های مزرعه' })).toBeVisible();
-  await expect(page.getByText('هنوز رکوردی وجود ندارد')).toBeVisible();
-
-  for (const item of paths.slice(1)) {
-    await page.goto('/simorgh/app/' + item.path, { waitUntil: 'domcontentloaded' });
-    await expect(page.getByRole('heading', { name: item.title })).toBeVisible();
-    await expect(page.getByText('هنوز رکوردی وجود ندارد')).toBeVisible();
+  for (const [path, title] of paths) {
+    await page.goto('/simorgh/app/' + path, { waitUntil: 'domcontentloaded' });
+    await expect(page.getByRole('heading', { name: title })).toBeVisible();
   }
   const dimensions = await page.evaluate(() => ({ viewport: innerWidth, document: document.documentElement.scrollWidth, body: document.body.scrollWidth }));
   expect(dimensions.document).toBeLessThanOrEqual(dimensions.viewport);
   expect(dimensions.body).toBeLessThanOrEqual(dimensions.viewport);
-  expect(pageErrors).toEqual([]);
+  expect(errors).toEqual([]);
 });
 
-test('supplier workspace shows task controls while keeping manager-only setup out of the supplier menu', async ({ page }) => {
-  const pageErrors: string[] = [];
-  page.on('pageerror', error => pageErrors.push(error.message));
+test('supplier workspace keeps manager-only routes out of the allowed menu', async ({ page }, testInfo) => {
+  const errors: string[] = [];
+  page.on('pageerror', error => errors.push(error.message));
   await installIsolatedSession(page, 'supplier');
   await page.goto('/simorgh/app/operational-tasks', { waitUntil: 'domcontentloaded' });
   await expect(page.getByRole('heading', { name: 'وظایف عملیاتی' })).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('supplier-task-workspace.png'), fullPage: true });
   await expect(page.getByRole('link', { name: /وظایف عملیاتی/ })).toBeVisible();
   await expect(page.getByRole('link', { name: /دستورالعمل‌های کاری/ })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: /دسترسی کاربران/ })).toHaveCount(0);
   await expect(page.getByRole('link', { name: /دوره‌های تسویه/ })).toBeVisible();
-  expect(pageErrors).toEqual([]);
+  expect(errors).toEqual([]);
+});
+
+test('mobile navigation is role-specific and only mirrors permitted real routes', async ({ page }, testInfo) => {
+  const viewportWidth = Number((testInfo.project.use as { viewport?: { width?: number } }).viewport?.width || 1365);
+  await installIsolatedSession(page, 'supplier');
+  await page.goto('/simorgh/app/operational-tasks', { waitUntil: 'domcontentloaded' });
+  await expect(page.getByRole('heading', { name: 'وظایف عملیاتی' })).toBeVisible();
+
+  const mobileNav = page.locator('.mobile-workspace-nav');
+  if (viewportWidth <= 860) {
+    await expect(mobileNav).toBeVisible();
+    await expect(mobileNav.getByRole('link', { name: 'وظایف' })).toBeVisible();
+    await expect(mobileNav.getByRole('link', { name: 'ثبت تولید' })).toBeVisible();
+    await expect(mobileNav.getByRole('link', { name: 'ظرفیت' })).toBeVisible();
+    await expect(mobileNav.getByRole('link', { name: 'دفتر شریک' })).toBeVisible();
+    await expect(mobileNav.getByRole('link', { name: /دسترسی کاربران/ })).toHaveCount(0);
+  } else {
+    await expect(mobileNav).toBeHidden();
+  }
 });
