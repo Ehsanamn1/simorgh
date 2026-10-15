@@ -23,10 +23,11 @@ const routeIcons: Record<string, LucideIcon> = {
   'operational-tasks': ListTodo, 'partner-finance': CreditCard, 'farm-sites': Warehouse, incidents: Activity,
 };
 const priorities: Record<string, string[]> = {
-  manager: ['command', 'orders', 'shipments', 'finance'],
-  supplier: ['operational-tasks', 'daily-production', 'supplier-capacity', 'partner-finance'],
-  driver: ['driver-work'], customer: ['catalog', 'my-orders', 'finance', 'my-account'],
+  manager: ['command', 'orders', 'shipments'],
+  supplier: ['operational-tasks', 'daily-production', 'supplier-capacity'],
+  driver: ['driver-work'], customer: ['catalog', 'my-orders', 'my-account'],
 };
+type MobileNavigationLink = { key: string; route: string; label: string; Icon: LucideIcon; anchor?: string };
 const shortLabels: Record<string, string> = {
   command: 'نمای کلی', orders: 'سفارش‌ها', shipments: 'ارسال‌ها', finance: 'مالی', catalog: 'خرید',
   'my-orders': 'سفارش‌های من', 'my-account': 'حساب', 'supplier-work': 'کارهای من',
@@ -142,12 +143,19 @@ export default function ProductExperience() {
     };
   }, [signInOpen, protectedRoute, mode, location.pathname, location.search, navigate]);
 
-  const mobileLinks = useMemo(() => {
+  const mobileLinks = useMemo<MobileNavigationLink[]>(() => {
     const keys = new Set(allowedLinks.map(item => item.key));
     const workspace = keys.has('catalog') ? 'customer' : keys.has('command') ? 'manager'
       : keys.has('supplier-capacity') || keys.has('supplier-work') || keys.has('daily-production') ? 'supplier' : 'driver';
-    return priorities[workspace].filter(key => keys.has(key)).map(key => ({
-      key, label: shortLabels[key] || allowedLinks.find(item => item.key === key)?.label || key, Icon: routeIcons[key] || Home,
+    if (workspace === 'driver' && keys.has('driver-work')) {
+      return [
+        { key: 'driver-cargo', route: 'driver-work', label: 'محموله‌ها', Icon: Truck, anchor: 'driver-shipments' },
+        { key: 'driver-map', route: 'driver-work', label: 'نقشه', Icon: MapPin, anchor: 'driver-map' },
+        { key: 'driver-evidence', route: 'driver-work', label: 'مدرک', Icon: ClipboardCheck, anchor: 'driver-proof' },
+      ];
+    }
+    return priorities[workspace].filter(key => keys.has(key)).slice(0, 3).map(key => ({
+      key, route: key, label: shortLabels[key] || allowedLinks.find(item => item.key === key)?.label || key, Icon: routeIcons[key] || Home,
     }));
   }, [allowedLinks]);
 
@@ -204,9 +212,10 @@ export default function ProductExperience() {
   return <>
     {user && appMain && mobileLinks.length > 0 && createPortal(
       <nav className="mobile-workspace-nav" aria-label="ناوبری اصلی فضای کاری">
-        {mobileLinks.map(({ key, label, Icon }) => {
-          const current = location.pathname.split('/').filter(Boolean).at(-1) === key;
-          return <Link key={key} to={'/app/' + key} className={current ? 'is-active' : ''} aria-current={current ? 'page' : undefined}><Icon size={20} strokeWidth={current ? 2.3 : 1.8} aria-hidden="true"/><span>{label}</span></Link>;
+        {mobileLinks.map(({ key, route, label, Icon, anchor }) => {
+          const current = location.pathname.split('/').filter(Boolean).at(-1) === route
+            && (!anchor || location.hash === '#' + anchor);
+          return <Link key={key} to={{ pathname: '/app/' + route, hash: anchor ? '#' + anchor : '' }} className={current ? 'is-active' : ''} aria-current={current ? 'page' : undefined}><Icon size={20} strokeWidth={current ? 2.3 : 1.8} aria-hidden="true"/><span>{label}</span></Link>;
         })}
         <button type="button" className="mobile-workspace-more" onClick={() => document.querySelector<HTMLButtonElement>('.mobile-menu')?.click()} aria-label="بازکردن منوی کامل"><Menu size={20} aria-hidden="true"/><span>بیشتر</span></button>
       </nav>, appMain)}
