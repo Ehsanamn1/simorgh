@@ -534,3 +534,13 @@ html[data-theme="light"] .sim-preview-split-model .split-ring:before{background:
 .sim-preview-page-label{direction:ltr}
 .sim-preview-role-switch{direction:ltr}
 .sim-preview-clock{direction:rtl}
+
+
+/* Desktop composition follows the reference board; panel contents retain Persian RTL. */
+.sim-preview-metric-grid,.sim-preview-primary-grid,.sim-preview-secondary-grid,.sim-preview-feature-strip{direction:ltr}
+.sim-preview-metric,.sim-preview-panel,.sim-preview-feature-strip button{direction:rtl}
+.sim-preview-map-note{top:18px;bottom:auto;left:18px;right:auto}
+@media(max-width:700px){
+ .sim-preview-metric-grid,.sim-preview-primary-grid,.sim-preview-secondary-grid,.sim-preview-feature-strip{direction:rtl}
+ .sim-preview-map-note{top:10px;bottom:auto;left:14px;right:auto}
+}
