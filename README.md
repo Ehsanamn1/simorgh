@@ -104,3 +104,10 @@ npm run test:e2e
 ## انتقال به هاست خودت
 
 این یک اپ SPA است؛ خروجی `dist/` را می‌توان روی هر وب‌سرور استاتیک با fallback به `index.html` منتشر کرد. برای Nginx باید مسیرهای SPA به `index.html` fallback شوند. دیتابیس/Auth/Storage مستقل از میزبان front-end در Supabase می‌ماند. اگر در آینده Supabase را نیز self-host کنی، اتصال‌ها، ایمیل، بکاپ، HTTPS، Storage و ارتقای نسخه‌ها جداگانه باید نگهداری شوند.
+
+
+## Mobile install and authentication
+
+The app provides an installable PWA shell. Its service worker caches only the static app shell and same-origin build assets; it deliberately does not cache Supabase Auth, REST, Storage, private records, or form submissions. Offline queueing and conflict resolution are not implemented, so edits must be made while online.
+
+New users may register with email/password and request an operational role (customer, supplier, driver, or staff). These registrations never grant membership automatically. A current owner/manager must review and approve requests. Owner/admin access is not self-service; see [docs/OWNER_PROVISIONING.md](docs/OWNER_PROVISIONING.md).

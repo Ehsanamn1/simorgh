@@ -1,0 +1,25 @@
+{
+  "name": "Simorgh — Obsidian Intelligence",
+  "short_name": "Simorgh",
+  "description": "پلتفرم عملیات شبکه تأمین سیمرغ",
+  "lang": "fa",
+  "dir": "rtl",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": [
+    "standalone",
+    "minimal-ui"
+  ],
+  "orientation": "any",
+  "background_color": "#0B1012",
+  "theme_color": "#0B1012",
+  "icons": [
+    {
+      "src": "./simorgh-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
