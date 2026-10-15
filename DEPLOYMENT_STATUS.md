@@ -8,7 +8,7 @@ Checked: 2026-10-15.
 - The app is a React + TypeScript + Vite SPA, with Supabase client setup, a seed-free PostgreSQL migration, and Cloudflare Pages SPA fallback.
 - Static syntax checks for TypeScript/TSX, CSS, HTML, and JSON passed in the authoring environment.
 - GitHub Actions CI passed on application commit `0d9430a8cc2db87260576f73ff70d5a1c6e2ad78`: npm install, TypeScript typecheck, ESLint, Vitest, and Vite production build succeeded.
-- CI now also audits production dependencies on later runs.
+- CI now also audits production dependencies; the latest full run (including this production-only audit) passed on commit `bf6b91137e9b4d26008d9c6417ec192b2ba4b73a`.
 - A manual Cloudflare Pages deployment workflow is present at `.github/workflows/deploy.yml`; it needs four repository secrets before it can deploy.
 - The application migration defines 18 application tables and enables RLS on all 18.
 
@@ -17,7 +17,7 @@ Checked: 2026-10-15.
 - There is currently no Supabase project in the connected Supabase account; the migration has not been applied to a live database.
 - The application has not been deployed to Cloudflare Pages. No authenticated Cloudflare API integration or token is available in this environment, so the deployment workflow needs the user's Cloudflare token and account ID saved as GitHub repository secrets.
 - Real account creation, memberships, role boundaries, RLS policies, private evidence storage, and the order-to-settlement flow have not been end-to-end tested against a live project.
-- npm reported three dependency advisories in total in the initial dependency install (one moderate and two critical, potentially including development dependencies). A production-only audit was added to CI and must pass before calling the release verified.
+- The initial `npm install` reported three dependency advisories overall (one moderate and two critical). The production-only audit passed; the remaining full-tree advisories still need review, since they can be development/transitive dependencies.
 
 ## Required next steps
 
