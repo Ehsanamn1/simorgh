@@ -1,57 +1,44 @@
 import { expect, test } from '@playwright/test';
 
-test('authentication entry is readable, responsive, and has usable controls', async ({ page }, testInfo) => {
+test('public entry is a role-based portal and never renders sign-in or registration forms', async ({ page }, testInfo) => {
   const pageErrors: string[] = [];
   page.on('pageerror', error => pageErrors.push(error.message));
-
   await page.goto('/simorgh/', { waitUntil: 'domcontentloaded' });
 
   await expect(page).toHaveTitle(/سیمرغ/);
-  await expect(page.getByRole('heading', { name: 'ورود به سیمرغ' })).toBeVisible();
-  await expect(page.getByLabel('ایمیل سازمانی')).toBeVisible();
-  await expect(page.getByLabel('رمز عبور')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'ورود امن' })).toBeVisible();
+  await expect(page.locator('.portal-hero h1')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'برای هر نقش، فضای خودش' })).toBeVisible();
+  await expect(page.getByRole('button', { name: /مدیر و مالک شبکه/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: /تأمین‌کننده و شریک مزرعه/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: /راننده و پیمانکار حمل/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: /مشتری و خریدار عمده/ })).toBeVisible();
+  await expect(page.locator('input[type="password"], input[type="email"]')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /ثبت‌نام|ورود امن|ورود به سیمرغ/ })).toHaveCount(0);
+  await expect(page.getByText('نقش با انتخاب کارت فعال نمی‌شود.')).toBeVisible();
 
-  const layout = await page.evaluate(() => {
-    const form = document.querySelector<HTMLElement>('.auth-form-wrap');
-    const input = document.querySelector<HTMLInputElement>('.auth-fields input');
-    const submit = document.querySelector<HTMLElement>('.auth-submit');
-    return {
-      viewportWidth: window.innerWidth,
-      documentWidth: document.documentElement.scrollWidth,
-      bodyWidth: document.body.scrollWidth,
-      formWidth: form?.getBoundingClientRect().width ?? 0,
-      inputHeight: input?.getBoundingClientRect().height ?? 0,
-      submitHeight: submit?.getBoundingClientRect().height ?? 0,
-      headingFontSize: Number.parseFloat(getComputedStyle(document.querySelector('.auth-form-wrap h2')!).fontSize),
-    };
-  });
-
-  expect(layout.documentWidth).toBeLessThanOrEqual(layout.viewportWidth);
-  expect(layout.bodyWidth).toBeLessThanOrEqual(layout.viewportWidth);
-  expect(layout.formWidth).toBeLessThanOrEqual(layout.viewportWidth);
-  expect(layout.inputHeight).toBeGreaterThanOrEqual(44);
-  expect(layout.submitHeight).toBeGreaterThanOrEqual(44);
-  expect(layout.headingFontSize).toBeGreaterThanOrEqual(22);
+  const dimensions = await page.evaluate(() => ({
+    viewport: window.innerWidth,
+    document: document.documentElement.scrollWidth,
+    body: document.body.scrollWidth,
+  }));
+  expect(dimensions.document).toBeLessThanOrEqual(dimensions.viewport);
+  expect(dimensions.body).toBeLessThanOrEqual(dimensions.viewport);
   expect(pageErrors).toEqual([]);
-
-  await page.screenshot({ path: testInfo.outputPath('auth-entry.png'), fullPage: true });
+  await page.screenshot({ path: testInfo.outputPath('workspace-portal.png'), fullPage: true });
 });
 
-test('signup and password recovery modes work without submitting external requests', async ({ page }) => {
+test('role selection opens an explicit non-operational preview, not private data', async ({ page }) => {
   await page.goto('/simorgh/', { waitUntil: 'domcontentloaded' });
 
-  await page.getByRole('button', { name: 'ثبت‌نام' }).click();
-  await expect(page.getByRole('heading', { name: 'ساخت حساب کاربری' })).toBeVisible();
-  await expect(page.getByLabel('نام و نام خانوادگی')).toBeVisible();
-  await expect(page.getByLabel('رمز عبور')).toBeVisible();
+  const supplier = page.getByRole('button', { name: /تأمین‌کننده و شریک مزرعه/ });
+  await supplier.click();
+  await expect(supplier).toHaveAttribute('aria-pressed', 'true');
+  await page.getByRole('button', { name: 'نمایش ساختار پنل' }).click();
+  await expect(page.getByRole('heading', { name: 'فضای تأمین و مزرعه' })).toBeVisible();
+  await expect(page.getByText('نمای ساختاری، نه پنل عملیاتی')).toBeVisible();
+  await expect(page.getByText(/هیچ رکورد خصوصی بارگذاری یا قابل ویرایش نیست/)).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'ظرفیت تولید' })).toBeVisible();
 
-  await page.getByRole('button', { name: 'بازگشت به ورود' }).click();
-  await expect(page.getByRole('heading', { name: 'ورود به سیمرغ' })).toBeVisible();
-
-  await page.getByRole('button', { name: 'رمز عبور را فراموش کرده‌ام' }).click();
-  await expect(page.getByRole('heading', { name: 'بازیابی رمز عبور' })).toBeVisible();
-  await expect(page.getByLabel('ایمیل سازمانی')).toBeVisible();
-  await expect(page.getByLabel('رمز عبور')).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'ارسال لینک بازیابی' })).toBeVisible();
+  await page.getByRole('button', { name: /بازگشت به انتخاب نقش/ }).click();
+  await expect(page.getByRole('heading', { name: 'برای هر نقش، فضای خودش' })).toBeVisible();
 });
