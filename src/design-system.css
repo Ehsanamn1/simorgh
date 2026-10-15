@@ -604,3 +604,115 @@ html[data-theme="light"] .sim-workspace-quick-card:hover{background:#EEF5F3}
 .sim-runtime-error-card p{margin:0;color:var(--obs-muted);font-size:11px;line-height:2}
 .sim-runtime-error-card button{width:100%;min-height:46px;border:1px solid var(--obs-accent);border-radius:11px;background:var(--obs-accent);color:#071311;font:inherit;font-weight:850;cursor:pointer}
 .sim-runtime-error-card small{color:var(--obs-subtle);font-size:9px;line-height:1.8}
+
+
+/* ──────────────────────────────────────────────────────────────────────────
+   SIMORGH / operational command center — final application shell
+   ────────────────────────────────────────────────────────────────────────── */
+.sim-workspace-app{background:var(--obs-bg);color:var(--obs-text);font-family:Vazirmatn,Tahoma,sans-serif}
+.sim-workspace-masthead{display:grid;grid-template-columns:minmax(255px,.85fr) minmax(250px,1fr) minmax(350px,1.1fr);align-items:center;gap:clamp(14px,2vw,28px);min-height:102px;padding:16px clamp(17px,2.3vw,34px);direction:rtl;border-bottom:1px solid var(--obs-border);background:radial-gradient(ellipse at 75% -75%,rgb(112 154 168 / 12%),transparent 55%),var(--obs-bg)}
+.sim-workspace-brand{display:flex;flex-direction:column;align-items:flex-start;gap:4px;min-width:0;direction:rtl}
+.sim-workspace-brand .brand-lockup{display:flex;align-items:center;gap:10px}
+.sim-workspace-brand .brand-symbol{display:grid;place-items:center;width:57px;height:54px;border:0;border-radius:0;background:transparent;color:#9ECFD0;box-shadow:none;flex:none}
+.sim-workspace-brand .brand-symbol svg{width:57px;height:52px}
+.sim-workspace-brand .brand-words b{display:block;color:var(--obs-text);font-family:Vazirmatn,Tahoma,sans-serif;font-size:clamp(24px,2.3vw,32px);font-weight:900;letter-spacing:-.035em;line-height:1.15}
+.sim-workspace-brand .brand-words small{display:block;margin-top:5px;color:var(--obs-accent-2);font-family:Vazirmatn,Tahoma,sans-serif;font-size:10px;line-height:1.7;white-space:nowrap}
+.sim-workspace-brand-caption{padding-inline-start:68px;color:var(--obs-muted);font-size:9px;line-height:1.6}
+.sim-workspace-manifesto{display:grid;gap:7px;min-width:0;padding-inline:clamp(14px,2vw,28px);border-inline-start:1px solid var(--obs-border);text-align:right}
+.sim-workspace-manifesto b{font-size:clamp(13px,1.1vw,16px);font-weight:850;line-height:1.8;color:var(--obs-text)}
+.sim-workspace-manifesto span{font-size:10px;line-height:1.9;color:var(--obs-muted)}
+.sim-workspace-head-actions{display:flex;align-items:center;justify-content:flex-start;flex-wrap:wrap;gap:9px;min-width:0;direction:rtl}
+.sim-workspace-head-actions .sim-workspace-clock{display:flex;align-items:center;gap:9px;padding-inline-end:11px;border-inline-end:1px solid var(--obs-border);color:var(--obs-muted);font-size:9px;white-space:nowrap}
+.sim-workspace-clock b{padding:4px 8px;border:1px solid var(--obs-border);border-radius:8px;background:var(--obs-surface);color:var(--obs-text);font-weight:750}
+.sim-workspace-status{display:inline-flex;align-items:center;gap:7px;color:var(--obs-muted);font-size:9px;white-space:nowrap}
+.sim-workspace-status>span{width:6px;height:6px;border-radius:50%;background:var(--obs-accent-2);box-shadow:0 0 0 4px rgb(112 154 168 / 12%)}
+.sim-workspace-header-tools{display:flex;align-items:center;gap:6px}
+.sim-workspace-theme{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:36px;padding:0 10px;border:1px solid var(--obs-border);border-radius:10px;background:var(--obs-surface);color:var(--obs-text);font-family:Vazirmatn,Tahoma,sans-serif;font-size:9px;font-weight:750;white-space:nowrap;cursor:pointer;transition:transform 160ms,border-color 160ms,background 160ms}
+.sim-workspace-theme svg{color:var(--obs-accent)}
+.sim-workspace-theme:hover{transform:translateY(-1px);border-color:var(--obs-accent-2);background:var(--obs-surface-2)}
+.sim-workspace-workspace-bar{display:flex;align-items:center;justify-content:space-between;gap:14px;min-height:51px;padding:7px clamp(17px,2.3vw,34px);border-bottom:1px solid var(--obs-border);background:color-mix(in srgb,var(--obs-surface) 66%,transparent);direction:rtl}
+.sim-workspace-page-label{display:flex;align-items:center;gap:9px;min-width:0}
+.sim-workspace-page-label>span{display:grid;place-items:center;width:30px;height:30px;border:1px solid var(--obs-border);border-radius:9px;background:var(--obs-elevated);color:var(--obs-accent-2)}
+.sim-workspace-page-label b{font-size:10px;font-weight:850;color:var(--obs-text)}
+.sim-workspace-page-label small{margin-inline-start:7px;padding-inline-start:8px;border-inline-start:1px solid var(--obs-border);font-size:8px;color:var(--obs-subtle)}
+.sim-workspace-workspace-summary{display:flex;align-items:center;justify-content:flex-start;flex-wrap:wrap;gap:16px}
+.sim-workspace-workspace-summary>span{display:inline-flex;align-items:center;gap:6px;color:var(--obs-muted);font-size:9px;white-space:nowrap}
+.sim-workspace-workspace-summary svg{color:var(--obs-accent-2)}
+.sim-workspace-page-heading h1{font-family:Vazirmatn,Tahoma,sans-serif;font-weight:900;letter-spacing:-.035em}
+.sim-workspace-page-heading p,.sim-workspace-panel-head p{font-family:Vazirmatn,Tahoma,sans-serif}
+.sim-workspace-toolbar{direction:rtl}
+.sim-workspace-content{font-family:Vazirmatn,Tahoma,sans-serif}
+.sim-workspace-sidebar,.sim-workspace-nav-group button,.sim-workspace-bottom-nav button{font-family:Vazirmatn,Tahoma,sans-serif}
+.sim-workspace-goals-panel{margin:0 0 14px;padding:13px;border:1px solid var(--obs-border);border-radius:14px;background:linear-gradient(145deg,var(--obs-surface),color-mix(in srgb,var(--obs-surface) 74%,var(--obs-elevated)));box-shadow:var(--obs-shadow)}
+.sim-workspace-goals-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:11px}
+.sim-workspace-goals-title{display:flex;align-items:center;gap:10px;min-width:0}
+.sim-workspace-goals-title>span{display:grid;place-items:center;width:31px;height:31px;flex:none;border:1px solid var(--obs-border);border-radius:9px;background:var(--obs-elevated);color:var(--obs-accent)}
+.sim-workspace-goals-title h3{margin:0;color:var(--obs-text);font-size:11px;font-weight:850}
+.sim-workspace-goals-title p{margin:2px 0 0;color:var(--obs-subtle);font-size:9px;line-height:1.7}
+.sim-workspace-goal-note{padding:5px 8px;border:1px solid var(--obs-border);border-radius:8px;color:var(--obs-subtle);font-size:8px;white-space:nowrap}
+.sim-workspace-goals-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.sim-workspace-goal{display:grid;grid-template-columns:33px minmax(0,1fr) auto;grid-template-rows:auto auto;align-items:center;gap:2px 8px;min-width:0;min-height:70px;padding:9px;border:1px solid var(--obs-border);border-radius:11px;background:var(--obs-bg);text-align:right;cursor:pointer;transition:transform 160ms,border-color 160ms,background 160ms}
+.sim-workspace-goal:hover{transform:translateY(-2px);border-color:var(--obs-accent-2);background:var(--obs-surface-2)}
+.sim-workspace-goal-icon{display:grid;grid-row:1/3;place-items:center;width:32px;height:32px;border:1px solid var(--obs-border);border-radius:9px;background:var(--obs-elevated);color:var(--obs-accent)}
+.sim-workspace-goal-copy{display:grid;gap:2px;min-width:0}
+.sim-workspace-goal-copy b{overflow:hidden;color:var(--obs-text);font-size:9px;font-weight:850;text-overflow:ellipsis;white-space:nowrap}
+.sim-workspace-goal-copy small{overflow:hidden;color:var(--obs-subtle);font-size:8px;text-overflow:ellipsis;white-space:nowrap}
+.sim-workspace-goal-state{grid-column:2/3;grid-row:2;color:var(--obs-warning);font-size:8px}
+.sim-workspace-goal-arrow{grid-column:3;grid-row:1/3;color:var(--obs-subtle);transition:transform 150ms,color 150ms}
+.sim-workspace-goal:hover .sim-workspace-goal-arrow{transform:translate(-2px,-2px);color:var(--obs-accent)}
+html[data-theme="light"] .sim-workspace-masthead{background:radial-gradient(ellipse at 75% -75%,rgb(55 108 124 / 8%),transparent 55%),#F4F7F7}
+html[data-theme="light"] .sim-workspace-brand .brand-symbol{color:#3D8588}
+html[data-theme="light"] .sim-workspace-manifesto{border-color:var(--obs-border)}
+html[data-theme="light"] .sim-workspace-workspace-bar{background:#FFFFFF}
+html[data-theme="light"] .sim-workspace-goals-panel{background:linear-gradient(145deg,#FFFFFF,#F4F8F8)}
+html[data-theme="light"] .sim-workspace-goal{background:#F8FAFA}
+html[data-theme="light"] .sim-workspace-goal:hover{background:#EEF5F3}
+@media(max-width:1230px){
+ .sim-workspace-masthead{grid-template-columns:minmax(225px,.9fr) minmax(205px,1fr) minmax(320px,1.1fr);gap:12px;padding-inline:18px}
+ .sim-workspace-head-actions{gap:6px}
+ .sim-workspace-theme{padding-inline:8px}
+ .sim-workspace-goals-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .sim-workspace-goal{grid-template-columns:34px minmax(0,1fr) auto}
+}
+@media(max-width:940px){
+ .sim-workspace-masthead{grid-template-columns:minmax(0,1fr) auto;gap:10px;padding:13px 15px}
+ .sim-workspace-manifesto{display:none}
+ .sim-workspace-head-actions{justify-content:flex-start;flex-wrap:wrap}
+ .sim-workspace-head-actions .sim-workspace-clock{display:none}
+ .sim-workspace-status{display:none}
+ .sim-workspace-workspace-bar{flex-wrap:wrap}
+ .sim-workspace-workspace-summary{gap:10px}
+}
+@media(max-width:700px){
+ .sim-workspace-masthead{grid-template-columns:minmax(0,1fr) auto;min-height:82px;gap:8px;padding:10px 12px}
+ .sim-workspace-brand .brand-lockup{gap:7px}
+ .sim-workspace-brand .brand-symbol,.sim-workspace-brand .brand-symbol svg{width:41px;height:39px}
+ .sim-workspace-brand .brand-words b{font-size:21px}
+ .sim-workspace-brand .brand-words small{max-width:175px;margin-top:2px;font-size:7px;white-space:normal;line-height:1.6}
+ .sim-workspace-brand-caption{display:none}
+ .sim-workspace-head-actions{max-width:152px;justify-content:flex-start;gap:5px}
+ .sim-workspace-header-tools{gap:4px}
+ .sim-workspace-theme{min-height:34px;width:35px;padding:0;font-size:0}
+ .sim-workspace-theme svg{width:16px;height:16px}
+ .sim-workspace-workspace-bar{min-height:43px;padding:6px 12px;gap:8px}
+ .sim-workspace-page-label{gap:7px}
+ .sim-workspace-page-label>span{width:27px;height:27px}
+ .sim-workspace-page-label b{font-size:9px}
+ .sim-workspace-page-label small{display:none}
+ .sim-workspace-workspace-summary{gap:8px}
+ .sim-workspace-workspace-summary>span{font-size:7px;gap:4px}
+ .sim-workspace-workspace-summary svg{width:12px;height:12px}
+ .sim-workspace-goals-panel{padding:10px;margin-bottom:10px}
+ .sim-workspace-goals-heading{align-items:flex-start;margin-bottom:9px}
+ .sim-workspace-goals-title h3{font-size:10px}
+ .sim-workspace-goals-title p{font-size:8px}
+ .sim-workspace-goal-note{max-width:130px;white-space:normal;line-height:1.5;font-size:7px;text-align:center}
+ .sim-workspace-goals-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
+ .sim-workspace-goal{min-height:66px;padding:8px;grid-template-columns:28px minmax(0,1fr) 11px;gap:2px 6px}
+ .sim-workspace-goal-icon{width:27px;height:27px}
+ .sim-workspace-goal-icon svg{width:15px;height:15px}
+ .sim-workspace-goal-copy b{font-size:8px}
+ .sim-workspace-goal-copy small{font-size:7px}
+ .sim-workspace-goal-state{font-size:7px}
+ .sim-workspace-goal-arrow{width:12px;height:12px}
+}
