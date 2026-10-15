@@ -45,7 +45,7 @@ function readAllowedLinks(): NavigationEntry[] {
   });
 }
 
-/** Registration is open; operational roles are requested and must be approved by a trusted manager. */
+/** Private operational app entry. Public self-registration is intentionally disabled. */
 export default function ProductExperience() {
   const { user, loading, memberships } = useAuth();
   const location = useLocation();
@@ -85,7 +85,8 @@ export default function ProductExperience() {
 
   useEffect(() => {
     if (!appMain) { setAllowedLinks([]); return; }
-    const sideNav = appMain.querySelector('.side-nav');
+    // The sidebar is a sibling of .app-main; query the live, permission-filtered nav globally.
+    const sideNav = document.querySelector('.side-nav');
     if (!sideNav) { setAllowedLinks([]); return; }
     const refresh = () => {
       const next = readAllowedLinks();
