@@ -1,1 +1,14 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128"><rect width="128" height="128" rx="28" fill="#0B1012"/><rect x="8" y="8" width="112" height="112" rx="23" fill="#11191C" stroke="#29373B" stroke-width="2"/><path d="M27 39h38c20 0 34 13 34 33v17H61C40 89 27 76 27 56Z" fill="none" stroke="#6EB9AC" stroke-width="6" stroke-linejoin="round"/><path d="M39 72 79 32M48 91 90 49" stroke="#C1D6D1" stroke-width="5" stroke-linecap="round"/><circle cx="93" cy="31" r="7" fill="#6EB9AC"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Simorgh">
+  <rect width="128" height="128" rx="28" fill="#0B1012"/>
+  <rect x="8" y="8" width="112" height="112" rx="23" fill="#11191C" stroke="#29373B" stroke-width="2"/>
+  <g fill="#B4DDE0">
+    <path d="M17 31c16 0 30 4 43 12l8 7-21-1c-11-2-20-5-29-9Z"/>
+    <path d="M15 46c15 0 27 4 40 10l10 8-20 1c-11-3-21-7-28-11Z"/>
+    <path d="M18 61c11 0 21 3 31 9l10 8-17 1c-10-3-18-7-24-11Z"/>
+    <path d="M29 78c14-10 28-12 42-6 8 3 13 9 18 17-14 12-32 12-46 4-6-3-11-8-14-15Z"/>
+    <path d="M53 76c9-10 16-20 22-32 5-14 13-24 25-23 9 1 14 9 10 18-2 6-7 9-14 10l-8 1-1 13 15-1-8 10-12 1c-4 11-9 18-17 22-6-5-10-10-12-19Z"/>
+    <path d="M32 91c-4 6-10 10-18 10 11 6 23 4 33-4l-5-7Z"/>
+    <path d="m105 35 16-6-9 15-6 0Z"/>
+  </g>
+  <circle cx="104" cy="31" r="2.8" fill="#0B1012"/>
+</svg>
