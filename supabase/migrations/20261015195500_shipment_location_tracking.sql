@@ -17,7 +17,7 @@ create index shipment_locations_shipment_captured_idx
   on public.shipment_locations(shipment_id, captured_at desc);
 
 alter table public.shipment_locations enable row level security;
-revoke all on public.shipment_locations from anon;
+revoke all on public.shipment_locations from anon, authenticated;
 grant select, insert on public.shipment_locations to authenticated;
 
 create policy shipment_locations_internal_read
