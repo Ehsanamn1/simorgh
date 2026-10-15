@@ -24,6 +24,7 @@ test('public entry is a role-based portal and keeps sign-in off the public landi
   expect(dimensions.document).toBeLessThanOrEqual(dimensions.viewport);
   expect(dimensions.body).toBeLessThanOrEqual(dimensions.viewport);
   expect(pageErrors).toEqual([]);
+  await page.screenshot({ path: testInfo.outputPath('workspace-portal-viewport.png') });
   await page.screenshot({ path: testInfo.outputPath('workspace-portal.png'), fullPage: true });
 });
 
