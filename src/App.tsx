@@ -13,6 +13,8 @@ import { useAuth } from './lib/AuthContext';
 import { supabase, isSupabaseConfigured } from './lib/supabase';
 import { pageSectionLabel } from './lib/pageSections';
 import { OperationsWorkspacePage } from './OperationsPages';
+import PreviewWorkspace from './PreviewWorkspace';
+import { SimorghLogo as Logo } from './SimorghLogo';
 import type { AppRole, Membership, PageKey, Row } from './lib/types';
 import { dateFa, dateTimeFa, moneyFa, numberFa, orderLabel, roleLabel, statusLabel, statusTone } from './lib/format';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
@@ -49,9 +51,6 @@ const navDefinitions: { key: PageKey; label: string; group: string; icon: typeof
   { key: 'partner-settlements', label: 'دوره‌های تسویه', group: 'مشارکت و مالی', icon: ShieldCheck, roles: ['owner', 'admin', 'supplier'] },
 ];
 
-function Logo({ compact = false }: { compact?: boolean }) {
-  return <div className={`brand-lockup ${compact ? 'compact' : ''}`}><span className="brand-symbol"><svg viewBox="0 0 44 44" aria-hidden="true"><path d="M7 12h15c8 0 13 5 13 13v8H20C12 33 7 28 7 20Z" fill="none" stroke="currentColor" strokeWidth="2.4"/><path d="M13 27 29 11M16 33 34 15" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"/><circle cx="31.5" cy="10.5" r="3.2" fill="#d8ff80"/></svg></span>{!compact && <span className="brand-words"><b>سیمرغ</b><small>مدیریت شبکه تأمین</small></span>}</div>;
-}
 function ConfigScreen() {
   return <main className="setup-screen" dir="rtl"><div className="setup-grid"><div className="setup-brand"><Logo/><span className="setup-chip"><span/> آماده استقرار · نیازمند پیکربندی</span><h1>شبکه‌ی تأمین را<br/><em>با داده واقعی</em> اداره کنید.</h1><p>سیمرغ برای اتصال سفارش، ظرفیت، کیفیت، ارسال و تسویه در یک جریان عملیاتی ساخته شده است. تا قبل از اتصال دیتابیس هیچ داده نمونه یا شاخص ساختگی نمایش داده نمی‌شود.</p><div className="setup-features"><span><ShieldCheck/> کنترل دسترسی نقش‌محور</span><span><Activity/> ثبت تغییرات و پیگیری</span><span><Boxes/> مسیر مستقل مشتری و تأمین‌کننده</span></div></div><section className="setup-panel"><div className="setup-panel-icon"><Settings2/></div><span className="eyebrow">INITIAL CONFIGURATION</span><h2>اتصال پایگاه داده لازم است</h2><p>برای فعال‌شدن ورود کاربران و عملیات واقعی، یک پروژه اختصاصی Supabase بساز و متغیرهای زیر را در محیط محلی یا Cloudflare Pages قرار بده.</p><div className="env-item"><label>VITE_SUPABASE_URL</label><code>https://YOUR_PROJECT.supabase.co</code><button onClick={() => void navigator.clipboard?.writeText('VITE_SUPABASE_URL=')}>کپی نام متغیر</button></div><div className="env-item"><label>VITE_SUPABASE_PUBLISHABLE_KEY</label><code>sb_publishable_…</code><button onClick={() => void navigator.clipboard?.writeText('VITE_SUPABASE_PUBLISHABLE_KEY=')}>کپی نام متغیر</button></div><div className="setup-warning"><ShieldCheck size={17}/><span>کلید publishable تنها کلید قابل استفاده در مرورگر است. هرگز service-role یا secret key را در VITE_ قرار نده.</span></div><div className="setup-steps"><b>مراحل راه‌اندازی</b><span><i>۱</i> ساخت پروژه Supabase و اجرای migration</span><span><i>۲</i> تنظیم دو متغیر محیطی</span><span><i>۳</i> ساخت اولین شرکت و اعطای نقش مالک از SQL Editor</span></div><a className="button-primary setup-doc-link" href="https://supabase.com/dashboard" target="_blank" rel="noreferrer">رفتن به Supabase <ArrowUpLeft size={15}/></a></section></div><footer className="setup-footer"><span>SIMORGH / SYSTEM INITIALIZATION</span><span>هیچ داده‌ای تا اتصال واقعی ساخته نشده است.</span></footer></main>;
 }
@@ -140,7 +139,7 @@ const workspaceProfiles: {
   },
 ];
 
-function WorkspacePortal() {
+export function WorkspacePortal() {
   const [selectedKey, setSelectedKey] = useState<WorkspacePreviewKey>('manager');
   const [showPreview, setShowPreview] = useState(false);
   const selected = workspaceProfiles.find(profile => profile.key === selectedKey) ?? workspaceProfiles[0];
@@ -726,8 +725,14 @@ function SupplierCapacityPage({membership,search}:{membership:Membership;search:
 }
 function SupplierSettlementPage({membership,search}:{membership:Membership;search:string}) {const {rows,loading,error,refresh}=useDbRows('settlements',membership,{order:'created_at'});const shown=rows.filter(r=>(!membership.supplier_id||r.supplier_id===membership.supplier_id)&&(!search||`${r.invoice_ref??''} ${r.status}`.toLowerCase().includes(search.toLowerCase())));return <><PageHeading eyebrow="SUPPLIER / SETTLEMENT" title="تسویه‌های من" description="مبالغ و وضعیت تسویه را بر اساس رکوردهای داخلی ببین؛ وضعیت «پرداخت‌شده» باید پس از تطبیق واقعی ثبت شود." action={<Button variant="soft" onClick={()=>void refresh()}>تازه‌سازی</Button>}/>{error&&<InlineError error={error} retry={()=>void refresh()}/>}<section className="panel entity-panel">{loading?<div className="panel-loading"><span className="spinner small"/></div>:shown.length?<DataTable rows={shown} columns={[{key:'invoice_ref',label:'مرجع سند'},{key:'amount',label:'مبلغ',render:r=>moneyFa(String(r.amount))},{key:'due_date',label:'سررسید'},{key:'status',label:'وضعیت',render:r=><Badge value={r.status}/>},{key:'note',label:'یادداشت'}]}/>:<EmptyState title="تسویه‌ای برای نمایش وجود ندارد" description="سوابق تسویه پس از ثبت توسط تیم مالی مجموعه اینجا قرار می‌گیرند." icon={CreditCard}/>}</section></>}
 
+function WorkspaceGate() {
+  const { user } = useAuth();
+  // Unauthenticated visitors get a safe, navigable design preview. The real app
+  // remains membership- and RLS-protected once an authenticated user has a session.
+  return user ? <AppShell/> : <PreviewWorkspace/>;
+}
+
 export default function App() {
   if (!isSupabaseConfigured) return <ConfigScreen/>;
-  // The mobile app always opens at the operational command center.
-  return <Routes><Route path="/" element={<Navigate to="/app/command" replace/>}/><Route path="/about" element={<WorkspacePortal/>}/><Route path="/auth" element={<Navigate to="/app/command" replace/>}/><Route path="/app/*" element={<AppShell/>}/><Route path="*" element={<Navigate to="/" replace/>}/></Routes>;
+  return <Routes><Route path="/" element={<Navigate to="/app/command" replace/>}/><Route path="/about" element={<Navigate to="/app/command" replace/>}/><Route path="/auth" element={<Navigate to="/app/command" replace/>}/><Route path="/app/*" element={<WorkspaceGate/>}/><Route path="*" element={<Navigate to="/" replace/>}/></Routes>;
 }

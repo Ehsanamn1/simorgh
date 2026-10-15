@@ -68,7 +68,10 @@ export default function ProductExperience() {
   const [requestId, setRequestId] = useState('');
   const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
   const protectedRoute = location.pathname.includes('/app');
-  const signInOpen = mode === 'recovery' || (location.hash === '#signin' && !user) || (protectedRoute && !user && !loading);
+  // Keep the real auth implementation intact, but make the public auth UI a final-phase feature.
+  // Set VITE_ENABLE_AUTH_UI=true only when the owner-provisioning flow is ready to be launched.
+  const authUiEnabled = import.meta.env.VITE_ENABLE_AUTH_UI === 'true';
+  const signInOpen = authUiEnabled && (mode === 'recovery' || (location.hash === '#signin' && !user) || (protectedRoute && !user && !loading));
   const normalizedPath = location.pathname.startsWith(basePath) ? location.pathname.slice(basePath.length) || '/' : location.pathname;
   const protectedDestination = normalizedPath.startsWith('/app') ? normalizedPath : '/app';
 
@@ -207,7 +210,7 @@ export default function ProductExperience() {
         })}
         <button type="button" className="mobile-workspace-more" onClick={() => document.querySelector<HTMLButtonElement>('.mobile-menu')?.click()} aria-label="بازکردن منوی کامل"><Menu size={20} aria-hidden="true"/><span>بیشتر</span></button>
       </nav>, appMain)}
-    {user && waitingScreen && memberships.length === 0 && createPortal(
+    {authUiEnabled && user && waitingScreen && memberships.length === 0 && createPortal(
       <section className="access-request-card" dir="rtl" aria-labelledby="access-request-title">
         <div className="access-request-heading"><span className="access-request-icon"><UserPlus size={20}/></span><div><span className="obsidian-eyebrow">ROLE REQUEST</span><h2 id="access-request-title">درخواست فضای کاری</h2><p>نقش را مشخص کن؛ مدیر پس از بررسی آن را تأیید یا رد می‌کند.</p></div></div>
         <form className="access-request-form" onSubmit={submitRoleRequest}>

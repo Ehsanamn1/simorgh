@@ -106,15 +106,18 @@ npm run test:e2e
 این یک اپ SPA است؛ خروجی `dist/` را می‌توان روی هر وب‌سرور استاتیک با fallback به `index.html` منتشر کرد. برای Nginx باید مسیرهای SPA به `index.html` fallback شوند. دیتابیس/Auth/Storage مستقل از میزبان front-end در Supabase می‌ماند. اگر در آینده Supabase را نیز self-host کنی، اتصال‌ها، ایمیل، بکاپ، HTTPS، Storage و ارتقای نسخه‌ها جداگانه باید نگهداری شوند.
 
 
-## Native mobile application
+## App-first preview and native mobile application
 
-Simorgh now has a Capacitor Android/iOS application target. The main route opens directly into the secure operational workspace, without a marketing landing screen or public self-registration. The mobile app shell supports a persistent dark/light theme, mobile navigation, native status-bar styling, and device permission scaffolding.
+The default route opens directly into an interactive **read-only workspace preview**. There is no marketing landing page and the login/registration UI is intentionally hidden until the final onboarding phase. Use the sidebar, role-preview selector, map page and dark/light control to inspect the product across desktop and mobile layouts.
 
+The guest preview makes no operational writes and deliberately does not query private company records. KPI values, inventory, orders, financial balances, GPS markers and AI recommendations are left empty until there are authorized source records. It uses a real geographic OpenStreetMap layer as a map guide, but displays no fabricated shipment markers.
+
+- [Reference-board mapping to real screens and data contracts](docs/REFERENCE_BOARD_MAPPING.md)
 - [Native mobile build and release notes](docs/MOBILE_APP.md)
 - [First owner provisioning](docs/OWNER_PROVISIONING.md)
 
+Authentication implementation and membership checks remain in place, but the public auth UI is gated behind the build flag `VITE_ENABLE_AUTH_UI=true`. Keep it unset while reviewing the UI; turn it on only after the owner account is provisioned and the full secure onboarding flow is ready. App data and mutations remain protected by Supabase Auth and RLS.
+
 GitHub Actions builds an internal Android debug APK and an unsigned iOS Simulator app on supported pushes/PRs and manual dispatch. These are test artifacts, not store releases: Android Play Store publishing needs a release signing key; a physical iPhone/TestFlight build needs Apple signing and provisioning. Do not commit any signing credentials.
 
-The app still requires an owner-provisioned account for private company data. Public self-registration is intentionally disabled. Only an authenticated, authorized account receives a role-backed workspace, and Supabase RLS remains the server-side access boundary.
-
-The hosted preview may continue to use a service worker for static app shell/assets only. Auth, database records, private files, and writes are never cached. Offline mutation queueing and conflict resolution are not implemented; records must be changed online. Native GPS/push/background services must be tested through explicit permissions before production use.
+The hosted preview caches only the static app shell/build assets. Auth, database records, private files, and writes are never cached. Offline mutation queueing and conflict resolution are not implemented; records must be changed online. Native foreground GPS capture exists only for an assigned shipment after an explicit driver action and device permission; background tracking is not enabled.
