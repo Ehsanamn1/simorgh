@@ -166,7 +166,7 @@ begin
   insert into public.audit_events(company_id,actor_id,table_name,record_id,action,changes)
   values (
     _company,(select auth.uid()),'inventory_movements',v_id,'insert',
-    jsonb_build_object('product_id',_product,'movement_type',_movement_type,'quantity',_quantity,'reference_code',nullif(trim(coalesce(_reference_code),''),''))
+    jsonb_build_object('product_id',_product,'movement_type',_movement_type,'quantity',_quantity,'reference_code',nullif(trim(coalesce(_reference_code,'')),''))
   );
 
   return v_id;
