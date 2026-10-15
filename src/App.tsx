@@ -386,11 +386,11 @@ function Dashboard({ membership }: { membership: Membership }) {
     {error && <InlineError error={error} retry={() => void load()}/>}
     <div className="tower-freshness"><span className="tower-live-dot"/><span>آخرین دریافت: {lastUpdated ? dateTimeFa(lastUpdated) : 'در انتظار دریافت'}</span><span>این نما از داده‌ی نمایشی استفاده نمی‌کند.</span></div>
     <section className="stats-grid tower-stats">
-      <Stat label="سفارش‌ها" value={loading ? '—' : numberFa(counts.orders)} note="رکوردهای این مجموعه" icon={FileText}/>
-      <Stat label="مشتریان" value={loading ? '—' : numberFa(counts.customers)} note="حساب‌های ثبت‌شده" icon={Users} tone="blue"/>
-      <Stat label="تأمین‌کنندگان" value={loading ? '—' : numberFa(counts.suppliers)} note="شبکه تأمین ثبت‌شده" icon={Factory} tone="amber"/>
-      <Stat label="ارسال‌های باز" value={loading ? '—' : numberFa(counts.shipments)} note="تحویل‌نشده و در جریان" icon={Truck} tone="slate"/>
-      <Stat label="بازه‌های ظرفیت" value={loading ? '—' : numberFa(counts.capacity)} note="تأییدشده یا متعهد و جاری" icon={Warehouse}/>
+      <article className="stat-card"><div className="stat-card-top"><span>سفارش‌ها</span><span className="stat-icon"><FileText size={17}/></span></div><b>{loading ? '—' : numberFa(counts.orders)}</b><small>رکوردهای این مجموعه</small></article>
+      <article className="stat-card"><div className="stat-card-top"><span>مشتریان</span><span className="stat-icon"><Users size={17}/></span></div><b>{loading ? '—' : numberFa(counts.customers)}</b><small>حساب‌های ثبت‌شده</small></article>
+      <article className="stat-card"><div className="stat-card-top"><span>تأمین‌کنندگان</span><span className="stat-icon"><Factory size={17}/></span></div><b>{loading ? '—' : numberFa(counts.suppliers)}</b><small>شبکه تأمین ثبت‌شده</small></article>
+      <article className="stat-card"><div className="stat-card-top"><span>ارسال‌های باز</span><span className="stat-icon"><Truck size={17}/></span></div><b>{loading ? '—' : numberFa(counts.shipments)}</b><small>تحویل‌نشده و در جریان</small></article>
+      <article className="stat-card"><div className="stat-card-top"><span>بازه‌های ظرفیت</span><span className="stat-icon"><Warehouse size={17}/></span></div><b>{loading ? '—' : numberFa(counts.capacity)}</b><small>تأییدشده یا متعهد و جاری</small></article>
     </section>
     {counts.orders === 0 && counts.customers === 0 && counts.suppliers === 0 && <div className="tower-onboarding"><ShieldCheck size={18}/><div><b>داده‌ی عملیاتی هنوز ثبت نشده</b><p>برای شروع، محصولات، تأمین‌کنندگان و مشتریان واقعی را ثبت کن. سامانه تا آن زمان عدد ساختگی نمایش نمی‌دهد.</p></div><div className="tower-onboarding-links"><Link to="/app/products">تعریف محصول</Link><Link to="/app/suppliers">ثبت تأمین‌کننده</Link><Link to="/app/customers">ثبت مشتری</Link></div></div>}
     <div className="dashboard-grid tower-main-grid">
