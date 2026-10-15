@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { moneyFa, orderLabel, roleLabel } from '../lib/format';
+import { pageSectionLabel } from '../lib/pageSections';
 
 describe('Simorgh formatting and role labels', () => {
   it('formats Iranian currency with Persian digits and unit', () => {
@@ -13,5 +14,11 @@ describe('Simorgh formatting and role labels', () => {
   it('translates the order workflow states', () => {
     expect(orderLabel.submitted).toBe('ثبت‌شده');
     expect(orderLabel.delivered).toBe('تحویل‌شده');
+  });
+  it('uses readable Persian section labels in the operational workspace', () => {
+    expect(pageSectionLabel('CONTROL CENTER / 01')).toBe('نمای کلی شبکه');
+    expect(pageSectionLabel('FINANCE / RECONCILIATION')).toBe('مالی و تسویه');
+    expect(pageSectionLabel('SUPPLIER / CAPACITY')).toBe('ظرفیت تأمین‌کننده');
+    expect(pageSectionLabel('فضای تازه')).toBe('فضای تازه');
   });
 });
