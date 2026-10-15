@@ -1,5 +1,6 @@
 const pageSectionLabels: Record<string, string> = {
   'CONTROL CENTER / 01': 'نمای کلی شبکه',
+  'MANAGEMENT / OBJECTIVES': 'اهداف مدیریتی',
   'SALES / ORDERS': 'فروش و سفارش‌ها',
   'SUPPLY / CAPACITY': 'ظرفیت تأمین',
   'QUALITY / TRACEABILITY': 'کیفیت و ردیابی',
