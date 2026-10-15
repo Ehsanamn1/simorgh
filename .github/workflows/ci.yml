@@ -39,6 +39,19 @@ jobs:
         env:
           VITE_SUPABASE_URL: https://aoxerjimfiwusidaparx.supabase.co
           VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_oTgVCJWw9BfK-kFUxTcaMQ_aeAUWXC5
+      - name: Verify built assets use the GitHub Pages base path
+        shell: bash
+        run: |
+          if ! grep -Eq 'src="/simorgh/assets/[^"]+\.js"' dist/index.html; then
+            echo "The production entry does not reference a JavaScript bundle under /simorgh/assets/."
+            cat dist/index.html
+            exit 1
+          fi
+          if grep -Eq '(src|href)="/(assets|src)/' dist/index.html; then
+            echo "An app asset points to the domain root instead of the /simorgh/ Pages subpath."
+            cat dist/index.html
+            exit 1
+          fi
       - name: Install Chromium for responsive browser simulation
         run: npx playwright install --with-deps chromium
       - name: Run desktop and mobile browser checks

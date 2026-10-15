@@ -1,5 +1,6 @@
 import { Capacitor } from '@capacitor/core';
 import React from 'react';
+import RuntimeErrorBoundary from './RuntimeErrorBoundary';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { AuthProvider } from './lib/AuthContext';
@@ -16,13 +17,24 @@ if (import.meta.env.PROD && !Capacitor.isNativePlatform() && 'serviceWorker' in 
   });
 }
 
+function BootSignal() {
+  React.useEffect(() => {
+    document.documentElement.dataset.simorghReady = 'true';
+    document.getElementById('app-boot-screen')?.remove();
+  }, []);
+  return null;
+}
+
 createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <BrowserRouter basename={import.meta.env.BASE_URL}>
-      <AuthProvider>
-        <App />
-        <ProductExperience />
-      </AuthProvider>
-    </BrowserRouter>
+    <RuntimeErrorBoundary>
+      <BrowserRouter basename={import.meta.env.BASE_URL}>
+        <AuthProvider>
+          <BootSignal />
+          <App />
+          <ProductExperience />
+        </AuthProvider>
+      </BrowserRouter>
+    </RuntimeErrorBoundary>
   </React.StrictMode>,
 );

@@ -553,3 +553,54 @@ html:not([data-theme="light"]) .sim-preview-map-frame iframe{
 html[data-theme="light"] .sim-preview-map-frame iframe{
   filter:saturate(.72) contrast(.96);
 }
+
+
+/* Four-item mobile navigation and deliberate quick-action surface. */
+.sim-preview-quick-access{margin:0 0 13px;padding:12px;border:1px solid var(--obs-border);border-radius:14px;background:linear-gradient(145deg,var(--obs-surface),color-mix(in srgb,var(--obs-surface) 75%,var(--obs-elevated)));box-shadow:var(--obs-shadow)}
+.sim-preview-quick-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}
+.sim-preview-quick-heading>div{display:flex;align-items:center;gap:9px;min-width:0}
+.sim-preview-quick-heading h3{margin:0;color:var(--obs-text);font-size:11px;font-weight:850}
+.sim-preview-quick-heading p{margin:2px 0 0;color:var(--obs-subtle);font-size:9px}
+.sim-preview-quick-heading>span{display:inline-flex;align-items:center;gap:5px;flex:none;color:var(--obs-subtle);font-size:8px}
+.sim-preview-quick-heading>span svg{color:var(--obs-accent-2)}
+.sim-preview-quick-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px}
+.sim-preview-quick-card{display:flex;align-items:center;gap:10px;min-width:0;min-height:65px;padding:10px;border:1px solid var(--obs-border);border-radius:11px;background:var(--obs-bg);text-align:right;cursor:pointer;transition:transform 160ms ease,border-color 160ms ease,background 160ms ease,box-shadow 160ms ease}
+.sim-preview-quick-card:hover{transform:translateY(-2px);border-color:var(--obs-accent-2);background:var(--obs-surface-2);box-shadow:0 9px 20px rgb(0 0 0 / 13%)}
+.sim-preview-quick-icon{display:grid;place-items:center;flex:none;width:36px;height:36px;border:1px solid var(--obs-border);border-radius:10px;background:var(--obs-elevated);color:var(--obs-accent)}
+.sim-preview-quick-card.tone-blue .sim-preview-quick-icon{color:var(--obs-accent-2)}
+.sim-preview-quick-card.tone-amber .sim-preview-quick-icon{color:var(--obs-warning)}
+.sim-preview-quick-card.tone-slate .sim-preview-quick-icon{color:var(--obs-highlight)}
+.sim-preview-quick-copy{display:grid;gap:2px;min-width:0;flex:1}
+.sim-preview-quick-copy b{overflow:hidden;color:var(--obs-text);font-size:10px;font-weight:800;text-overflow:ellipsis;white-space:nowrap}
+.sim-preview-quick-copy small{overflow:hidden;color:var(--obs-subtle);font-size:8px;text-overflow:ellipsis;white-space:nowrap}
+.sim-preview-quick-arrow{flex:none;color:var(--obs-subtle);transition:transform 160ms,color 160ms}
+.sim-preview-quick-card:hover .sim-preview-quick-arrow{transform:translate(-2px,-2px);color:var(--obs-accent)}
+html[data-theme="light"] .sim-preview-quick-access{background:linear-gradient(145deg,#FFF,#F3F7F7)}
+html[data-theme="light"] .sim-preview-quick-card{background:#F8FAFA}
+html[data-theme="light"] .sim-preview-quick-card:hover{background:#EEF5F3}
+@media(max-width:1050px){
+ .sim-preview-quick-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:700px){
+ .sim-preview-quick-access{padding:10px;margin-bottom:10px}
+ .sim-preview-quick-heading h3{font-size:10px}
+ .sim-preview-quick-heading p{font-size:8px}
+ .sim-preview-quick-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
+ .sim-preview-quick-card{min-height:62px;padding:8px;gap:8px}
+ .sim-preview-quick-icon{width:31px;height:31px}
+ .sim-preview-quick-copy b{font-size:9px}
+ .sim-preview-quick-copy small{font-size:7px}
+ .sim-preview-quick-arrow{width:12px;height:12px}
+ .sim-preview-bottom-nav{grid-template-columns:repeat(4,minmax(0,1fr))}
+}
+
+
+/* No silent black canvas if a client-side component throws after startup. */
+.sim-runtime-error{min-height:100dvh;display:grid;place-items:center;padding:24px;background:radial-gradient(ellipse at 50% 15%,rgb(112 154 168 / 11%),transparent 45%),var(--obs-bg);color:var(--obs-text)}
+.sim-runtime-error-card{display:flex;flex-direction:column;align-items:center;gap:12px;width:min(100%,440px);padding:clamp(24px,5vw,38px);border:1px solid var(--obs-border);border-radius:22px;background:var(--obs-surface);box-shadow:var(--obs-shadow-raised);text-align:center}
+.sim-runtime-error-mark{display:grid;place-items:center;width:53px;height:53px;border:1px solid var(--obs-border);border-radius:16px;background:var(--obs-elevated);color:var(--obs-accent);font-weight:900;font-size:25px}
+.sim-runtime-error-eyebrow{font:9px ui-monospace,Consolas,monospace;letter-spacing:.12em;color:var(--obs-accent-2);direction:ltr}
+.sim-runtime-error-card h1{margin:0;font-size:21px}
+.sim-runtime-error-card p{margin:0;color:var(--obs-muted);font-size:11px;line-height:2}
+.sim-runtime-error-card button{width:100%;min-height:46px;border:1px solid var(--obs-accent);border-radius:11px;background:var(--obs-accent);color:#071311;font:inherit;font-weight:850;cursor:pointer}
+.sim-runtime-error-card small{color:var(--obs-subtle);font-size:9px;line-height:1.8}

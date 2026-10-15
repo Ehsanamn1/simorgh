@@ -131,7 +131,24 @@ function NetworkMap({ expanded = false }: { expanded?: boolean }) {
   </section>;
 }
 
-function ControlTower({ navigate }: { navigate: (page: PreviewPage) => void }) {
+
+function QuickAccess({ navigate, role }: { navigate: (page: PreviewPage) => void; role: PreviewRole }) {
+  const operationPage: PreviewPage = role === 'driver' ? 'driver' : role === 'farm' ? 'farm' : 'orders';
+  const actions: { key: PreviewPage; title: string; description: string; icon: typeof Home; tone: string }[] = [
+    { key: operationPage, title: role === 'driver' ? 'مأموریت‌های حمل' : role === 'farm' ? 'کارهای مزرعه' : 'پیگیری سفارش‌ها', description: 'ورود مستقیم به عملیات', icon: role === 'driver' ? Truck : role === 'farm' ? Factory : ClipboardCheck, tone: 'teal' },
+    { key: 'inventory', title: 'انبار و خرید', description: 'موجودی و گردش کالا', icon: Warehouse, tone: 'blue' },
+    { key: 'map', title: 'نقشه‌ی شبکه', description: 'راهنمای جغرافیایی', icon: MapPin, tone: 'amber' },
+    { key: 'finance', title: 'مالی و تسویه', description: 'صورت مالی مشارکت', icon: CreditCard, tone: 'slate' },
+  ];
+  return <section className="sim-preview-quick-access" aria-label="دسترسی سریع">
+    <div className="sim-preview-quick-heading"><div><span className="sim-preview-section-id">↗</span><div><h3>دسترسی سریع</h3><p>بخش‌های پرکاربرد، یک لمس تا مقصد</p></div></div><span><Activity size={13}/> میان‌برهای اپ</span></div>
+    <div className="sim-preview-quick-grid">
+      {actions.map(action => { const Icon = action.icon; return <button type="button" key={action.title} className={`sim-preview-quick-card tone-${action.tone}`} onClick={() => navigate(action.key)}><span className="sim-preview-quick-icon"><Icon size={18}/></span><span className="sim-preview-quick-copy"><b>{action.title}</b><small>{action.description}</small></span><ArrowUpLeft className="sim-preview-quick-arrow" size={15}/></button>; })}
+    </div>
+  </section>;
+}
+
+function ControlTower({ navigate, role }: { navigate: (page: PreviewPage) => void; role: PreviewRole }) {
   return <>
     <div className="sim-preview-page-heading"><div><span className="sim-preview-eyebrow">EXECUTIVE / DAILY OPERATIONS</span><h1>مرکز فرمان شبکه</h1><p>نمای کلان عملیات، از تولید و تأمین تا تحویل و تسویه.</p></div><div className="sim-preview-heading-meta"><span className="sim-preview-readonly"><ShieldCheck size={14}/> پیش‌نمایش فقط‌خواندنی</span><small>برای مشاهده‌ی داده‌های شرکت، دسترسی امن در مرحله‌ی پایانی فعال می‌شود.</small></div></div>
     <div className="sim-preview-metric-grid">
@@ -148,6 +165,7 @@ function ControlTower({ navigate }: { navigate: (page: PreviewPage) => void }) {
         <div className="sim-preview-chart-legend"><span><i className="production-dot"/> تولید ثبت‌شده</span><span><i className="sales-dot"/> سفارش تکمیل‌شده</span><small>هیچ سری داده‌ای به‌صورت نمایشی رسم نشده است.</small></div>
       </section>
     </div>
+    <QuickAccess navigate={navigate} role={role}/>
     <div className="sim-preview-secondary-grid">
       <section className="sim-preview-panel"><div className="sim-preview-panel-head"><div><span className="sim-preview-section-id">۰۳</span><div><h3>سفارش‌های اخیر</h3><p>جدیدترین سفارش‌ها و موعد تحویل</p></div></div><button type="button" className="sim-preview-text-link" onClick={() => navigate('orders')}>همه سفارش‌ها <ArrowLeft size={13}/></button></div><EmptyState icon={FileText} title="سفارشی برای نمایش بارگذاری نشده" description="پس از اتصال نشست مجاز، سفارش‌ها، مشتری، مبلغ و وضعیت واقعی اینجا نمایش داده می‌شوند."/></section>
       <section className="sim-preview-panel"><div className="sim-preview-panel-head"><div><span className="sim-preview-section-id">۰۴</span><div><h3>وضعیت ظرفیت شبکه</h3><p>ظرفیت تأییدشده در برابر تعهدها</p></div></div></div><EmptyState icon={Gauge} title="ظرفیت واقعی در دسترس نیست" description="درصد بهره‌برداری یا کمبود ظرفیت بدون رکورد معتبر محاسبه نمی‌شود."/></section>
@@ -247,7 +265,7 @@ export default function PreviewWorkspace() {
   };
   const visibleGroups = navGroups.map(group => ({ ...group, items: group.items.filter(item => !search || item.label.toLowerCase().includes(search.toLowerCase()) || pageInfo[item.key].title.toLowerCase().includes(search.toLowerCase())) })).filter(group => group.items.length);
 
-  const content = page === 'command' ? <ControlTower navigate={goTo}/>
+  const content = page === 'command' ? <ControlTower navigate={goTo} role={role}/>
     : page === 'farm' ? <FarmPreview/>
       : page === 'driver' ? <DriverPreview/>
         : page === 'customer' ? <CustomerPreview navigate={goTo}/>
@@ -278,7 +296,10 @@ export default function PreviewWorkspace() {
       </section>
     </div>
     <nav className="sim-preview-bottom-nav" aria-label="ناوبری موبایل">
-      {[{key:'command' as PreviewPage,label:'خانه',icon:Home},{key:role==='driver'?'driver' as PreviewPage:role==='farm'?'farm' as PreviewPage:'orders' as PreviewPage,label:role==='driver'?'حمل':role==='farm'?'وظایف':'عملیات',icon:ClipboardCheck},{key:'map' as PreviewPage,label:'نقشه',icon:MapPin},{key:'finance' as PreviewPage,label:'مالی',icon:CreditCard},{key:'settings' as PreviewPage,label:'بیشتر',icon:Layers3}].map(item=>{const Icon=item.icon;return <button key={item.label} type="button" className={page===item.key?'active':''} onClick={()=>goTo(item.key)}><Icon size={18}/><span>{item.label}</span></button>;})}
+      <button type="button" className={page === 'command' ? 'active' : ''} onClick={() => goTo('command')}><Home size={19}/><span>خانه</span></button>
+      <button type="button" className={page === (role === 'driver' ? 'driver' : role === 'farm' ? 'farm' : 'orders') ? 'active' : ''} onClick={() => goTo(role === 'driver' ? 'driver' : role === 'farm' ? 'farm' : 'orders')}><ClipboardCheck size={19}/><span>{role === 'driver' ? 'حمل' : role === 'farm' ? 'وظایف' : 'عملیات'}</span></button>
+      <button type="button" className={page === 'map' ? 'active' : ''} onClick={() => goTo('map')}><MapPin size={19}/><span>نقشه</span></button>
+      <button type="button" className={mobileSidebar ? 'active' : ''} onClick={() => setMobileSidebar(true)} aria-label="بیشتر و همه‌ی بخش‌ها"><Menu size={19}/><span>بیشتر</span></button>
     </nav>
   </main>;
 }
