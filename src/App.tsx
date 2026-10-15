@@ -232,7 +232,7 @@ function WorkspacePortal() {
         <div className="portal-preview-private"><ShieldCheck size={17}/><span>محدوده خصوصی هر مجموعه</span></div>
       </div>
       <div className="portal-preview-main">
-        <div className="portal-preview-topline"><span>پیش‌نمایش ساختار · بدون داده واقعی</span><span className="portal-preview-disabled">ورود و ثبت‌نام فعلاً غیرفعال است</span></div>
+        <div className="portal-preview-topline"><span>پیش‌نمایش ساختار · بدون داده واقعی</span><span className="portal-preview-disabled">ورود امن فقط برای کاربران دعوت‌شده</span></div>
         <div className="portal-preview-heading"><div><span className="portal-overline">{selected.eyebrow}</span><h2>{selected.title}</h2><p>{selected.description}</p></div><span className="portal-preview-role-icon"><PreviewIcon size={25}/></span></div>
         <div className="portal-preview-capabilities">
           {selected.capabilities.map((cap,index)=>{const CapIcon=cap.icon;return <article key={cap.title} className="portal-capability" style={{animationDelay:`${index*70}ms`}}><span><CapIcon size={19}/></span><b>{cap.title}</b><p>{cap.description}</p></article>;})}
