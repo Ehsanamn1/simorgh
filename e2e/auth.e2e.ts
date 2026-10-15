@@ -42,3 +42,24 @@ test('role selection opens an explicit non-operational preview, not private data
   await page.getByRole('button', { name: /بازگشت به انتخاب نقش/ }).click();
   await expect(page.getByRole('heading', { name: 'برای هر نقش، فضای خودش' })).toBeVisible();
 });
+
+
+test('direct navigation to a protected app route cannot open an operational panel without a session', async ({ page }) => {
+  const pageErrors: string[] = [];
+  page.on('pageerror', error => pageErrors.push(error.message));
+  await page.goto('/simorgh/app/dashboard', { waitUntil: 'domcontentloaded' });
+
+  await expect(page.locator('.portal')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'برای هر نقش، فضای خودش' })).toBeVisible();
+  await expect(page.locator('.app-frame, .waiting-screen')).toHaveCount(0);
+  await expect(page.locator('input[type="password"], input[type="email"]')).toHaveCount(0);
+
+  const dimensions = await page.evaluate(() => ({
+    viewport: window.innerWidth,
+    document: document.documentElement.scrollWidth,
+    body: document.body.scrollWidth,
+  }));
+  expect(dimensions.document).toBeLessThanOrEqual(dimensions.viewport);
+  expect(dimensions.body).toBeLessThanOrEqual(dimensions.viewport);
+  expect(pageErrors).toEqual([]);
+});
