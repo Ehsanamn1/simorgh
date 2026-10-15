@@ -21,7 +21,7 @@ for (const panel of panels) {
     await expect(page.getByRole('heading', { name: panel.title })).toBeVisible();
     await expect(page.getByRole('navigation', { name: /منوی پیش‌نمایش/ })).toBeVisible();
     await expect(page.getByText('ورود و ثبت‌نام فعلاً غیرفعال است')).toBeVisible();
-    await expect(page.getByText(panel.item, { exact: true })).toBeVisible();
+    await expect(page.locator('.portal-capability').getByText(panel.item, { exact: true })).toBeVisible();
     await expect(page.getByText('نمای ساختاری، نه پنل عملیاتی')).toBeVisible();
     expect(errors).toEqual([]);
   });
