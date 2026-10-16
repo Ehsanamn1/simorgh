@@ -42,7 +42,7 @@ const navDefinitions: { key: PageKey; label: string; group: string; icon: typeof
   { key: 'supplier-settlement', label: 'تسویه‌های من', group: 'تأمین', icon: CreditCard, roles: ['supplier'] },
   { key: 'driver-work', label: 'محموله‌های من', group: 'ارسال', icon: Truck, roles: ['driver'] },
   { key: 'farm-sites', label: 'سایت‌های مزرعه', group: 'تولید مزرعه', icon: Warehouse, roles: ['owner', 'admin', 'staff', 'supplier'] },
-  { key: 'flock-cycles', label: 'چرخه‌های گله', group: 'تولید مزرعه', icon: Factory, roles: ['owner', 'admin', 'staff', 'supplier'] },
+  { key: 'flock-cycles', label: 'چرخه‌های پرورش', group: 'تولید مزرعه', icon: Factory, roles: ['owner', 'admin', 'staff', 'supplier'] },
   { key: 'production-batches', label: 'بچ‌های تولید', group: 'تولید مزرعه', icon: Package, roles: ['owner', 'admin', 'staff', 'supplier'] },
   { key: 'daily-production', label: 'ثبت روزانه تولید', group: 'تولید مزرعه', icon: Activity, roles: ['owner', 'admin', 'staff', 'supplier'] },
   { key: 'task-templates', label: 'دستورالعمل‌های کاری', group: 'وظایف و رخدادها', icon: ClipboardCheck, roles: ['owner', 'admin'] },
