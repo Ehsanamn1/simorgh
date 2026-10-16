@@ -609,7 +609,7 @@ function GoalsPage({membership,search}:{membership:Membership;search:string}) {
     <label>مقدار فعلی ثبت‌شده<input type="number" min="0" step="0.001" required value={form.current_value} onChange={e=>setForm({...form,current_value:e.target.value})}/></label>
     <label>شروع بازه<input type="date" value={form.period_start} onChange={e=>setForm({...form,period_start:e.target.value})}/></label>
     <label>موعد هدف<input type="date" value={form.due_date} onChange={e=>setForm({...form,due_date:e.target.value})}/></label>
-    <label className="full-span">مسئول<select value={form.owner_user_id} onChange={e=>setForm({...form,owner_user_id:e.target.value})}><option value="">تعیین‌نشده</option>{members.map(m=><option key={String(m.user_id)} value={String(m.user_id)}>{String(m.full_name??m.email??m.user_id)} · {roleLabel[String(m.role)]??String(m.role)}</option>)}</select></label>
+    <label className="full-span">مسئول<select value={form.owner_user_id} onChange={e=>setForm({...form,owner_user_id:e.target.value})}><option value="">تعیین‌نشده</option>{members.filter(m=>m.active===true&&['owner','admin','staff'].includes(String(m.role))).map(m=><option key={String(m.user_id)} value={String(m.user_id)}>{String(m.full_name??m.email??m.user_id)} · {roleLabel[String(m.role)]??String(m.role)}</option>)}</select></label>
     <label className="full-span">توضیحات<textarea rows={3} maxLength={3000} value={form.description} onChange={e=>setForm({...form,description:e.target.value})} placeholder="محدوده، پیش‌نیاز، معیار تأیید و گام بعدی…"/></label>
     <div className="modal-actions"><Button variant="soft" onClick={()=>setOpen(false)}>انصراف</Button><Button type="submit" disabled={busy}>{busy?'در حال ذخیره…':'ذخیره هدف'}</Button></div>
    </form>
