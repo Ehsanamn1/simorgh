@@ -54,8 +54,12 @@ test('password recovery opens without exposing a public registration path', asyn
 
 test('company signup sends validated details to Supabase and handles email confirmation', async ({ page }) => {
   const signupPayloads: Record<string, unknown>[] = [];
+  const signupRedirects: string[] = [];
   await page.route('**/auth/v1/signup**', async route => {
     const payload = route.request().postDataJSON() as Record<string, unknown>;
+    const requestHeaders = route.request().headers();
+    const requestUrl = new URL(route.request().url());
+    signupRedirects.push(requestHeaders.redirectto ?? requestUrl.searchParams.get('redirect_to') ?? '');
     signupPayloads.push(payload);
     const userMetadata = (payload.data ?? {}) as Record<string, unknown>;
     const userId = '00000000-0000-4000-8000-000000000901';
@@ -101,5 +105,6 @@ test('company signup sends validated details to Supabase and handles email confi
     phone: '09120000000',
     signup_workspace_pending: true,
   });
-  expect(signupPayloads[0].emailRedirectTo).toContain('/simorgh/#signin');
+  expect(signupRedirects).toHaveLength(1);
+  expect(signupRedirects[0]).toContain('/simorgh/#signin');
 });
