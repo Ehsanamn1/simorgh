@@ -14,6 +14,8 @@ test('the operations control tower has real-data placeholders, map, goals and qu
   await expect(page.locator('.ops-live-map-frame iframe')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'مرکز فرمان شبکه' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'اهداف و مسیر اجرا' })).toBeVisible();
+  await expect(page.locator('.ops-live-roadmap-step')).toHaveCount(4);
+  await expect(page.locator('.ops-live-flow-stage')).toHaveCount(5);
   await expect(page.locator('.sim-preview-palette')).toHaveCount(0);
 
   await page.screenshot({ path: testInfo.outputPath('simorgh-control-tower-desktop.png') });

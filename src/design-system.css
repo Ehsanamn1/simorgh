@@ -847,3 +847,51 @@ html[data-theme="light"] .tower-goal-dot{background:#edf4f3}
  .tower-goal-main b{font-size:9px}
  .tower-goal-main small{font-size:7px}
 }
+
+
+/* Manager control tower: operations flow and goal execution framework. */
+.ops-live-flow{margin:0 0 14px;overflow:hidden;border:1px solid var(--ol-border);border-radius:14px;background:linear-gradient(145deg,var(--ol-surface),color-mix(in srgb,var(--ol-surface) 65%,var(--ol-surface2)));box-shadow:var(--obs-shadow)}
+.ops-live-flow-track{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));padding:17px 14px 13px;direction:rtl}
+.ops-live-flow-stage{position:relative;display:grid;justify-items:center;align-content:start;gap:6px;min-width:0;padding:0 8px;text-align:center}
+.ops-live-flow-icon{display:grid;place-items:center;width:42px;height:42px;border:1px solid var(--ol-border);border-radius:13px;background:var(--ol-raised);color:var(--ol-accent);box-shadow:0 6px 15px rgb(0 0 0 / 10%)}
+.ops-live-flow-stage:nth-child(2) .ops-live-flow-icon{color:var(--obs-accent-2)}
+.ops-live-flow-stage:nth-child(3) .ops-live-flow-icon{color:var(--obs-highlight)}
+.ops-live-flow-stage:nth-child(4) .ops-live-flow-icon{color:var(--obs-warning)}
+.ops-live-flow-stage:nth-child(5) .ops-live-flow-icon{color:var(--obs-positive)}
+.ops-live-flow-stage>small{color:var(--ol-subtle);font:9px ui-monospace,Consolas,monospace}
+.ops-live-flow-stage>b{color:var(--ol-text);font-size:10px;font-weight:850}
+.ops-live-flow-stage>span:not(.ops-live-flow-icon){color:var(--ol-subtle);font-size:8px;line-height:1.7}
+.ops-live-flow-connector{position:absolute;top:20px;left:calc(100% - 2px);right:auto;width:clamp(12px,3vw,52px);height:1px;background:linear-gradient(90deg,var(--ol-accent-2),var(--ol-border));opacity:.75}
+.ops-live-flow-connector:after{content:"";position:absolute;left:0;top:-2px;width:4px;height:4px;border-top:1px solid var(--ol-accent-2);border-left:1px solid var(--ol-accent-2);transform:rotate(-45deg)}
+.ops-live-flow-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 14px;border-top:1px solid var(--ol-border);color:var(--ol-subtle);font-size:8px;line-height:1.7}
+.ops-live-flow-foot>span:first-child{display:flex;align-items:center;gap:6px;white-space:nowrap}
+.ops-live-flow-foot svg{color:var(--ol-accent-2);flex:none}
+.ops-live-roadmap{display:flex;flex-direction:column;gap:14px;padding:14px 15px 13px;min-height:100%;background:linear-gradient(145deg,transparent,rgb(112 154 168 / 3%))}
+.ops-live-roadmap-intro{display:flex;align-items:flex-start;gap:10px}
+.ops-live-roadmap-intro>span{display:grid;place-items:center;flex:none;width:33px;height:33px;border:1px solid var(--ol-border);border-radius:10px;background:var(--ol-raised);color:var(--ol-accent)}
+.ops-live-roadmap-intro>div{min-width:0}
+.ops-live-roadmap-intro b{font-size:10px;color:var(--ol-text);font-weight:850}
+.ops-live-roadmap-intro p{margin:3px 0 0;color:var(--ol-subtle);font-size:8px;line-height:1.8}
+.ops-live-roadmap-steps{display:grid;gap:0}
+.ops-live-roadmap-step{position:relative;display:flex;align-items:flex-start;gap:10px;padding:7px 0;min-width:0}
+.ops-live-roadmap-step>span{position:relative;z-index:1;display:grid;place-items:center;flex:none;width:26px;height:26px;border:1px solid var(--ol-border);border-radius:8px;background:var(--ol-raised);color:var(--ol-accent-2);font-size:9px;font-weight:850}
+.ops-live-roadmap-step>div{display:grid;gap:2px;min-width:0;padding-top:1px}
+.ops-live-roadmap-step b{color:var(--ol-text);font-size:9px;font-weight:800}
+.ops-live-roadmap-step small{color:var(--ol-subtle);font-size:8px;line-height:1.7}
+.ops-live-roadmap-step>i{position:absolute;right:12px;top:32px;bottom:-6px;width:1px;background:var(--ol-border)}
+.ops-live-roadmap-link{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:36px;margin-top:auto;padding:0 10px;border:1px solid var(--ol-border);border-radius:9px;background:var(--ol-surface2);color:var(--ol-accent);font-size:9px;font-weight:800;cursor:pointer;transition:border-color .15s,background .15s}
+.ops-live-roadmap-link:hover{border-color:var(--ol-accent-2);background:var(--ol-raised)}
+html[data-theme="light"] .ops-live-flow{background:linear-gradient(145deg,#fff,#f5f8f8)}
+html[data-theme="light"] .ops-live-flow-icon,html[data-theme="light"] .ops-live-roadmap-step>span,html[data-theme="light"] .ops-live-roadmap-intro>span{background:#f0f5f4}
+@media(max-width:700px){
+ .ops-live-flow-track{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 4px;padding:12px 8px}
+ .ops-live-flow-stage{padding:6px 4px}
+ .ops-live-flow-stage:last-child{grid-column:1/-1}
+ .ops-live-flow-connector{display:none}
+ .ops-live-flow-icon{width:36px;height:36px;border-radius:11px}
+ .ops-live-flow-stage>b{font-size:9px}
+ .ops-live-flow-stage>span:not(.ops-live-flow-icon){font-size:7px}
+ .ops-live-flow-foot{align-items:flex-start;flex-direction:column;gap:3px;padding:9px 11px;font-size:7px}
+ .ops-live-roadmap{padding:11px}
+}
+
