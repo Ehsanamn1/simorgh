@@ -495,7 +495,7 @@ app.post('/api/operations/operational-tasks/:id/evidence', async c => {
     if(!taskRows[0])return jsonError(c,'وظیفه پیدا نشد.',404);
     const task=taskRows[0] as {id:string;assignee_supplier_id:string|null;assignee_user_id:string|null;status:string};
     if(membership.role==='supplier'&&task.assignee_supplier_id!==membership.supplier_id)return jsonError(c,'این وظیفه به تأمین‌کننده شما تخصیص داده نشده است.',403);
-    if(membership.role==='staff'&&task.assignee_user_id&&task.assignee_user_id!==user.id)return jsonError(c,'این وظیفه به شما تخصیص داده نشده است.',403);
+    if(membership.role==='staff'&&task.assignee_user_id!==user.id)return jsonError(c,'این وظیفه به شما تخصیص داده نشده است.',403);
     let path:string|null=null;
     if(file){
       if(!c.env.EVIDENCE_BUCKET)return jsonError(c,'ذخیره‌سازی فایل R2 پیکربندی نشده است.',503);
@@ -629,7 +629,7 @@ app.get('/api/operations/:kind', async c => {
       queryRows(sql,`SELECT id,name,city,active FROM public.suppliers WHERE ${supplierFilter} ORDER BY name LIMIT 300`,supplierParams),
       queryRows(sql,`SELECT id,site_code,name,supplier_id,active FROM public.farm_sites WHERE ${membership.role==='supplier'&&membership.supplier_id?'company_id=$1 AND supplier_id=$2':'company_id=$1'} ORDER BY name LIMIT 300`,membership.role==='supplier'&&membership.supplier_id?[companyId,membership.supplier_id]:[companyId]),
       queryRows(sql,`SELECT id,batch_code,farm_site_id,supplier_id,status,production_kind,unit FROM public.production_batches WHERE ${membership.role==='supplier'&&membership.supplier_id?'company_id=$1 AND supplier_id=$2':'company_id=$1'} ORDER BY created_at DESC LIMIT 300`,membership.role==='supplier'&&membership.supplier_id?[companyId,membership.supplier_id]:[companyId]),
-      membership.role==='supplier'?Promise.resolve([]):queryRows(sql,`SELECT id,template_code,version,title,instructions,category,priority,evidence_required,expected_evidence_types,status FROM public.task_templates WHERE company_id=$1 ORDER BY created_at DESC LIMIT 200`,[companyId]),
+      membership.role==='supplier'?Promise.resolve([]):queryRows(sql,`SELECT id,template_code,version,title,instructions,category,priority,evidence_required,expected_evidence_types,status FROM public.task_templates WHERE company_id=$1 AND (status='approved' OR $2::text IN ('owner','admin')) ORDER BY created_at DESC LIMIT 200`,[companyId,membership.role]),
       queryRows(sql,`SELECT id,supplier_id,agreement_code,version,status,effective_from,effective_to,shared_expense_categories,settlement_basis,company_profit_share_pct,partner_profit_share_pct FROM public.partnership_agreements WHERE ${membership.role==='supplier'&&membership.supplier_id?'company_id=$1 AND supplier_id=$2':'company_id=$1'} ORDER BY created_at DESC LIMIT 200`,membership.role==='supplier'&&membership.supplier_id?[companyId,membership.supplier_id]:[companyId]),
       queryRows(sql,`SELECT id,agreement_id,supplier_id,entry_type,status,amount,paid_amount,external_reference,recognized_on FROM public.partner_financial_entries WHERE ${membership.role==='supplier'&&membership.supplier_id?'company_id=$1 AND supplier_id=$2':'company_id=$1'} ORDER BY created_at DESC LIMIT 300`,membership.role==='supplier'&&membership.supplier_id?[companyId,membership.supplier_id]:[companyId]),
       queryRows(sql,`SELECT id,name,sku FROM public.products WHERE company_id=$1 ORDER BY name LIMIT 300`,[companyId]),
