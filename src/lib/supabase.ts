@@ -5,7 +5,7 @@ type QueryOptions = {select:string;filters:Filter[];orders:{column:string;ascend
 const API_BASE=(import.meta.env.VITE_API_BASE_URL?.trim()||'').replace(/\/$/,'');
 async function readResult<T>(response:Response):Promise<ApiResult<T>>{
   let body:Record<string,unknown>={};
-  try{body=await response.json() as Record<string,unknown>;}catch{}
+  try{body=await response.json() as Record<string,unknown>;}catch{ /* Non-JSON responses use the empty payload below. */ }
   if(!response.ok){
     const message=typeof body.error==='string'?body.error:typeof body.message==='string'?body.message:'درخواست به سرور انجام نشد.';
     return {data:null,error:{message,code:typeof body.code==='string'?body.code:undefined},count:null};
