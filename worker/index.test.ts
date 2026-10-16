@@ -130,3 +130,12 @@ describe('Medar username authentication primitives', () => {
     expect(response.status).toBe(401);
   });
 });
+
+  it('does not allow changing a password without an authenticated session', async () => {
+    const response = await app.request('/api/auth/change-password', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ currentPassword: 'old-password', newPassword: 'new-password-123' }),
+    });
+    expect(response.status).toBe(401);
+  });
