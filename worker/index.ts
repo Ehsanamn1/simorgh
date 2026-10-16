@@ -78,10 +78,10 @@ function sqlFor(c: any) {
 }
 async function rateLimit(sql: ReturnType<typeof neon>, key: string, maxAttempts: number, windowMinutes: number) {
   const keyHash = await sha256(key);
-  const rows = await sql`INSERT INTO public.medar_rate_limits AS current(key_hash,window_started_at,attempts,updated_at)
+  const rows = await sql`INSERT INTO public.medar_rate_limits AS existing_limit(key_hash,window_started_at,attempts,updated_at)
     VALUES(${keyHash},now(),1,now())
     ON CONFLICT (key_hash) DO UPDATE SET
-      attempts=CASE WHEN current.window_started_at < now()-(${windowMinutes}::int * interval '1 minute') THEN 1 ELSE current.attempts+1 END,
+      attempts=CASE WHEN existing_limit.window_started_at < now()-(${windowMinutes}::int * interval '1 minute') THEN 1 ELSE existing_limit.attempts+1 END,
       window_started_at=CASE WHEN current.window_started_at < now()-(${windowMinutes}::int * interval '1 minute') THEN now() ELSE current.window_started_at END,
       updated_at=now()
     RETURNING attempts`;
