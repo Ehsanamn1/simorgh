@@ -1,7 +1,7 @@
 name: Deploy Medar to Cloudflare Workers
 on:
   push:
-    branches: [main]
+    branches: [main, migration/cloudflare-neon-foundation]
   workflow_dispatch:
 permissions:
   contents: read
@@ -9,7 +9,7 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     env:
-      VITE_NEON_AUTH_URL: https://ep-muddy-dew-baqc0y3p.neonauth.c-8.eu-central-1.aws.neon.tech/neondb/auth
+      VITE_NEON_AUTH_URL: https://ep-wild-mountain-baaweix2.neonauth.c-8.eu-central-1.aws.neon.tech/neondb/auth
       MEDAR_DATABASE_URL: ${{ secrets.MEDAR_DATABASE_URL }}
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -38,4 +38,4 @@ jobs:
         run: printf '%s' "$MEDAR_DATABASE_URL" | npx wrangler@4 secret put DATABASE_URL
       - name: Deploy Worker
         working-directory: worker
-        run: npx wrangler@4 deploy
+        run: npx wrangler@4 deploy --name medar-api-migration
