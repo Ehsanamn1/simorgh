@@ -18,7 +18,7 @@ alter table public.flock_cycles
   add constraint flock_cycles_species_check
   check (length(trim(species)) between 2 and 80);
 alter table public.flock_cycles alter column species set default 'عمومی';
-alter table public.flock_cycles add column if not exists initial_count integer;
+alter table public.flock_cycles add column if not exists initial_count numeric(14,3);
 update public.flock_cycles
   set initial_count = initial_bird_count
   where initial_count is null and initial_bird_count is not null;
