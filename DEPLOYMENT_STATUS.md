@@ -39,6 +39,8 @@ R2 provisioning and the R2 binding have been removed per product decision. File/
 
 The password-change API requires the current password, limits attempts, hashes the replacement, revokes other sessions and records an audit event. The UI requires matching new-password entries and displays server errors.
 
+A subsequent live account-lifecycle smoke attempt ([run 38983200554](https://github.com/Ehsanamn1/simorgh/actions/runs/38983200554)) failed because the workflow script escaped the generated username incorrectly; the initial Worker health/database/auth-guard checks passed. The script was corrected in commit `c9f7772` and its Worker/Simorgh/Android/iOS CI checks are green, but the full live lifecycle test has not yet passed on a rerun.
+
 ## Remaining production-readiness gates
 
 - Test a real temporary account through signup, login, session persistence, password change and logout, plus positive/negative role access cases.
