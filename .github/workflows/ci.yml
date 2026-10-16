@@ -37,7 +37,7 @@ jobs:
       - name: Build the same base path used by GitHub Pages
         run: npm run build:pages
         env:
-          VITE_ENABLE_AUTH_UI: 'false'
+          VITE_ENABLE_AUTH_UI: 'true'
       - name: Verify built assets use the GitHub Pages base path
         shell: bash
         run: |
