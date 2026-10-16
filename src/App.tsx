@@ -5,7 +5,7 @@ import { StatusBar, Style } from '@capacitor/status-bar';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import {
-  Activity, AlertTriangle, ArrowLeft, ArrowUpLeft, Boxes, Building2, Check, CheckCircle2,
+  Activity, AlertTriangle, ArrowLeft, ArrowUpLeft, Boxes, Building2, CalendarDays, Check, CheckCircle2,
   ChevronDown, CircleHelp, ClipboardCheck, CreditCard, Factory, FileCheck2, FileText, LayoutDashboard,
   LogOut, MapPin, Menu, Moon, Package, Plus, RefreshCw, Search, Settings2, ShieldCheck, Sun, Target, Truck, Users, UserPlus, Warehouse, X, Zap,
 } from 'lucide-react';
@@ -587,7 +587,7 @@ function GoalsPage({membership,search}:{membership:Membership;search:string}) {
     return <article className={`goal-card ${overdue?'overdue':''}`} key={String(r.id)}>
      <header className="goal-card-head"><span className="goal-category">{goalCategoryLabels[String(r.category)]??'سایر'}</span><Badge value={goalStatusLabels[String(r.status)]??r.status}/></header>
      <h3>{String(r.title??'هدف بدون عنوان')}</h3>
-     {r.description&&<p className="goal-description">{String(r.description)}</p>}
+     {String(r.description??'').trim()!==''&&<p className="goal-description">{String(r.description)}</p>}
      <div className="goal-progress-meta"><span>پیشرفت ثبت‌شده</span><b>{progress===null?'—':numberFa(String(Math.round(progress)))+'٪'}</b></div>
      <div className="goal-progress-track"><span style={{width:(progress??0)+'%'}}/></div>
      <div className="goal-value-row"><span>مقدار فعلی <b>{numberFa(String(current))}{r.unit?' '+String(r.unit):''}</b></span><span>هدف <b>{numberFa(String(target))}{r.unit?' '+String(r.unit):''}</b></span></div>
