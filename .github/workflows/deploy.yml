@@ -1,10 +1,11 @@
-name: Deploy Simorgh to Cloudflare Pages
+name: Legacy Cloudflare Pages deploy (gated)
 on:
   workflow_dispatch:
 permissions:
   contents: read
 jobs:
   deploy:
+    if: ${{ vars.ENABLE_LEGACY_PAGES_DEPLOY == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -13,13 +14,11 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
           VITE_ENABLE_AUTH_UI: 'true'
         run: |
           set -euo pipefail
           missing=()
-          for key in CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID VITE_SUPABASE_URL VITE_SUPABASE_PUBLISHABLE_KEY; do
+          for key in CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID; do
             if [[ -z "${!key:-}" ]]; then missing+=("$key"); fi
           done
           if (( ${#missing[@]} )); then
@@ -34,8 +33,6 @@ jobs:
       - name: Build production bundle
         run: npm run build
         env:
-          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
       - name: Create Cloudflare Pages project if needed
         continue-on-error: true
         run: npx --yes wrangler@4 pages project create simorgh-network --production-branch main
