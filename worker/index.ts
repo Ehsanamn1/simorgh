@@ -419,5 +419,159 @@ app.post('/api/admin/access-requests/:id/review', async c => {
     return c.json({ ok:true,status });
   } catch { return jsonError(c, 'بررسی درخواست انجام نشد.', 500); }
 });
+type OperationKind = 'farm-sites'|'flock-cycles'|'production-batches'|'daily-production'|'task-templates'|'operational-tasks'|'incidents'|'partnership-agreements'|'partner-finance'|'partner-settlements';
+type OperationConfig = { table:string; fields:string[]; managerOnly?:boolean; readOnly?:boolean };
+const operationConfigs: Record<OperationKind,OperationConfig> = {
+  'farm-sites': {table:'farm_sites',fields:['site_code','name','site_type','supplier_id','province','city','address','registration_reference','license_expires_on','timezone','active','latitude','longitude']},
+  'flock-cycles': {table:'flock_cycles',fields:['farm_site_id','cycle_code','species','arrived_on','planned_end_on','ended_on','initial_bird_count','status','source_reference','notes','cycle_type','initial_quantity','quantity_unit']},
+  'production-batches': {table:'production_batches',fields:['farm_site_id','supplier_id','agreement_id','flock_cycle_id','product_id','lot_id','batch_code','production_kind','status','unit','planned_quantity','produced_quantity','rejected_quantity','started_on','expected_on','completed_on','quality_status','manager_notes']},
+  'daily-production': {table:'daily_production_records',fields:['batch_id','record_date','shift_label','feed_consumed_kg','mortality_count','eggs_collected','eggs_rejected','produced_quantity','average_weight_grams','note','resource_name','input_quantity','input_unit','loss_quantity','loss_unit','rejected_quantity']},
+  'task-templates': {table:'task_templates',fields:['template_code','version','title','instructions','category','priority','evidence_required','expected_evidence_types','status']},
+  'operational-tasks': {table:'operational_tasks',fields:['farm_site_id','batch_id','template_id','assignee_user_id','assignee_supplier_id','title','instructions_snapshot','category','priority','status','due_at','evidence_required','completion_note']},
+  incidents: {table:'operational_incidents',fields:['farm_site_id','batch_id','task_id','reported_supplier_id','severity','category','title','description','status','resolution_note']},
+  'partnership-agreements': {table:'partnership_agreements',fields:['supplier_id','agreement_code','version','status','effective_from','effective_to','company_profit_share_pct','partner_profit_share_pct','shared_expense_categories','settlement_basis','settlement_due_days','terms','signed_document_path','signed_at','supersedes_agreement_id'],managerOnly:true},
+  'partner-finance': {table:'partner_financial_entries',fields:['supplier_id','agreement_id','entry_type','status','direction','amount','paid_amount','currency','expense_category','is_shared_cost','paid_by','payment_status','recognized_on','external_reference','source_table','source_record_id','linked_entry_id','adjustment_effect','notes'],managerOnly:true},
+  'partner-settlements': {table:'partner_settlement_periods',fields:[],managerOnly:true,readOnly:true},
+};
+const supplierReadFilters: Partial<Record<OperationKind,string>> = {
+  'farm-sites':'supplier_id=$2',
+  'flock-cycles':'farm_site_id IN (SELECT id FROM public.farm_sites WHERE company_id=$1 AND supplier_id=$2)',
+  'production-batches':'supplier_id=$2',
+  'daily-production':'batch_id IN (SELECT id FROM public.production_batches WHERE company_id=$1 AND supplier_id=$2)',
+  'operational-tasks':'assignee_supplier_id=$2',
+  incidents:'(reported_supplier_id=$2 OR farm_site_id IN (SELECT id FROM public.farm_sites WHERE company_id=$1 AND supplier_id=$2) OR batch_id IN (SELECT id FROM public.production_batches WHERE company_id=$1 AND supplier_id=$2))',
+  'partnership-agreements':'supplier_id=$2',
+  'partner-finance':'supplier_id=$2',
+  'partner-settlements':'supplier_id=$2',
+};
+async function queryRows(sql: ReturnType<typeof neon>, statement: string, params: unknown[] = []): Promise<Record<string,unknown>[]> {
+  return await sql.query(statement, params) as Record<string,unknown>[];
+}
+async function operationMembership(sql: ReturnType<typeof neon>, userId: string, companyId: string) {
+  const rows=await sql`SELECT role::text AS role,supplier_id,customer_id FROM public.memberships
+    WHERE company_id=${companyId}::uuid AND user_id=${userId}::uuid AND active=true
+    ORDER BY CASE role::text WHEN 'owner' THEN 0 WHEN 'admin' THEN 1 WHEN 'staff' THEN 2 WHEN 'supplier' THEN 3 ELSE 4 END LIMIT 1`;
+  return rows[0] as {role:string;supplier_id:string|null;customer_id:string|null}|undefined;
+}
+function validUuid(value: string) { return /^[0-9a-f-]{36}$/i.test(value); }
+async function sameCompanyRow(sql: ReturnType<typeof neon>, table: string, id: unknown, companyId: string) {
+  if(typeof id!=='string'||!validUuid(id)) return false;
+  const rows=await queryRows(sql,`SELECT id FROM public.${table} WHERE id=$1::uuid AND company_id=$2::uuid LIMIT 1`,[id,companyId]);
+  return rows.length>0;
+}
+app.get('/api/operations/:kind', async c => {
+  let user: AuthUser|null;
+  try{user=await currentUser(c);}catch{return jsonError(c,'پایگاه داده پیکربندی نشده است.',503);}
+  if(!user)return jsonError(c,'برای مشاهده عملیات ابتدا وارد حساب شو.',401);
+  const kind=c.req.param('kind') as OperationKind;
+  const config=operationConfigs[kind];
+  if(!config)return jsonError(c,'بخش عملیاتی پیدا نشد.',404);
+  const companyId=c.req.query('companyId')||'';
+  if(!validUuid(companyId))return jsonError(c,'شناسه مجموعه معتبر نیست.',400);
+  try{
+    const sql=sqlFor(c);
+    const membership=await operationMembership(sql,user.id,companyId);
+    if(!membership||!['owner','admin','staff','supplier'].includes(membership.role))return jsonError(c,'به این بخش عملیاتی دسترسی نداری.',403);
+    const params:unknown[]=[companyId];
+    let where='company_id=$1';
+    if(membership.role==='supplier'){
+      const supplierId=membership.supplier_id;
+      const filter=supplierReadFilters[kind];
+      if(!supplierId||!filter){where+=' AND false';}
+      else{params.push(supplierId);where+=' AND '+filter;}
+    }
+    const main=await queryRows(sql,`SELECT * FROM public.${config.table} WHERE ${where} ORDER BY created_at DESC NULLS LAST LIMIT 200`,params);
+    const supplierParams:unknown[]=[companyId];
+    let supplierFilter='company_id=$1';
+    if(membership.role==='supplier'&&membership.supplier_id){supplierParams.push(membership.supplier_id);supplierFilter+=' AND id=$2';}
+    const [suppliers,sites,batches,templates,agreements,financeEntries,products]=await Promise.all([
+      queryRows(sql,`SELECT id,name,city,active FROM public.suppliers WHERE ${supplierFilter} ORDER BY name LIMIT 300`,supplierParams),
+      queryRows(sql,`SELECT id,site_code,name,supplier_id,active FROM public.farm_sites WHERE ${membership.role==='supplier'&&membership.supplier_id?'company_id=$1 AND supplier_id=$2':'company_id=$1'} ORDER BY name LIMIT 300`,membership.role==='supplier'&&membership.supplier_id?[companyId,membership.supplier_id]:[companyId]),
+      queryRows(sql,`SELECT id,batch_code,farm_site_id,supplier_id,status,production_kind,unit FROM public.production_batches WHERE ${membership.role==='supplier'&&membership.supplier_id?'company_id=$1 AND supplier_id=$2':'company_id=$1'} ORDER BY created_at DESC LIMIT 300`,membership.role==='supplier'&&membership.supplier_id?[companyId,membership.supplier_id]:[companyId]),
+      membership.role==='supplier'?Promise.resolve([]):queryRows(sql,`SELECT id,template_code,version,title,instructions,category,priority,evidence_required,expected_evidence_types,status FROM public.task_templates WHERE company_id=$1 ORDER BY created_at DESC LIMIT 200`,[companyId]),
+      queryRows(sql,`SELECT id,supplier_id,agreement_code,version,status,effective_from,effective_to,shared_expense_categories,settlement_basis,company_profit_share_pct,partner_profit_share_pct FROM public.partnership_agreements WHERE ${membership.role==='supplier'&&membership.supplier_id?'company_id=$1 AND supplier_id=$2':'company_id=$1'} ORDER BY created_at DESC LIMIT 200`,membership.role==='supplier'&&membership.supplier_id?[companyId,membership.supplier_id]:[companyId]),
+      queryRows(sql,`SELECT id,agreement_id,supplier_id,entry_type,status,amount,paid_amount,external_reference,recognized_on FROM public.partner_financial_entries WHERE ${membership.role==='supplier'&&membership.supplier_id?'company_id=$1 AND supplier_id=$2':'company_id=$1'} ORDER BY created_at DESC LIMIT 300`,membership.role==='supplier'&&membership.supplier_id?[companyId,membership.supplier_id]:[companyId]),
+      queryRows(sql,`SELECT id,name,sku FROM public.products WHERE company_id=$1 ORDER BY name LIMIT 300`,[companyId]),
+    ]);
+    return c.json({rows:main,refs:{suppliers,sites,batches,templates,agreements,financeEntries,products}});
+  }catch{return jsonError(c,'خواندن عملیات انجام نشد. طرح دیتابیس و دسترسی مجموعه را بررسی کن.',500);}
+});
+app.post('/api/operations/:kind', async c => {
+  let user: AuthUser|null;
+  try{user=await currentUser(c);}catch{return jsonError(c,'پایگاه داده پیکربندی نشده است.',503);}
+  if(!user)return jsonError(c,'برای ثبت عملیات ابتدا وارد حساب شو.',401);
+  const kind=c.req.param('kind') as OperationKind,config=operationConfigs[kind];
+  if(!config)return jsonError(c,'بخش عملیاتی پیدا نشد.',404);
+  if(config.readOnly||kind==='partner-settlements')return jsonError(c,'این بخش فقط از گردش‌کار تأییدشده قابل تغییر است.',405);
+  let data:Record<string,unknown>;
+  try{data=await c.req.json();}catch{return jsonError(c,'بدنه درخواست معتبر نیست.',400);}
+  const companyId=typeof data.company_id==='string'?data.company_id:'';
+  if(!validUuid(companyId))return jsonError(c,'شناسه مجموعه معتبر نیست.',400);
+  try{
+    const sql=sqlFor(c),membership=await operationMembership(sql,user.id,companyId);
+    if(!membership||!['owner','admin','staff'].includes(membership.role))return jsonError(c,'برای ثبت این عملیات مجوز نداری.',403);
+    if(config.managerOnly&&!['owner','admin'].includes(membership.role))return jsonError(c,'ثبت این سند فقط برای مالک یا مدیر مجاز است.',403);
+    const fields=config.fields.filter(field=>Object.prototype.hasOwnProperty.call(data,field));
+    if(!fields.length)return jsonError(c,'هیچ فیلد قابل ثبت ارسال نشده است.',400);
+    const values=fields.map(field=>data[field]);
+    const creatorColumn=kind==='daily-production'?'recorded_by':kind==='operational-tasks'?'assigned_by':kind==='incidents'?'reported_by':'created_by';
+    const insertFields=['company_id',...fields];
+    const insertValues:unknown[]=[companyId,...values];
+    if(!fields.includes(creatorColumn)&&['recorded_by','assigned_by','reported_by','created_by'].includes(creatorColumn)){insertFields.push(creatorColumn);insertValues.push(user.id);}
+    if(kind==='farm-sites'&&Boolean(data.latitude)!==Boolean(data.longitude))return jsonError(c,'برای ثبت مختصات، عرض و طول جغرافیایی باید با هم وارد شوند.',400);
+    if(kind==='partnership-agreements'){
+      const companyShare=Number(data.company_profit_share_pct),partnerShare=Number(data.partner_profit_share_pct);
+      if(Math.abs(companyShare+partnerShare-100)>0.0001)return jsonError(c,'مجموع سهم شرکت و شریک باید ۱۰۰ درصد باشد.',400);
+      if(!Array.isArray(data.shared_expense_categories)||!data.shared_expense_categories.length)return jsonError(c,'حداقل یک دسته هزینه مشترک انتخاب کن.',400);
+    }
+    if(kind==='partner-finance'){
+      const amount=Number(data.amount),paid=Number(data.paid_amount||0),entryType=String(data.entry_type||'');
+      if(!Number.isFinite(amount)||amount<=0||paid<0||paid>amount)return jsonError(c,'مبلغ سند یا مبلغ پرداخت‌شده معتبر نیست.',400);
+      if(['sale_collection','partner_advance'].includes(entryType)&&(!String(data.external_reference||'').trim()||paid!==amount))return jsonError(c,'دریافت و پیش‌پرداخت باید با مبلغ کامل و مرجع واقعی ثبت شوند.',400);
+      if(entryType==='sale_collection'&&!data.linked_entry_id)return jsonError(c,'دریافت فروش باید به فاکتور واقعی متصل باشد.',400);
+    }
+    const placeholders=insertValues.map((_,index)=>'$'+(index+1)).join(',');
+    const query=`INSERT INTO public.${config.table} (${insertFields.join(',')}) VALUES (${placeholders}) RETURNING *`;
+    const result=await queryRows(sql,query,insertValues);
+    const row=result[0];
+    if(!row)return jsonError(c,'ثبت رکورد انجام نشد.',500);
+    await sql`INSERT INTO public.medar_audit_log(actor_user_id,action,entity_type,entity_id,metadata)
+      VALUES(${user.id}::uuid,'operation.created',${config.table},${String(row.id)},jsonb_build_object('company_id',${companyId},'kind',${kind}))`;
+    return c.json({row},201);
+  }catch(error){
+    const message=error instanceof Error?error.message:'';
+    if(message.includes('duplicate key')||message.includes('unique constraint'))return jsonError(c,'کد یا رکورد تکراری است.',409);
+    if(message.includes('foreign key'))return jsonError(c,'یکی از ارجاع‌ها متعلق به این مجموعه نیست.',400);
+    return jsonError(c,'ثبت عملیات انجام نشد. داده‌ها و محدودیت‌های عملیاتی را بررسی کن.',400);
+  }
+});
+app.post('/api/operations/:kind/:id/update', async c => {
+  let user:AuthUser|null;
+  try{user=await currentUser(c);}catch{return jsonError(c,'پایگاه داده پیکربندی نشده است.',503);}
+  if(!user)return jsonError(c,'برای ویرایش عملیات ابتدا وارد حساب شو.',401);
+  const kind=c.req.param('kind') as OperationKind,config=operationConfigs[kind];
+  if(!config||config.readOnly||kind==='partner-settlements')return jsonError(c,'این بخش فقط از گردش‌کار اختصاصی قابل تغییر است.',405);
+  let data:Record<string,unknown>;
+  try{data=await c.req.json();}catch{return jsonError(c,'بدنه درخواست معتبر نیست.',400);}
+  const companyId=typeof data.companyId==='string'?data.companyId:'';
+  if(!validUuid(companyId)||!validUuid(c.req.param('id')))return jsonError(c,'شناسه مجموعه یا رکورد معتبر نیست.',400);
+  try{
+    const sql=sqlFor(c),membership=await operationMembership(sql,user.id,companyId);
+    if(!membership||!['owner','admin','staff'].includes(membership.role))return jsonError(c,'برای ویرایش این عملیات مجوز نداری.',403);
+    if(config.managerOnly&&!['owner','admin'].includes(membership.role))return jsonError(c,'ویرایش این سند فقط برای مالک یا مدیر مجاز است.',403);
+    const blocked=new Set(['id','company_id','created_by','created_at','updated_at','recorded_by','assigned_by','reported_by','reviewed_by','reviewed_at','status','paid_amount','payment_status','posted_by','posted_at','approved_by','approved_at','settled_by','settled_at']);
+    const fields=config.fields.filter(field=>Object.prototype.hasOwnProperty.call(data,field)&&!blocked.has(field));
+    if(!fields.length)return jsonError(c,'هیچ فیلد قابل ویرایش ارسال نشده است.',400);
+    const values=fields.map(field=>data[field]);
+    const setClause=fields.map((field,index)=>field+'=$'+(index+1)).join(',');
+    const params=[...values,companyId,c.req.param('id')];
+    const query=`UPDATE public.${config.table} SET ${setClause},updated_at=now() WHERE company_id=$${values.length+1}::uuid AND id=$${values.length+2}::uuid RETURNING *`;
+    const result=await queryRows(sql,query,params);
+    if(!result[0])return jsonError(c,'رکورد پیدا نشد یا اجازه ویرایش آن را نداری.',404);
+    await sql`INSERT INTO public.medar_audit_log(actor_user_id,action,entity_type,entity_id,metadata)
+      VALUES(${user.id}::uuid,'operation.updated',${config.table},${c.req.param('id')},jsonb_build_object('company_id',${companyId},'fields',${fields}))`;
+    return c.json({row:result[0]});
+  }catch{return jsonError(c,'ویرایش عملیات انجام نشد.',400);}
+});
 app.notFound(c => c.env.ASSETS ? c.env.ASSETS.fetch(c.req.raw) : c.json({ message:'مسیر پیدا نشد.' },404));
 export default app;
