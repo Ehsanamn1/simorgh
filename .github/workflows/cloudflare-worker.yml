@@ -19,6 +19,11 @@ jobs:
       - run: npm run lint
       - run: npm run test
       - run: npm run build
+      - name: Apply Neon foundation schema
+        if: ${{ secrets.MEDAR_DATABASE_URL != '' }}
+        env:
+          MEDAR_DATABASE_URL: ${{ secrets.MEDAR_DATABASE_URL }}
+        run: psql "$MEDAR_DATABASE_URL" -v ON_ERROR_STOP=1 -f worker/migrations/0001_foundation.sql
       - name: Deploy Worker
         working-directory: worker
         env:
