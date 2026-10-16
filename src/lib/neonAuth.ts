@@ -26,9 +26,12 @@ function shapeUser(user: SessionUser | null | undefined) {
   if (!user) return null;
   return { ...user, user_metadata: { ...user.user_metadata, full_name: user.displayName, phone: user.phone, requested_role: user.requestedRole } };
 }
-
+type SignupInput = {
+  username: string; password: string;
+  options?: { data?: Record<string, unknown> };
+};
 export const isNeonAuthConfigured = true;
-/** Compatibility surface for the existing UI; identity is served by the Medar Pages API, not Neon Auth. */
+/** Compatibility surface for the existing UI; all identity operations use the Medar Worker and username, never email. */
 export const neonAuth = {
   async getSession() {
     const result = await request<{ user: SessionUser | null }>('/api/auth/me');
@@ -43,19 +46,20 @@ export const neonAuth = {
     window.addEventListener('medar-auth-change', handler);
     return { data: { subscription: { unsubscribe: () => window.removeEventListener('medar-auth-change', handler) } } };
   },
-  async signInWithPassword({ email, password }: { email: string; password: string }): Promise<AuthResult> {
-    const result = await request<{ user: SessionUser }>('/api/auth/login', { username: email.trim(), password });
+  async signInWithPassword({ username, password }: { username: string; password: string }): Promise<AuthResult> {
+    const result = await request<{ user: SessionUser }>('/api/auth/login', { username: username.trim(), password });
     const user = shapeUser(result.data?.user);
     if (user) notify('SIGNED_IN', { user });
     return { data: { user, session: user ? { user } : null }, error: result.error };
   },
-  async signUp(input: { email: string; password: string; options?: { data?: Record<string, unknown>; emailRedirectTo?: string } }): Promise<AuthResult> {
+  async signUp(input: SignupInput): Promise<AuthResult> {
     const metadata = input.options?.data ?? {};
     const result = await request<{ user: SessionUser }>('/api/auth/signup', {
-      username: input.email.trim(),
+      username: input.username.trim(),
       password: input.password,
       phone: metadata.phone,
-      displayName: metadata.full_name,
+      displayName: metadata.full_name ?? metadata.displayName,
+      organizationName: metadata.organizationName ?? metadata.organization_name,
       requestedRole: metadata.requested_role || 'customer',
     });
     const user = shapeUser(result.data?.user);
@@ -67,12 +71,11 @@ export const neonAuth = {
     notify('SIGNED_OUT', null);
     return { error: result.error };
   },
-  async resetPasswordForEmail(_username?: string, _options?: { redirectTo?: string }) {
-    void _username; void _options;
-    return { error: { name: 'AuthError', message: 'بازیابی رمز عبور در نسخه بدون ایمیل فعال نیست.' } as AuthError };
+  async changePassword({ currentPassword, newPassword }: { currentPassword: string; newPassword: string }) {
+    return request<{ ok: boolean; message: string }>('/api/auth/change-password', { currentPassword, newPassword });
   },
-  async updateUser(_data?: { password?: string }) {
-    void _data;
-    return { error: { name: 'AuthError', message: 'تغییر رمز عبور در این نسخه هنوز پیاده‌سازی نشده است.' } as AuthError };
+  async resetPasswordForUsername(_username?: string) {
+    void _username;
+    return { error: { name: 'AuthError', message: 'برای بازیابی رمز عبور، فعلاً باید مالک مجموعه پس از احراز هویت کاربر رمز را بازنشانی کند.' } as AuthError };
   },
 };
