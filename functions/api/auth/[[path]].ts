@@ -4,7 +4,7 @@ type Env = { DATABASE_URL?: string; MEDAR_SESSION_DAYS?: string };
 type PagesContext = { request: Request; env: Env; waitUntil?: (promise: Promise<unknown>) => void };
 type AuthUser = { id: string; username: string; phone_e164: string; display_name: string; requested_role: string; account_status: string };
 const COOKIE = 'medar_session';
-const ITERATIONS = 210_000;
+const ITERATIONS = 600_000;
 const encoder = new TextEncoder();
 
 function json(data: unknown, status = 200, headers: HeadersInit = {}) {
@@ -40,7 +40,7 @@ async function passwordHash(password: string, salt = randomToken(16)) {
 }
 async function verifyPassword(password: string, stored: string) {
   const [algorithm, rounds, salt, expected] = stored.split('$');
-  if (algorithm !== 'pbkdf2' || !Number.isInteger(Number(rounds)) || Number(rounds) < 100_000 || !salt || !expected) return false;
+  if (algorithm !== 'pbkdf2' || !Number.isInteger(Number(rounds)) || Number(rounds) < 100_000 || Number(rounds) > 1_000_000 || !salt || !expected) return false;
   const key = await crypto.subtle.importKey('raw', encoder.encode(password), 'PBKDF2', false, ['deriveBits']);
   const bits = await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: fromBase64url(salt), iterations: Number(rounds) }, key, 256);
   const actual = new Uint8Array(bits);
