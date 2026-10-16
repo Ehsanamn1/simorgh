@@ -64,3 +64,38 @@ jobs:
       - name: Deploy site
         id: deployment
         uses: actions/deploy-pages@v4
+
+      - name: Smoke-test the published HTML, CSS, and JavaScript
+        shell: bash
+        env:
+          SITE_URL: ${{ steps.deployment.outputs.page_url }}
+        run: |
+          set -euo pipefail
+          html_file="$(mktemp)"
+          css_file="$(mktemp)"
+          js_file="$(mktemp)"
+          curl --fail --silent --show-error --location --retry 8 --retry-all-errors --retry-delay 3 "$SITE_URL" -o "$html_file"
+          grep -q 'id="root"' "$html_file"
+          grep -q 'id="app-boot-screen"' "$html_file"
+          js_path="$(grep -oE 'src="[^"]+\\.js"' "$html_file" | head -n 1 | cut -d '"' -f 2)"
+          css_path="$(grep -oE 'href="[^"]+\\.css"' "$html_file" | head -n 1 | cut -d '"' -f 2)"
+          if [[ -z "$js_path" || -z "$css_path" ]]; then
+            echo "Published HTML is missing its JavaScript or CSS bundle reference."
+            cat "$html_file"
+            exit 1
+          fi
+          origin="$(python3 -c 'import os, urllib.parse; u=urllib.parse.urlparse(os.environ["SITE_URL"]); print(f"{u.scheme}://{u.netloc}")')"
+          asset_url() {
+            case "$1" in
+              http://*|https://*) printf '%s' "$1" ;;
+              /*) printf '%s%s' "$origin" "$1" ;;
+              *) printf '%s/%s' "${SITE_URL%/}" "$1" ;;
+            esac
+          }
+          curl --fail --silent --show-error --location --retry 5 --retry-all-errors --retry-delay 2 "$(asset_url "$js_path")" -o "$js_file"
+          curl --fail --silent --show-error --location --retry 5 --retry-all-errors --retry-delay 2 "$(asset_url "$css_path")" -o "$css_file"
+          test -s "$js_file"
+          test -s "$css_file"
+          grep -q 'مرکز فرمان شبکه' "$js_file"
+          grep -q 'ops-live-app' "$css_file"
+          echo "Published app entry, JavaScript bundle, and CSS bundle are reachable."
