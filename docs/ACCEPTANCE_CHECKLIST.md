@@ -32,8 +32,8 @@ This checklist follows the Simorgh master product/architecture prompt. It distin
 
 - [ ] Create/invite the trusted first owner through a controlled Supabase Dashboard process.
 - [ ] Deliberately grant and verify the first owner membership for شبکه سیمرغ.
-- [ ] Reintroduce a deliberate authentication/onboarding path when the owner requests activation; forms are intentionally disabled right now.
-- [ ] Verify login/session behavior, sign-out, email verification and password recovery once those UI flows are enabled.
+- [x] Add a secure sign-in entry and password-recovery UI for provisioned accounts; public self-registration remains disabled.
+- [ ] Verify actual Supabase login/session, sign-out, email verification and password recovery with provisioned test accounts.
 - [ ] Test RLS and API/RPC authorization with separate owner, staff, supplier, driver and customer test accounts.
 - [ ] Prove that a customer cannot read another customer's order; a supplier cannot read another farm's private records; a driver cannot access an unassigned trip; and direct ID changes do not bypass access checks.
 - [ ] Verify private Storage upload/download and signed access with role-specific test accounts.
