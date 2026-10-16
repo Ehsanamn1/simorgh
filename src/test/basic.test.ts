@@ -19,6 +19,9 @@ describe('Simorgh formatting and role labels', () => {
     expect(pageSectionLabel('CONTROL CENTER / 01')).toBe('نمای کلی شبکه');
     expect(pageSectionLabel('FINANCE / RECONCILIATION')).toBe('مالی و تسویه');
     expect(pageSectionLabel('SUPPLIER / CAPACITY')).toBe('ظرفیت تأمین‌کننده');
+    expect(pageSectionLabel('farm_sites')).toBe('مزارع و واحدها');
+    expect(pageSectionLabel('audit_events')).toBe('تاریخچه‌ی ممیزی');
+    expect(pageSectionLabel('company_goals')).toBe('اهداف مجموعه');
     expect(pageSectionLabel('فضای تازه')).toBe('فضای تازه');
   });
 });
