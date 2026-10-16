@@ -145,7 +145,6 @@ function FarmMapPanel({sites,schemaWarning}:{sites:Row[];schemaWarning:string}) 
   useEffect(() => {
     setSelectedId(old => mapped.some(site => String(site.id) === old) ? old : String(mapped[0]?.id ?? ''));
   }, [mapped]);
-  const selected = mapped.find(site => String(site.id) === selectedId);
   const bounds = useMemo(() => {
     const clampLatitude = (value:number) => Math.min(85.0511,Math.max(-85.0511,value));
     if (!mapped.length) return {west:0,east:1,south:-1,north:1};
