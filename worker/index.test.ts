@@ -33,6 +33,29 @@ describe('Medar username authentication primitives', () => {
     expect(response.status).toBe(401);
   });
 
+  it('does not expose member lists without a session', async () => {
+    const response = await app.request('/api/workspace/members?companyId=00000000-0000-4000-8000-000000000001');
+    expect(response.status).toBe(401);
+  });
+
+  it('does not grant memberships without a session', async () => {
+    const response = await app.request('/api/workspace/members', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ companyId: '00000000-0000-4000-8000-000000000001', username: 'test_user', role: 'admin' }),
+    });
+    expect(response.status).toBe(401);
+  });
+
+  it('does not allow access-request reviews without a session', async () => {
+    const response = await app.request('/api/admin/access-requests/00000000-0000-4000-8000-000000000001/review', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ decision: 'approve' }),
+    });
+    expect(response.status).toBe(401);
+  });
+
   it('does not accept role requests without a session', async () => {
     const response = await app.request('/api/access-requests', {
       method: 'POST',
