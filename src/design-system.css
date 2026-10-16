@@ -1009,3 +1009,9 @@ html[data-theme="light"] .tower-onboarding{border-color:#D4E1DD;background:linea
 html[data-theme="light"] .tower-onboarding-links a{border-color:#C4DAD3;background:#EAF3F0}
 html[data-theme="light"] .tower-onboarding-links a:hover{background:#DFEEE8;border-color:var(--obs-accent)}
 html[data-theme="light"] .ops-live-app{background:#F4F7F7;color:#172326}
+
+
+.signin-owner-guide{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:4px 8px;margin-top:11px;color:var(--obs-subtle);font-size:10px;line-height:1.9;text-align:center}
+.signin-owner-guide a{color:var(--obs-accent);font-weight:800;text-decoration:none;text-underline-offset:3px}
+.signin-owner-guide a:hover{text-decoration:underline}
+html[data-theme="light"] .signin-owner-guide{color:var(--obs-muted)}
