@@ -156,7 +156,7 @@ app.post('/api/auth/login', async c => {
   if (!/^[a-zA-Z0-9_.-]{3,32}$/.test(username) || !password || password.length > 128) return jsonError(c, 'نام کاربری یا رمز عبور نادرست است.', 401);
   try {
     const sql = sqlFor(c);
-    const attempts = await sql`SELECT count(*)::int AS count FROM public.medar_login_attempts WHERE username_normalized=${username} AND succeeded=false AND succeeded = false AND attempted_at>now()-interval '15 minutes'`;
+    const attempts = await sql`SELECT count(*)::int AS count FROM public.medar_login_attempts WHERE username_normalized=${username} AND succeeded = false AND attempted_at>now()-interval '15 minutes'`;
     if (Number((attempts[0] as {count:number}).count) >= 10) return jsonError(c, 'تلاش‌های ورود بیش از حد است. ۱۵ دقیقه دیگر دوباره تلاش کنید.', 429);
     const rows = await sql`SELECT id,username,phone_e164,display_name,requested_role,account_status,password_hash
       FROM public.medar_users WHERE username_normalized=${username} LIMIT 1`;
