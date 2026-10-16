@@ -37,9 +37,12 @@ const statusFa: Record<string,string> = {
   draft:'پیش‌نویس', pending_signature:'در انتظار امضا', active:'فعال', suspended:'معلق', expired:'منقضی',
   terminated:'خاتمه‌یافته', planned:'برنامه‌ریزی‌شده', in_progress:'در حال انجام', submitted:'ارسال برای بررسی',
   approved:'تأییدشده', rejected:'ردشده', completed:'تکمیل‌شده', on_hold:'متوقف', cancelled:'لغوشده',
-  eggs:'تخم‌مرغ', meat:'گوشت', crop:'کشت و زراعت', livestock:'دام', poultry:'طیور', dairy:'لبنیات',
-  aquaculture:'آبزی‌پروری', honey:'عسل و زنبورداری', forestry:'جنگل‌داری', greenhouse:'گلخانه',
-  orchard:'باغداری', apiary:'زنبورستان', mixed:'ترکیبی', other:'سایر', not_inspected:'بازرسی‌نشده', passed:'قبول',
+  farm_product:'محصول مزرعه', crop:'کشت و زراعت', livestock:'دام', poultry:'طیور', dairy:'لبنیات',
+  eggs:'تخم‌مرغ', meat:'گوشت', aquaculture:'آبزی‌پروری', honey:'عسل', forestry:'جنگل‌داری',
+  greenhouse:'گلخانه', orchard:'باغداری', apiary:'زنبورستان', processing:'فرآوری',
+  warehouse:'انبار', distribution:'توزیع', input:'نهاده و ورودی', feed:'خوراک',
+  equipment:'تجهیزات', processed:'محصول فرآوری‌شده', service:'خدمت',
+  mixed:'ترکیبی', other:'سایر', not_inspected:'بازرسی‌نشده', passed:'قبول',
   pending_review:'در انتظار بازبینی', open:'باز', investigating:'در حال بررسی', action_required:'نیازمند اقدام',
   resolved:'رفع‌شده', closed:'بسته', sale_invoice:'فاکتور فروش', sale_collection:'دریافت فروش',
   expense:'هزینه', partner_advance:'پیش‌پرداخت شریک', settlement_payment:'پرداخت تسویه',
@@ -335,15 +338,22 @@ export function OperationsWorkspacePage({kind,membership,search}:{kind:Operation
     }else if(kind==='daily-production'){
       const selectedBatch=refs.batches.find(r=>String(r.id)===str('batch_id'));
       const productionKind=String(selectedBatch?.production_kind??'');
-      const animalKinds=['livestock','poultry','dairy','aquaculture','eggs','meat'];
+      const animalKinds=['livestock','poultry','dairy','aquaculture'];
       const produced=num('produced_quantity');
       const rejected=num('rejected_quantity')??0;
-      payload={...base,batch_id:str('batch_id'),record_date:str('record_date'),shift_label:str('shift_label')||'daily',
-        resource_name:str('resource_name')||null,input_quantity:num('input_quantity')??0,input_unit:str('input_unit')||'کیلوگرم',
-        loss_quantity:num('loss_quantity')??0,loss_unit:str('loss_unit')||'عدد',rejected_quantity:rejected,
-        feed_consumed_kg:0,mortality_count:animalKinds.includes(productionKind)?Math.trunc(num('loss_quantity')??0):0,
-        eggs_collected:productionKind==='eggs'&&produced!==null?Math.trunc(produced):0,
-        eggs_rejected:productionKind==='eggs'?Math.trunc(rejected):0,
+      const inputName=str('resource_name').toLocaleLowerCase();
+      const inputQuantity=num('input_quantity')??0;
+      const inputUnit=str('input_unit')||'کیلوگرم';
+      const lossQuantity=num('loss_quantity')??0;
+      const lossUnit=str('loss_unit')||'عدد';
+      const isEggCount=productionKind==='eggs'&&String(selectedBatch?.unit??'')==='عدد';
+      payload={...base,batch_id:str('batch_id'),record_date:str('record_date'),shift_label:str('shift_label')||'روزانه',
+        resource_name:str('resource_name')||null,input_quantity:inputQuantity,input_unit:inputUnit,
+        loss_quantity:lossQuantity,loss_unit:lossUnit,rejected_quantity:rejected,
+        feed_consumed_kg:['خوراک','feed'].includes(inputName)&&inputUnit==='کیلوگرم'?inputQuantity:0,
+        mortality_count:animalKinds.includes(productionKind)&&lossUnit==='عدد'?Math.trunc(lossQuantity):0,
+        eggs_collected:isEggCount&&produced!==null?Math.trunc(produced):0,
+        eggs_rejected:isEggCount?Math.trunc(rejected):0,
         produced_quantity:produced,average_weight_grams:null,note:str('note')||null,recorded_by:membership.user_id};
     }else if(kind==='task-templates'){
       payload={...base,template_code:str('template_code'),version:num('version')??1,title:str('title'),instructions:str('instructions'),
