@@ -14,7 +14,6 @@ import { supabase, isSupabaseConfigured } from './lib/supabase';
 import { pageSectionLabel } from './lib/pageSections';
 import { goalProgressPercent, isGoalOverdue } from './lib/goals';
 import { OperationsWorkspacePage } from './OperationsPages';
-import OperationalWorkspace from './OperationalWorkspace';
 import { SimorghLogo as Logo } from './SimorghLogo';
 import type { AppRole, Membership, PageKey, Row } from './lib/types';
 import { dateFa, dateTimeFa, moneyFa, numberFa, orderLabel, roleLabel, statusLabel, statusTone } from './lib/format';
@@ -734,11 +733,10 @@ function SupplierSettlementPage({membership,search}:{membership:Membership;searc
 
 function WorkspaceGate() {
   const { user, loading } = useAuth();
-  // Authenticated sessions enter the role-filtered app, including the access-request
-  // flow for users without a membership. Guests see the secure sign-in layer.
-  return user
-    ? <AppShell/>
-    : <OperationalWorkspace authLoading={loading} hasMembership={false}/>;
+  // Never render an operational shell for guests. Restore a stored session first;
+  // then AppShell handles real memberships and ProductExperience handles secure sign-in.
+  if (!user && loading) return <LoadingScreen label="در حال بررسی نشست امن…"/>;
+  return user ? <AppShell/> : null;
 }
 
 export default function App() {
