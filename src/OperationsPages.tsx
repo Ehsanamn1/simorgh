@@ -454,57 +454,54 @@ export function OperationsWorkspacePage({kind,membership,search}:{kind:Operation
   };
   const createPeriod=async(e:FormEvent<HTMLFormElement>)=>{
     e.preventDefault();
-    if(!supabase||!draft.agreement_id||!periodStart||!periodEnd){setError('قرارداد و بازه تاریخ را کامل کن.');return;}
+    if(!draft.agreement_id||!periodStart||!periodEnd){setError('قرارداد و بازه تاریخ را کامل کن.');return;}
     setBusy(true);setError('');setNotice('');
-    const result=await supabase.rpc('create_partner_settlement_period',{_agreement:String(draft.agreement_id),_period_start:periodStart,_period_end:periodEnd});
-    setBusy(false);if(result.error){setError(result.error.message);return;}
-    setOpenForm(false);setDraft({});setNotice('دوره پیش‌نویس از اسناد واقعی ایجاد شد.');await load();
+    try{
+      await api.post('/api/operations/settlements',{companyId:membership.company_id,agreementId:String(draft.agreement_id),periodStart,periodEnd});
+      setOpenForm(false);setDraft({});setNotice('دوره پیش‌نویس از دفتر مالی واقعی ایجاد شد.');await load();
+    }catch(caught){setError(caught instanceof Error?caught.message:'ایجاد دوره تسویه انجام نشد.');}
+    finally{setBusy(false);}
   };
   const openPeriod=()=>{
     const first=refs.agreements.find(a=>['active','suspended','expired','terminated'].includes(String(a.status)));
     setDraft({agreement_id:first?.id?String(first.id):''});setPeriodStart('');setPeriodEnd('');setError('');setOpenForm(true);
   };
-  const refreshPeriod=(row:Row)=>void action(()=>supabase?supabase.rpc('refresh_partner_settlement_period',{_period:String(row.id)}):Promise.resolve({error:{message:'Supabase تنظیم نشده است.'}}),'محاسبات دوره از دفتر مالی بازخوانی شد.');
-  const approvePeriod=(row:Row)=>void action(()=>supabase?supabase.rpc('approve_partner_settlement_period',{_period:String(row.id)}):Promise.resolve({error:{message:'Supabase تنظیم نشده است.'}}),'دوره تسویه تأیید و قفل شد.');
+  const refreshPeriod=(row:Row)=>void action(()=>api.post(`/api/operations/partner-settlements/${encodeURIComponent(String(row.id))}/action`,{companyId:membership.company_id,action:'refresh'}),'محاسبات دوره از دفتر مالی بازخوانی شد.');
+  const approvePeriod=(row:Row)=>void action(()=>api.post(`/api/operations/partner-settlements/${encodeURIComponent(String(row.id))}/action`,{companyId:membership.company_id,action:'approve'}),'دوره تسویه تأیید و قفل شد.');
   const payPeriod=async(e:FormEvent<HTMLFormElement>)=>{
-    e.preventDefault();if(!supabase||!paymentPeriod)return;
+    e.preventDefault();if(!paymentPeriod)return;
     setBusy(true);setError('');setNotice('');
-    const result=await supabase.rpc('record_partner_settlement_payment',{_period:String(paymentPeriod.id),_amount:Number(paymentAmount),_payment_reference:paymentRef.trim()});
-    setBusy(false);if(result.error){setError(result.error.message);return;}
-    setPaymentPeriod(null);setPaymentAmount('');setPaymentRef('');setNotice('مرجع پرداخت به دفتر داخلی ثبت شد؛ سامانه وجه را منتقل نمی‌کند.');await load();
+    try{
+      await api.post(`/api/operations/partner-settlements/${encodeURIComponent(String(paymentPeriod.id))}/action`,{companyId:membership.company_id,action:'pay',amount:Number(paymentAmount),paymentReference:paymentRef.trim()});
+      setPaymentPeriod(null);setPaymentAmount('');setPaymentRef('');setNotice('مرجع پرداخت در دفتر مالی ثبت شد؛ انتقال بانکی توسط سامانه اجرا نمی‌شود.');await load();
+    }catch(caught){setError(caught instanceof Error?caught.message:'ثبت پرداخت انجام نشد.');}
+    finally{setBusy(false);}
   };
   const addEvidence=async(e:FormEvent<HTMLFormElement>)=>{
-    e.preventDefault();if(!supabase||!evidenceTask)return;
+    e.preventDefault();if(!evidenceTask)return;
     setBusy(true);setError('');setNotice('');
-    let path:string|null=null;
-    if(evidenceType==='photo'||evidenceType==='document'){
-      if(!evidenceFile){setBusy(false);setError('برای عکس یا سند، فایل انتخاب کن.');return;}
-      const filename=evidenceFile.name.replace(/[^\w.-]/g,'_');
-      path=membership.company_id+'/'+evidenceTask+'/'+Date.now()+'-'+filename;
-      const uploaded=await supabase.storage.from('operational-evidence').upload(path,evidenceFile,{upsert:false,contentType:evidenceFile.type});
-      if(uploaded.error){setBusy(false);setError(uploaded.error.message);return;}
-    }
-    const payload:Record<string,unknown>={company_id:membership.company_id,task_id:evidenceTask,evidence_type:evidenceType,
-      storage_path:path,note:evidenceNote.trim()||null,uploaded_by:membership.user_id,
-      measurement_value:evidenceType==='measurement'?Number(measurement):null,measurement_unit:evidenceType==='measurement'?(unit.trim()||null):null};
-    const result=await supabase.from('task_evidence').insert(payload);
-    setBusy(false);if(result.error){if(path){await supabase.storage.from('operational-evidence').remove([path]);}setError(result.error.message);return;}
-    setEvidenceTask('');setEvidenceType('note');setEvidenceNote('');setMeasurement('');setUnit('');setEvidenceFile(null);
-    setNotice('مدرک به وظیفه متصل شد.');await load();
+    try{
+      const form=new FormData();
+      form.set('evidenceType',evidenceType);form.set('note',evidenceNote.trim());form.set('measurement',measurement);form.set('unit',unit.trim());
+      if(evidenceFile)form.set('file',evidenceFile);
+      await api.upload(`/api/operations/operational-tasks/${encodeURIComponent(evidenceTask)}/evidence?companyId=${encodeURIComponent(membership.company_id)}`,form);
+      setEvidenceTask('');setEvidenceType('note');setEvidenceNote('');setMeasurement('');setUnit('');setEvidenceFile(null);
+      setNotice('مدرک به وظیفه متصل شد.');await load();
+    }catch(caught){setError(caught instanceof Error?caught.message:'ثبت مدرک انجام نشد.');}
+    finally{setBusy(false);}
   };
   const uploadAgreement=async(e:ChangeEvent<HTMLInputElement>)=>{
     const file=e.target.files?.[0];e.target.value='';
-    if(!supabase||!file||!uploadAgreementId)return;
+    if(!file||!uploadAgreementId)return;
     const agreement=rows.find(r=>String(r.id)===uploadAgreementId);if(!agreement){setError('قرارداد پیدا نشد.');return;}
     if(!['application/pdf','image/jpeg','image/png'].includes(file.type)){setError('فقط PDF، JPG و PNG مجاز است.');return;}
     setBusy(true);setError('');setNotice('');
-    const filename=file.name.replace(/[^\w.-]/g,'_');
-    const path=membership.company_id+'/'+String(agreement.supplier_id)+'/'+Date.now()+'-'+filename;
-    const up=await supabase.storage.from('contract-documents').upload(path,file,{upsert:false,contentType:file.type});
-    if(up.error){setBusy(false);setError(up.error.message);return;}
-    const result=await updateRow('partnership_agreements',agreement.id,{signed_document_path:path,signed_at:new Date().toISOString(),status:'active'});
-    setBusy(false);if(result.error){await supabase.storage.from('contract-documents').remove([path]);setError(result.error.message);return;}
-    setUploadAgreementId('');setNotice('سند امضاشده بارگذاری شد؛ فعال‌سازی در دیتابیس کنترل شد.');await load();
+    try{
+      const form=new FormData();form.set('file',file);
+      await api.upload(`/api/operations/partnership-agreements/${encodeURIComponent(String(agreement.id))}/document?companyId=${encodeURIComponent(membership.company_id)}`,form);
+      setUploadAgreementId('');setNotice('سند امضاشده در فضای امن R2 ثبت شد و فعال‌سازی قرارداد در سمت سرور بررسی شد.');await load();
+    }catch(caught){setError(caught instanceof Error?caught.message:'بارگذاری قرارداد انجام نشد.');}
+    finally{setBusy(false);}
   };
 
   const canCreate=()=>{
