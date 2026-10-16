@@ -570,6 +570,7 @@ const dataRelations:Record<string,Record<string,{table:string;parentKey:string;r
   settlements:{suppliers:{table:'suppliers',parentKey:'supplier_id',relatedKey:'id'}},
   shipment_locations:{shipments:{table:'shipments',parentKey:'shipment_id',relatedKey:'id'}},
   delivery_evidence:{shipments:{table:'shipments',parentKey:'shipment_id',relatedKey:'id'}},
+  access_requests:{profiles:{table:'profiles',parentKey:'user_id',relatedKey:'id'}},
 };
 const dataColumnCache=new Map<string,Promise<Set<string>>>();
 async function dataColumns(sql:ReturnType<typeof neon>,table:string):Promise<Set<string>>{
@@ -633,12 +634,16 @@ async function hydrateDataRows(sql:ReturnType<typeof neon>,table:string,rows:Rec
     if(!relation)throw new Error('رابطه داده‌ای مجاز نیست: '+table+'.'+node.name);
     const ids=[...new Set(rows.map(row=>row[relation.parentKey]).filter((id):id is string=>typeof id==='string'&&validUuid(id)))];
     if(!ids.length){for(const row of rows)row[node.alias]=relation.many?[]:null;continue;}
-    const params:unknown[]=[companyId,ids];let extra='';
-    if(membership.role==='supplier'&&relation.table==='order_items'&&membership.supplier_id){params.push(membership.supplier_id);extra+=` AND supplier_id=$${params.length}::uuid`;}
-    if(membership.role==='customer'&&relation.table==='order_items'&&membership.customer_id){params.push(membership.customer_id);extra+=` AND order_id IN (SELECT id FROM public.orders WHERE company_id=$1::uuid AND customer_id=$${params.length}::uuid)`;}
-    if(membership.role==='customer'&&relation.table==='orders'&&membership.customer_id){params.push(membership.customer_id);extra+=` AND customer_id=$${params.length}::uuid`;}
-    if(membership.role==='supplier'&&relation.table==='orders'&&membership.supplier_id){params.push(membership.supplier_id);extra+=` AND EXISTS(SELECT 1 FROM public.order_items oi WHERE oi.company_id=orders.company_id AND oi.order_id=orders.id AND oi.supplier_id=$${params.length}::uuid)`;}
-    const related=await queryRows(sql,`SELECT * FROM public.${relation.table} WHERE company_id=$1::uuid AND ${relation.relatedKey}=ANY($2::uuid[])${extra}`,params);
+    const relatedColumns=await dataColumns(sql,relation.table);
+    const hasCompany=relatedColumns.has('company_id');
+    const params:unknown[]=hasCompany?[companyId,ids]:[ids];let extra='';
+    const companyParam=hasCompany?'$1::uuid':null;
+    const idArrayParam=hasCompany?'$2::uuid[]':'$1::uuid[]';
+    if(hasCompany&&membership.role==='supplier'&&relation.table==='order_items'&&membership.supplier_id){params.push(membership.supplier_id);extra+=` AND supplier_id=${params.length}::uuid`;}
+    if(hasCompany&&membership.role==='customer'&&relation.table==='order_items'&&membership.customer_id){params.push(membership.customer_id);extra+=` AND order_id IN (SELECT id FROM public.orders WHERE company_id=${companyParam} AND customer_id=${params.length}::uuid)`;}
+    if(hasCompany&&membership.role==='customer'&&relation.table==='orders'&&membership.customer_id){params.push(membership.customer_id);extra+=` AND customer_id=${params.length}::uuid`;}
+    if(hasCompany&&membership.role==='supplier'&&relation.table==='orders'&&membership.supplier_id){params.push(membership.supplier_id);extra+=` AND EXISTS(SELECT 1 FROM public.order_items oi WHERE oi.company_id=orders.company_id AND oi.order_id=orders.id AND oi.supplier_id=${params.length}::uuid)`;}
+    const related=await queryRows(sql,`SELECT * FROM public.${relation.table} WHERE ${hasCompany?'company_id=$1::uuid AND ':''}${relation.relatedKey}=ANY(${idArrayParam})${extra}`,params);
     await hydrateDataRows(sql,relation.table,related,node.relations,companyId,membership,userId);
     const byKey=new Map<string,Record<string,unknown>[]>();
     for(const item of related){const key=String(item[relation.relatedKey]??'');const list=byKey.get(key)??[];list.push(item);byKey.set(key,list);}
