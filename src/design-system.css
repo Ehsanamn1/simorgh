@@ -1015,3 +1015,24 @@ html[data-theme="light"] .ops-live-app{background:#F4F7F7;color:#172326}
 .signin-owner-guide a{color:var(--obs-accent);font-weight:800;text-decoration:none;text-underline-offset:3px}
 .signin-owner-guide a:hover{text-decoration:underline}
 html[data-theme="light"] .signin-owner-guide{color:var(--obs-muted)}
+
+
+/* The same custom Medar lockup is used on desktop and mobile sign-in. */
+.simorgh-signin-brand-top .simorgh-lockup{gap:12px}
+.simorgh-signin-brand-top .brand-symbol,
+.signin-form-brand .brand-symbol{
+  display:grid;place-items:center;flex:none;width:48px;height:48px;
+  border:1px solid #385653;border-radius:14px;background:#203536;color:var(--obs-accent);
+}
+.simorgh-signin-brand-top .brand-words b,
+.signin-form-brand .brand-words b{font-size:23px;color:var(--obs-text)}
+.simorgh-signin-brand-top .brand-words small,
+.signin-form-brand .brand-words small{color:var(--obs-muted);font-size:10px}
+.signin-form-brand{display:flex;justify-content:flex-start;margin:0 0 14px}
+.signin-form-brand .simorgh-lockup{gap:11px}
+.signin-form-brand .brand-symbol{width:46px;height:46px}
+.signin-form-brand .brand-words{display:grid;gap:1px}
+html[data-theme="light"] .simorgh-signin-brand-top .brand-symbol,
+html[data-theme="light"] .signin-form-brand .brand-symbol{
+  border-color:#C8DDD7;background:#E6F0ED;color:var(--obs-accent);
+}
