@@ -2,5 +2,10 @@ name = "medar-api"
 main = "index.ts"
 compatibility_date = "2026-10-16"
 
+[assets]
+directory = "../dist"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+
 [vars]
 NEON_AUTH_JWKS_URL = "https://ep-muddy-dew-baqc0y3p.neonauth.c-8.eu-central-1.aws.neon.tech/neondb/auth/.well-known/jwks.json"
