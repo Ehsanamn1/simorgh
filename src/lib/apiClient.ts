@@ -1,4 +1,5 @@
 import { HttpError } from './http';
+import { neonAuth } from './neonAuth';
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL?.trim() || '').replace(/\/$/, '');
 
@@ -25,6 +26,14 @@ export async function apiRequest<T>(
   if (init.body && !headers.has('content-type')) {
     headers.set('content-type', 'application/json');
   }
+
+  let authorization = headers.get('authorization');
+  if (!authorization && neonAuth) {
+    const authResult = await neonAuth.getSession();
+    const session = authResult?.data?.session as { access_token?: string } | undefined;
+    if (session?.access_token) authorization = `Bearer ${session.access_token}`;
+  }
+  if (authorization) headers.set('authorization', authorization);
 
   const response = await fetch(apiUrl(path), {
     ...init,
