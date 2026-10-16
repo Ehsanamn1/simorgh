@@ -5,6 +5,7 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+  pull-requests: write
 jobs:
   verify:
     runs-on: ubuntu-latest
@@ -16,7 +17,18 @@ jobs:
         with:
           node-version: 22
       - run: npm install
-      - run: npm run typecheck
+      - name: Typecheck
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set +e
+          npm run typecheck 2>&1 | tee "$RUNNER_TEMP/typecheck.log"
+          code=${PIPESTATUS[0]}
+          if [ "$code" -ne 0 ]; then
+            gh pr comment "${{ github.event.pull_request.number }}" --body "### Medar typecheck failure\n\n\\`\\`\\`text\n$(cat "$RUNNER_TEMP/typecheck.log")\n\\`\\`\\`" || true
+            exit "$code"
+          fi
       - run: npm run lint
       - run: npm run test
       - run: npm run build
