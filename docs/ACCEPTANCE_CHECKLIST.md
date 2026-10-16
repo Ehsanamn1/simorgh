@@ -1,6 +1,6 @@
 # Simorgh — Acceptance Checklist
 
-**Checked:** 2026-10-15
+**Checked:** 2026-10-16
 **Release commit:** c5c971011b2ba6132527f34519d9b7e5405de22e
 **Latest successful CI:** [Run 38757452211](https://github.com/Ehsanamn1/simorgh/actions/runs/38757452211)
 **Latest successful deployment:** [Run 38757731921](https://github.com/Ehsanamn1/simorgh/actions/runs/38757731921)
@@ -42,9 +42,17 @@ This checklist follows the Simorgh master product/architecture prompt. It distin
 
 ## C. Core product requirements still missing or partial
 
+### Completed in the 2026-10-16 iteration
+- [x] Track the production `general_farm_management` schema in Git and apply a follow-up migration to the connected Supabase project.
+- [x] Generalize farm unit types, production cycle types, production kinds, universal daily inputs/outputs/losses, optional geographic coordinates, and rejected quantity while retaining legacy columns for compatibility.
+- [x] Add a live-data manager map that renders only persisted farm-site coordinates and clearly prompts for coordinates when none are registered.
+- [x] Add a visible secure login entry for pre-provisioned accounts; keep public self-registration disabled.
+- [x] Add browser coverage for generic farm form options and reject invented map pins.
+- [ ] Create the trusted first owner before the authenticated manager panel can be used; the connected project currently has zero Auth users and zero active memberships.
+
 ### Phase 1 — operational integrity
-- [ ] Farm sites, facilities, licenses and versioned partner contracts/amendments.
-- [ ] Flock cycles, production batches, incoming birds, daily production, feed consumption, mortality and egg grading records where applicable.
+- [x] General farm-site records, license fields, and site coordinates; generic cycle/batch categories and daily production input/output/loss records are in the application and schema.
+- [ ] Validate full end-to-end workflows with real owner/member accounts, site/production data, and versioned partner contracts/amendments; incoming livestock and species-specific inspection details still need sector-specific workflow design.
 - [ ] Task templates, scheduling, assignees, due dates, required evidence, review and escalation history.
 - [ ] Inventory transaction ledger, reservations, goods receipts, purchasing and supplier pricing history.
 - [ ] Complete contract-versioned 50/50 partnership financial engine, separating expenses incurred/approved/paid/allocated, invoiced revenue/collected cash, advances, amounts owed, adjustments and actual settlements.
