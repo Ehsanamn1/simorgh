@@ -232,19 +232,28 @@ app.post('/api/access-requests', async c => {
   let data: Record<string, unknown>;
   try { data = await c.req.json(); } catch { return jsonError(c, 'بدنه درخواست معتبر نیست.', 400); }
   const role = typeof data.role === 'string' ? data.role : '';
-  const organization = typeof data.organizationName === 'string' ? data.organizationName.trim().slice(0,160) : null;
+  const organization = typeof data.organizationName === 'string' ? data.organizationName.trim().slice(0,160) : '';
+  const fullName = typeof data.fullName === 'string' && data.fullName.trim() ? data.fullName.trim().slice(0,160) : user.display_name;
+  const phone = typeof data.phone === 'string' && data.phone.trim() ? normalizePhone(data.phone) : user.phone_e164;
   if (!['customer','supplier','driver','staff'].includes(role)) return jsonError(c, 'نقش انتخابی معتبر نیست.', 400);
-  if (!organization || organization.length < 2) return jsonError(c, 'برای این نقش نام شرکت یا مزرعه ضروری است.', 400);
+  if (organization.length < 2) return jsonError(c, 'نام شرکت یا مجموعه هدف ضروری است.', 400);
+  if (fullName.length < 2 || !phone) return jsonError(c, 'نام نمایشی یا شماره تماس معتبر نیست.', 400);
   try {
     const sql = sqlFor(c);
-    const rows = await sql`INSERT INTO public.medar_access_requests(user_id,requested_role,organization_name)
-      VALUES(${user.id}::uuid,${role},${organization})
-      ON CONFLICT(user_id,requested_role,status) DO UPDATE SET organization_name=EXCLUDED.organization_name
+    const companies = await sql`SELECT id FROM public.companies WHERE lower(trim(name))=lower(trim(${organization})) LIMIT 1`;
+    if (!companies[0]) return jsonError(c, 'این مجموعه پیدا نشد. نام دقیق شرکت یا مزرعه را وارد کن.', 404);
+    const companyId = String((companies[0] as {id:string}).id);
+    const rows = await sql`INSERT INTO public.access_requests(user_id,company_id,requested_role,full_name,phone,company_name,organization_name,notes,status)
+      VALUES(${user.id}::uuid,${companyId}::uuid,${role}::public.app_role,${fullName},${phone},${organization},${organization},${typeof data.notes === 'string' ? data.notes.slice(0,1000) : null},'pending')
       RETURNING id,status`;
     await sql`INSERT INTO public.medar_audit_log(actor_user_id,action,entity_type,entity_id,metadata)
-      VALUES(${user.id}::uuid,'access.requested','access_request',${String((rows[0] as {id:string}).id)},jsonb_build_object('role',${role}))`;
+      VALUES(${user.id}::uuid,'access.requested','access_request',${String((rows[0] as {id:string}).id)},jsonb_build_object('role',${role},'company_id',${companyId}))`;
     return c.json({ requestId:(rows[0] as {id:string}).id,status:(rows[0] as {status:string}).status },201);
-  } catch { return jsonError(c, 'ثبت درخواست انجام نشد. اجرای مهاجرت دیتابیس را بررسی کنید.', 500); }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '';
+    if (message.includes('duplicate key') || message.includes('unique constraint')) return jsonError(c, 'برای این مجموعه درخواست فعالی داری.', 409);
+    return jsonError(c, 'ثبت درخواست انجام نشد. اجرای مهاجرت دیتابیس را بررسی کنید.', 500);
+  }
 });
 app.get('/api/workspace/memberships', async c => {
   let user: AuthUser | null;
@@ -256,10 +265,61 @@ app.get('/api/workspace/memberships', async c => {
       FROM public.memberships m JOIN public.companies co ON co.id=m.company_id
       WHERE m.user_id=${user.id}::uuid AND m.active=true ORDER BY m.created_at`;
     const requests = await sql`SELECT id,requested_role AS role,organization_name AS "organizationName",status,created_at AS "createdAt"
-      FROM public.medar_access_requests WHERE user_id=${user.id}::uuid ORDER BY created_at DESC LIMIT 20`;
+      FROM public.access_requests WHERE user_id=${user.id}::uuid ORDER BY created_at DESC LIMIT 20`;
     return c.json({ memberships:rows,accessRequests:requests });
   } catch { return jsonError(c, 'خواندن فضای کاری انجام نشد. اجرای مهاجرت دیتابیس را بررسی کنید.', 500); }
 });
 
+app.get('/api/admin/access-requests', async c => {
+  let user: AuthUser | null;
+  try { user = await currentUser(c); } catch { return jsonError(c, 'پایگاه داده پیکربندی نشده است.', 503); }
+  if (!user) return jsonError(c, 'برای مشاهده درخواست‌ها ابتدا وارد حساب شو.', 401);
+  try {
+    const sql = sqlFor(c);
+    const admins = await sql`SELECT company_id FROM public.memberships WHERE user_id=${user.id}::uuid AND active=true AND role::text IN ('owner','admin')`;
+    if (!admins.length) return jsonError(c, 'این عملیات فقط برای مالک یا مدیر مجموعه مجاز است.', 403);
+    const requests = await sql`SELECT ar.id,ar.company_id AS "companyId",co.name AS "companyName",ar.user_id AS "userId",
+        u.username,u.display_name AS "displayName",ar.full_name AS "fullName",ar.phone,ar.requested_role::text AS role,
+        ar.organization_name AS "organizationName",ar.status,ar.created_at AS "createdAt"
+      FROM public.access_requests ar
+      JOIN public.companies co ON co.id=ar.company_id
+      JOIN public.medar_users u ON u.id=ar.user_id
+      WHERE ar.status='pending'
+        AND EXISTS (SELECT 1 FROM public.memberships m WHERE m.company_id=ar.company_id AND m.user_id=${user.id}::uuid AND m.active=true AND m.role::text IN ('owner','admin'))
+      ORDER BY ar.created_at ASC LIMIT 100`;
+    return c.json({ requests });
+  } catch { return jsonError(c, 'خواندن درخواست‌ها انجام نشد.', 500); }
+});
+
+app.post('/api/admin/access-requests/:id/review', async c => {
+  let user: AuthUser | null;
+  try { user = await currentUser(c); } catch { return jsonError(c, 'پایگاه داده پیکربندی نشده است.', 503); }
+  if (!user) return jsonError(c, 'برای بررسی درخواست ابتدا وارد حساب شو.', 401);
+  let data: Record<string, unknown>;
+  try { data = await c.req.json(); } catch { return jsonError(c, 'بدنه درخواست معتبر نیست.', 400); }
+  const decision = data.decision;
+  if (decision !== 'approve' && decision !== 'reject') return jsonError(c, 'تصمیم بررسی معتبر نیست.', 400);
+  try {
+    const sql = sqlFor(c);
+    const rows = await sql`SELECT ar.id,ar.company_id,ar.user_id,ar.requested_role::text AS role
+      FROM public.access_requests ar JOIN public.memberships m ON m.company_id=ar.company_id
+      WHERE ar.id=${c.req.param('id')}::uuid AND ar.status='pending'
+        AND m.user_id=${user.id}::uuid AND m.active=true AND m.role::text IN ('owner','admin') LIMIT 1`;
+    if (!rows[0]) return jsonError(c, 'درخواست پیدا نشد یا اجازه بررسی آن را نداری.', 404);
+    const item = rows[0] as {id:string;company_id:string;user_id:string;role:string};
+    if (decision === 'approve') {
+      if (!['customer','supplier','driver','staff'].includes(item.role)) return jsonError(c, 'نقش درخواستی قابل تأیید نیست.', 400);
+      await sql`INSERT INTO public.memberships(company_id,user_id,role,active,created_by)
+        VALUES(${item.company_id}::uuid,${item.user_id}::uuid,${item.role}::public.app_role,true,${user.id}::uuid)
+        ON CONFLICT(company_id,user_id,role) DO UPDATE SET active=true`;
+    }
+    const status = decision === 'approve' ? 'approved' : 'rejected';
+    await sql`UPDATE public.access_requests SET status=${status},reviewed_by=${user.id}::uuid,reviewed_at=now(),updated_at=now()
+      WHERE id=${item.id}::uuid`;
+    await sql`INSERT INTO public.medar_audit_log(actor_user_id,action,entity_type,entity_id,metadata)
+      VALUES(${user.id}::uuid,${decision === 'approve' ? 'access.approved' : 'access.rejected'},'access_request',${item.id},jsonb_build_object('company_id',${item.company_id},'role',${item.role}))`;
+    return c.json({ ok:true,status });
+  } catch { return jsonError(c, 'بررسی درخواست انجام نشد.', 500); }
+});
 app.notFound(c => c.env.ASSETS ? c.env.ASSETS.fetch(c.req.raw) : c.json({ message:'مسیر پیدا نشد.' },404));
 export default app;
