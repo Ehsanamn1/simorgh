@@ -66,7 +66,7 @@ async function installIsolatedSession(page: Page, role: 'owner' | 'supplier' | '
           id: '00000000-0000-4000-8000-000000000044',
           company_id: companyId, user_id: userId, role,
           customer_id: role === 'customer' ? customerId : null, supplier_id: role === 'supplier' ? supplierId : null,
-          active: true, companies: { name: 'شبکه سیمرغ' },
+          active: true, companies: { name: 'شرکت آزمایشی مدار' },
         }]),
       });
       return;
