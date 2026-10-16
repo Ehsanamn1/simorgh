@@ -539,6 +539,35 @@ const dataTableConfigs:Record<string,DataTableConfig>={
   access_requests:{readRoles:['owner','admin'],writeRoles:[],managerOnly:true,readOnly:true},
   audit_events:{readRoles:['owner','admin'],writeRoles:[],managerOnly:true,readOnly:true},
 };
+const dataInsertFields:Record<string,string[]>={
+  orders:['customer_id','requested_delivery','delivery_address','notes'],
+  order_items:['order_id','product_id','quantity','unit_price','notes'],
+  customers:['name','phone','address','city','province','active','notes','contact_name','customer_code'],
+  suppliers:['name','phone','address','city','province','active','notes','contact_name','supplier_code'],
+  products:['name','sku','kind','unit','description','active','shelf_life_days','storage_note'],
+  price_agreements:['customer_id','product_id','unit_price','min_qty','valid_from','valid_to','notes'],
+  capacity_commitments:['supplier_id','product_id','period_start','period_end','declared_qty','notes'],
+  shipments:['order_id','driver_user_id','vehicle','planned_departure'],
+  shipment_locations:['shipment_id','latitude','longitude','accuracy_m'],
+  delivery_evidence:['shipment_id','kind','storage_path','recipient_name','note','reading_celsius'],
+  invoices:['order_id','customer_id','reference','amount','due_date','note'],
+  settlements:['supplier_id','invoice_ref','amount','due_date','note'],
+  company_goals:['title','description','category','unit','baseline_value','target_value','current_value','priority','period_start','due_date','owner_user_id'],
+  lots:['supplier_id','product_id','code','produced_on','best_before','quantity'],
+};
+const dataUpdateFields:Record<string,string[]>={
+  orders:['status','requested_delivery','delivery_address','notes'],
+  customers:['name','phone','address','city','province','active','notes','contact_name','customer_code'],
+  suppliers:['name','phone','address','city','province','active','notes','contact_name','supplier_code'],
+  products:['name','sku','kind','unit','description','active','shelf_life_days','storage_note'],
+  price_agreements:['unit_price','min_qty','valid_from','valid_to','notes'],
+  capacity_commitments:['status','confirmed_qty'],
+  shipments:['stage','failure_reason','driver_user_id','vehicle','planned_departure'],
+  invoices:['status','paid_amount','payment_reference','due_date','note'],
+  settlements:['status','payment_reference','note','due_date'],
+  company_goals:['title','description','category','unit','baseline_value','target_value','current_value','priority','status','period_start','due_date','owner_user_id'],
+  lots:['code','produced_on','best_before','quantity'],
+};
 type SelectNode={fields:string[];relations:{name:string;alias:string;fields:string[];relations:SelectNode['relations']}[]};
 function splitTopLevel(value:string):string[]{
   const out:string[]=[];let depth=0,start=0;
@@ -831,6 +860,7 @@ async function validateDataReferences(sql:ReturnType<typeof neon>,table:string,r
     const shipmentId=String(row.shipment_id??''),path=typeof row.storage_path==='string'?row.storage_path:'';
     const shipment=await queryRows(sql,'SELECT driver_user_id FROM public.shipments WHERE id=$1::uuid AND company_id=$2::uuid LIMIT 1',[shipmentId,companyId]);
     if(!shipment.length)throw new Error('محموله متعلق به این مجموعه نیست.');
+    if(row.driver_user_id&&String(shipment[0].driver_user_id)!==String(row.driver_user_id))throw new Error('موقعیت باید به راننده تخصیص‌یافته به همین محموله تعلق داشته باشد.');
     if(membership.role==='driver'&&String(shipment[0].driver_user_id)!==userId)throw new Error('این محموله به راننده فعلی تخصیص داده نشده است.');
     if(path){
       if(!path.startsWith(companyId+'/'+shipmentId+'/')||path.split('/').length!==3)throw new Error('مسیر فایل مدرک با شرکت یا محموله مطابقت ندارد.');
