@@ -2,7 +2,7 @@
 -- Managed Neon Auth owns identity in neon_auth. This migration owns tenant/application data.
 create extension if not exists pgcrypto;
 
-create type public.app_role as enum ('owner','admin','staff','customer','supplier','driver');
+do $ begin create type public.app_role as enum ('owner','admin','staff','customer','supplier','driver'); exception when duplicate_object then null; end $;
 
 create table if not exists public.companies (
   id uuid primary key default gen_random_uuid(),
