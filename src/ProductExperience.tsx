@@ -10,7 +10,7 @@ import { MedarLogo } from './MedarLogo';
 import type { AppRole } from './lib/types';
 
 type NavigationEntry = { key: string; label: string };
-type PublicRequestedRole = 'staff' | 'supplier' | 'driver' | 'customer';
+type PublicRequestedRole = 'owner' | 'staff' | 'supplier' | 'driver' | 'customer';
 type AuthMode = 'signin' | 'signup' | 'reset' | 'recovery';
 function normalizeIranPhone(value: string): string {
   const digits = value.trim().replaceAll(' ', '').replaceAll('-', '').replaceAll('(', '').replaceAll(')', '')
@@ -23,6 +23,7 @@ function normalizeIranPhone(value: string): string {
 }
 
 const requestedRoles: { value: PublicRequestedRole; label: string; Icon: LucideIcon }[] = [
+  { value: 'owner', label: 'مالک مجموعه جدید', Icon: Building2 },
   { value: 'customer', label: 'خریدار عمده', Icon: Boxes },
   { value: 'supplier', label: 'شریک مزرعه', Icon: Factory },
   { value: 'driver', label: 'راننده / حمل', Icon: Truck },
@@ -345,7 +346,7 @@ export default function ProductExperience() {
                {mode === 'signup' && <>
                  <label htmlFor="simorgh-signin-phone">شماره موبایل</label><input id="simorgh-signin-phone" className="auth-input" type="tel" autoComplete="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="09121234567" required dir="ltr"/>
                </>}
-               {mode === 'signup' && <><label htmlFor="simorgh-signin-role">نقش مورد درخواست</label><select id="simorgh-signin-role" className="auth-input" value={requestedRole} onChange={e => setRequestedRole(e.target.value as PublicRequestedRole)}><option value="customer">خریدار عمده</option><option value="supplier">تأمین‌کننده / شریک مزرعه</option><option value="driver">راننده / حمل‌ونقل</option><option value="staff">عضو تیم (نیازمند تأیید)</option></select></>}
+               {mode === 'signup' && <><label htmlFor="simorgh-signin-role">نقش مورد درخواست</label><select id="simorgh-signin-role" className="auth-input" value={requestedRole} onChange={e => setRequestedRole(e.target.value as PublicRequestedRole)}><option value="owner">مالک مجموعه جدید</option><option value="customer">خریدار عمده</option><option value="supplier">تأمین‌کننده / شریک مزرعه</option><option value="driver">راننده / حمل‌ونقل</option><option value="staff">عضو تیم (نیازمند تأیید)</option></select></>}
                <label htmlFor="simorgh-signin-username">نام کاربری</label><input id="simorgh-signin-username" className="auth-input" type="text" autoComplete="username" inputMode="text" required={mode !== 'recovery'} value={email} onChange={e => setEmail(e.target.value)} placeholder="username" dir="ltr"/>
                {mode !== 'reset' && <>
                  <label htmlFor="simorgh-signin-password">{mode === 'recovery' ? 'گذرواژه جدید' : 'گذرواژه'}</label>
