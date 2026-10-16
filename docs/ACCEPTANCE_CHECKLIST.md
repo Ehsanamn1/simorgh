@@ -10,8 +10,9 @@ This checklist reflects the current repository and the connected Supabase projec
 ## A. Implemented in the current product iteration
 
 - [x] Keep the React + TypeScript + Vite, React Router and Supabase architecture.
-- [x] The public route opens a Persian RTL operational shell; it does not present a fake role selector or auto-open sign-in.
+- [x] The public route opens a Persian RTL access gateway; it does not expose the private manager dashboard or an artificial role selector.
 - [x] Add an explicit sign-in/password-recovery entry for previously provisioned accounts; public self-registration and self-assigned roles remain disabled.
+- [x] Route authenticated users without active membership to a stable access-request screen; retrying membership checks must not eject them into the guest gateway.
 - [x] Authenticated members enter the real role-filtered workspace, with responsive mobile navigation based on their actual membership role.
 - [x] The manager workspace contains the real order, goal, partner, inventory, capacity, quality, logistics, finance, farm, production, task, incident and audit modules.
 - [x] Add a manager-map panel that reads active farm sites from Supabase and only places markers for saved latitude/longitude pairs.
@@ -20,6 +21,7 @@ This checklist reflects the current repository and the connected Supabase projec
 - [x] Keep the Persian RTL UI, Vazirmatn typography, accessible focus states, dark/light theme and compact mobile navigation.
 - [x] Add Playwright coverage for the secure sign-in entry, generic farm forms, mobile layout and the absence of invented farm-map markers.
 - [ ] Pass the latest CI for PR #10 and verify the post-merge GitHub Pages deployment before calling this iteration released.
+- [x] Update the GitHub Pages post-deployment smoke test to verify the public gateway rather than the retired guest dashboard.
 
 **Live database check (2026-10-16):** one company record exists, but there are zero Supabase Auth users, zero active memberships and no operational records in the sampled core tables. Thus the authenticated owner dashboard and real company data cannot be exercised until the first trusted owner is provisioned.
 
