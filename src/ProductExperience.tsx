@@ -69,8 +69,7 @@ export default function ProductExperience() {
   const [requestId, setRequestId] = useState('');
   const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
   const protectedRoute = location.pathname.includes('/app');
-  // Keep the real auth implementation intact, but make the public auth UI a final-phase feature.
-  // Set VITE_ENABLE_AUTH_UI=true only when the owner-provisioning flow is ready to be launched.
+  // The production build enables this secure auth layer. Public self-registration stays disabled.
   const authUiEnabled = import.meta.env.VITE_ENABLE_AUTH_UI === 'true';
   const signInOpen = authUiEnabled && (mode === 'recovery' || (location.hash === '#signin' && !user) || (protectedRoute && !user && !loading));
   const normalizedPath = location.pathname.startsWith(basePath) ? location.pathname.slice(basePath.length) || '/' : location.pathname;
@@ -125,7 +124,7 @@ export default function ProductExperience() {
   useEffect(() => {
     const canCloseWithEscape: boolean = mode !== 'recovery';
     if (!signInOpen) return;
-    const background = document.querySelector<HTMLElement>('.portal, .app-frame');
+    const background = document.querySelector<HTMLElement>('.portal, .app-frame, .ops-live-app');
     const oldOverflow = document.body.style.overflow;
     if (background) background.inert = true;
     document.body.style.overflow = 'hidden';
@@ -244,7 +243,7 @@ export default function ProductExperience() {
           {!protectedRoute && mode !== 'recovery' && <button type="button" className="signin-close" onClick={closeSignIn} aria-label="بستن ورود"><X size={20}/></button>}
           <div className="simorgh-signin-form-card" dir="rtl">
             <span className="signin-form-icon">{mode === 'reset' || mode === 'recovery' ? <KeyRound size={21}/> : <LogIn size={21}/>}</span>
-            <span className="signin-overline">{mode === 'reset' ? 'PASSWORD RECOVERY' : mode === 'recovery' ? 'SET A NEW PASSWORD' : 'SECURE SIGN IN'}</span>
+            <span className="signin-overline">{mode === 'reset' ? 'بازیابی گذرواژه' : mode === 'recovery' ? 'تنظیم گذرواژه تازه' : 'ورود امن'}</span>
             <h2 id="simorgh-signin-title">{mode === 'reset' ? 'بازیابی گذرواژه' : mode === 'recovery' ? 'گذرواژه جدید' : 'ورود به مدار'}</h2>
             <p>{mode === 'reset' ? 'ایمیل حساب را وارد کن تا در صورت وجود حساب، لینک بازیابی ارسال شود.' : mode === 'recovery' ? 'یک گذرواژه جدید و قوی برای حساب انتخاب کن.' : 'برای ورود از حسابی استفاده کن که مالک شرکت ساخته یا دعوت آن را صادر کرده است.'}</p>
             <form className="simorgh-signin-form" onSubmit={event => void submitAuth(event)}>
