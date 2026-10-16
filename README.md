@@ -24,11 +24,11 @@ CI بررسی‌های TypeScript، Lint، تست واحد، مسیر فایل�
 
 - حساب مالک و عضویت اولیه باید از مسیر امن Supabase ساخته شوند؛ هیچ گذرواژه‌ی پیش‌فرضی در پروژه قرار ندارد.
 - صف نوشتن آفلاین و حل تعارض، اعلان‌های زمان‌بندی‌شده و همه‌ی اتوماسیون‌های هوش مصنوعی هنوز تکمیل نشده‌اند.
-- نقشه‌ی عمومی فقط نقشه‌ی پایه را نشان می‌دهد؛ نشانگرهای محموله به مختصات واقعی و دسترسی مجاز وابسته‌اند.
+- نقشه فقط در فضای مدیریتیِ احراز‌شده نمایش داده می‌شود؛ موقعیت واحدها باید در رکورد همان واحد ثبت شده باشد. GPS زنده‌ی رانندگان به مجوز دستگاه و پیاده‌سازی جداگانه نیاز دارد.
 
 
-## Product scope
+## دامنه‌ی عملیاتی
 
-The authenticated manager workspace provides role-filtered modules for orders, goals, customers, suppliers, inventory, capacity, quality, shipments, finance, farm sites, production cycles/batches, daily production, tasks, incidents, partner settlements and audit history.
+فضای مدیریتی، بر اساس نقش واقعی عضو، بخش‌های سفارش، هدف‌گذاری، مشتری و تأمین‌کننده، انبار، ظرفیت، کیفیت، حمل‌ونقل، مالی، مزارع و واحدها، چرخه‌های تولید، بچ‌های محصول، ثبت روزانه، وظایف، رخدادها، تسویه‌ی شرکا و تاریخچه‌ی ممیزی را ارائه می‌کند.
 
-The manager control tower includes a live map that uses only farm-site coordinates stored in Supabase. Farm units, production cycles and daily records are generic across agricultural sectors; there is no hard-coded quail requirement.
+نقشه‌ی مدیر، واحدهای فعال را از Supabase می‌خواند و تنها مختصاتی را نمایش می‌دهد که در پایگاه داده ثبت شده باشند. نوع مزرعه، چرخه‌ی تولید و ثبت روزانه به بلدرچین یا طیور محدود نیستند؛ هر بخش کشاورزی باید فقط فیلدهای تخصصیِ واقعاً موردنیاز خودش را اضافه کند.
