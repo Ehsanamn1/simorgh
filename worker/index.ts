@@ -513,6 +513,7 @@ async function sameCompanyRow(sql: ReturnType<typeof neon>, table: string, id: u
   const rows=await queryRows(sql,`SELECT id FROM public.${table} WHERE id=$1::uuid AND company_id=$2::uuid LIMIT 1`,[id,companyId]);
   return rows.length>0;
 }
+type DataFilter={column:string;op:string;value:unknown};
 type DataTableConfig={readRoles:string[];writeRoles:string[];managerOnly?:boolean;readOnly?:boolean};
 const dataTableConfigs:Record<string,DataTableConfig>={
   orders:{readRoles:['owner','admin','staff','customer','supplier'],writeRoles:['owner','admin','staff','customer']},
@@ -658,7 +659,7 @@ function projectDataRow(row:Record<string,unknown>,fields:string[],relations:Sel
 function addDataRoleFilter(table:string,membership:{role:string;supplier_id:string|null;customer_id:string|null},userId:string,params:unknown[],where:string[]){
   const scope=dataRoleScope(table,membership,userId,params);if(scope)where.push(scope);
 }
-function buildDataWhere(table:string,columns:Set<string>,filters:Filter[],companyId:string,membership:{role:string;supplier_id:string|null;customer_id:string|null},userId:string){
+function buildDataWhere(table:string,columns:Set<string>,filters:DataFilter[],companyId:string,membership:{role:string;supplier_id:string|null;customer_id:string|null},userId:string){
   const params:unknown[]=[companyId],where=['t.company_id=$1::uuid'];
   addDataRoleFilter(table,membership,userId,params,where);
   for(const filter of filters){
