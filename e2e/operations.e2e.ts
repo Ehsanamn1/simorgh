@@ -111,6 +111,60 @@ test('manager workspace retains operations and captures a real rendered control-
   expect(errors).toEqual([]);
 });
 
+test('generic farm types and daily rejected quantities are validated before writes', async ({ page }) => {
+  await installIsolatedSession(page, 'owner');
+
+  await page.goto('/simorgh/app/farm-sites', { waitUntil: 'domcontentloaded' });
+  await expect(page.getByRole('heading', { name: 'سایت‌های مزرعه' })).toBeVisible();
+  await page.getByRole('button', { name: 'ثبت رکورد', exact: true }).click();
+  const siteType = page.locator('#ops-site_type');
+  for (const kind of ['crop','livestock','poultry','dairy','aquaculture','greenhouse','orchard','apiary','processing','warehouse','distribution','mixed','other']) {
+    await expect(siteType.locator('option[value="' + kind + '"]')).toHaveCount(1);
+  }
+  const latitude = page.locator('#ops-latitude');
+  const longitude = page.locator('#ops-longitude');
+  await latitude.fill('-33.8688');
+  await longitude.fill('151.2093');
+  expect(await latitude.evaluate((input: HTMLInputElement) => input.checkValidity())).toBe(true);
+  expect(await longitude.evaluate((input: HTMLInputElement) => input.checkValidity())).toBe(true);
+  await latitude.fill('91');
+  expect(await latitude.evaluate((input: HTMLInputElement) => input.checkValidity())).toBe(false);
+  await longitude.fill('-181');
+  expect(await longitude.evaluate((input: HTMLInputElement) => input.checkValidity())).toBe(false);
+  await page.locator('.ops-modal').getByRole('button', { name: 'بستن' }).click();
+
+  await page.goto('/simorgh/app/flock-cycles', { waitUntil: 'domcontentloaded' });
+  await expect(page.getByRole('heading', { name: 'چرخه‌های کشت و پرورش' })).toBeVisible();
+  await page.getByRole('button', { name: 'ثبت رکورد', exact: true }).click();
+  const cycleType = page.locator('#ops-cycle_type');
+  for (const kind of ['crop','livestock','poultry','dairy','aquaculture','greenhouse','orchard','apiary','mixed','other']) {
+    await expect(cycleType.locator('option[value="' + kind + '"]')).toHaveCount(1);
+  }
+  await page.locator('.ops-modal').getByRole('button', { name: 'بستن' }).click();
+
+  await page.goto('/simorgh/app/production-batches', { waitUntil: 'domcontentloaded' });
+  await page.getByRole('button', { name: 'ثبت رکورد', exact: true }).click();
+  const productionKind = page.locator('#ops-production_kind');
+  for (const kind of ['farm_product','crop','livestock','poultry','dairy','eggs','meat','aquaculture','honey','forestry','greenhouse','orchard','input','feed','equipment','processed','service','other']) {
+    await expect(productionKind.locator('option[value="' + kind + '"]')).toHaveCount(1);
+  }
+  await page.locator('.ops-modal').getByRole('button', { name: 'بستن' }).click();
+
+  await page.goto('/simorgh/app/daily-production', { waitUntil: 'domcontentloaded' });
+  await page.getByRole('button', { name: 'ثبت رکورد', exact: true }).click();
+  await expect(page.locator('#ops-rejected_quantity')).toBeVisible();
+  const batch = page.locator('#ops-batch_id');
+  await batch.evaluate((select: HTMLSelectElement) => {
+    select.add(new Option('TEST - دوره ساختگی فقط برای تست', '00000000-0000-4000-8000-000000000066'));
+  });
+  await batch.selectOption('00000000-0000-4000-8000-000000000066');
+  await page.locator('#ops-produced_quantity').fill('10');
+  await page.locator('#ops-rejected_quantity').fill('11');
+  await page.locator('.ops-modal form').getByRole('button', { name: 'ثبت رکورد' }).click();
+  await expect(page.getByText('مقدار مردودی باید صفر باشد یا از مقدار خروجی ثبت‌شده بیشتر نباشد.')).toBeVisible();
+  await expect(page.locator('.ops-modal')).toBeVisible();
+});
+
 test('supplier workspace keeps manager-only routes out of the allowed menu', async ({ page }, testInfo) => {
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
