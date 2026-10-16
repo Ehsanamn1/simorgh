@@ -1,5 +1,6 @@
 -- Operational integrity constraints and indexes ported from the later Supabase migrations.
 ALTER TABLE public.operational_tasks ADD COLUMN IF NOT EXISTS review_note text;
+CREATE UNIQUE INDEX IF NOT EXISTS partnership_agreements_one_active_per_supplier_idx ON public.partnership_agreements(company_id,supplier_id) WHERE status='active';
 
 -- RLS policies, triggers and auth.uid()-dependent functions are intentionally excluded; Worker APIs
 -- must enforce tenant membership and actor permissions explicitly.
