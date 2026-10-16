@@ -1,21 +1,24 @@
 import type { SVGProps } from 'react';
 
-function SimorghBirdMark(props: SVGProps<SVGSVGElement>) {
+function SimorghMark(props: SVGProps<SVGSVGElement>) {
   return <svg viewBox="0 0 100 84" fill="none" aria-hidden="true" focusable="false" {...props}>
-    <path d="M7 20c14 0 26 3 40 10l8 7-17-1C27 34 17 31 9 28Z" fill="currentColor" opacity=".94"/>
-    <path d="M5 32c13 0 24 3 36 9l10 7-17 1C23 46 14 43 7 41Z" fill="currentColor" opacity=".94"/>
-    <path d="M9 46c10 0 18 2 28 8l10 8-14 1C22 59 14 55 10 53Z" fill="currentColor" opacity=".94"/>
-    <path d="M20 60c12-8 25-10 37-5 7 3 12 8 16 14-13 10-28 11-41 4-6-3-10-7-12-13Z" fill="currentColor"/>
-    <path d="M40 58c8-9 15-18 20-28C65 18 72 9 82 10c8 1 12 8 9 15-2 5-6 8-12 9l-7 1-1 11 13-1-7 9-10 1c-3 9-8 16-15 20-6-4-10-9-12-17Z" fill="currentColor"/>
-    <path d="M23 69c-3 5-8 8-15 8 9 5 19 4 28-3l-4-6Z" fill="currentColor"/>
-    <path d="m83 20 14-5-8 13-5 0Z" fill="currentColor"/>
-    <circle cx="82" cy="17" r="2.1" fill="#0B1012"/>
+    <path d="M8 22C23 10 41 13 56 28C40 22 25 22 8 22Z" fill="currentColor" opacity=".46"/>
+    <path d="M7 36C22 25 38 27 53 40C37 35 22 35 7 36Z" fill="currentColor" opacity=".66"/>
+    <path d="M10 50C23 40 36 41 48 52C35 49 22 49 10 50Z" fill="currentColor" opacity=".86"/>
+    <path d="M19 64C33 48 47 36 60 19C64 11 73 7 81 12C90 17 88 27 80 32L72 36C66 51 54 64 39 72C31 70 24 67 19 64Z" fill="currentColor" opacity=".94"/>
+    <path d="M25 63C38 51 50 40 62 24" stroke="#0B1012" strokeOpacity=".48" strokeWidth="2" strokeLinecap="round"/>
+    <path d="M43 67C52 54 62 45 76 38" stroke="#0B1012" strokeOpacity=".36" strokeWidth="2" strokeLinecap="round"/>
+    <path d="M62 24L76 17M62 24L71 39M43 43L54 56" stroke="var(--obs-accent, #6EB9AC)" strokeWidth="2.8" strokeLinecap="round"/>
+    <circle cx="62" cy="24" r="4.2" fill="var(--obs-accent, #6EB9AC)" stroke="var(--obs-bg, #0B1012)" strokeWidth="1.5"/>
+    <circle cx="76" cy="17" r="3.5" fill="var(--obs-accent-2, #709AA8)" stroke="var(--obs-bg, #0B1012)" strokeWidth="1.4"/>
+    <circle cx="71" cy="39" r="3.5" fill="var(--obs-accent-2, #709AA8)" stroke="var(--obs-bg, #0B1012)" strokeWidth="1.4"/>
+    <circle cx="54" cy="56" r="3.5" fill="var(--obs-accent, #6EB9AC)" stroke="var(--obs-bg, #0B1012)" strokeWidth="1.4"/>
   </svg>;
 }
 
 export function SimorghLogo({ compact = false, className = '' }: { compact?: boolean; className?: string }) {
   return <div className={`brand-lockup simorgh-lockup ${compact ? 'compact' : ''} ${className}`}>
-    <span className="brand-symbol"><SimorghBirdMark/></span>
-    {!compact && <span className="brand-words"><b>سیمرغ</b><small>مدیریت یکپارچه عملیات</small></span>}
+    <span className="brand-symbol"><SimorghMark/></span>
+    {!compact && <span className="brand-words"><b>سیمرغ</b><small>مدیریت مزرعه و عملیات</small></span>}
   </div>;
 }

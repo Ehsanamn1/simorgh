@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Activity, ArrowLeft, Boxes, Building2, Check, ClipboardCheck, CreditCard, Factory, FileText, Home, LayoutDashboard, ListTodo, LogIn, MapPin, Menu, Package, ShieldCheck, Truck, Warehouse, X, UserPlus, Eye, EyeOff, KeyRound, RotateCcw } from 'lucide-react';
+import { Activity, ArrowLeft, Boxes, Building2, Check, ClipboardCheck, CreditCard, Factory, FileText, Home, LayoutDashboard, ListTodo, LogIn, MapPin, Menu, Package, ShieldCheck, Target, Truck, Warehouse, X, UserPlus, Eye, EyeOff, KeyRound, RotateCcw } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useAuth } from './lib/AuthContext';
 import { isSupabaseConfigured, supabase } from './lib/supabase';
@@ -17,7 +17,7 @@ const requestedRoles: { value: PublicRequestedRole; label: string; Icon: LucideI
   { value: 'staff', label: 'تیم داخلی', Icon: Building2 },
 ];
 const routeIcons: Record<string, LucideIcon> = {
-  command: LayoutDashboard, orders: FileText, shipments: Truck, finance: CreditCard, catalog: Boxes,
+  command: LayoutDashboard, orders: FileText, goals: Target, shipments: Truck, finance: CreditCard, catalog: Boxes,
   'my-orders': Package, 'my-account': Building2, 'supplier-work': ClipboardCheck, 'supplier-capacity': Warehouse,
   'supplier-settlement': CreditCard, 'driver-work': Truck, 'daily-production': Factory,
   'operational-tasks': ListTodo, 'partner-finance': CreditCard, 'farm-sites': Warehouse, incidents: Activity,
@@ -262,7 +262,7 @@ export default function ProductExperience() {
             {mode === 'signin' && <button type="button" className="auth-text-action" onClick={() => {setMode('reset');setError('');setNotice('');}}>گذرواژه‌ات را فراموش کرده‌ای؟</button>}
             {mode === 'reset' && <button type="button" className="auth-text-action" onClick={() => {setMode('signin');setError('');setNotice('');}}>بازگشت به ورود</button>}
             <div className="signin-no-signup"><ShieldCheck size={16}/><span>ثبت‌نام عمومی غیرفعال است؛ حساب‌های جدید فقط از مسیر مدیریت امن شرکت ایجاد می‌شوند.</span></div>
-            <div className="signin-form-foot"><span><Check size={13}/> کنترل دسترسی سمت سرور</span><span>OBSIDIAN · 01</span></div>
+            <div className="signin-form-foot"><span><Check size={13}/> کنترل دسترسی سمت سرور</span><span>سیمرغ · فضای امن</span></div>
           </div>
         </div>
       </section>

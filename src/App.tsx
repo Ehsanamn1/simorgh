@@ -5,13 +5,14 @@ import { StatusBar, Style } from '@capacitor/status-bar';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import {
-  Activity, AlertTriangle, ArrowLeft, ArrowUpLeft, Boxes, Building2, Check, CheckCircle2,
+  Activity, AlertTriangle, ArrowLeft, ArrowUpLeft, Boxes, Building2, CalendarDays, Check, CheckCircle2,
   ChevronDown, CircleHelp, ClipboardCheck, CreditCard, Factory, FileCheck2, FileText, LayoutDashboard,
-  LogOut, MapPin, Menu, Moon, Package, Plus, RefreshCw, Search, Settings2, ShieldCheck, Sun, Truck, Users, UserPlus, Warehouse, X, Zap,
+  LogOut, MapPin, Menu, Moon, Package, Plus, RefreshCw, Search, Settings2, ShieldCheck, Sun, Target, Truck, Users, UserPlus, Warehouse, X, Zap,
 } from 'lucide-react';
 import { useAuth } from './lib/AuthContext';
 import { supabase, isSupabaseConfigured } from './lib/supabase';
 import { pageSectionLabel } from './lib/pageSections';
+import { goalProgressPercent, isGoalOverdue } from './lib/goals';
 import { OperationsWorkspacePage } from './OperationsPages';
 import OperationalWorkspace from './OperationalWorkspace';
 import { SimorghLogo as Logo } from './SimorghLogo';
@@ -22,6 +23,7 @@ import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGri
 const navDefinitions: { key: PageKey; label: string; group: string; icon: typeof LayoutDashboard; roles: AppRole[] }[] = [
   { key: 'command', label: 'مرکز فرمان', group: 'مدیریت', icon: LayoutDashboard, roles: ['owner', 'admin', 'staff'] },
   { key: 'orders', label: 'سفارش‌ها', group: 'مدیریت', icon: FileText, roles: ['owner', 'admin', 'staff'] },
+  { key: 'goals', label: 'اهداف و برنامه', group: 'مدیریت', icon: Target, roles: ['owner', 'admin', 'staff'] },
   { key: 'customers', label: 'مشتریان', group: 'فروش و تأمین', icon: Users, roles: ['owner', 'admin', 'staff'] },
   { key: 'suppliers', label: 'تأمین‌کنندگان', group: 'فروش و تأمین', icon: Factory, roles: ['owner', 'admin', 'staff'] },
   { key: 'products', label: 'کاتالوگ و قیمت', group: 'فروش و تأمین', icon: Package, roles: ['owner', 'admin', 'staff'] },
@@ -52,7 +54,7 @@ const navDefinitions: { key: PageKey; label: string; group: string; icon: typeof
 ];
 
 function ConfigScreen() {
-  return <main className="setup-screen" dir="rtl"><div className="setup-grid"><div className="setup-brand"><Logo/><span className="setup-chip"><span/> آماده استقرار · نیازمند پیکربندی</span><h1>شبکه‌ی تأمین را<br/><em>با داده واقعی</em> اداره کنید.</h1><p>سیمرغ برای اتصال سفارش، ظرفیت، کیفیت، ارسال و تسویه در یک جریان عملیاتی ساخته شده است. تا قبل از اتصال دیتابیس هیچ داده نمونه یا شاخص ساختگی نمایش داده نمی‌شود.</p><div className="setup-features"><span><ShieldCheck/> کنترل دسترسی نقش‌محور</span><span><Activity/> ثبت تغییرات و پیگیری</span><span><Boxes/> مسیر مستقل مشتری و تأمین‌کننده</span></div></div><section className="setup-panel"><div className="setup-panel-icon"><Settings2/></div><span className="eyebrow">INITIAL CONFIGURATION</span><h2>اتصال پایگاه داده لازم است</h2><p>برای فعال‌شدن ورود کاربران و عملیات واقعی، یک پروژه اختصاصی Supabase بساز و متغیرهای زیر را در محیط محلی یا Cloudflare Pages قرار بده.</p><div className="env-item"><label>VITE_SUPABASE_URL</label><code>https://YOUR_PROJECT.supabase.co</code><button onClick={() => void navigator.clipboard?.writeText('VITE_SUPABASE_URL=')}>کپی نام متغیر</button></div><div className="env-item"><label>VITE_SUPABASE_PUBLISHABLE_KEY</label><code>sb_publishable_…</code><button onClick={() => void navigator.clipboard?.writeText('VITE_SUPABASE_PUBLISHABLE_KEY=')}>کپی نام متغیر</button></div><div className="setup-warning"><ShieldCheck size={17}/><span>کلید publishable تنها کلید قابل استفاده در مرورگر است. هرگز service-role یا secret key را در VITE_ قرار نده.</span></div><div className="setup-steps"><b>مراحل راه‌اندازی</b><span><i>۱</i> ساخت پروژه Supabase و اجرای migration</span><span><i>۲</i> تنظیم دو متغیر محیطی</span><span><i>۳</i> ساخت اولین شرکت و اعطای نقش مالک از SQL Editor</span></div><a className="button-primary setup-doc-link" href="https://supabase.com/dashboard" target="_blank" rel="noreferrer">رفتن به Supabase <ArrowUpLeft size={15}/></a></section></div><footer className="setup-footer"><span>SIMORGH / SYSTEM INITIALIZATION</span><span>هیچ داده‌ای تا اتصال واقعی ساخته نشده است.</span></footer></main>;
+  return <main className="setup-screen" dir="rtl"><div className="setup-grid"><div className="setup-brand"><Logo/><span className="setup-chip"><span/> آماده استقرار · نیازمند پیکربندی</span><h1>شبکه‌ی تأمین را<br/><em>با داده واقعی</em> اداره کنید.</h1><p>سیمرغ برای اتصال سفارش، ظرفیت، کیفیت، ارسال و تسویه در یک جریان عملیاتی ساخته شده است. تا قبل از اتصال دیتابیس هیچ داده نمونه یا شاخص ساختگی نمایش داده نمی‌شود.</p><div className="setup-features"><span><ShieldCheck/> کنترل دسترسی نقش‌محور</span><span><Activity/> ثبت تغییرات و پیگیری</span><span><Boxes/> مسیر مستقل مشتری و تأمین‌کننده</span></div></div><section className="setup-panel"><div className="setup-panel-icon"><Settings2/></div><span className="eyebrow">INITIAL CONFIGURATION</span><h2>اتصال پایگاه داده لازم است</h2><p>برای فعال‌شدن ورود کاربران و عملیات واقعی، یک پروژه اختصاصی Supabase بساز و متغیرهای زیر را در محیط محلی یا Cloudflare Pages قرار بده.</p><div className="env-item"><label>VITE_SUPABASE_URL</label><code>https://YOUR_PROJECT.supabase.co</code><button onClick={() => void navigator.clipboard?.writeText('VITE_SUPABASE_URL=')}>کپی نام متغیر</button></div><div className="env-item"><label>VITE_SUPABASE_PUBLISHABLE_KEY</label><code>sb_publishable_…</code><button onClick={() => void navigator.clipboard?.writeText('VITE_SUPABASE_PUBLISHABLE_KEY=')}>کپی نام متغیر</button></div><div className="setup-warning"><ShieldCheck size={17}/><span>کلید publishable تنها کلید قابل استفاده در مرورگر است. هرگز service-role یا secret key را در VITE_ قرار نده.</span></div><div className="setup-steps"><b>مراحل راه‌اندازی</b><span><i>۱</i> ساخت پروژه Supabase و اجرای migration</span><span><i>۲</i> تنظیم دو متغیر محیطی</span><span><i>۳</i> ساخت اولین شرکت و اعطای نقش مالک از SQL Editor</span></div><a className="button-primary setup-doc-link" href="https://supabase.com/dashboard" target="_blank" rel="noreferrer">رفتن به Supabase <ArrowUpLeft size={15}/></a></section></div><footer className="setup-footer"><span>سیمرغ / راه‌اندازی سامانه</span><span>هیچ داده‌ای تا اتصال واقعی ساخته نشده است.</span></footer></main>;
 }
 function WaitingAccess({ membershipsError }: { membershipsError: string | null }) {
   const { user, signOut, refreshMemberships } = useAuth();
@@ -109,7 +111,7 @@ function AppShell() {
   return <div className="app-frame" dir="rtl">
     <aside className={`app-sidebar ${mobileNav ? 'open' : ''}`}><div className="sidebar-brand"><Logo/><button className="sidebar-close" onClick={() => setMobileNav(false)}><X size={17}/></button></div><button className="workspace-switch" disabled={memberships.length <= 1} onClick={() => memberships.length > 1 && setMembershipId(memberships[(memberships.findIndex(m => m.id === membership?.id) + 1) % memberships.length].id)}><span className="workspace-avatar">{companyName.slice(0,1)}</span><span><b>{companyName}</b><small>{roleLabel[role ?? '']}</small></span>{memberships.length > 1 ? <ChevronDown size={15}/> : <span className="workspace-lock"><ShieldCheck size={14}/></span>}</button><div className="nav-caption">فضای کاری</div><nav className="side-nav">{navItems.map(item => {const Icon = item.icon; const current = active?.key === item.key; return <Link to={`/app/${item.key}`} key={item.key} onClick={() => setMobileNav(false)} className={current ? 'selected' : ''}><Icon size={17}/><span>{item.label}</span>{item.key === 'orders' && <small className="nav-marker">↗</small>}</Link>;})}</nav><div className="sidebar-bottom"><div className="sidebar-status"><span className="status-orb"/><span><b>اتصال احراز هویت</b><small>نشست کاربری فعال</small></span><CheckCircle2 size={16}/></div><button className="profile-row" onClick={() => void signOut()}><span className="profile-avatar">{(user.email ?? 'U').slice(0,1).toUpperCase()}</span><span><b>{user.user_metadata?.full_name || user.email}</b><small>خروج از حساب</small></span><LogOut size={15}/></button></div></aside>
     {mobileNav && <button aria-label="بستن منو" className="mobile-scrim" onClick={() => setMobileNav(false)}/>}
-    <main className="app-main"><header className="app-topbar"><button className="mobile-menu" onClick={() => setMobileNav(true)} aria-label="بازکردن منو"><Menu size={19}/></button><div className="breadcrumbs"><span>سیمرغ</span><i>/</i><b>{active?.label ?? 'مرکز فرمان'}</b></div><div className="topbar-tools"><label className="global-search"><Search size={16}/><input placeholder="جست‌وجو در بخش فعلی…" value={search} onChange={e => setSearch(e.target.value)}/></label><button className="icon-action theme-toggle" type="button" onClick={() => setTheme(current => current === 'dark' ? 'light' : 'dark')} title={theme === 'dark' ? 'فعال‌کردن حالت روشن' : 'فعال‌کردن حالت تاریک'} aria-label={theme === 'dark' ? 'فعال‌کردن حالت روشن' : 'فعال‌کردن حالت تاریک'}>{theme === 'dark' ? <Sun size={17}/> : <Moon size={17}/>}</button><a className="icon-action" title="راهنمای سیمرغ" aria-label="راهنمای سیمرغ" href="https://github.com/Ehsanamn1/simorgh/blob/main/README.md" target="_blank" rel="noreferrer"><CircleHelp size={17}/></a><span className="topbar-sep"/><span className="topbar-user"><b>{companyName}</b><small>{new Intl.DateTimeFormat('fa-IR',{dateStyle:'medium'}).format(new Date())}</small></span></div></header><div className="page-container">{!allowed ? <Navigate to={`/app/${homeDestination}`} replace/> : <Routes><Route path="command" element={<Dashboard membership={membership!}/>}/><Route path="orders" element={<OrdersPage membership={membership!} search={search}/>}/><Route path="customers" element={<EntityPage membership={membership!} table="customers" title="مشتریان" description="حساب‌های سازمانی، اطلاعات تماس و شرایط همکاری." fields={[{name:'name',label:'نام مشتری',required:true},{name:'city',label:'شهر'},{name:'phone',label:'شماره تماس',type:'tel'},{name:'segment',label:'نوع مشتری'},{name:'address',label:'نشانی'},{name:'credit_limit',label:'سقف اعتبار (تومان)',type:'number'}]} columns={[{key:'name',label:'مشتری'},{key:'city',label:'شهر'},{key:'phone',label:'تلفن'},{key:'segment',label:'بخش'},{key:'credit_limit',label:'سقف اعتبار'}]} search={search}/>}/><Route path="suppliers" element={<EntityPage membership={membership!} table="suppliers" title="شبکه تأمین" description="اطلاعات تولیدکنندگان و تأمین‌کنندگان تأییدشده." fields={[{name:'name',label:'نام تأمین‌کننده',required:true},{name:'city',label:'شهر'},{name:'phone',label:'شماره تماس',type:'tel'},{name:'farm_registration',label:'شناسه یا مجوز مزرعه'}]} columns={[{key:'name',label:'تأمین‌کننده'},{key:'city',label:'شهر'},{key:'phone',label:'تلفن'},{key:'farm_registration',label:'شناسه مزرعه'},{key:'active',label:'وضعیت'}]} search={search}/>}/><Route path="products" element={<ProductsPage membership={membership!} search={search}/>}/><Route path="inventory" element={<InventoryPage membership={membership!} search={search}/>}/><Route path="capacity" element={<CapacityPage membership={membership!} search={search}/>}/><Route path="quality" element={<QualityPage membership={membership!} search={search}/>}/><Route path="shipments" element={<ShipmentsPage membership={membership!} search={search}/>}/><Route path="finance" element={<FinancePage membership={membership!} search={search}/>}/><Route path="members" element={<MembersPage membership={membership!} search={search}/>}/><Route path="audit" element={<AuditPage membership={membership!} search={search}/>}/><Route path="catalog" element={<CustomerCatalog membership={membership!}/>}/><Route path="my-orders" element={<CustomerOrders membership={membership!} search={search}/>}/><Route path="my-account" element={<CustomerAccount membership={membership!}/>}/><Route path="supplier-work" element={<SupplierWork membership={membership!} search={search}/>}/><Route path="supplier-capacity" element={<SupplierCapacityPage membership={membership!} search={search}/>}/><Route path="supplier-settlement" element={<SupplierSettlementPage membership={membership!} search={search}/>}/><Route path="driver-work" element={<ShipmentsPage membership={membership!} search={search} driverMode/>}/><Route path="farm-sites" element={<OperationsWorkspacePage kind="farm-sites" membership={membership!} search={search}/>}/><Route path="flock-cycles" element={<OperationsWorkspacePage kind="flock-cycles" membership={membership!} search={search}/>}/><Route path="production-batches" element={<OperationsWorkspacePage kind="production-batches" membership={membership!} search={search}/>}/><Route path="daily-production" element={<OperationsWorkspacePage kind="daily-production" membership={membership!} search={search}/>}/><Route path="task-templates" element={<OperationsWorkspacePage kind="task-templates" membership={membership!} search={search}/>}/><Route path="operational-tasks" element={<OperationsWorkspacePage kind="operational-tasks" membership={membership!} search={search}/>}/><Route path="incidents" element={<OperationsWorkspacePage kind="incidents" membership={membership!} search={search}/>}/><Route path="partnership-agreements" element={<OperationsWorkspacePage kind="partnership-agreements" membership={membership!} search={search}/>}/><Route path="partner-finance" element={<OperationsWorkspacePage kind="partner-finance" membership={membership!} search={search}/>}/><Route path="partner-settlements" element={<OperationsWorkspacePage kind="partner-settlements" membership={membership!} search={search}/>}/><Route path="*" element={<Navigate to={`/app/${homeDestination}`} replace/>}/></Routes>}</div><footer className="app-footer"><span><Logo compact/> <b>SIMORGH</b> · مدیریت یکپارچه عملیات</span><span>تاریخچه تغییرات فعال <i/> داده‌های واقعی پایگاه داده</span></footer></main>
+    <main className="app-main"><header className="app-topbar"><button className="mobile-menu" onClick={() => setMobileNav(true)} aria-label="بازکردن منو"><Menu size={19}/></button><div className="breadcrumbs"><span>سیمرغ</span><i>/</i><b>{active?.label ?? 'مرکز فرمان'}</b></div><div className="topbar-tools"><label className="global-search"><Search size={16}/><input placeholder="جست‌وجو در بخش فعلی…" value={search} onChange={e => setSearch(e.target.value)}/></label><button className="icon-action theme-toggle" type="button" onClick={() => setTheme(current => current === 'dark' ? 'light' : 'dark')} title={theme === 'dark' ? 'فعال‌کردن حالت روشن' : 'فعال‌کردن حالت تاریک'} aria-label={theme === 'dark' ? 'فعال‌کردن حالت روشن' : 'فعال‌کردن حالت تاریک'}>{theme === 'dark' ? <Sun size={17}/> : <Moon size={17}/>}</button><a className="icon-action" title="راهنمای سیمرغ" aria-label="راهنمای سیمرغ" href="https://github.com/Ehsanamn1/simorgh/blob/main/README.md" target="_blank" rel="noreferrer"><CircleHelp size={17}/></a><span className="topbar-sep"/><span className="topbar-user"><b>{companyName}</b><small>{new Intl.DateTimeFormat('fa-IR',{dateStyle:'medium'}).format(new Date())}</small></span></div></header><div className="page-container">{!allowed ? <Navigate to={`/app/${homeDestination}`} replace/> : <Routes><Route path="command" element={<Dashboard membership={membership!}/>}/><Route path="orders" element={<OrdersPage membership={membership!} search={search}/>}/><Route path="goals" element={<GoalsPage membership={membership!} search={search}/>}/><Route path="customers" element={<EntityPage membership={membership!} table="customers" title="مشتریان" description="حساب‌های سازمانی، اطلاعات تماس و شرایط همکاری." fields={[{name:'name',label:'نام مشتری',required:true},{name:'city',label:'شهر'},{name:'phone',label:'شماره تماس',type:'tel'},{name:'segment',label:'نوع مشتری'},{name:'address',label:'نشانی'},{name:'credit_limit',label:'سقف اعتبار (تومان)',type:'number'}]} columns={[{key:'name',label:'مشتری'},{key:'city',label:'شهر'},{key:'phone',label:'تلفن'},{key:'segment',label:'بخش'},{key:'credit_limit',label:'سقف اعتبار'}]} search={search}/>}/><Route path="suppliers" element={<EntityPage membership={membership!} table="suppliers" title="شبکه تأمین" description="اطلاعات تولیدکنندگان و تأمین‌کنندگان تأییدشده." fields={[{name:'name',label:'نام تأمین‌کننده',required:true},{name:'city',label:'شهر'},{name:'phone',label:'شماره تماس',type:'tel'},{name:'farm_registration',label:'شناسه یا مجوز مزرعه'}]} columns={[{key:'name',label:'تأمین‌کننده'},{key:'city',label:'شهر'},{key:'phone',label:'تلفن'},{key:'farm_registration',label:'شناسه مزرعه'},{key:'active',label:'وضعیت'}]} search={search}/>}/><Route path="products" element={<ProductsPage membership={membership!} search={search}/>}/><Route path="inventory" element={<InventoryPage membership={membership!} search={search}/>}/><Route path="capacity" element={<CapacityPage membership={membership!} search={search}/>}/><Route path="quality" element={<QualityPage membership={membership!} search={search}/>}/><Route path="shipments" element={<ShipmentsPage membership={membership!} search={search}/>}/><Route path="finance" element={<FinancePage membership={membership!} search={search}/>}/><Route path="members" element={<MembersPage membership={membership!} search={search}/>}/><Route path="audit" element={<AuditPage membership={membership!} search={search}/>}/><Route path="catalog" element={<CustomerCatalog membership={membership!}/>}/><Route path="my-orders" element={<CustomerOrders membership={membership!} search={search}/>}/><Route path="my-account" element={<CustomerAccount membership={membership!}/>}/><Route path="supplier-work" element={<SupplierWork membership={membership!} search={search}/>}/><Route path="supplier-capacity" element={<SupplierCapacityPage membership={membership!} search={search}/>}/><Route path="supplier-settlement" element={<SupplierSettlementPage membership={membership!} search={search}/>}/><Route path="driver-work" element={<ShipmentsPage membership={membership!} search={search} driverMode/>}/><Route path="farm-sites" element={<OperationsWorkspacePage kind="farm-sites" membership={membership!} search={search}/>}/><Route path="flock-cycles" element={<OperationsWorkspacePage kind="flock-cycles" membership={membership!} search={search}/>}/><Route path="production-batches" element={<OperationsWorkspacePage kind="production-batches" membership={membership!} search={search}/>}/><Route path="daily-production" element={<OperationsWorkspacePage kind="daily-production" membership={membership!} search={search}/>}/><Route path="task-templates" element={<OperationsWorkspacePage kind="task-templates" membership={membership!} search={search}/>}/><Route path="operational-tasks" element={<OperationsWorkspacePage kind="operational-tasks" membership={membership!} search={search}/>}/><Route path="incidents" element={<OperationsWorkspacePage kind="incidents" membership={membership!} search={search}/>}/><Route path="partnership-agreements" element={<OperationsWorkspacePage kind="partnership-agreements" membership={membership!} search={search}/>}/><Route path="partner-finance" element={<OperationsWorkspacePage kind="partner-finance" membership={membership!} search={search}/>}/><Route path="partner-settlements" element={<OperationsWorkspacePage kind="partner-settlements" membership={membership!} search={search}/>}/><Route path="*" element={<Navigate to={`/app/${homeDestination}`} replace/>}/></Routes>}</div><footer className="app-footer"><span><Logo compact/> <b>سیمرغ</b> · مدیریت مزرعه و عملیات</span><span>تاریخچه تغییرات فعال <i/> داده‌های واقعی پایگاه داده</span></footer></main>
   </div>;
 }
 
@@ -129,8 +131,8 @@ function useDbRows(table: string, membership: Membership, options?: { select?: s
 }
 function Dashboard({ membership }: { membership: Membership }) {
   const [orders, setOrders] = useState<Row[]>([]);
-  const [counts, setCounts] = useState({ orders: 0, customers: 0, suppliers: 0, shipments: 0, capacity: 0, lateOrders: 0, overdueTasks: 0, reviewTasks: 0, incidents: 0, invoices: 0, failedShipments: 0, expiringLicenses: 0, pendingRequests: 0 });
-  const [signals, setSignals] = useState({ lateOrders: [] as Row[], overdueTasks: [] as Row[], reviewTasks: [] as Row[], incidents: [] as Row[], invoices: [] as Row[], failedShipments: [] as Row[], expiringLicenses: [] as Row[], pendingRequests: [] as Row[], audit: [] as Row[] });
+  const [counts, setCounts] = useState({ orders: 0, customers: 0, suppliers: 0, shipments: 0, capacity: 0, lateOrders: 0, overdueTasks: 0, reviewTasks: 0, incidents: 0, invoices: 0, failedShipments: 0, expiringLicenses: 0, pendingRequests: 0, goals: 0 });
+  const [signals, setSignals] = useState({ lateOrders: [] as Row[], overdueTasks: [] as Row[], reviewTasks: [] as Row[], incidents: [] as Row[], invoices: [] as Row[], failedShipments: [] as Row[], expiringLicenses: [] as Row[], pendingRequests: [] as Row[], audit: [] as Row[], goals: [] as Row[] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [lastUpdated, setLastUpdated] = useState('');
@@ -146,7 +148,7 @@ function Dashboard({ membership }: { membership: Membership }) {
     const horizon = `${horizonParts.year}-${horizonParts.month}-${horizonParts.day}`;
     const now = new Date().toISOString();
     const company = membership.company_id;
-    const [o, c, s, sh, cap, late, due, review, incidents, invoices, failed, licenses, requests, audit] = await Promise.all([
+    const [o, c, s, sh, cap, late, due, review, incidents, invoices, failed, licenses, requests, audit, goals] = await Promise.all([
       supabase.from('orders').select('id,reference,status,requested_delivery,created_at,customers(name)', { count: 'exact' }).eq('company_id', company).order('created_at', { ascending: false }).limit(8),
       supabase.from('customers').select('id', { count: 'exact', head: true }).eq('company_id', company),
       supabase.from('suppliers').select('id', { count: 'exact', head: true }).eq('company_id', company),
@@ -161,8 +163,9 @@ function Dashboard({ membership }: { membership: Membership }) {
       supabase.from('farm_sites').select('id,name,license_expires_on', { count: 'exact' }).eq('company_id', company).eq('active', true).not('license_expires_on', 'is', null).lte('license_expires_on', horizon).order('license_expires_on', { ascending: true }).limit(3),
       supabase.from('access_requests').select('id,email,full_name,requested_role,organization_name,created_at', { count: 'exact' }).eq('company_id', company).eq('status', 'pending').order('created_at', { ascending: true }).limit(3),
       supabase.from('audit_events').select('id,table_name,action,record_id,occurred_at', { count: 'exact' }).eq('company_id', company).order('occurred_at', { ascending: false }).limit(5),
+      supabase.from('company_goals').select('id,title,description,category,status,baseline_value,target_value,current_value,unit,due_date,priority,created_at', { count: 'exact' }).eq('company_id', company).not('status', 'in', '(achieved,cancelled)').order('created_at', { ascending: false }).limit(4),
     ]);
-    const dbError = o.error ?? c.error ?? s.error ?? sh.error ?? cap.error ?? late.error ?? due.error ?? review.error ?? incidents.error ?? invoices.error ?? failed.error ?? licenses.error ?? requests.error ?? audit.error;
+    const dbError = o.error ?? c.error ?? s.error ?? sh.error ?? cap.error ?? late.error ?? due.error ?? review.error ?? incidents.error ?? invoices.error ?? failed.error ?? licenses.error ?? requests.error ?? audit.error ?? goals.error;
     if (dbError) setError(dbError.message);
     const rowCount = (result: { count: number | null; data: unknown[] | null }) => result.count ?? result.data?.length ?? 0;
     setOrders((o.data ?? []) as Row[]);
@@ -170,20 +173,26 @@ function Dashboard({ membership }: { membership: Membership }) {
       orders: rowCount(o), customers: rowCount(c), suppliers: rowCount(s), shipments: rowCount(sh), capacity: rowCount(cap),
       lateOrders: rowCount(late), overdueTasks: rowCount(due), reviewTasks: canManage ? rowCount(review) : 0,
       incidents: rowCount(incidents), invoices: rowCount(invoices), failedShipments: rowCount(failed),
-      expiringLicenses: rowCount(licenses), pendingRequests: canManage ? rowCount(requests) : 0,
+      expiringLicenses: rowCount(licenses), pendingRequests: canManage ? rowCount(requests) : 0, goals: rowCount(goals),
     });
     setSignals({
       lateOrders: (late.data ?? []) as Row[], overdueTasks: (due.data ?? []) as Row[],
       reviewTasks: (review.data ?? []) as Row[], incidents: (incidents.data ?? []) as Row[],
       invoices: (invoices.data ?? []) as Row[], failedShipments: (failed.data ?? []) as Row[],
       expiringLicenses: (licenses.data ?? []) as Row[], pendingRequests: (requests.data ?? []) as Row[],
-      audit: (audit.data ?? []) as Row[],
+      audit: (audit.data ?? []) as Row[], goals: (goals.data ?? []) as Row[],
     });
     setLastUpdated(new Date().toISOString());
     setLoading(false);
   };
 
-  useEffect(() => { void load(); }, [membership.company_id, membership.role]);
+  useEffect(() => {
+    void load();
+    const timer = window.setInterval(() => void load(), 60_000);
+    const onFocus = () => void load();
+    window.addEventListener('focus', onFocus);
+    return () => { window.clearInterval(timer); window.removeEventListener('focus', onFocus); };
+  }, [membership.company_id, membership.role]);
   const chart = useMemo(() => {
     const names = ['draft','submitted','confirmed','allocated','in_fulfillment','dispatched','delivered','cancelled'];
     return names.map(key => ({ name: orderLabel[key], count: orders.filter(order => order.status === key).length })).filter(item => item.count > 0);
@@ -220,9 +229,22 @@ function Dashboard({ membership }: { membership: Membership }) {
         <Link to="/app/inventory"><span><Warehouse size={18}/></span><b>انبار و خرید</b><small>موجودی و گردش کالا</small><ArrowLeft size={14}/></Link>
         <Link to="/app/operational-tasks"><span><ClipboardCheck size={18}/></span><b>وظایف عملیاتی</b><small>کارهای باز و موعد</small><ArrowLeft size={14}/></Link>
         <Link to="/app/finance"><span><CreditCard size={18}/></span><b>مالی و تسویه</b><small>دفتر و اسناد مالی</small><ArrowLeft size={14}/></Link>
+        <Link to="/app/goals"><span><Target size={18}/></span><b>اهداف و برنامه</b><small>شاخص، موعد و مسئول</small><ArrowLeft size={14}/></Link>
       </div>
     </section>
     {counts.orders === 0 && counts.customers === 0 && counts.suppliers === 0 && <div className="tower-onboarding"><ShieldCheck size={18}/><div><b>داده‌ی عملیاتی هنوز ثبت نشده</b><p>برای شروع، محصولات، تأمین‌کنندگان و مشتریان واقعی را ثبت کن. سامانه تا آن زمان عدد ساختگی نمایش نمی‌دهد.</p></div><div className="tower-onboarding-links"><Link to="/app/products">تعریف محصول</Link><Link to="/app/suppliers">ثبت تأمین‌کننده</Link><Link to="/app/customers">ثبت مشتری</Link></div></div>}
+    <section className="panel tower-goals-summary">
+      <div className="panel-heading"><div><span className="section-number">۰۲</span><div><h3>اهداف و مسیر اجرا</h3><p>شاخص فعلی، مقدار هدف، موعد و مسئولیت؛ از دفتر اهداف مجموعه</p></div></div><Link className="tower-panel-link" to="/app/goals">مدیریت اهداف <ArrowLeft size={14}/></Link></div>
+      {loading ? <div className="panel-loading"><span className="spinner small"/></div> : signals.goals.length ? <div className="tower-goal-list">{signals.goals.map(goal => {
+        const baseline = Number(goal.baseline_value ?? 0), target = Number(goal.target_value ?? 0), current = Number(goal.current_value ?? 0);
+        const progress = goalProgressPercent(baseline, target, current);
+        const isOverdue = isGoalOverdue(goal.due_date ? String(goal.due_date) : null, todayForDisplay(), String(goal.status));
+        return <Link className={'tower-goal-row' + (isOverdue ? ' overdue' : '')} to="/app/goals" key={String(goal.id)}>
+          <span className="tower-goal-dot"><Target size={16}/></span><span className="tower-goal-main"><b>{String(goal.title ?? 'هدف بدون عنوان')}</b><small>{String(goal.due_date ? 'موعد ' + dateFa(String(goal.due_date)) : 'بدون موعد')} · {String(goal.unit ?? '')}</small></span>
+          <span className="tower-goal-progress"><i><span style={{width:(progress ?? 0)+'%'}}/></i><b>{progress === null ? '—' : numberFa(String(Math.round(progress)))+'٪'}</b></span>
+        </Link>;
+      })}</div> : <EmptyState title="هدف قابل‌پیگیری ثبت نشده" description="در بخش اهداف و برنامه، مقدار مبنا، هدف، موعد و مسئول را ثبت کن تا مسیر اجرا در مرکز فرمان نمایش داده شود." icon={Target}/>}
+    </section>
     <div className="dashboard-grid tower-main-grid">
       <section className="panel chart-panel"><div className="panel-heading"><div><span className="section-number">۰۱</span><div><h3>وضعیت سفارش‌های اخیر</h3><p>توزیع رکوردهای واقعی، بدون پیش‌بینی</p></div></div><Badge value={loading ? 'در حال دریافت' : numberFa(orders.length) + ' رکورد'}/></div>
         {loading ? <div className="panel-loading"><span className="spinner small"/></div> : chart.length ? <div className="chart-wrap"><ResponsiveContainer width="100%" height={270}><BarChart data={chart} margin={{top:8,right:8,left:-14,bottom:8}}><CartesianGrid stroke="#29373B" strokeDasharray="4 4" vertical={false}/><XAxis dataKey="name" tick={{fill:'#A0B0B2',fontSize:11}} axisLine={{stroke:'#29373B'}} tickLine={{stroke:'#29373B'}}/><YAxis allowDecimals={false} tick={{fill:'#77898C',fontSize:10}} axisLine={false} tickLine={false}/><Tooltip contentStyle={{backgroundColor:'#11191C',border:'1px solid #29373B',borderRadius:12,color:'#EAF0F0'}} labelStyle={{color:'#EAF0F0'}} cursor={{fill:'#1D292D'}}/><Bar dataKey="count" name="تعداد سفارش" fill="#6EB9AC" radius={[6,6,0,0]} maxBarSize={54}/></BarChart></ResponsiveContainer></div> : <EmptyState title="هنوز سفارش ثبت نشده" description="با ثبت سفارش واقعی، نمودار وضعیت‌ها اینجا ظاهر می‌شود." icon={FileText}/>}
@@ -460,6 +482,141 @@ function ShipmentsPage({membership,search,driverMode=false}:{membership:Membersh
  const nextMap:Record<string,string[]>={planned:['loading'],loading:['in_transit'],in_transit:['arrived','failed'],arrived:['delivered','failed','returned']};
  return <><PageHeading eyebrow="LOGISTICS / DELIVERY" title={driverMode?'محموله‌های من':'ارسال و تحویل'} description="مراحل حمل و تحویل با مسئول مشخص و ثبت مدرک دنبال می‌شود. وضعیت یا مدرک ساختگی وجود ندارد." action={!driverMode&&<Button onClick={()=>setOpen(true)}><Plus size={16}/> برنامه‌ریزی ارسال</Button>}/>{error&&<InlineError error={error} retry={()=>void load()}/>}<div className="rule-banner"><Truck size={17}/><p><b>مدرک تحویل و موقعیت GPS</b><span>وضعیت «تحویل‌شده» تنها با تأیید مسئول مجاز تغییر می‌کند. راننده می‌تواند فقط با فشردن «ارسال GPS» و اجازه دستگاه، نقطه فعلی خود را برای محموله تخصیص‌یافته ثبت کند؛ ردیابی پس‌زمینه فعال نیست.</span></p></div>{locationNotice&&<div className="form-success notice-wide"><MapPin size={16}/>{locationNotice}</div>}<section id={driverMode?'driver-shipments':'shipments-admin-list'} className="panel entity-panel"><div className="entity-toolbar"><div><b>{numberFa(visible.length)} محموله قابل مشاهده</b><small>محدودیت نمایش بر اساس عضویت و دسترسی دیتابیس اعمال می‌شود.</small></div><Button variant="soft" onClick={()=>void load()}>تازه‌سازی</Button></div>{loading?<div className="panel-loading"><span className="spinner small"/></div>:visible.length?<DataTable rows={visible} columns={[{key:'id',label:'شناسه',render:r=><code>{String(r.id).slice(0,8).toUpperCase()}</code>},{key:'order_id',label:'سفارش',render:r=>String(orders.find(o=>o.id===r.order_id)?.reference ?? String(r.order_id).slice(0,8))},{key:'vehicle',label:'وسیله/پلاک'},{key:'stage',label:'مرحله',render:r=><Badge value={r.stage}/>},{key:'planned_departure',label:'زمان برنامه‌ریزی',render:r=>dateTimeFa(String(r.planned_departure??''))},{key:'delivered_at',label:'زمان تحویل',render:r=>dateTimeFa(String(r.delivered_at??''))},{key:'location',label:'آخرین GPS',render:r=>{const point=gpsByShipment[String(r.id)];return point?<a className="shipment-location-link" href={`https://maps.google.com/?q=${String(point.latitude)},${String(point.longitude)}`} target="_blank" rel="noreferrer"><MapPin size={13}/> مشاهده نقطه<small>{dateTimeFa(String(point.captured_at))}{point.accuracy_m!=null? ` · دقت ±${numberFa(String(Math.round(Number(point.accuracy_m))))} متر`:''}</small></a>:<span className="helper-note">ثبت نشده</span>;}}]} actions={r=><div className="row-actions wrap">{driverMode&&r.driver_user_id===user?.id&&['planned','loading','in_transit','arrived'].includes(String(r.stage))&&<Button variant="soft" disabled={locationBusy===String(r.id)} onClick={()=>void captureLocation(r)}><MapPin size={14}/>{locationBusy===String(r.id)?'در حال تعیین موقعیت…':'ارسال GPS'}</Button>}{(nextMap[String(r.stage)]??[]).map(next=><Button key={next} variant={next==='failed'?'danger':'soft'} onClick={()=>void update(r,next)}>{statusLabel[next]}</Button>)}<Button variant="ghost" onClick={()=>setEvidenceFor(r)}><Plus size={14}/> مدرک</Button></div>}/>:<EmptyState title="محموله‌ای ثبت نشده" description="برای برنامه‌ریزی ارسال، یک سفارش واقعی باید وجود داشته باشد." icon={Truck}/>}</section>{driverMode&&<section id="driver-map" className="panel entity-panel driver-mobile-panel"><div className="panel-heading"><div><span className="section-number">۰۱</span><div><h3>نقشه‌ی راهنما</h3><p>نقاط واقعی فقط از آخرین GPS محموله‌های واگذارشده</p></div></div><MapPin size={17}/></div><div className="driver-map-frame"><iframe title="نقشه راهنمای راننده" loading="lazy" src="https://www.openstreetmap.org/export/embed.html?bbox=43.2%2C24.5%2C64.8%2C40.8&layer=mapnik"/></div><div className="driver-map-points">{rows.filter(r=>gpsByShipment[String(r.id)]).map(r=>{const point=gpsByShipment[String(r.id)];return <a key={String(r.id)} href={'https://maps.google.com/?q='+String(point.latitude)+','+String(point.longitude)} target="_blank" rel="noreferrer"><MapPin size={14}/><span><b>محموله {String(r.id).slice(0,8).toUpperCase()}</b><small>{dateTimeFa(String(point.captured_at))}</small></span><ArrowUpLeft size={14}/></a>})}{!rows.some(r=>gpsByShipment[String(r.id)])&&<p className="helper-note">هنوز GPS مجازی برای این محموله‌ها ثبت نشده است. موقعیت فقط با اقدام صریح راننده ذخیره می‌شود.</p>}</div></section>}{driverMode&&<section id="driver-proof" className="panel entity-panel driver-mobile-panel"><div className="panel-heading"><div><span className="section-number">۰۲</span><div><h3>ثبت مدرک تحویل</h3><p>مدرک را از روی مأموریت تخصیص‌یافته ثبت کن</p></div></div><FileText size={17}/></div>{rows.length?rows.map(r=><div className="driver-proof-row" key={String(r.id)}><span><b>محموله {String(r.id).slice(0,8).toUpperCase()}</b><small>{statusLabel[String(r.stage)]??String(r.stage)}</small></span><Button variant="soft" onClick={()=>setEvidenceFor(r)}><Plus size={14}/> ثبت مدرک</Button></div>):<EmptyState title="محموله‌ای در دسترس نیست" description="وقتی محموله‌ای به حساب شما تخصیص داده شود، امکان ثبت مدرک آن اینجا نمایش داده می‌شود." icon={FileText}/>}</section>}{open&&<Modal title="برنامه‌ریزی محموله" subtitle="این اقدام فقط پس از ثبت سفارش معتبر انجام می‌شود." onClose={()=>setOpen(false)}><form className="record-form" onSubmit={create}><label className="full-span">سفارش<select value={form.order_id} required onChange={e=>setForm({...form,order_id:e.target.value})}><option value="">انتخاب سفارش…</option>{orders.map(o=><option key={String(o.id)} value={String(o.id)}>{String(o.reference)} · {(o.customers as any)?.name??''}</option>)}</select></label><label className="full-span">راننده (اختیاری)<select value={form.driver_user_id} onChange={e=>setForm({...form,driver_user_id:e.target.value})}><option value="">بدون تخصیص راننده</option>{drivers.map(d=><option key={String(d.user_id)} value={String(d.user_id)}>{String(d.full_name??d.email)}</option>)}</select></label><label>خودرو/پلاک<input value={form.vehicle} onChange={e=>setForm({...form,vehicle:e.target.value})}/></label><label>زمان برنامه‌ریزی<input type="datetime-local" value={form.planned_departure} onChange={e=>setForm({...form,planned_departure:e.target.value})}/></label><div className="modal-actions"><Button variant="soft" onClick={()=>setOpen(false)}>انصراف</Button><Button type="submit" disabled={busy||!orders.length}>{busy?'در حال ثبت…':'ثبت محموله'}</Button></div></form>{!orders.length&&<p className="helper-note">سفارش قابل ارسال در دسترس نیست. ابتدا سفارش واقعی ثبت کن.</p>}</Modal>}{evidenceFor&&<Modal title="ثبت مدرک محموله" subtitle={`محموله ${String(evidenceFor.id).slice(0,8)}`} onClose={()=>setEvidenceFor(null)}><form className="record-form" onSubmit={saveEvidence}><label>نام تحویل‌گیرنده<input value={evidence.recipient_name} onChange={e=>setEvidence({...evidence,recipient_name:e.target.value})}/></label><label>دمای ثبت‌شده (°C)<input type="number" step="0.1" value={evidence.reading_celsius} onChange={e=>setEvidence({...evidence,reading_celsius:e.target.value})} dir="ltr"/></label><label className="full-span">یادداشت / مغایرت<textarea rows={3} value={evidence.note} onChange={e=>setEvidence({...evidence,note:e.target.value})}/></label><label className="full-span">تصویر مدرک (اختیاری)<input type="file" accept="image/png,image/jpeg,image/webp" onChange={e=>setFile(e.target.files?.[0]??null)}/><small className="field-help">حداکثر ۱۰ مگابایت؛ تصاویر در bucket خصوصی ذخیره می‌شوند.</small></label><div className="modal-actions"><Button variant="soft" onClick={()=>setEvidenceFor(null)}>انصراف</Button><Button type="submit" disabled={busy}>{busy?'در حال ثبت…':'ذخیره مدرک'}</Button></div></form></Modal>}</>;
 }
+
+const goalCategoryLabels:Record<string,string>={operations:'عملیات',production:'تولید',sales:'فروش',quality:'کیفیت',logistics:'لجستیک',finance:'مالی',people:'منابع انسانی',growth:'توسعه',other:'سایر'};
+const goalStatusLabels:Record<string,string>={planned:'برنامه‌ریزی‌شده',active:'در حال اجرا',at_risk:'در معرض ریسک',achieved:'محقق‌شده',paused:'متوقف',cancelled:'لغوشده'};
+const goalPriorityLabels:Record<string,string>={low:'کم',normal:'عادی',high:'بالا',critical:'بحرانی'};
+const emptyGoalForm={title:'',description:'',category:'operations',unit:'',baseline_value:'0',target_value:'',current_value:'0',priority:'normal',status:'planned',period_start:'',due_date:'',owner_user_id:''};
+
+function GoalsPage({membership,search}:{membership:Membership;search:string}) {
+ const {user}=useAuth();
+ const [rows,setRows]=useState<Row[]>([]);
+ const [members,setMembers]=useState<Row[]>([]);
+ const [loading,setLoading]=useState(true);
+ const [busy,setBusy]=useState(false);
+ const [error,setError]=useState('');
+ const [notice,setNotice]=useState('');
+ const [open,setOpen]=useState(false);
+ const [editing,setEditing]=useState<string|null>(null);
+ const [form,setForm]=useState({...emptyGoalForm});
+ const canManage=membership.role==='owner'||membership.role==='admin';
+
+ const load=async()=>{
+  if(!supabase){setError('اتصال پایگاه داده پیکربندی نشده است.');setLoading(false);return;}
+  setLoading(true);setError('');
+  const [g,m]=await Promise.all([
+   supabase.from('company_goals').select('*').eq('company_id',membership.company_id).order('created_at',{ascending:false}).limit(300),
+   canManage ? supabase.rpc('company_members',{_company:membership.company_id}) : Promise.resolve({data:[],error:null}),
+  ]);
+  const e=g.error??m.error;
+  if(e)setError(e.message);
+  setRows((g.data??[]) as Row[]);
+  setMembers((m.data??[]) as Row[]);
+  setLoading(false);
+ };
+ useEffect(()=>{
+  void load();
+  const timer=window.setInterval(()=>void load(),60_000);
+  const onFocus=()=>void load();
+  window.addEventListener('focus',onFocus);
+  return()=>{window.clearInterval(timer);window.removeEventListener('focus',onFocus);};
+ },[membership.company_id]);
+
+ const openNew=()=>{setEditing(null);setForm({...emptyGoalForm});setError('');setNotice('');setOpen(true);};
+ const openEdit=(r:Row)=>{setEditing(String(r.id));setForm({
+  title:String(r.title??''),description:String(r.description??''),category:String(r.category??'operations'),
+  unit:String(r.unit??''),baseline_value:String(r.baseline_value??0),target_value:String(r.target_value??''),
+  current_value:String(r.current_value??0),priority:String(r.priority??'normal'),status:String(r.status??'planned'),
+  period_start:String(r.period_start??''),due_date:String(r.due_date??''),owner_user_id:String(r.owner_user_id??''),
+ });setError('');setNotice('');setOpen(true);};
+ const submit=async(event:React.FormEvent<HTMLFormElement>)=>{
+  event.preventDefault();if(!supabase||!user)return;
+  const target=Number(form.target_value),baseline=Number(form.baseline_value),current=Number(form.current_value);
+  if(!Number.isFinite(target)||target<=baseline){setError('مقدار هدف باید از مقدار مبنا بیشتر باشد.');return;}
+  if(!Number.isFinite(current)||current<0||baseline<0){setError('مقدار فعلی و مبنا باید عدد معتبر و غیرمنفی باشند.');return;}
+  if(form.period_start&&form.due_date&&form.due_date<form.period_start){setError('موعد پایان نمی‌تواند قبل از شروع باشد.');return;}
+  setBusy(true);setError('');setNotice('');
+  const values={
+   company_id:membership.company_id,title:form.title.trim(),description:form.description.trim(),
+   category:form.category,unit:form.unit.trim(),baseline_value:baseline,target_value:target,current_value:current,
+   priority:form.priority,status:form.status,period_start:form.period_start||null,due_date:form.due_date||null,
+   owner_user_id:form.owner_user_id||null,updated_by:user.id,
+  };
+  try{
+   const result=editing
+    ? await supabase.from('company_goals').update(values).eq('company_id',membership.company_id).eq('id',editing)
+    : await supabase.from('company_goals').insert({...values,created_by:user.id});
+   if(result.error)throw new Error(result.error.message);
+   setNotice(editing?'هدف ویرایش شد و تغییرات در تاریخچه ثبت شد.':'هدف جدید ثبت شد و در تاریخچه تغییرات ثبت شد.');
+   setOpen(false);setEditing(null);setForm({...emptyGoalForm});
+   await load();
+  }catch(err){setError(err instanceof Error?err.message:'ذخیره هدف انجام نشد.');}
+  finally{setBusy(false);}
+ };
+ const remove=async(r:Row)=>{
+  if(!supabase||!canManage)return;
+  if(!window.confirm('این هدف حذف شود؟ حذف در تاریخچه تغییرات ثبت خواهد شد.'))return;
+  setError('');setNotice('');
+  const result=await supabase.from('company_goals').delete().eq('company_id',membership.company_id).eq('id',String(r.id));
+  if(result.error)setError(result.error.message);else{setNotice('هدف حذف شد و ردپای تغییر ثبت شد.');await load();}
+ };
+ const shown=rows.filter(r=>!search||`${r.title??''} ${r.description??''} ${goalCategoryLabels[String(r.category)]??r.category??''} ${goalStatusLabels[String(r.status)]??r.status??''}`.toLowerCase().includes(search.toLowerCase()));
+ const today=todayForDisplay();
+ const activeCount=rows.filter(r=>['active','at_risk'].includes(String(r.status))).length;
+ const overdueCount=rows.filter(r=>r.due_date&&String(r.due_date)<today&&!['achieved','cancelled','paused'].includes(String(r.status))).length;
+ const achievedCount=rows.filter(r=>r.status==='achieved').length;
+
+ return <>
+  <PageHeading eyebrow="مدیریت / اهداف" title="اهداف و برنامه" description="هدف قابل‌اندازه‌گیری، مقدار مبنا، شاخص فعلی، مسئول، موعد و گام بعدی؛ با ردپای تغییرات." action={<Button onClick={openNew} disabled={!canManage}><Plus size={16}/> ثبت هدف</Button>}/>
+  {error&&<InlineError error={error} retry={()=>void load()}/>}
+  {notice&&<div className="form-success notice-wide"><CheckCircle2 size={16}/>{notice}</div>}
+  {!canManage&&<div className="rule-banner"><ShieldCheck size={17}/><p><b>دسترسی مشاهده</b><span>ثبت، ویرایش و حذف اهداف فقط برای مالک یا مدیر مجموعه فعال است.</span></p></div>}
+  <section className="stats-grid tower-stats goal-stats">
+   <article className="stat-card"><div className="stat-card-top"><span>کل اهداف</span><span className="stat-icon"><Target size={17}/></span></div><b>{loading?'—':numberFa(String(rows.length))}</b><small>اهداف ثبت‌شده در این مجموعه</small></article>
+   <article className="stat-card"><div className="stat-card-top"><span>در حال اجرا</span><span className="stat-icon"><Activity size={17}/></span></div><b>{loading?'—':numberFa(String(activeCount))}</b><small>فعال یا در معرض ریسک</small></article>
+   <article className="stat-card"><div className="stat-card-top"><span>عقب‌مانده از موعد</span><span className="stat-icon"><AlertTriangle size={17}/></span></div><b>{loading?'—':numberFa(String(overdueCount))}</b><small>نیازمند بازبینی برنامه</small></article>
+   <article className="stat-card"><div className="stat-card-top"><span>محقق‌شده</span><span className="stat-icon"><CheckCircle2 size={17}/></span></div><b>{loading?'—':numberFa(String(achievedCount))}</b><small>با وضعیت ثبت‌شده‌ی محقق‌شده</small></article>
+  </section>
+  <section className="panel goal-workspace-panel">
+   <div className="panel-heading"><div><span className="section-number">۰۱</span><div><h3>برنامه و شاخص‌ها</h3><p>اطلاعات از پایگاه داده و به‌صورت خودکار هر ۶۰ ثانیه تازه می‌شود.</p></div></div><Button variant="soft" onClick={()=>void load()} disabled={loading}><RefreshCw size={14}/> تازه‌سازی</Button></div>
+   {loading?<div className="panel-loading"><span className="spinner small"/></div>:shown.length?<div className="goal-card-grid">{shown.map(r=>{
+    const baseline=Number(r.baseline_value??0),target=Number(r.target_value??0),current=Number(r.current_value??0);
+    const progress=goalProgressPercent(baseline,target,current);
+    const overdue=isGoalOverdue(r.due_date?String(r.due_date):null,today,String(r.status));
+    const owner=members.find(m=>String(m.user_id)===String(r.owner_user_id));
+    return <article className={`goal-card ${overdue?'overdue':''}`} key={String(r.id)}>
+     <header className="goal-card-head"><span className="goal-category">{goalCategoryLabels[String(r.category)]??'سایر'}</span><Badge value={goalStatusLabels[String(r.status)]??r.status}/></header>
+     <h3>{String(r.title??'هدف بدون عنوان')}</h3>
+     {String(r.description??'').trim()!==''&&<p className="goal-description">{String(r.description)}</p>}
+     <div className="goal-progress-meta"><span>پیشرفت ثبت‌شده</span><b>{progress===null?'—':numberFa(String(Math.round(progress)))+'٪'}</b></div>
+     <div className="goal-progress-track"><span style={{width:(progress??0)+'%'}}/></div>
+     <div className="goal-value-row"><span>مقدار فعلی <b>{numberFa(String(current))}{r.unit?' '+String(r.unit):''}</b></span><span>هدف <b>{numberFa(String(target))}{r.unit?' '+String(r.unit):''}</b></span></div>
+     <div className="goal-meta-row"><span><CalendarDays size={13}/> {r.due_date?dateFa(String(r.due_date)):'بدون موعد'}</span><span><Users size={13}/> {String(owner?.full_name??owner?.email??'مسئول تعیین نشده')}</span></div>
+     {overdue&&<div className="goal-overdue-note"><AlertTriangle size={13}/> موعد هدف گذشته است</div>}
+     {canManage&&<div className="goal-actions"><Button variant="soft" onClick={()=>openEdit(r)}>ویرایش هدف</Button><Button variant="ghost" onClick={()=>void remove(r)}>حذف</Button></div>}
+    </article>;
+   })}</div>:<EmptyState title="هنوز هدفی ثبت نشده" description={canManage?'هدف‌های مجموعه را با شاخص، مقدار مبنا، موعد و مسئول ثبت کن؛ پیشرفت فقط از مقدارهای ثبت‌شده محاسبه می‌شود.':'بعد از ثبت هدف توسط مالک یا مدیر، شاخص و موعد در این بخش دیده می‌شود.'} icon={Target}/>}
+  </section>
+  {open&&<Modal title={editing?'ویرایش هدف':'ثبت هدف جدید'} subtitle="مقادیر در دیتابیس ذخیره می‌شوند و تغییرات در تاریخچه ممیزی ثبت خواهد شد." onClose={()=>setOpen(false)}>
+   <form className="record-form" onSubmit={submit}>
+    <label className="full-span">عنوان هدف<input required minLength={3} maxLength={160} value={form.title} onChange={e=>setForm({...form,title:e.target.value})} placeholder="مثلاً کاهش تأخیر تحویل یا افزایش ظرفیت تأییدشده"/></label>
+    <label>حوزه<select required value={form.category} onChange={e=>setForm({...form,category:e.target.value})}>{Object.entries(goalCategoryLabels).map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></label>
+    <label>وضعیت<select required value={form.status} onChange={e=>setForm({...form,status:e.target.value})}>{Object.entries(goalStatusLabels).map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></label>
+    <label>اولویت<select required value={form.priority} onChange={e=>setForm({...form,priority:e.target.value})}>{Object.entries(goalPriorityLabels).map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></label>
+    <label>واحد شاخص<input maxLength={40} value={form.unit} onChange={e=>setForm({...form,unit:e.target.value})} placeholder="٪، عدد، تومان، روز…"/></label>
+    <label>مقدار مبنا<input type="number" min="0" step="0.001" required value={form.baseline_value} onChange={e=>setForm({...form,baseline_value:e.target.value})}/></label>
+    <label>مقدار هدف<input type="number" min="0.001" step="0.001" required value={form.target_value} onChange={e=>setForm({...form,target_value:e.target.value})}/></label>
+    <label>مقدار فعلی ثبت‌شده<input type="number" min="0" step="0.001" required value={form.current_value} onChange={e=>setForm({...form,current_value:e.target.value})}/></label>
+    <label>شروع بازه<input type="date" value={form.period_start} onChange={e=>setForm({...form,period_start:e.target.value})}/></label>
+    <label>موعد هدف<input type="date" value={form.due_date} onChange={e=>setForm({...form,due_date:e.target.value})}/></label>
+    <label className="full-span">مسئول<select value={form.owner_user_id} onChange={e=>setForm({...form,owner_user_id:e.target.value})}><option value="">تعیین‌نشده</option>{members.map(m=><option key={String(m.user_id)} value={String(m.user_id)}>{String(m.full_name??m.email??m.user_id)} · {roleLabel[String(m.role)]??String(m.role)}</option>)}</select></label>
+    <label className="full-span">توضیحات<textarea rows={3} maxLength={3000} value={form.description} onChange={e=>setForm({...form,description:e.target.value})} placeholder="محدوده، پیش‌نیاز، معیار تأیید و گام بعدی…"/></label>
+    <div className="modal-actions"><Button variant="soft" onClick={()=>setOpen(false)}>انصراف</Button><Button type="submit" disabled={busy}>{busy?'در حال ذخیره…':'ذخیره هدف'}</Button></div>
+   </form>
+  </Modal>}
+ </>;
+}
+
 function FinancePage({membership,search}:{membership:Membership;search:string}) {
  const [invoices,setInvoices]=useState<Row[]>([]);const [settlements,setSettlements]=useState<Row[]>([]);const [orders,setOrders]=useState<Row[]>([]);const [suppliers,setSuppliers]=useState<Row[]>([]);const [loading,setLoading]=useState(true);const [error,setError]=useState('');const [mode,setMode]=useState<'invoice'|'settlement'>('invoice');const [open,setOpen]=useState(false);const [busy,setBusy]=useState(false);const [form,setForm]=useState({order_id:'',customer_id:'',supplier_id:'',reference:'',amount:'',due_date:'',invoice_ref:'',note:''});const internal=['owner','admin','staff'].includes(membership.role);
  const load=async()=>{if(!supabase)return;setLoading(true);const [i,s,o,v]=await Promise.all([supabase.from('invoices').select('*,customers(name),orders(reference)').eq('company_id',membership.company_id).order('created_at',{ascending:false}).limit(300),supabase.from('settlements').select('*,suppliers(name)').eq('company_id',membership.company_id).order('created_at',{ascending:false}).limit(300),internal?supabase.from('orders').select('id,reference,customer_id,customers(name)').eq('company_id',membership.company_id).order('created_at',{ascending:false}).limit(300):Promise.resolve({data:[],error:null}),internal?supabase.from('suppliers').select('id,name').eq('company_id',membership.company_id).order('name'):Promise.resolve({data:[],error:null})]);const err=i.error??s.error??o.error??v.error;if(err)setError(err.message);setInvoices((i.data??[]) as Row[]);setSettlements((s.data??[]) as Row[]);setOrders((o.data??[]) as Row[]);setSuppliers((v.data??[]) as Row[]);setLoading(false);};useEffect(()=>{void load()},[membership.company_id,internal]);

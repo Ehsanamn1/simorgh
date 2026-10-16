@@ -35,7 +35,7 @@ const statusFa: Record<string,string> = {
   draft:'پیش‌نویس', pending_signature:'در انتظار امضا', active:'فعال', suspended:'معلق', expired:'منقضی',
   terminated:'خاتمه‌یافته', planned:'برنامه‌ریزی‌شده', in_progress:'در حال انجام', submitted:'ارسال برای بررسی',
   approved:'تأییدشده', rejected:'ردشده', completed:'تکمیل‌شده', on_hold:'متوقف', cancelled:'لغوشده',
-  eggs:'تخم بلدرچین', meat:'گوشت بلدرچین', other:'سایر', not_inspected:'بازرسی‌نشده', passed:'قبول',
+  eggs:'تخم‌مرغ', meat:'گوشت', other:'سایر', not_inspected:'بازرسی‌نشده', passed:'قبول',
   pending_review:'در انتظار بازبینی', open:'باز', investigating:'در حال بررسی', action_required:'نیازمند اقدام',
   resolved:'رفع‌شده', closed:'بسته', sale_invoice:'فاکتور فروش', sale_collection:'دریافت فروش',
   expense:'هزینه', partner_advance:'پیش‌پرداخت شریک', settlement_payment:'پرداخت تسویه',
@@ -107,9 +107,9 @@ const configs: Record<OperationsKind, Config> = {
     {key:'balance_due_to_partner',label:'سهم قابل پرداخت',value:r=>moneyFa(numeric(r.balance_due_to_partner))},
     {key:'settled_amount',label:'پرداخت ثبت‌شده',value:r=>moneyFa(numeric(r.settled_amount))},{key:'status',label:'وضعیت',value:r=>fa(r.status)}]},
 };
-const types: Option[] = [{value:'eggs',label:'تخم بلدرچین'},{value:'meat',label:'گوشت بلدرچین'},{value:'other',label:'سایر محصول'}];
+const types: Option[] = [{value:'eggs',label:'تخم‌مرغ'},{value:'meat',label:'گوشت'},{value:'other',label:'سایر محصول'}];
 const categories: Option[] = [
-  {value:'production',label:'تولید'},{value:'quality',label:'کیفیت'},{value:'animal_welfare',label:'رفاه گله'},
+  {value:'production',label:'تولید'},{value:'quality',label:'کیفیت'},{value:'animal_welfare',label:'سلامت دام و طیور'},
   {value:'inventory',label:'موجودی'},{value:'safety',label:'ایمنی'},{value:'logistics',label:'حمل‌ونقل'},
   {value:'finance',label:'مالی'},{value:'other',label:'سایر'},
 ];

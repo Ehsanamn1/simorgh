@@ -34,6 +34,7 @@ const quickItems: {key:ModuleKey;title:string;desc:string;icon:IconType;tone:str
  {key:'orders',title:'مدیریت سفارش‌ها',desc:'سفارش، تعهد و زمان تحویل',icon:Boxes,tone:'teal'},
  {key:'inventory',title:'انبار و خرید',desc:'مانده و گردش واقعی کالا',icon:Warehouse,tone:'blue'},
  {key:'tasks',title:'وظایف روزانه',desc:'کارهای باز و موارد نیازمند اقدام',icon:ClipboardCheck,tone:'amber'},
+ {key:'goals',title:'اهداف و برنامه',desc:'شاخص، موعد و مسئول',icon:Target,tone:'slate'},
  {key:'finance',title:'مالی و تسویه',desc:'دفتر مالی و صورت‌حساب',icon:CreditCard,tone:'slate'},
 ];
 const pageFromLocation=(path:string,search:string):ModuleKey=>{

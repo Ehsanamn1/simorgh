@@ -20,7 +20,7 @@ test('the app opens the Persian operational workspace with no sign-in page or pr
   await expect(page.locator('.sim-preview-palette')).toHaveCount(0);
   await expect(page.getByRole('heading', { name: 'مرکز فرمان شبکه' })).toBeVisible();
   await expect(page.getByText('دسترسی سریع')).toBeVisible();
-  await expect(page.locator('.ops-live-quick-card')).toHaveCount(4);
+  await expect(page.locator('.ops-live-quick-card')).toHaveCount(5);
   await expect(page.locator('.ops-live-status')).toContainText('داده‌های شرکت در انتظار فعال‌سازی حساب مالک');
 
   const dimensions = await page.evaluate(() => ({ viewport: innerWidth, document: document.documentElement.scrollWidth, body: document.body.scrollWidth }));
@@ -45,7 +45,12 @@ test('dark and light themes work, and the four quick-access cards navigate to th
   await page.getByRole('button', { name: 'فعال‌کردن حالت تاریک' }).click();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
 
-  await page.getByRole('button', { name: /مدیریت سفارش‌ها/ }).click();
+  await page.locator('.ops-live-quick-card').filter({ hasText: 'اهداف و برنامه' }).click();
+  await expect(page).toHaveURL(/module=goals/);
+  await expect(page.getByRole('heading', { name: 'اهداف و برنامه', level: 1 })).toBeVisible();
+
+  await page.goto('/simorgh/app/command', { waitUntil: 'domcontentloaded' });
+  await page.locator('.ops-live-quick-card').filter({ hasText: 'مدیریت سفارش‌ها' }).click();
   await expect(page).toHaveURL(/module=orders/);
   await expect(page.getByRole('heading', { name: 'سفارش‌ها', level: 1 })).toBeVisible();
   await expect(page.locator('.simorgh-signin-layer')).toHaveCount(0);

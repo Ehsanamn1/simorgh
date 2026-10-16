@@ -48,10 +48,15 @@
     </div>
     <div id="root"></div>
     <script>
-      window.setTimeout(function () {
+      function showBootFailure() {
         var screen = document.getElementById('app-boot-screen');
         if (screen && document.documentElement.dataset.simorghReady !== 'true') screen.classList.add('has-error');
-      }, 9000);
+      }
+      window.addEventListener('error', function (event) {
+        var target = event.target;
+        if (target && target.tagName === 'SCRIPT') showBootFailure();
+      }, true);
+      window.setTimeout(showBootFailure, 6000);
     </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
