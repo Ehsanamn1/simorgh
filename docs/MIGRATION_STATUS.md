@@ -69,3 +69,5 @@ Do not:
 - Frontend authentication is now routed through Neon Auth; the legacy Supabase data client remains temporarily because operational pages still contain direct table/RPC/storage calls. It must not be removed until the data API migration is complete.
 - The Neon project currently has no application rows. Existing production data has not been copied or deleted.
 - Neon SQL mutation was not applied automatically from this session; schema creation therefore remains a gated migration task and the Worker data endpoints are not production-ready until the schema and Cloudflare secrets are configured and smoke-tested.
+
+- Neon project: `weathered-shadow-56159151` (region `aws-eu-central-1`); migration branch: `br-divine-sun-ba4ib9rw`.
