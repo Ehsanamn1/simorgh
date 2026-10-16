@@ -31,7 +31,7 @@ export async function onRequest({ request, env }: Context) {
     const role = typeof data.role === 'string' ? data.role : '';
     const organization = typeof data.organizationName === 'string' ? data.organizationName.trim().slice(0,160) : null;
     if (!['customer','supplier','driver','staff'].includes(role)) return json({ message: 'نقش انتخابی معتبر نیست.' }, 400);
-    if (['customer','supplier'].includes(role) && (!organization || organization.length < 2)) return json({ message: 'برای این نقش نام شرکت یا مزرعه ضروری است.' }, 400);
+    if (!organization || organization.length < 2) return json({ message: 'برای این نقش نام شرکت یا مزرعه ضروری است.' }, 400);
     const rows = await sql`INSERT INTO public.medar_access_requests (user_id, requested_role, organization_name)
       VALUES (${String((users[0] as {id:string}).id)}::uuid, ${role}, ${organization})
       ON CONFLICT (user_id, requested_role, status) DO UPDATE SET organization_name=EXCLUDED.organization_name
