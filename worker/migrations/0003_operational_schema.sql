@@ -589,6 +589,8 @@ ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT 
 ALTER TABLE public.memberships ADD COLUMN IF NOT EXISTS customer_id uuid;
 ALTER TABLE public.memberships ADD COLUMN IF NOT EXISTS supplier_id uuid;
 ALTER TABLE public.access_requests ADD COLUMN IF NOT EXISTS company_id uuid REFERENCES public.companies(id) ON DELETE CASCADE;
+ALTER TABLE public.access_requests ADD COLUMN IF NOT EXISTS customer_id uuid;
+ALTER TABLE public.access_requests ADD COLUMN IF NOT EXISTS supplier_id uuid;
 ALTER TABLE public.access_requests ADD COLUMN IF NOT EXISTS organization_name text;
 ALTER TABLE public.access_requests ADD COLUMN IF NOT EXISTS notes text;
 ALTER TABLE public.access_requests ADD COLUMN IF NOT EXISTS email text;
@@ -623,6 +625,20 @@ ALTER TABLE public.daily_production_records add column if not exists loss_unit t
 ALTER TABLE public.daily_production_records add column if not exists rejected_quantity numeric(14,3) not null default 0;
 
 -- 5. Access requests use Medar identities, not Neon Auth identities.
+ALTER TABLE public.memberships DROP CONSTRAINT IF EXISTS membership_role_scope;
+ALTER TABLE public.memberships ADD CONSTRAINT membership_role_scope CHECK (
+  (role='customer' AND customer_id IS NOT NULL AND supplier_id IS NULL) OR
+  (role='supplier' AND supplier_id IS NOT NULL AND customer_id IS NULL) OR
+  (role NOT IN ('customer','supplier') AND customer_id IS NULL AND supplier_id IS NULL)
+);
+ALTER TABLE public.memberships DROP CONSTRAINT IF EXISTS memberships_company_id_customer_id_fkey;
+ALTER TABLE public.memberships ADD CONSTRAINT memberships_company_id_customer_id_fkey FOREIGN KEY(company_id,customer_id) REFERENCES public.customers(company_id,id) ON DELETE CASCADE;
+ALTER TABLE public.memberships DROP CONSTRAINT IF EXISTS memberships_company_id_supplier_id_fkey;
+ALTER TABLE public.memberships ADD CONSTRAINT memberships_company_id_supplier_id_fkey FOREIGN KEY(company_id,supplier_id) REFERENCES public.suppliers(company_id,id) ON DELETE CASCADE;
+ALTER TABLE public.access_requests DROP CONSTRAINT IF EXISTS access_requests_company_id_customer_id_fkey;
+ALTER TABLE public.access_requests ADD CONSTRAINT access_requests_company_id_customer_id_fkey FOREIGN KEY(company_id,customer_id) REFERENCES public.customers(company_id,id) ON DELETE SET NULL;
+ALTER TABLE public.access_requests DROP CONSTRAINT IF EXISTS access_requests_company_id_supplier_id_fkey;
+ALTER TABLE public.access_requests ADD CONSTRAINT access_requests_company_id_supplier_id_fkey FOREIGN KEY(company_id,supplier_id) REFERENCES public.suppliers(company_id,id) ON DELETE SET NULL;
 ALTER TABLE public.access_requests DROP CONSTRAINT IF EXISTS access_requests_user_id_fkey;
 ALTER TABLE public.access_requests ADD CONSTRAINT access_requests_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.medar_users(id) ON DELETE CASCADE;
 UPDATE public.access_requests SET organization_name = company_name WHERE organization_name IS NULL AND company_name IS NOT NULL;
