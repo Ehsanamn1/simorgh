@@ -6,11 +6,11 @@ const companyId = '00000000-0000-4000-8000-000000000022';
 const supplierId = '00000000-0000-4000-8000-000000000033';
 const customerId = '00000000-0000-4000-8000-000000000055';
 
-async function installIsolatedSession(page: Page, role: 'owner' | 'supplier' | 'driver' | 'customer') {
+async function installIsolatedSession(page: Page, role: 'owner' | 'supplier' | 'driver' | 'customer' | 'unprovisioned') {
   const now = Math.floor(Date.now() / 1000);
   const expiresAt = now + 60 * 60 * 24 * 365;
   const email = role + '@example.test';
-  const fullName = role === 'owner' ? 'مالک آزمایشی مدار' : role === 'supplier' ? 'تأمین‌کننده آزمایشی مدار' : role === 'driver' ? 'راننده آزمایشی مدار' : 'مشتری آزمایشی مدار';
+  const fullName = role === 'owner' ? 'مالک آزمایشی مدار' : role === 'supplier' ? 'تأمین‌کننده آزمایشی مدار' : role === 'driver' ? 'راننده آزمایشی مدار' : role === 'unprovisioned' ? 'کاربر بدون عضویت مدار' : 'مشتری آزمایشی مدار';
   const encodeBase64Url = (value: Record<string, unknown>) => Buffer.from(JSON.stringify(value)).toString('base64url');
   const accessToken = [
     encodeBase64Url({ alg: 'HS256', typ: 'JWT' }),
@@ -59,15 +59,16 @@ async function installIsolatedSession(page: Page, role: 'owner' | 'supplier' | '
       return;
     }
     if (table === 'memberships') {
+      const rows = role === 'unprovisioned' ? [] : [{
+        id: '00000000-0000-4000-8000-000000000044',
+        company_id: companyId, user_id: userId, role,
+        customer_id: role === 'customer' ? customerId : null, supplier_id: role === 'supplier' ? supplierId : null,
+        active: true, companies: { name: 'شبکه سیمرغ' },
+      }];
       await route.fulfill({
         status: 200,
-        headers: { ...headers, 'content-range': '0-0/1' },
-        body: JSON.stringify([{
-          id: '00000000-0000-4000-8000-000000000044',
-          company_id: companyId, user_id: userId, role,
-          customer_id: role === 'customer' ? customerId : null, supplier_id: role === 'supplier' ? supplierId : null,
-          active: true, companies: { name: 'شبکه سیمرغ' },
-        }]),
+        headers: { ...headers, 'content-range': role === 'unprovisioned' ? '*/0' : '0-0/1' },
+        body: JSON.stringify(rows),
       });
       return;
     }
@@ -180,6 +181,32 @@ test('generic farm types and daily rejected quantities are validated before writ
   await page.locator('.ops-modal form').getByRole('button', { name: 'ثبت رکورد' }).click();
   await expect(page.getByText('مقدار مردودی باید صفر باشد یا از مقدار خروجی ثبت‌شده بیشتر نباشد.')).toBeVisible();
   await expect(page.locator('.ops-modal')).toBeVisible();
+});
+
+test('signed-in accounts without membership wait for lookup and stay on the access screen during retries', async ({ page }) => {
+  await installIsolatedSession(page, 'unprovisioned');
+  let membershipRequests = 0;
+  await page.route(projectUrl + '/rest/v1/memberships*', async route => {
+    membershipRequests += 1;
+    await new Promise(resolve => setTimeout(resolve, 450));
+    await route.fulfill({
+      status: 200,
+      headers: { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': 'GET,HEAD,OPTIONS', 'content-type': 'application/json', 'content-range': '*/0', 'cache-control': 'no-store' },
+      body: '[]',
+    });
+  });
+
+  await page.goto('/simorgh/app/command', { waitUntil: 'domcontentloaded' });
+  await page.waitForRequest(request => request.url().includes('/rest/v1/memberships'));
+  await expect(page.locator('.waiting-screen')).toHaveCount(0);
+  await expect(page.locator('.waiting-screen')).toBeVisible({ timeout: 8000 });
+  await expect(page.getByRole('heading', { name: 'حساب شما هنوز به مجموعه‌ای متصل نیست.' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'بررسی دوباره دسترسی' })).toBeVisible();
+
+  await page.getByRole('button', { name: 'بررسی دوباره دسترسی' }).click();
+  await expect.poll(() => membershipRequests).toBeGreaterThan(1);
+  await expect(page.locator('.waiting-screen')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'خروج از حساب' })).toBeVisible();
 });
 
 test('supplier workspace keeps manager-only routes out of the allowed menu', async ({ page }, testInfo) => {
