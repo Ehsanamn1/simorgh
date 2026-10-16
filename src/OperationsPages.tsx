@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { ChangeEvent, FormEvent } from 'react';
 import { Activity, AlertTriangle, CheckCircle2, ClipboardCheck, CreditCard, FileCheck2, FileText, Factory, Plus, RefreshCw, ShieldCheck, Warehouse, X } from 'lucide-react';
-import { supabase } from './lib/supabase';
+import { api } from './lib/apiClient';
 import type { Membership, Row } from './lib/types';
 import { dateFa, dateTimeFa, moneyFa, numberFa, statusTone } from './lib/format';
 
@@ -186,26 +186,16 @@ export function OperationsWorkspacePage({kind,membership,search}:{kind:Operation
   const [periodEnd,setPeriodEnd]=useState('');
 
   const load=async()=>{
-    if(!supabase){setError('اتصال Supabase در این build تنظیم نشده است.');setLoading(false);return;}
     setLoading(true);setError('');
-    const [main,suppliers,sites,batches,templates,agreements,entries,products]=await Promise.all([
-      supabase.from(cfg.table).select('*').eq('company_id',membership.company_id).order('created_at',{ascending:false}).limit(200),
-      supabase.from('suppliers').select('id,name,city,active').eq('company_id',membership.company_id).order('name').limit(300),
-      supabase.from('farm_sites').select('id,site_code,name,supplier_id,active').eq('company_id',membership.company_id).order('name').limit(300),
-      supabase.from('production_batches').select('id,batch_code,farm_site_id,supplier_id,status,production_kind,unit').eq('company_id',membership.company_id).order('created_at',{ascending:false}).limit(300),
-      supabase.from('task_templates').select('id,template_code,version,title,instructions,category,priority,evidence_required,expected_evidence_types,status').eq('company_id',membership.company_id).order('created_at',{ascending:false}).limit(200),
-      supabase.from('partnership_agreements').select('id,supplier_id,agreement_code,version,status,effective_from,effective_to,shared_expense_categories,settlement_basis,company_profit_share_pct,partner_profit_share_pct').eq('company_id',membership.company_id).order('created_at',{ascending:false}).limit(200),
-      supabase.from('partner_financial_entries').select('id,agreement_id,supplier_id,entry_type,status,amount,paid_amount,external_reference,recognized_on').eq('company_id',membership.company_id).order('created_at',{ascending:false}).limit(300),
-      supabase.from('products').select('id,name,sku').eq('company_id',membership.company_id).order('name').limit(300),
-    ]);
-    if(main.error){setError(main.error.message);setRows([]);}else setRows((main.data??[]) as unknown as Row[]);
-    setRefs({
-      suppliers:(suppliers.data??[]) as unknown as Row[],sites:(sites.data??[]) as unknown as Row[],
-      batches:(batches.data??[]) as unknown as Row[],templates:(templates.data??[]) as unknown as Row[],
-      agreements:(agreements.data??[]) as unknown as Row[],financeEntries:(entries.data??[]) as unknown as Row[],
-      products:(products.data??[]) as unknown as Row[],
-    });
-    setLoading(false);
+    try {
+      const data=await api.get<{rows:Row[];refs:RefData}>(`/api/operations/${kind}?companyId=${encodeURIComponent(membership.company_id)}`);
+      setRows((data.rows??[]) as Row[]);
+      setRefs(data.refs??emptyRefs);
+    } catch(caught) {
+      setError(caught instanceof Error?caught.message:'خواندن عملیات انجام نشد.');
+      setRows([]);
+      setRefs(emptyRefs);
+    } finally {setLoading(false);}
   };
   useEffect(()=>{void load();},[kind,membership.company_id,membership.role]);
 
