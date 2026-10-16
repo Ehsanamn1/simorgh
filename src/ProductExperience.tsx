@@ -211,11 +211,11 @@ export default function ProductExperience() {
   async function submitAuth(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!neonAuth) { setError('اتصال احراز هویت در این نسخه پیکربندی نشده است. ورود آنلاین در دسترس نیست.'); return; }
+    const normalizedPhone = mode === 'signup' ? normalizeIranPhone(phone) : '';
     if (mode === 'signup') {
       if (fullName.trim().length < 2 || fullName.trim().length > 160) { setError('نام کامل باید بین ۲ تا ۱۶۰ نویسه باشد.'); return; }
       if (organizationName.trim().length < 2 || organizationName.trim().length > 160) { setError('نام مجموعه باید بین ۲ تا ۱۶۰ نویسه باشد.'); return; }
       if (password.length < 8) { setError('گذرواژه باید حداقل ۸ نویسه باشد.'); return; }
-      const normalizedPhone = normalizeIranPhone(phone);
       if (!normalizedPhone) { setError('شماره موبایل ایران معتبر وارد کن؛ مثال: 09121234567'); return; }
       if (password !== confirmPassword) { setError('تکرار گذرواژه یکسان نیست.'); return; }
     }
