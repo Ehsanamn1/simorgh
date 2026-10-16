@@ -58,7 +58,7 @@ function readAllowedLinks(): NavigationEntry[] {
   });
 }
 
-/** Private operational app entry. Public self-registration is intentionally disabled. */
+/** Private operational app entry. Self-registration is available; company membership is separately authorized server-side. */
 export default function ProductExperience() {
   const { user, loading, memberships, refreshSession } = useAuth();
   const location = useLocation();
@@ -67,7 +67,7 @@ export default function ProductExperience() {
   const [waitingScreen, setWaitingScreen] = useState<HTMLElement | null>(null);
   const [allowedLinks, setAllowedLinks] = useState<NavigationEntry[]>([]);
   const [mode, setMode] = useState<AuthMode>('signin');
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [fullName, setFullName] = useState('');
@@ -171,9 +171,9 @@ export default function ProductExperience() {
       setError('بازیابی خودکار رمز بدون ایمیل یا پیامک فعال نیست. برای بازنشانی امن رمز، از مالک مجموعه درخواست بازنشانی کن.');
       return;
     }
-    const username = email.trim();
+    const normalizedUsername = username.trim();
     const normalizedPhone = mode === 'signup' ? normalizeIranPhone(phone) : '';
-    if (!/^[a-zA-Z0-9_.-]{3,32}$/.test(username)) {
+    if (!/^[a-zA-Z0-9_.-]{3,32}$/.test(normalizedUsername)) {
       setError('نام کاربری باید ۳ تا ۳۲ نویسه و شامل حروف انگلیسی، عدد، نقطه، خط تیره یا زیرخط باشد.');
       return;
     }
@@ -191,13 +191,13 @@ export default function ProductExperience() {
     try {
       if (mode === 'signup') {
         await api.post('/api/auth/signup', {
-          username, password, displayName: fullName.trim(), organizationName: organizationName.trim(),
+          username: normalizedUsername, password, displayName: fullName.trim(), organizationName: organizationName.trim(),
           phone: normalizedPhone, requestedRole,
         });
         setPassword(''); setConfirmPassword('');
         setNotice('حساب ساخته شد و نشست امن ایجاد شد؛ در حال ورود به مدار…');
       } else {
-        await api.post('/api/auth/login', { username, password });
+        await api.post('/api/auth/login', { username: normalizedUsername, password });
         setPassword('');
         setNotice('ورود موفق بود؛ در حال بارگذاری فضای کاری…');
       }
@@ -280,14 +280,14 @@ export default function ProductExperience() {
                   <label htmlFor="simorgh-signin-fullname">نام و نام خانوادگی</label><input id="simorgh-signin-fullname" className="auth-input" autoComplete="name" required minLength={2} maxLength={120} value={fullName} onChange={e => setFullName(e.target.value)} placeholder="نام کامل" />
                   <label htmlFor="simorgh-signin-organization">نام مجموعه / شرکت</label><input id="simorgh-signin-organization" className="auth-input" required minLength={2} maxLength={160} value={organizationName} onChange={e => setOrganizationName(e.target.value)} placeholder="نام واقعی مجموعه" />
                 </>}
-                <label htmlFor="simorgh-signin-username">نام کاربری</label><input id="simorgh-signin-username" className="auth-input" type="text" autoComplete="username" inputMode="text" required={mode !== 'recovery'} value={email} onChange={e => setEmail(e.target.value)} placeholder="username" dir="ltr"/>
+                <label htmlFor="simorgh-signin-username">نام کاربری</label><input id="simorgh-signin-username" className="auth-input" type="text" autoComplete="username" inputMode="text" required={mode !== 'recovery'} value={username} onChange={e => setUsername(e.target.value)} placeholder="username" dir="ltr"/>
                {mode !== 'reset' && <>
                  <label htmlFor="simorgh-signin-password">{mode === 'recovery' ? 'گذرواژه جدید' : 'گذرواژه'}</label>
                  <div className="auth-password-wrap"><input id="simorgh-signin-password" className="auth-input" type={showPassword ? 'text' : 'password'} minLength={10} autoComplete={mode === 'recovery' || mode === 'signup' ? 'new-password' : 'current-password'} required value={password} onChange={e => setPassword(e.target.value)} placeholder="حداقل ۱۰ نویسه" dir="ltr"/><button type="button" onClick={() => setShowPassword(value => !value)} aria-label={showPassword ? 'پنهان‌کردن گذرواژه' : 'نمایش گذرواژه'}>{showPassword ? <EyeOff size={16}/> : <Eye size={16}/>}</button></div>
                  {(mode === 'recovery' || mode === 'signup') && <><label htmlFor="simorgh-confirm-password">تکرار گذرواژه</label><input id="simorgh-confirm-password" className="auth-input" type="password" autoComplete="new-password" required minLength={10} value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="گذرواژه را دوباره وارد کن" dir="ltr"/></>}
                </>}
                {error && <div className="auth-feedback error" role="alert">{error}</div>}{notice && <div className="auth-feedback success" role="status">{notice}</div>}
-               <button className="signin-submit" type="submit" disabled={busy || !email.trim() || !password || (mode === 'signup' && (!phone.trim() || !confirmPassword || !fullName.trim() || !organizationName.trim()))}>
+               <button className="signin-submit" type="submit" disabled={busy || !username.trim() || !password || (mode === 'signup' && (!phone.trim() || !confirmPassword || !fullName.trim() || !organizationName.trim()))}>
                  {busy ? <><span className="signin-spinner" aria-hidden="true"/> در حال پردازش…</> : mode === 'reset' ? <>ارسال لینک بازیابی <RotateCcw size={16}/></> : mode === 'recovery' ? <>ذخیره گذرواژه جدید <Check size={17}/></> : mode === 'signup' ? <>ساخت حساب و فضای کاری <ArrowLeft size={17}/></> : <>ورود به فضای کار <ArrowLeft size={17}/></>}
                </button>
              </form>
