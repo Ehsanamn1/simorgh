@@ -125,15 +125,38 @@ app.post('/api/auth/signup', async c => {
   if (!phone) return jsonError(c, 'شماره موبایل ایران معتبر نیست.', 400);
   if (displayName.length < 2 || displayName.length > 120) return jsonError(c, 'نام نمایشی باید بین ۲ تا ۱۲۰ نویسه باشد.', 400);
   if (password.length < 10 || password.length > 128) return jsonError(c, 'رمز عبور باید حداقل ۱۰ نویسه داشته باشد.', 400);
-  if (!['customer','supplier','driver','staff'].includes(role)) return jsonError(c, 'نقش انتخابی معتبر نیست.', 400);
+  if (!['owner','customer','supplier','driver','staff'].includes(role)) return jsonError(c, 'نقش انتخابی معتبر نیست.', 400);
   try {
     const sql = sqlFor(c);
     const existing = await sql`SELECT id FROM public.medar_users WHERE username_normalized=${normalized} OR phone_e164=${phone} LIMIT 1`;
     if (existing.length) return jsonError(c, 'این نام کاربری یا شماره موبایل قبلاً ثبت شده است.', 409);
     const hash = await passwordHash(password);
-    const rows = await sql`INSERT INTO public.medar_users(username,phone_e164,display_name,password_hash,requested_role)
-      VALUES(${username},${phone},${displayName},${hash},${role})
-      RETURNING id,username,phone_e164,display_name,requested_role,account_status`;
+    const rows = await sql`WITH new_user AS (
+        INSERT INTO public.medar_users(username,phone_e164,display_name,password_hash,requested_role)
+        VALUES(${username},${phone},${displayName},${hash},${role})
+        RETURNING id,username,phone_e164,display_name,requested_role,account_status,phone_e164
+      ),
+      new_company AS (
+        INSERT INTO public.companies(name)
+        SELECT username || ' · مجموعه' FROM new_user WHERE requested_role='owner'
+        RETURNING id
+      ),
+      new_profile AS (
+        INSERT INTO public.profiles(id,full_name,phone)
+        SELECT id,display_name,phone_e164 FROM new_user
+        RETURNING id
+      ),
+      new_membership AS (
+        INSERT INTO public.memberships(company_id,user_id,role,active,created_by)
+        SELECT company.id, user_row.id, 'owner', true, user_row.id
+        FROM new_user user_row CROSS JOIN new_company company
+        WHERE user_row.requested_role='owner'
+        RETURNING user_id
+      )
+      SELECT user_row.id,user_row.username,user_row.phone_e164,user_row.display_name,user_row.requested_role,user_row.account_status
+      FROM new_user user_row
+      LEFT JOIN new_profile profile ON profile.id=user_row.id
+      LEFT JOIN new_membership membership ON membership.user_id=user_row.id`;
     const user = rows[0] as AuthUser;
     await sql`INSERT INTO public.medar_audit_log(actor_user_id,action,entity_type,entity_id,metadata)
       VALUES(${user.id}::uuid,'auth.signup','user',${user.id},jsonb_build_object('requested_role',${role}))`;
