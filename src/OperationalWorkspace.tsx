@@ -62,6 +62,32 @@ function MapGuide({expanded=false}:{expanded?:boolean}){
    <footer className="ops-live-map-foot"><span>بدون مختصات یا مسیر ساختگی</span><button type="button" onClick={()=>window.open('https://www.openstreetmap.org/#map=5/32.5/53.5','_blank','noopener,noreferrer')}>بازکردن نقشه <ArrowUpLeft size={14}/></button></footer>
  </section>;
 }
+
+function OperationsFlow(){
+ const phases=[
+  {n:'۰۱',title:'منابع و ظرفیت',description:'مزرعه، تأمین و تعهد',icon:Factory},
+  {n:'۰۲',title:'تولید و کیفیت',description:'برنامه، ثبت و کنترل',icon:Activity},
+  {n:'۰۳',title:'انبار و سفارش',description:'موجودی، فروش و تخصیص',icon:Boxes},
+  {n:'۰۴',title:'ارسال و تحویل',description:'مسیر، مدرک و موعد',icon:Truck},
+  {n:'۰۵',title:'مالی و رشد',description:'حساب، تسویه و هدف',icon:CreditCard},
+ ];
+ return <section className="ops-live-flow">
+  <header className="ops-live-panel-head"><div><span className="ops-live-section-icon"><Network size={17}/></span><div><h3>نقشه‌ی جریان عملیات</h3><p>ارتباط ماژول‌ها در زنجیره‌ی مدیریت مجموعه</p></div></div><span className="ops-live-chip">نقشه‌ی فرآیندی</span></header>
+  <div className="ops-live-flow-track">{phases.map((p,i)=>{const Icon=p.icon;return <div className="ops-live-flow-stage" key={p.n}><span className="ops-live-flow-icon"><Icon size={18}/></span><small>{p.n}</small><b>{p.title}</b><span>{p.description}</span>{i<phases.length-1&&<i className="ops-live-flow-connector" aria-hidden="true"/>}</div>})}</div>
+  <footer className="ops-live-flow-foot"><span><ShieldCheck size={14}/> نقشه‌ی ارتباط فرآیندها؛ نه داده یا وضعیت ساختگی</span><span>پیشرفت هر مرحله از رکوردهای واقعی و اهداف ثبت‌شده محاسبه می‌شود.</span></footer>
+ </section>;
+}
+
+function ManagementRoadmap({onOpen}:{onOpen:()=>void}){
+ const items=[
+  {n:'۱',title:'تعیین هدف و شاخص',text:'نتیجه‌ی مورد انتظار، واحد سنجش و خط مبنا'},
+  {n:'۲',title:'تعیین مسئول و موعد',text:'مالک اجرا، تاریخ هدف و نقاط بازبینی'},
+  {n:'۳',title:'ثبت پیشرفت واقعی',text:'به‌روزرسانی از رکوردها و کارهای تأییدشده'},
+  {n:'۴',title:'بازبینی و اقدام اصلاحی',text:'انحراف، علت، اقدام بعدی و مسئول پیگیری'},
+ ];
+ return <div className="ops-live-roadmap"><div className="ops-live-roadmap-intro"><span><Target size={18}/></span><div><b>چرخه‌ی هدف‌گذاری مدیریتی</b><p>قالب اجرای هدف؛ درصد پیشرفت و نتایج فقط از اهداف ذخیره‌شده محاسبه می‌شوند.</p></div></div><div className="ops-live-roadmap-steps">{items.map((item,i)=><div className="ops-live-roadmap-step" key={item.n}><span>{item.n}</span><div><b>{item.title}</b><small>{item.text}</small></div>{i<items.length-1&&<i/>}</div>)}</div><button className="ops-live-roadmap-link" type="button" onClick={onOpen}>رفتن به دفتر اهداف <ArrowUpLeft size={14}/></button></div>;
+}
+
 export default function OperationalWorkspace({authLoading=false,hasMembership=false}:{authLoading?:boolean;hasMembership?:boolean}){
  const location=useLocation(),navigate=useNavigate();
  const [page,setPage]=useState<ModuleKey>(()=>pageFromLocation(location.pathname,location.search));
@@ -81,7 +107,7 @@ export default function OperationalWorkspace({authLoading=false,hasMembership=fa
  const statusText=authLoading?'در حال بررسی وضعیت اتصال':hasMembership?'حساب سازمانی فعال':'داده‌های شرکت در انتظار فعال‌سازی حساب مالک';
  return <main className="ops-live-app" dir="rtl">
   <header className="ops-live-header">
-    <div className="ops-live-brand"><SimorghLogo/><span>سامانه‌ی یکپارچه‌ی مدیریت مزرعه و عملیات</span></div>
+    <div className="ops-live-brand"><SimorghLogo/><span>مرکز مدیریت عملیات، منابع و رشد سازمان</span></div>
     <div className="ops-live-header-meta"><TehranClock/><button type="button" className="ops-live-theme" aria-label={theme==='dark'?'فعال‌کردن حالت روشن':'فعال‌کردن حالت تاریک'} onClick={()=>setTheme(v=>v==='dark'?'light':'dark')}>{theme==='dark'?<Sun size={17}/>:<Moon size={17}/>}<span>{theme==='dark'?'حالت روشن':'حالت تاریک'}</span></button></div>
   </header>
   <div className="ops-live-shell">
@@ -99,7 +125,8 @@ export default function OperationalWorkspace({authLoading=false,hasMembership=fa
       <div className="ops-live-heading"><div><span>مدیریت یکپارچه‌ی مزرعه و عملیات</span><h1>مرکز فرمان شبکه</h1><p>از هدف و ظرفیت تا سفارش، کیفیت، ارسال و تسویه؛ همه در یک نمای مدیریتی.</p></div><div className="ops-live-heading-side"><span><Clock3 size={14}/> نمای روز جاری</span><small>{statusText}</small></div></div>
       {!hasMembership&&<div className="ops-live-access-note"><span><ShieldCheck size={20}/></span><div><b>زیرساخت عملیاتی آماده است؛ دسترسی مالک هنوز فعال نشده</b><p>برای حفظ محرمانگی، آمار، سفارش‌ها و مبالغ شرکت تا ایجاد حساب مالک و عضویت معتبر از پایگاه داده خوانده نمی‌شوند. این محیط فرم ورود یا ثبت‌نام عمومی ندارد.</p></div><a href="https://github.com/Ehsanamn1/simorgh/blob/main/docs/OWNER_PROVISIONING.md" target="_blank" rel="noreferrer">راهنمای فعال‌سازی مالک <ArrowUpLeft size={14}/></a></div>}
       <div className="ops-live-stats"><StatCard title="سفارش‌های فعال" icon={Boxes} description="وضعیت از دفتر سفارش‌ها" tone="teal"/><StatCard title="ظرفیت تأییدشده" icon={Factory} description="تعهدهای معتبر دوره‌ی جاری" tone="blue"/><StatCard title="محموله‌های در جریان" icon={Truck} description="از وضعیت واقعی ارسال" tone="slate"/><StatCard title="موارد نیازمند اقدام" icon={AlertTriangle} description="هشدارهای اولویت‌دار" tone="amber"/></div>
-      <div className="ops-live-primary-grid"><MapGuide/><section className="ops-live-panel"><header className="ops-live-panel-head"><div><span className="ops-live-section-icon"><Target size={17}/></span><div><h3>اهداف و مسیر اجرا</h3><p>هدف، شاخص، مسئول و گام بعدی</p></div></div><span className="ops-live-chip">برنامه‌ی عملیاتی</span></header><EmptyPanel icon={Target} title="هدف عملیاتی ثبت نشده" description="اهداف، شاخص‌های کلیدی و گام بعدی پس از ورود داده‌ی واقعی در این بخش فهرست می‌شوند."/></section></div>
+      <div className="ops-live-primary-grid"><MapGuide/><section className="ops-live-panel"><header className="ops-live-panel-head"><div><span className="ops-live-section-icon"><Target size={17}/></span><div><h3>اهداف و مسیر اجرا</h3><p>هدف، شاخص، مسئول و گام بعدی</p></div></div><span className="ops-live-chip">برنامه‌ی عملیاتی</span></header><ManagementRoadmap onOpen={()=>go('goals')}/></section></div>
+      <OperationsFlow/>
       <section className="ops-live-quick"><header className="ops-live-panel-head"><div><span className="ops-live-section-icon"><Layers3 size={17}/></span><div><h3>دسترسی سریع</h3><p>مسیر کوتاه به کارهای پرتکرار</p></div></div><span className="ops-live-chip">۴ میان‌بر</span></header><div className="ops-live-quick-grid">{quickItems.map(q=>{const Icon=q.icon;return <button key={q.key} type="button" className={'ops-live-quick-card '+q.tone} onClick={()=>go(q.key)}><span><Icon size={19}/></span><div><b>{q.title}</b><small>{q.desc}</small></div><ArrowUpLeft size={15}/></button>})}</div></section>
       <div className="ops-live-secondary-grid"><section className="ops-live-panel"><header className="ops-live-panel-head"><div><span className="ops-live-section-icon"><Activity size={17}/></span><div><h3>روند عملکرد</h3><p>رکورد روزانه در برابر هدف دوره</p></div></div><BarChart3 size={17}/></header><EmptyPanel icon={BarChart3} title="روند قابل محاسبه نیست" description="تا زمانی که رکوردهای واقعی تولید و سفارش در دسترس نباشد، خط روندی رسم نمی‌شود."/></section><section className="ops-live-panel"><header className="ops-live-panel-head"><div><span className="ops-live-section-icon"><AlertTriangle size={17}/></span><div><h3>موارد نیازمند پیگیری</h3><p>تأخیر، رخداد، موعد و درخواست</p></div></div><Bell size={17}/></header><EmptyPanel icon={CheckCircle2} title="فهرست امن نیازمند دسترسی مدیر است" description="این بخش پس از فعال‌شدن حساب مجاز، هشدارها را از رکوردهای واقعی و به‌روز نشان می‌دهد."/></section></div>
       <footer className="ops-live-footer"><span><ShieldCheck size={14}/> اطلاعات ساختگی نمایش داده نمی‌شود.</span><span>زمان محلی سامانه بر پایه‌ی منطقه‌ی زمانی تهران</span></footer>
