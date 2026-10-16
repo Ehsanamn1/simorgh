@@ -536,3 +536,11 @@ html[data-theme="light"] .farm-map-marker.active .farm-map-marker-label { border
   .farm-map-marker-icon { width: 25px; height: 25px; }
   .farm-map-marker-label { max-width: 125px; font-size: 8px; padding: 3px 5px; }
 }
+
+
+/* Keep the brand mark visible on the compact mobile sign-in screen. */
+.simorgh-signin-form-card .signin-form-logo{display:flex;justify-content:center;width:48px;margin:0 auto 14px}
+.simorgh-signin-form-card .signin-form-logo .brand-symbol{display:grid;place-items:center;width:48px;height:48px;border:1px solid #3a5653;border-radius:14px;background:#203536;color:var(--obs-accent);flex:none}
+.simorgh-signin-form-card .signin-form-logo .brand-symbol svg{width:32px;height:32px}
+.simorgh-signin-form-card .signin-form-logo .brand-symbol svg circle{fill:var(--obs-accent)!important}
+html[data-theme="light"] .simorgh-signin-form-card .signin-form-logo .brand-symbol{background:#E6F0ED;border-color:#C8DDD7;color:var(--obs-accent)}
