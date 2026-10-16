@@ -62,7 +62,7 @@ class MedarQueryBuilder implements PromiseLike<ApiResult<unknown[]>> {
     const rows=Array.isArray(result.data)?result.data:[];
     if(rows.length===0&&!allowEmpty)return {data:null,error:{message:'درخواست باید دقیقاً یک رکورد برگرداند.',code:'PGRST116'},count:result.count};
     if(rows.length>1)return {data:null,error:{message:'بیش از یک رکورد برگشت؛ شناسه یا فیلتر را دقیق‌تر کن.',code:'PGRST116'},count:result.count};
-    return {data:(rows[0] as Record<string, unknown>|undefined)??null,error:null,count:result.count};
+    return {data:rows[0] as Record<string, unknown>,error:null,count:result.count};
   }
   private execute():Promise<ApiResult<unknown[]>>{
     if(this.cached)return this.cached;
@@ -70,7 +70,7 @@ class MedarQueryBuilder implements PromiseLike<ApiResult<unknown[]>> {
     const path=this.operation==='select'?'/api/data/'+encodeURIComponent(this.table)+'/query':'/api/data/'+encodeURIComponent(this.table);
     this.cached=fetch(API_BASE+path,{method:'POST',credentials:'same-origin',headers:{'content-type':'application/json'},body:JSON.stringify({operation:this.operation,query,values:this.values,returning:this.returning})})
       .then(response=>readResult<unknown[]>(response))
-      .catch(error=>({data:null,error:{message:error instanceof Error?error.message:'ارتباط با سرور برقرار نشد.'},count:null}));
+      .catch((error):ApiResult<unknown[]>=>({data:null,error:{message:error instanceof Error?error.message:'ارتباط با سرور برقرار نشد.'},count:null}));
     return this.cached;
   }
   then<TResult1=ApiResult<unknown[]>,TResult2=never>(
