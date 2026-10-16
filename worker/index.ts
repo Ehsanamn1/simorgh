@@ -288,7 +288,7 @@ app.get('/api/workspace/members', async c => {
     if (!access.length) return jsonError(c, 'برای مدیریت اعضای این مجموعه مجوز نداری.', 403);
     const [members, customers, suppliers, requests] = await Promise.all([
       sql`SELECT m.id AS membership_id,m.id,m.company_id,m.user_id,m.role::text AS role,m.active,m.created_at,
-        u.username,u.display_name AS full_name,u.phone
+        u.username,u.display_name AS full_name,u.phone_e164 AS phone
         FROM public.memberships m JOIN public.medar_users u ON u.id=m.user_id
         WHERE m.company_id=${companyId}::uuid ORDER BY m.created_at DESC`,
       sql`SELECT id,name FROM public.customers WHERE company_id=${companyId}::uuid ORDER BY name`,
