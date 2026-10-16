@@ -217,7 +217,7 @@ export default function ProductExperience() {
         if (resetError) { setError('ارسال ایمیل بازیابی انجام نشد. ایمیل و تنظیمات Auth را بررسی کن.'); return; }
         setNotice('اگر این ایمیل حساب فعالی داشته باشد، لینک بازیابی برای آن ارسال می‌شود.');
       } else if (mode === 'signup') {
-        const emailRedirectTo = new URL(basePath + '/app/command', window.location.origin).toString();
+        const emailRedirectTo = new URL(basePath + '/#signin', window.location.origin).toString();
         const { data, error: signUpError } = await supabase.auth.signUp({
           email: email.trim(),
           password,
