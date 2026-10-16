@@ -798,7 +798,7 @@ function AlertsPage({membership}:{membership:Membership}) {
   useEffect(()=>{
     let active=true;
     setLoading(true);setError('');
-    api.get<{alerts:CompanyAlert[]}>(`/api/operations/alerts?companyId=${encodeURIComponent(membership.company_id)}`)
+    api.get<{alerts:CompanyAlert[]}>(`/api/alerts?companyId=${encodeURIComponent(membership.company_id)}`)
       .then(result=>{if(active)setAlerts(result.alerts??[]);})
       .catch(caught=>{if(active){setError(caught instanceof Error?caught.message:'خواندن هشدارها انجام نشد.');setAlerts([]);}})
       .finally(()=>{if(active)setLoading(false);});
