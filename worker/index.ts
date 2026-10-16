@@ -1618,7 +1618,7 @@ app.get('/api/alerts', async c => {
     const sql = sqlFor(c);
     const membership = await operationMembership(sql, user.id, companyId);
     if (!membership || !['owner', 'admin', 'staff'].includes(membership.role)) return jsonError(c, 'مرکز هشدارهای مجموعه فقط برای نقش‌های داخلی مجاز است.', 403);
-    const [lateOrders, overdueTasks, submittedTasks, pendingRequests, overdueInvoices, failedShipments, expiringLicenses] = await Promise.all([
+    const [lateOrders, overdueTasks, submittedTasks, overdueInvoices, failedShipments, expiringLicenses] = await Promise.all([
       sql`SELECT id,reference,status::text AS status,requested_delivery,created_at FROM public.orders
         WHERE company_id=${companyId}::uuid AND requested_delivery<current_date AND status::text NOT IN ('delivered','cancelled')
         ORDER BY requested_delivery ASC LIMIT 30`,
@@ -1628,9 +1628,6 @@ app.get('/api/alerts', async c => {
       sql`SELECT id,title,status::text AS status,priority::text AS priority,submitted_at,created_at FROM public.operational_tasks
         WHERE company_id=${companyId}::uuid AND status::text='submitted'
         ORDER BY submitted_at ASC NULLS FIRST LIMIT 30`,
-      sql`SELECT id,requested_role::text AS role,organization_name,full_name,created_at FROM public.access_requests
-        WHERE company_id=${companyId}::uuid AND status='pending'
-        ORDER BY created_at ASC LIMIT 30`,
       sql`SELECT id,reference,amount,due_date,status::text AS status,created_at FROM public.invoices
         WHERE company_id=${companyId}::uuid AND due_date<current_date AND status::text IN ('issued','partially_paid','overdue')
         ORDER BY due_date ASC LIMIT 30`,
@@ -1642,6 +1639,11 @@ app.get('/api/alerts', async c => {
           AND license_expires_on<=current_date+30
         ORDER BY license_expires_on ASC LIMIT 30`,
     ]);
+    const pendingRequests = ['owner','admin'].includes(membership.role)
+      ? await sql`SELECT id,requested_role::text AS role,organization_name,full_name,created_at FROM public.access_requests
+          WHERE company_id=${companyId}::uuid AND status='pending'
+          ORDER BY created_at ASC LIMIT 30`
+      : [];
     const alerts: {id:string;kind:string;severity:'critical'|'warning'|'info';title:string;detail:string;createdAt:string|null;dueAt:string|null;href:string}[] = [];
     for (const row of lateOrders as Record<string,unknown>[]) alerts.push({id:String(row.id),kind:'late_order',severity:'critical',title:'سفارش از موعد گذشته',detail:`سفارش ${String(row.reference||'بدون شماره')} · ${String(row.status||'')}`,createdAt:row.created_at?String(row.created_at):null,dueAt:row.requested_delivery?String(row.requested_delivery):null,href:'/app/orders'});
     for (const row of overdueTasks as Record<string,unknown>[]) alerts.push({id:String(row.id),kind:'overdue_task',severity:row.priority==='urgent'||row.priority==='critical'?'critical':'warning',title:'وظیفه معوق',detail:String(row.title||'وظیفه بدون عنوان'),createdAt:row.created_at?String(row.created_at):null,dueAt:row.due_at?String(row.due_at):null,href:'/app/operational-tasks'});
