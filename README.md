@@ -25,3 +25,10 @@ CI بررسی‌های TypeScript، Lint، تست واحد، مسیر فایل�
 - حساب مالک و عضویت اولیه باید از مسیر امن Supabase ساخته شوند؛ هیچ گذرواژه‌ی پیش‌فرضی در پروژه قرار ندارد.
 - صف نوشتن آفلاین و حل تعارض، اعلان‌های زمان‌بندی‌شده و همه‌ی اتوماسیون‌های هوش مصنوعی هنوز تکمیل نشده‌اند.
 - نقشه‌ی عمومی فقط نقشه‌ی پایه را نشان می‌دهد؛ نشانگرهای محموله به مختصات واقعی و دسترسی مجاز وابسته‌اند.
+
+
+## Product scope
+
+The authenticated manager workspace provides role-filtered modules for orders, goals, customers, suppliers, inventory, capacity, quality, shipments, finance, farm sites, production cycles/batches, daily production, tasks, incidents, partner settlements and audit history.
+
+The manager control tower includes a live map that uses only farm-site coordinates stored in Supabase. Farm units, production cycles and daily records are generic across agricultural sectors; there is no hard-coded quail requirement.
