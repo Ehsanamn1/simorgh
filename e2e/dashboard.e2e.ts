@@ -8,10 +8,8 @@ test('the default route is a secure Persian entry, not a clickable dashboard pre
   await expect(page).toHaveTitle(/مدار \| مدیریت یکپارچه مزرعه و عملیات/);
   await expect(page).toHaveURL(/\/simorgh\/app\/command$/);
   await expect(page.locator('.simorgh-signin-layer')).toBeVisible();
-  await expect(page.locator('.ops-live-app')).toHaveCount(0);
-  await expect(page.locator('.ops-live-bottom-nav')).toHaveCount(0);
-  await expect(page.locator('.app-frame')).toHaveCount(0);
   await expect(page.getByRole('heading', { name: 'ورود به مدار' })).toBeVisible();
+  await expect(page.locator('.ops-live-app, .ops-live-bottom-nav, .app-frame')).toHaveCount(0);
   await expect(page.getByText(/ثبت‌نام عمومی غیرفعال است/)).toBeVisible();
   await expect(page.locator('.portal-preview')).toHaveCount(0);
   await expect(page.locator('.sim-preview-palette')).toHaveCount(0);
@@ -34,6 +32,7 @@ test('secure entry remains usable on desktop and mobile with no horizontal overf
   await page.goto('/simorgh/app/command', { waitUntil: 'domcontentloaded' });
   await expect(page.locator('.simorgh-signin-layer')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'ورود به مدار' })).toBeVisible();
+  await expect(page.locator('.ops-live-app, .ops-live-bottom-nav, .app-frame')).toHaveCount(0);
   await expect(page.locator('#simorgh-signin-email')).toBeVisible();
   await expect(page.locator('#simorgh-signin-password')).toBeVisible();
 
