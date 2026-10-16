@@ -48,7 +48,7 @@ function readAllowedLinks(): NavigationEntry[] {
 
 /** Private operational app entry. Public self-registration is intentionally disabled. */
 export default function ProductExperience() {
-  const { user, memberships } = useAuth();
+  const { user, loading, memberships } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [appMain, setAppMain] = useState<HTMLElement | null>(null);
@@ -72,7 +72,7 @@ export default function ProductExperience() {
   // Enable secure sign-in by default in web, preview and native builds; only an explicit false disables it.
   // Public self-registration remains disabled independently of this UI flag.
   const authUiEnabled = import.meta.env.VITE_ENABLE_AUTH_UI !== 'false';
-  const signInOpen = authUiEnabled && (mode === 'recovery' || (location.hash === '#signin' && !user) || (protectedRoute && !user));
+  const signInOpen = authUiEnabled && (mode === 'recovery' || (location.hash === '#signin' && !user && !loading) || (protectedRoute && !user && !loading));
   const normalizedPath = location.pathname.startsWith(basePath) ? location.pathname.slice(basePath.length) || '/' : location.pathname;
   const protectedDestination = normalizedPath.startsWith('/app') ? normalizedPath : '/app';
 
@@ -125,7 +125,7 @@ export default function ProductExperience() {
   useEffect(() => {
     const canCloseWithEscape: boolean = mode !== 'recovery';
     if (!signInOpen) return;
-    const background = document.querySelector<HTMLElement>('.portal, .app-frame, .ops-live-app');
+    const background = document.querySelector<HTMLElement>('.portal, .app-frame');
     const oldOverflow = document.body.style.overflow;
     if (background) background.inert = true;
     document.body.style.overflow = 'hidden';
