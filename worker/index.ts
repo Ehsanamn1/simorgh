@@ -134,7 +134,7 @@ app.post('/api/auth/signup', async c => {
     const rows = await sql`WITH new_user AS (
         INSERT INTO public.medar_users(username,phone_e164,display_name,password_hash,requested_role)
         VALUES(${username},${phone},${displayName},${hash},${role})
-        RETURNING id,username,phone_e164,display_name,requested_role,account_status,phone_e164
+        RETURNING id,username,phone_e164,display_name,requested_role,account_status
       ),
       new_company AS (
         INSERT INTO public.companies(name)
