@@ -1,4 +1,4 @@
-import type { AuthError } from '@supabase/supabase-js';
+type AuthError = { name: string; message: string; status?: number };
 
 type SessionUser = { id: string; username: string; phone: string; displayName: string; requestedRole: string; user_metadata: Record<string, unknown> };
 type AuthResult = { data: { user: SessionUser | null; session: { user: SessionUser } | null }; error: AuthError | null };
