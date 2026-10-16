@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Activity, ArrowLeft, Boxes, Building2, Check, ClipboardCheck, CreditCard, Factory, FileText, Home, LayoutDashboard, ListTodo, LogIn, MapPin, Menu, Package, ShieldCheck, Target, Truck, Warehouse, X, UserPlus, Eye, EyeOff, KeyRound, RotateCcw } from 'lucide-react';
+import { Activity, ArrowLeft, Boxes, Building2, Check, ClipboardCheck, CreditCard, Factory, FileText, Home, LayoutDashboard, ListTodo, MapPin, Menu, Package, ShieldCheck, Target, Truck, Warehouse, X, UserPlus, Eye, EyeOff, KeyRound, RotateCcw } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useAuth } from './lib/AuthContext';
 import { isSupabaseConfigured, supabase } from './lib/supabase';
+import { MedarLogo } from './MedarLogo';
 import type { AppRole } from './lib/types';
 
 type NavigationEntry = { key: string; label: string };
@@ -243,7 +244,7 @@ export default function ProductExperience() {
         <div className="simorgh-signin-form-area">
           {!protectedRoute && mode !== 'recovery' && <button type="button" className="signin-close" onClick={closeSignIn} aria-label="بستن ورود"><X size={20}/></button>}
           <div className="simorgh-signin-form-card" dir="rtl">
-            <span className="signin-form-icon">{mode === 'reset' || mode === 'recovery' ? <KeyRound size={21}/> : <LogIn size={21}/>}</span>
+            {mode === 'signin' ? <MedarLogo compact className="signin-form-logo"/> : <span className="signin-form-icon"><KeyRound size={21}/></span>}
             <span className="signin-overline">{mode === 'reset' ? 'بازیابی گذرواژه' : mode === 'recovery' ? 'تنظیم گذرواژه تازه' : 'ورود امن'}</span>
             <h2 id="simorgh-signin-title">{mode === 'reset' ? 'بازیابی گذرواژه' : mode === 'recovery' ? 'گذرواژه جدید' : 'ورود به مدار'}</h2>
             <p>{mode === 'reset' ? 'ایمیل حساب را وارد کن تا در صورت وجود حساب، لینک بازیابی ارسال شود.' : mode === 'recovery' ? 'یک گذرواژه جدید و قوی برای حساب انتخاب کن.' : 'برای ورود از حسابی استفاده کن که مالک شرکت ساخته یا دعوت آن را صادر کرده است.'}</p>
