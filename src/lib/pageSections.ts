@@ -16,9 +16,9 @@ const pageSectionLabels: Record<string, string> = {
 
   'WAREHOUSE / STOCK LEDGER': 'انبار و گردش کالا',
   'FARM / FACILITIES': 'مزارع و سایت‌ها',
-  'FARM / FLOCK CYCLES': 'چرخه‌های پرورش',
+  'FARM / GROWING CYCLES': 'چرخه‌های کشت و پرورش',
   'PRODUCTION / TRACEABILITY': 'رهگیری تولید',
-  'PRODUCTION / DAILY LOG': 'ثبت روزانه تولید',
+  'PRODUCTION / DAILY LOG': 'ثبت روزانه عملیات',
   'OPERATIONS / SOP LIBRARY': 'دستورالعمل‌های کاری',
   'OPERATIONS / TASK CONTROL': 'وظایف عملیاتی',
   'OPERATIONS / INCIDENTS': 'رخدادها و مغایرت‌ها',
