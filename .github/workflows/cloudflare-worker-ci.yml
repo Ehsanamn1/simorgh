@@ -26,7 +26,8 @@ jobs:
           npm run typecheck 2>&1 | tee "$RUNNER_TEMP/typecheck.log"
           code=${PIPESTATUS[0]}
           if [ "$code" -ne 0 ]; then
-            gh pr comment "${{ github.event.pull_request.number }}" --body "### Medar typecheck failure\n\n\\`\\`\\`text\n$(cat "$RUNNER_TEMP/typecheck.log")\n\\`\\`\\`" || true
+            { printf '%s\n' '### Medar typecheck failure' '' '\`\`\`text'; cat "$RUNNER_TEMP/typecheck.log"; printf '%s\n' '\`\`\`'; } > "$RUNNER_TEMP/typecheck-comment.md"
+            gh pr comment "${{ github.event.pull_request.number }}" --body-file "$RUNNER_TEMP/typecheck-comment.md" || true
             exit "$code"
           fi
       - run: npm run lint
