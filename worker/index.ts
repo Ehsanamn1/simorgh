@@ -1607,5 +1607,54 @@ app.post('/api/auth/change-password', async c => {
   } catch { return jsonError(c, 'تغییر رمز عبور انجام نشد.', 500); }
 });
 
+
+app.get('/api/operations/alerts', async c => {
+  let user: AuthUser | null;
+  try { user = await currentUser(c); } catch { return jsonError(c, 'پایگاه داده پیکربندی نشده است.', 503); }
+  if (!user) return jsonError(c, 'برای مشاهده مرکز هشدارها ابتدا وارد حساب شو.', 401);
+  const companyId = c.req.query('companyId') || '';
+  if (!validUuid(companyId)) return jsonError(c, 'شناسه مجموعه معتبر نیست.', 400);
+  try {
+    const sql = sqlFor(c);
+    const membership = await operationMembership(sql, user.id, companyId);
+    if (!membership || !['owner', 'admin', 'staff'].includes(membership.role)) return jsonError(c, 'مرکز هشدارهای مجموعه فقط برای نقش‌های داخلی مجاز است.', 403);
+    const [lateOrders, overdueTasks, submittedTasks, pendingRequests, overdueInvoices, failedShipments, expiringLicenses] = await Promise.all([
+      sql`SELECT id,reference,status::text AS status,requested_delivery,created_at FROM public.orders
+        WHERE company_id=${companyId}::uuid AND requested_delivery<current_date AND status::text NOT IN ('delivered','cancelled')
+        ORDER BY requested_delivery ASC LIMIT 30`,
+      sql`SELECT id,title,status::text AS status,priority::text AS priority,due_at,created_at FROM public.operational_tasks
+        WHERE company_id=${companyId}::uuid AND due_at<now() AND status::text NOT IN ('approved','cancelled')
+        ORDER BY due_at ASC LIMIT 30`,
+      sql`SELECT id,title,status::text AS status,priority::text AS priority,submitted_at,created_at FROM public.operational_tasks
+        WHERE company_id=${companyId}::uuid AND status::text='submitted'
+        ORDER BY submitted_at ASC NULLS FIRST LIMIT 30`,
+      sql`SELECT id,requested_role::text AS role,organization_name,full_name,created_at FROM public.access_requests
+        WHERE company_id=${companyId}::uuid AND status='pending'
+        ORDER BY created_at ASC LIMIT 30`,
+      sql`SELECT id,reference,amount,due_date,status::text AS status,created_at FROM public.invoices
+        WHERE company_id=${companyId}::uuid AND due_date<current_date AND status::text IN ('issued','partially_paid','overdue')
+        ORDER BY due_date ASC LIMIT 30`,
+      sql`SELECT id,stage::text AS stage,failure_reason,order_id,updated_at FROM public.shipments
+        WHERE company_id=${companyId}::uuid AND stage::text='failed'
+        ORDER BY updated_at DESC LIMIT 30`,
+      sql`SELECT id,name,license_expires_on,created_at FROM public.farm_sites
+        WHERE company_id=${companyId}::uuid AND active=true AND license_expires_on IS NOT NULL
+          AND license_expires_on<=current_date+30
+        ORDER BY license_expires_on ASC LIMIT 30`,
+    ]);
+    const alerts: {id:string;kind:string;severity:'critical'|'warning'|'info';title:string;detail:string;createdAt:string|null;dueAt:string|null;href:string}[] = [];
+    for (const row of lateOrders as Record<string,unknown>[]) alerts.push({id:String(row.id),kind:'late_order',severity:'critical',title:'سفارش از موعد گذشته',detail:`سفارش ${String(row.reference||'بدون شماره')} · ${String(row.status||'')}`,createdAt:row.created_at?String(row.created_at):null,dueAt:row.requested_delivery?String(row.requested_delivery):null,href:'/app/orders'});
+    for (const row of overdueTasks as Record<string,unknown>[]) alerts.push({id:String(row.id),kind:'overdue_task',severity:row.priority==='urgent'||row.priority==='critical'?'critical':'warning',title:'وظیفه معوق',detail:String(row.title||'وظیفه بدون عنوان'),createdAt:row.created_at?String(row.created_at):null,dueAt:row.due_at?String(row.due_at):null,href:'/app/operational-tasks'});
+    for (const row of submittedTasks as Record<string,unknown>[]) alerts.push({id:String(row.id),kind:'submitted_task',severity:'info',title:'وظیفه منتظر بازبینی',detail:String(row.title||'وظیفه بدون عنوان'),createdAt:row.submitted_at?String(row.submitted_at):null,dueAt:null,href:'/app/operational-tasks'});
+    for (const row of pendingRequests as Record<string,unknown>[]) alerts.push({id:String(row.id),kind:'access_request',severity:'warning',title:'درخواست عضویت در انتظار بررسی',detail:`${String(row.full_name||'کاربر')} · ${String(row.organization_name||'مجموعه')} · ${String(row.role||'')}`,createdAt:row.created_at?String(row.created_at):null,dueAt:null,href:'/app/members'});
+    for (const row of overdueInvoices as Record<string,unknown>[]) alerts.push({id:String(row.id),kind:'overdue_invoice',severity:'critical',title:'فاکتور سررسیدگذشته',detail:`${String(row.reference||'بدون شماره')} · ${String(row.amount||0)} تومان`,createdAt:row.created_at?String(row.created_at):null,dueAt:row.due_date?String(row.due_date):null,href:'/app/finance'});
+    for (const row of failedShipments as Record<string,unknown>[]) alerts.push({id:String(row.id),kind:'failed_shipment',severity:'critical',title:'ارسال ناموفق',detail:String(row.failure_reason||'علت ناموفق‌بودن ثبت نشده'),createdAt:row.updated_at?String(row.updated_at):null,dueAt:null,href:'/app/shipments'});
+    for (const row of expiringLicenses as Record<string,unknown>[]) alerts.push({id:String(row.id),kind:'expiring_license',severity:'warning',title:'مجوز مزرعه نزدیک به انقضا',detail:String(row.name||'مزرعه بدون نام'),createdAt:row.created_at?String(row.created_at):null,dueAt:row.license_expires_on?String(row.license_expires_on):null,href:'/app/farm-sites'});
+    const severityRank = {critical:0,warning:1,info:2};
+    alerts.sort((a,b)=>severityRank[a.severity]-severityRank[b.severity] || String(a.dueAt||a.createdAt||'').localeCompare(String(b.dueAt||b.createdAt||'')));
+    return c.json({alerts,total:alerts.length,generatedAt:new Date().toISOString()});
+  } catch { return jsonError(c, 'ساخت فهرست هشدارها انجام نشد.', 500); }
+});
+
 app.notFound(c => c.env.ASSETS ? c.env.ASSETS.fetch(c.req.raw) : c.json({ message:'مسیر پیدا نشد.' },404));
 export default app;
