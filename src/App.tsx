@@ -12,7 +12,6 @@ import {
 import { useAuth } from './lib/AuthContext';
 import { api } from './lib/apiClient';
 import { supabase } from './lib/supabase';
-import { isNeonAuthConfigured } from './lib/neonAuth';
 import { pageSectionLabel } from './lib/pageSections';
 import { goalProgressPercent, isGoalOverdue } from './lib/goals';
 import { OperationsWorkspacePage } from './OperationsPages';
@@ -54,9 +53,6 @@ const navDefinitions: { key: PageKey; label: string; group: string; icon: typeof
   { key: 'partner-settlements', label: 'دوره‌های تسویه', group: 'مشارکت و مالی', icon: ShieldCheck, roles: ['owner', 'admin', 'supplier'] },
 ];
 
-function ConfigScreen() {
-  return <main className="setup-screen" dir="rtl"><div className="setup-grid"><div className="setup-brand"><Logo/><span className="setup-chip"><span/> آماده استقرار · نیازمند پیکربندی</span><h1>شبکه‌ی تأمین را<br/><em>با داده واقعی</em> اداره کنید.</h1><p>مدار برای اتصال سفارش، ظرفیت، کیفیت، ارسال و تسویه در یک جریان عملیاتی ساخته شده است. تا قبل از اتصال دیتابیس هیچ داده نمونه یا شاخص ساختگی نمایش داده نمی‌شود.</p><div className="setup-features"><span><ShieldCheck/> کنترل دسترسی نقش‌محور</span><span><Activity/> ثبت تغییرات و پیگیری</span><span><Boxes/> مسیر مستقل مشتری و تأمین‌کننده</span></div></div><section className="setup-panel"><div className="setup-panel-icon"><Settings2/></div><span className="eyebrow">راه‌اندازی اولیه</span><h2>اتصال مدار لازم است</h2><p>برای فعال‌شدن ورود کاربران، متغیر عمومی آدرس Neon Auth را در محیط build تنظیم کن. کلیدهای محرمانه هرگز وارد مرورگر نمی‌شوند.</p><div className="env-item"><label>VITE_NEON_AUTH_URL</label><code>https://…neonauth…/neondb/auth</code><button onClick={() => void navigator.clipboard?.writeText('VITE_NEON_AUTH_URL=')}>کپی نام متغیر</button></div><div className="setup-warning"><ShieldCheck size={17}/><span>اتصال دیتابیس عملیاتی از طریق Worker انجام می‌شود و نباید در متغیرهای VITE قرار بگیرد.</span></div><div className="setup-steps"><b>مراحل راه‌اندازی</b><span><i>۱</i> فعال‌سازی Neon Auth</span><span><i>۲</i> تنظیم VITE_NEON_AUTH_URL برای build</span><span><i>۳</i> تنظیم secrets دیتابیس روی Worker</span></div></section></div><footer className="setup-footer"><span>مدار / راه‌اندازی سامانه</span><span>هیچ داده‌ای تا اتصال واقعی ساخته نشده است.</span></footer></main>;
-}
 function WaitingAccess({ membershipsError }: { membershipsError: string | null }) {
   const { user, signOut, refreshMemberships } = useAuth();
   return <main className="waiting-screen" dir="rtl"><Logo/><div className="waiting-mark"><ShieldCheck size={30}/></div><span className="eyebrow">بررسی دسترسی</span><h1>حساب شما هنوز به مجموعه‌ای متصل نیست.</h1><p>حساب کاربری معتبر است، اما دسترسی عملیاتی فقط پس از دعوت یا تأیید مالک/مدیر مجموعه فعال می‌شود. این صفحه هیچ نقشی را خودکار اختصاص نمی‌دهد.</p><div className="waiting-email"><span>حساب</span><b dir="ltr">{user?.username}</b></div>{membershipsError && <div className="form-error">خواندن سطح دسترسی ناموفق بود: {membershipsError}</div>}<button className="button-primary" onClick={() => void refreshMemberships()}>بررسی دوباره دسترسی <Activity size={16}/></button><button className="button-ghost" onClick={() => void signOut()}>خروج از حساب <LogOut size={15}/></button><small>مالک مجموعه باید از بخش «دسترسی کاربران» حساب شما را اضافه کند.</small></main>;
@@ -785,6 +781,5 @@ function WorkspaceGate() {
 }
 
 export default function App() {
-  if (!isNeonAuthConfigured) return <ConfigScreen/>;
   return <Routes><Route path="/" element={<Navigate to="/app/command" replace/>}/><Route path="/about" element={<Navigate to="/app/command" replace/>}/><Route path="/auth" element={<Navigate to="/app/command" replace/>}/><Route path="/app/*" element={<WorkspaceGate/>}/><Route path="*" element={<Navigate to="/" replace/>}/></Routes>;
 }
