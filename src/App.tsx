@@ -540,12 +540,12 @@ function GoalsPage({membership,search}:{membership:Membership;search:string}) {
    company_id:membership.company_id,title:form.title.trim(),description:form.description.trim(),
    category:form.category,unit:form.unit.trim(),baseline_value:baseline,target_value:target,current_value:current,
    priority:form.priority,status:form.status,period_start:form.period_start||null,due_date:form.due_date||null,
-   owner_user_id:form.owner_user_id||null,created_by:user.id,updated_by:user.id,
+   owner_user_id:form.owner_user_id||null,updated_by:user.id,
   };
   try{
    const result=editing
-    ? await supabase.from('company_goals').update({...values,created_by:undefined}).eq('company_id',membership.company_id).eq('id',editing)
-    : await supabase.from('company_goals').insert(values);
+    ? await supabase.from('company_goals').update(values).eq('company_id',membership.company_id).eq('id',editing)
+    : await supabase.from('company_goals').insert({...values,created_by:user.id});
    if(result.error)throw new Error(result.error.message);
    setNotice(editing?'هدف ویرایش شد و تغییرات در تاریخچه ثبت شد.':'هدف جدید ثبت شد و در تاریخچه تغییرات ثبت شد.');
    setOpen(false);setEditing(null);setForm({...emptyGoalForm});
