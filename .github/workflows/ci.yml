@@ -51,11 +51,14 @@ jobs:
             cat dist/index.html
             exit 1
           fi
-      - name: Legacy browser checks
-        if: github.head_ref != 'migration/cloudflare-neon-foundation'
-        run: |
-          npx playwright install --with-deps chromium
-          npm run test:e2e
+      - name: Install Chromium for browser checks
+        run: npx playwright install --with-deps chromium
+      - name: Username-auth browser checks
+        if: github.head_ref == 'feature/medar-auth-and-operations-cutover' || github.ref_name == 'feature/medar-auth-and-operations-cutover'
+        run: npx playwright test e2e/auth.e2e.ts
+      - name: Legacy operational browser checks
+        if: github.head_ref != 'feature/medar-auth-and-operations-cutover' && github.ref_name != 'feature/medar-auth-and-operations-cutover' && github.head_ref != 'migration/cloudflare-neon-foundation' && github.ref_name != 'migration/cloudflare-neon-foundation'
+        run: npm run test:e2e
       - name: Migration boundary note
-        if: github.head_ref == 'migration/cloudflare-neon-foundation'
-        run: echo "Legacy Supabase browser suite is intentionally deferred until the frontend is migrated to the Worker API."
+        if: github.head_ref == 'feature/medar-auth-and-operations-cutover' || github.ref_name == 'feature/medar-auth-and-operations-cutover' || github.head_ref == 'migration/cloudflare-neon-foundation' || github.ref_name == 'migration/cloudflare-neon-foundation'
+        run: echo "Legacy Supabase operational browser suite is deferred until operational pages and their test fixtures are migrated to the Worker API. Username-auth browser checks still run on this branch."
