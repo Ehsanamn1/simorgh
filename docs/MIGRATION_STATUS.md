@@ -1,0 +1,61 @@
+# مدار — Migration checkpoint: Cloudflare Workers + Neon
+
+Updated: 2026-10-16
+
+## Verified baseline
+
+- Main HEAD: `1cc5c5413e0d90c430b72162e358d16f57cf06c6`
+- The commit adds self-service signup and `create_company_workspace`, but both are still implemented through Supabase Auth/Postgres.
+- GitHub Actions CI run `38924263909` and Pages deployment run `38924558958` both succeeded for that HEAD.
+- The published application is still GitHub Pages. This is not evidence of a Cloudflare Worker backend.
+- Supabase is still present in the frontend dependency graph and runtime data/auth path.
+
+## Migration boundary
+
+The target runtime is:
+
+`React/Vite SPA -> Cloudflare Worker API -> Neon PostgreSQL`
+
+GitHub remains the source of truth and CI/deployment automation. Vercel is not part of the target architecture.
+
+The migration is intentionally staged. Supabase must remain available until the replacement authentication, authorization, data access and production smoke tests are proven.
+
+## Repository inventory
+
+Known Supabase coupling from the current source:
+
+- `@supabase/supabase-js` in `package.json`
+- `src/lib/supabase.ts`
+- `src/lib/AuthContext.tsx`
+- direct Supabase data access in `src/App.tsx`, `src/ProductExperience.tsx`, and `src/OperationsPages.tsx`
+- Supabase Auth/metadata signup and workspace provisioning in `src/ProductExperience.tsx`
+- SQL migrations under `supabase/migrations/`
+- policies/functions using `auth.uid()` and Supabase-specific `SECURITY DEFINER` patterns
+- CI/Pages/Cloudflare build configuration containing Supabase browser configuration
+
+This inventory is not a claim that every SQL migration can be executed unchanged on Neon.
+
+## First implementation seam
+
+A small browser API client is introduced separately from the existing Supabase path. It is deliberately not wired into the application yet. This gives the migration a single HTTP boundary for the eventual Worker API without changing current authentication behavior.
+
+The client:
+
+- uses same-origin requests by default;
+- sends cookies with `credentials: include`;
+- never accepts or embeds server secrets;
+- parses JSON responses consistently;
+- exposes HTTP errors without leaking response bodies into logs.
+
+The next implementation step should replace the auth/session path behind this boundary, beginning with `/api/health` and `/api/auth/me`, then signup/login/logout and workspace provisioning.
+
+## Safety gates
+
+Do not:
+
+1. remove Supabase before replacement E2E passes;
+2. migrate or delete production data without a verified backup and rollback plan;
+3. trust `company_id` or `role` supplied by the browser;
+4. place Neon credentials, session secrets, email-provider credentials or Cloudflare API credentials in Vite variables;
+5. claim a Cloudflare deployment until a real Worker URL responds and is smoke-tested.
+
