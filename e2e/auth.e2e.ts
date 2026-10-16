@@ -101,5 +101,5 @@ test('company signup sends validated details to Supabase and handles email confi
     phone: '09120000000',
     signup_workspace_pending: true,
   });
-  expect(signupPayloads[0].emailRedirectTo).toContain('/simorgh/app/command');
+  expect(signupPayloads[0].emailRedirectTo).toContain('/simorgh/#signin');
 });
