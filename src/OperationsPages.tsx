@@ -409,7 +409,7 @@ export function OperationsWorkspacePage({kind,membership,search}:{kind:Operation
         direction:collection?'inflow_to_company':advance?'company_to_partner':'not_cash',amount,paid_amount:paidAmount,currency:'TOMAN',
         expense_category:expense?str('expense_category'):null,is_shared_cost:expense&&yes('is_shared_cost'),
         paid_by:collection?'customer':advance?'company':expense?(str('paid_by')||'none'):'none',payment_status:paymentStatus,
-        recognized_on:str('recognized_on'),external_reference:str('external_reference')||null,linked_entry_id:collection?str('linked_entry_id')||null:null,
+        recognized_on:date('recognized_on'),external_reference:str('external_reference')||null,linked_entry_id:collection?str('linked_entry_id')||null:null,
         notes:str('notes')||null,created_by:membership.user_id};
     }
     try {
