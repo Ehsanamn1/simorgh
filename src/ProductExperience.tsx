@@ -274,13 +274,8 @@ export default function ProductExperience() {
       role: requestedRole as AppRole, fullName: fullName.trim(), organizationName: organizationName.trim() || null, phone: phone.trim() || null,
     });
     const data = result.requestId;
-    const requestError = null;
-    if (requestError) {
-      setError(requestError.message.includes('عضویت فعال') ? 'برای این حساب قبلاً عضویت فعال وجود دارد؛ صفحه را تازه‌سازی کن.' : requestError.message);
-    } else {
-      setNotice('درخواست دسترسی ثبت شد. پس از بررسی مالک یا مدیر، فضای کاری نقش انتخابی فعال می‌شود.');
-      setError(''); setRequestId(String(data ?? ''));
-    }
+    setNotice('درخواست دسترسی ثبت شد. پس از بررسی مالک یا مدیر، فضای کاری نقش انتخابی فعال می‌شود.');
+    setError(''); setRequestId(String(data ?? ''));
     setBusy(false);
   }
 
