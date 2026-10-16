@@ -574,7 +574,7 @@ app.post('/api/operations/partnership-agreements/:id/document', async c => {
     const rows=await sql`SELECT id,supplier_id,status,supersedes_agreement_id FROM public.partnership_agreements WHERE id=${c.req.param('id')}::uuid AND company_id=${companyId}::uuid LIMIT 1`;
     if(!rows[0])return jsonError(c,'قرارداد پیدا نشد.',404);
     const agreement=rows[0] as {id:string;supplier_id:string;status:string;supersedes_agreement_id:string|null};
-    if(agreement.status!=='draft')return jsonError(c,'فقط قرارداد پیش‌نویس را می‌توان فعال کرد.',409);
+    if(!['draft','pending_signature'].includes(agreement.status))return jsonError(c,'فقط قرارداد پیش‌نویس یا در انتظار امضا قابل فعال‌سازی است.',409);
     const active=await sql`SELECT id FROM public.partnership_agreements WHERE company_id=${companyId}::uuid AND supplier_id=${agreement.supplier_id}::uuid AND status='active' LIMIT 1`;
     if(active.length&&active[0].id!==agreement.supersedes_agreement_id)return jsonError(c,'برای این تأمین‌کننده قرارداد فعال دیگری وجود دارد؛ قرارداد قبلی را به‌عنوان جایگزین مشخص کن.',409);
     const filename=safeUploadName(file.name),key=`${companyId}/contracts/${agreement.supplier_id}/${crypto.randomUUID()}-${filename}`;
@@ -586,7 +586,7 @@ app.post('/api/operations/partnership-agreements/:id/document', async c => {
         RETURNING id
       ), activated AS (
         UPDATE public.partnership_agreements SET signed_document_path=${key},signed_at=now(),status='active',approved_by=${user.id}::uuid,approved_at=now(),updated_at=now()
-        WHERE id=${agreement.id}::uuid AND company_id=${companyId}::uuid AND status='draft'
+        WHERE id=${agreement.id}::uuid AND company_id=${companyId}::uuid AND status IN ('draft','pending_signature')
           AND (${agreement.supersedes_agreement_id}::uuid IS NULL OR EXISTS (SELECT 1 FROM superseded))
         RETURNING id,status,signed_document_path,signed_at
       ) SELECT * FROM activated`;
@@ -718,12 +718,32 @@ app.post('/api/operations/:kind/:id/action', async c => {
       if(!internal)return jsonError(c,'شروع تولید برای این نقش مجاز نیست.',403);
       if(String(row.status)!=='planned')return jsonError(c,'فقط بچ برنامه‌ریزی‌شده قابل شروع است.',409);
       await sql`UPDATE public.production_batches SET status='active',started_on=COALESCE(started_on,current_date),updated_at=now() WHERE id=${id}::uuid AND company_id=${companyId}::uuid`;
-    }else if(kind==='incidents'&&action==='resolve-incident'){
-      if(!internal)return jsonError(c,'ثبت اقدام اصلاحی برای این نقش مجاز نیست.',403);
-      if(!['open','investigating','action_required'].includes(String(row.status)))return jsonError(c,'این رخداد قبلاً بسته شده یا در وضعیت قابل حل نیست.',409);
-      const note=typeof data.resolutionNote==='string'?data.resolutionNote.trim().slice(0,2000):'';
-      if(note.length<2)return jsonError(c,'شرح اقدام اصلاحی لازم است.',400);
-      await sql`UPDATE public.operational_incidents SET status='resolved',resolution_note=${note},resolved_by=${user.id}::uuid,resolved_at=now(),updated_at=now() WHERE id=${id}::uuid AND company_id=${companyId}::uuid`;
+    }else if(kind==='incidents'&&(action==='resolve-incident'||action==='investigate')){
+      if(!internal)return jsonError(c,'تغییر وضعیت رخداد برای این نقش مجاز نیست.',403);
+      if(action==='investigate'){
+        if(!manager)return jsonError(c,'شروع بررسی رخداد فقط برای مالک یا مدیر مجاز است.',403);
+        if(String(row.status)!=='open')return jsonError(c,'فقط رخداد باز قابل بررسی است.',409);
+        await sql`UPDATE public.operational_incidents SET status='investigating',updated_at=now() WHERE id=${id}::uuid AND company_id=${companyId}::uuid`;
+      }else{
+        if(!['open','investigating','action_required'].includes(String(row.status)))return jsonError(c,'این رخداد قبلاً بسته شده یا در وضعیت قابل حل نیست.',409);
+        const note=typeof data.resolutionNote==='string'?data.resolutionNote.trim().slice(0,2000):'';
+        if(note.length<2)return jsonError(c,'شرح اقدام اصلاحی لازم است.',400);
+        await sql`UPDATE public.operational_incidents SET status='resolved',resolution_note=${note},resolved_by=${user.id}::uuid,resolved_at=now(),updated_at=now() WHERE id=${id}::uuid AND company_id=${companyId}::uuid`;
+      }
+    }else if(kind==='partnership-agreements'&&['submit-for-signature','suspend-agreement','reactivate-agreement'].includes(action)){
+      if(!manager)return jsonError(c,'تغییر وضعیت قرارداد فقط برای مالک یا مدیر مجاز است.',403);
+      if(action==='submit-for-signature'){
+        if(String(row.status)!=='draft')return jsonError(c,'فقط قرارداد پیش‌نویس قابل ارسال برای امضا است.',409);
+        await sql`UPDATE public.partnership_agreements SET status='pending_signature',updated_at=now() WHERE id=${id}::uuid AND company_id=${companyId}::uuid`;
+      }else if(action==='suspend-agreement'){
+        if(String(row.status)!=='active')return jsonError(c,'فقط قرارداد فعال قابل تعلیق است.',409);
+        await sql`UPDATE public.partnership_agreements SET status='suspended',updated_at=now() WHERE id=${id}::uuid AND company_id=${companyId}::uuid`;
+      }else{
+        if(String(row.status)!=='suspended'||!row.signed_document_path||!row.signed_at||!row.approved_by||!row.approved_at)return jsonError(c,'قرارداد فاقد سند امضا یا تأیید معتبر است.',409);
+        const other=await sql`SELECT id FROM public.partnership_agreements WHERE company_id=${companyId}::uuid AND supplier_id=${String(row.supplier_id)}::uuid AND status='active' AND id<>${id}::uuid LIMIT 1`;
+        if(other.length)return jsonError(c,'برای این تأمین‌کننده قرارداد فعال دیگری وجود دارد.',409);
+        await sql`UPDATE public.partnership_agreements SET status='active',updated_at=now() WHERE id=${id}::uuid AND company_id=${companyId}::uuid`;
+      }
     }else if(kind==='partner-finance'&&action==='finance-transition'){
       const next=typeof data.nextStatus==='string'?data.nextStatus:'';
       if(next==='submitted'){
