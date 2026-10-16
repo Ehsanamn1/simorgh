@@ -8,6 +8,12 @@ type Ctx = { env: Bindings; req: { header(name: string): string | undefined; jso
 
 const app = new Hono<{ Bindings: Bindings }>();
 
+app.use('/api/*', async (c, next) => {
+  const origin = c.req.header('origin');
+  if (origin) c.header('Vary', 'Origin');
+  await next();
+});
+
 async function requireUser(c: Ctx): Promise<AuthUser | Response> {
   const databaseUrl = c.env.DATABASE_URL;
   const jwksUrl = c.env.NEON_AUTH_JWKS_URL;
