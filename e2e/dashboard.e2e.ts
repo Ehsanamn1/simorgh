@@ -41,7 +41,15 @@ test('the access gateway remains usable at desktop and mobile widths', async ({ 
   await expect(page.locator('.ops-live-gateway-footer')).toBeVisible();
   await expect(page.locator('.ops-live-gateway-feature')).toHaveCount(4);
   if (viewportWidth <= 640) {
-    await expect(page.locator('.ops-live-gateway-features')).toHaveCSS('grid-template-columns', /minmax\(0px, 1fr\)|minmax\(0, 1fr\)|1fr/);
+    const featurePositions = await page.locator('.ops-live-gateway-feature').evaluateAll(elements =>
+      elements.slice(0, 2).map(element => {
+        const rect = element.getBoundingClientRect();
+        return { left: rect.left, top: rect.top, width: rect.width };
+      }),
+    );
+    expect(featurePositions[0].top).toBeLessThan(featurePositions[1].top);
+    expect(Math.abs(featurePositions[0].left - featurePositions[1].left)).toBeLessThan(2);
+    expect(featurePositions[0].width).toBeGreaterThan(200);
   }
 
   await page.getByRole('button', { name: 'فعال‌کردن حالت روشن' }).click();
