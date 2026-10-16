@@ -150,14 +150,31 @@ test('generic farm types and daily rejected quantities are validated before writ
   }
   await page.locator('.ops-modal').getByRole('button', { name: 'بستن' }).click();
 
+  await page.route(projectUrl + '/rest/v1/production_batches*', async route => {
+    const headers = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': 'GET,HEAD,OPTIONS,POST,PATCH,DELETE,PUT', 'content-type': 'application/json', 'cache-control': 'no-store' };
+    if (route.request().method() === 'OPTIONS') {
+      await route.fulfill({ status: 204, headers, body: '' });
+      return;
+    }
+    if (route.request().method() === 'HEAD') {
+      await route.fulfill({ status: 200, headers: { ...headers, 'content-range': '*/1' }, body: '' });
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      headers: { ...headers, 'content-range': '0-0/1' },
+      body: JSON.stringify([{
+        id: '00000000-0000-4000-8000-000000000066', company_id: companyId,
+        batch_code: 'TEST-BATCH', status: 'planned', production_kind: 'crop', unit: 'کیلوگرم',
+        farm_site_id: null, supplier_id: null, planned_quantity: 10, produced_quantity: 0,
+        rejected_quantity: 0, quality_status: 'not_inspected',
+      }]),
+    });
+  });
   await page.goto('/simorgh/app/daily-production', { waitUntil: 'domcontentloaded' });
   await page.getByRole('button', { name: 'ثبت رکورد', exact: true }).click();
   await expect(page.locator('#ops-rejected_quantity')).toBeVisible();
-  const batch = page.locator('#ops-batch_id');
-  await batch.evaluate((select: HTMLSelectElement) => {
-    select.add(new Option('TEST - دوره ساختگی فقط برای تست', '00000000-0000-4000-8000-000000000066'));
-  });
-  await batch.selectOption('00000000-0000-4000-8000-000000000066');
+  await page.locator('#ops-batch_id').selectOption('00000000-0000-4000-8000-000000000066');
   await page.locator('#ops-produced_quantity').fill('10');
   await page.locator('#ops-rejected_quantity').fill('11');
   await page.locator('.ops-modal form').getByRole('button', { name: 'ثبت رکورد' }).click();
