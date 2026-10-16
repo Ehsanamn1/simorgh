@@ -505,7 +505,7 @@ function GoalsPage({membership,search}:{membership:Membership;search:string}) {
   setLoading(true);setError('');
   const [g,m]=await Promise.all([
    supabase.from('company_goals').select('*').eq('company_id',membership.company_id).order('created_at',{ascending:false}).limit(300),
-   supabase.rpc('company_members',{_company:membership.company_id}),
+   canManage ? supabase.rpc('company_members',{_company:membership.company_id}) : Promise.resolve({data:[],error:null}),
   ]);
   const e=g.error??m.error;
   if(e)setError(e.message);
