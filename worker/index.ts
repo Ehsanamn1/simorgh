@@ -124,7 +124,7 @@ app.use('/api/*', async (c, next) => {
   await next();
 });
 app.get('/api/health', async c => {
-  if (!c.env.DATABASE_URL) return c.json({ ok: false, service: 'medar-api', database: false }, 503);
+  if (!c.env?.DATABASE_URL) return c.json({ ok: false, service: 'medar-api', database: false }, 503);
   try {
     const rows = await neon(c.env.DATABASE_URL)`SELECT 1 AS ready`;
     return c.json({ ok: true, service: 'medar-api', database: Number((rows[0] as {ready:number}).ready) === 1, auth: 'username-password' });
