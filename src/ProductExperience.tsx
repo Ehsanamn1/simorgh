@@ -295,8 +295,10 @@ export default function ProductExperience() {
       </nav>, appMain)}
     {authUiEnabled && user && waitingScreen && memberships.length === 0 && createPortal(
       <section className="access-request-card" dir="rtl" aria-labelledby="access-request-title">
-        <div className="access-request-heading"><span className="access-request-icon"><UserPlus size={20}/></span><div><span className="obsidian-eyebrow">درخواست دسترسی</span><h2 id="access-request-title">درخواست فضای کاری</h2><p>نقش را مشخص کن؛ مدیر پس از بررسی آن را تأیید یا رد می‌کند.</p></div></div>
-        <form className="access-request-form" onSubmit={submitRoleRequest}>
+        <div className="access-request-heading"><span className="access-request-icon"><UserPlus size={20}/></span><div><span className="obsidian-eyebrow">فضای کاری مدار</span><h2 id="access-request-title">{user.user_metadata?.signup_workspace_pending === true ? 'آماده‌سازی فضای کاری' : 'درخواست فضای کاری'}</h2><p>{user.user_metadata?.signup_workspace_pending === true ? 'پس از تأیید ایمیل، فضای کاری خصوصی مجموعه‌ات ساخته می‌شود.' : 'نقش را مشخص کن؛ مدیر پس از بررسی آن را تأیید یا رد می‌کند.'}</p></div></div>
+        {workspaceProvisioning && <div className="auth-feedback success" role="status">در حال ساخت فضای کاری اختصاصی…</div>}
+        {workspaceProvisionError && <div className="auth-feedback error workspace-provision-error" role="alert"><span>{workspaceProvisionError}</span><button type="button" onClick={() => setWorkspaceProvisionRetry(value => value + 1)}>تلاش دوباره</button></div>}
+        {user.user_metadata?.signup_workspace_pending !== true && <form className="access-request-form" onSubmit={submitRoleRequest}>
           <label>نام و نام خانوادگی<input required minLength={2} maxLength={160} autoComplete="name" value={fullName} onChange={e => setFullName(e.target.value)} placeholder="نام کامل"/></label>
           <label>نوع دسترسی<select value={requestedRole} onChange={e => { setRequestedRole(e.target.value as PublicRequestedRole); setRequestId(''); }}><option value="customer">خریدار عمده</option><option value="supplier">شریک مزرعه</option><option value="driver">راننده / پیمانکار حمل</option><option value="staff">عضو تیم داخلی</option></select></label>
           {['customer', 'supplier'].includes(requestedRole) && <label className="wide">نام شرکت / مزرعه<input required minLength={2} maxLength={160} value={organizationName} onChange={e => setOrganizationName(e.target.value)} placeholder="نام مجموعه"/></label>}
@@ -304,7 +306,7 @@ export default function ProductExperience() {
           {error && <div className="auth-feedback error wide" role="alert">{error}</div>}
           {notice && <div className="auth-feedback success wide" role="status">{notice}</div>}
           <button className="obsidian-primary wide" type="submit" disabled={busy || Boolean(requestId)}>{busy ? 'در حال ارسال…' : requestId ? 'درخواست ثبت شد' : 'ارسال برای تأیید مدیر'} <ArrowLeft size={16}/></button>
-        </form>
+        </form>}
         <p className="access-request-foot"><ShieldCheck size={15}/> انتخاب نقش به‌تنهایی دسترسی نمی‌دهد. مدیر باید درخواست را در پنل کاربران بررسی کند.</p>
       </section>, waitingScreen)}
     {signInOpen && (!user || mode === 'recovery') && (
