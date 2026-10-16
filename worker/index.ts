@@ -76,6 +76,17 @@ function sqlFor(c: any) {
   if (!c.env.DATABASE_URL) throw new Error('DATABASE_URL is not configured');
   return neon(c.env.DATABASE_URL);
 }
+async function rateLimit(sql: ReturnType<typeof neon>, key: string, maxAttempts: number, windowMinutes: number) {
+  const keyHash = await sha256(key);
+  const rows = await sql`INSERT INTO public.medar_rate_limits AS current(key_hash,window_started_at,attempts,updated_at)
+    VALUES(${keyHash},now(),1,now())
+    ON CONFLICT (key_hash) DO UPDATE SET
+      attempts=CASE WHEN current.window_started_at < now()-(${windowMinutes}::int * interval '1 minute') THEN 1 ELSE current.attempts+1 END,
+      window_started_at=CASE WHEN current.window_started_at < now()-(${windowMinutes}::int * interval '1 minute') THEN now() ELSE current.window_started_at END,
+      updated_at=now()
+    RETURNING attempts`;
+  return Number((rows[0] as {attempts:number}).attempts) > maxAttempts;
+}
 async function currentUser(c: any): Promise<AuthUser | null> {
   const token = getCookie(c.req.raw);
   if (!token || token.length > 200) return null;
@@ -128,6 +139,8 @@ app.post('/api/auth/signup', async c => {
   if (!['owner','customer','supplier','driver','staff'].includes(role)) return jsonError(c, 'نقش انتخابی معتبر نیست.', 400);
   try {
     const sql = sqlFor(c);
+    const ip = c.req.header('cf-connecting-ip') || '';
+    if (ip && await rateLimit(sql, 'signup-ip:' + ip, 8, 60)) return jsonError(c, 'تعداد تلاش‌های ثبت‌نام زیاد است. یک ساعت دیگر دوباره تلاش کنید.', 429);
     const existing = await sql`SELECT id FROM public.medar_users WHERE username_normalized=${normalized} OR phone_e164=${phone} LIMIT 1`;
     if (existing.length) return jsonError(c, 'این نام کاربری یا شماره موبایل قبلاً ثبت شده است.', 409);
     const hash = await passwordHash(password);
@@ -179,6 +192,8 @@ app.post('/api/auth/login', async c => {
   if (!/^[a-zA-Z0-9_.-]{3,32}$/.test(username) || !password || password.length > 128) return jsonError(c, 'نام کاربری یا رمز عبور نادرست است.', 401);
   try {
     const sql = sqlFor(c);
+    const ip = c.req.header('cf-connecting-ip') || '';
+    if (ip && await rateLimit(sql, 'login-ip:' + ip, 60, 15)) return jsonError(c, 'تعداد تلاش‌های ورود از این اتصال زیاد است. ۱۵ دقیقه دیگر دوباره تلاش کنید.', 429);
     const attempts = await sql`SELECT count(*)::int AS count FROM public.medar_login_attempts WHERE username_normalized=${username} AND succeeded = false AND attempted_at>now()-interval '15 minutes'`;
     if (Number((attempts[0] as {count:number}).count) >= 10) return jsonError(c, 'تلاش‌های ورود بیش از حد است. ۱۵ دقیقه دیگر دوباره تلاش کنید.', 429);
     const rows = await sql`SELECT id,username,phone_e164,display_name,requested_role,account_status,password_hash
