@@ -511,24 +511,58 @@ app.post('/api/operations/:kind', async c => {
     const sql=sqlFor(c),membership=await operationMembership(sql,user.id,companyId);
     if(!membership||!['owner','admin','staff'].includes(membership.role))return jsonError(c,'برای ثبت این عملیات مجوز نداری.',403);
     if(config.managerOnly&&!['owner','admin'].includes(membership.role))return jsonError(c,'ثبت این سند فقط برای مالک یا مدیر مجاز است.',403);
-    const fields=config.fields.filter(field=>Object.prototype.hasOwnProperty.call(data,field));
+    const serverManaged=new Set(['status','created_by','recorded_by','assigned_by','reported_by','reported_supplier_id','quality_status','direction','paid_amount','payment_status','paid_by','currency','signed_document_path','signed_at','completion_note','review_note','created_at','updated_at']);
+    const fields=config.fields.filter(field=>Object.prototype.hasOwnProperty.call(data,field)&&!serverManaged.has(field));
     if(!fields.length)return jsonError(c,'هیچ فیلد قابل ثبت ارسال نشده است.',400);
     const values=fields.map(field=>data[field]);
-    const creatorColumn=kind==='daily-production'?'recorded_by':kind==='operational-tasks'?'assigned_by':kind==='incidents'?'reported_by':'created_by';
     const insertFields=['company_id',...fields];
     const insertValues:unknown[]=[companyId,...values];
-    if(!fields.includes(creatorColumn)&&['recorded_by','assigned_by','reported_by','created_by'].includes(creatorColumn)){insertFields.push(creatorColumn);insertValues.push(user.id);}
+    const addManaged=(field:string,value:unknown)=>{
+      if(config.fields.includes(field)&&!insertFields.includes(field)){insertFields.push(field);insertValues.push(value);}
+    };
+    if(['farm-sites','flock-cycles','production-batches','task-templates','operational-tasks','incidents','partnership-agreements','partner-finance'].includes(kind)){
+      const initialStatus:Record<string,string>={'flock-cycles':'planned','production-batches':'planned','task-templates':'draft','operational-tasks':'pending','incidents':'open','partnership-agreements':'draft','partner-finance':'draft'};
+      if(initialStatus[kind])addManaged('status',initialStatus[kind]);
+    }
+    const creatorColumn=kind==='daily-production'?'recorded_by':kind==='operational-tasks'?'assigned_by':kind==='incidents'?'reported_by':'created_by';
+    if(['recorded_by','assigned_by','reported_by','created_by'].includes(creatorColumn)){insertFields.push(creatorColumn);insertValues.push(user.id);}
+    if(kind==='production-batches')addManaged('quality_status','not_inspected');
+    if(kind==='partner-finance'){
+      const entryType=String(data.entry_type||''),amount=Number(data.amount),paidInput=Number(data.paid_amount||0);
+      if(!['sale_invoice','sale_collection','expense','partner_advance'].includes(entryType))return jsonError(c,'نوع سند مالی معتبر نیست.',400);
+      if(!Number.isFinite(amount)||amount<=0||!Number.isFinite(paidInput)||paidInput<0||paidInput>amount)return jsonError(c,'مبلغ سند یا مبلغ پرداخت‌شده معتبر نیست.',400);
+      const paidAmount=['sale_collection','partner_advance'].includes(entryType)?amount:paidInput;
+      const paymentStatus=['sale_collection','partner_advance'].includes(entryType)?'paid':paidAmount<=0?(entryType==='expense'?'unpaid':'not_applicable'):paidAmount>=amount?'paid':'partial';
+      const direction=entryType==='sale_collection'?'inflow_to_company':entryType==='partner_advance'?'company_to_partner':'not_cash';
+      const paidBy=entryType==='sale_collection'?'customer':entryType==='partner_advance'?'company':entryType==='expense'?(String(data.paid_by||'none')):'none';
+      if(entryType==='expense'&&!String(data.expense_category||'').trim())return jsonError(c,'برای هزینه، دسته هزینه لازم است.',400);
+      if(['sale_collection','partner_advance'].includes(entryType)&&!String(data.external_reference||'').trim())return jsonError(c,'شماره رسید یا مرجع واقعی لازم است.',400);
+      if(entryType==='sale_collection'){
+        const linked=await queryRows(sql,`SELECT id FROM public.partner_financial_entries WHERE id=$1::uuid AND company_id=$2::uuid AND entry_type='sale_invoice' AND status IN ('approved','posted') LIMIT 1`,[data.linked_entry_id,companyId]);
+        if(!linked.length)return jsonError(c,'دریافت فروش باید به فاکتور تأییدشده همین مجموعه متصل باشد.',400);
+      }
+      if(entryType==='expense'&&data.is_shared_cost===true){
+        const agreementRows=await queryRows(sql,`SELECT shared_expense_categories FROM public.partnership_agreements WHERE id=$1::uuid AND company_id=$2::uuid AND supplier_id=$3::uuid LIMIT 1`,[data.agreement_id,companyId,data.supplier_id]);
+        const allowed=Array.isArray(agreementRows[0]?.shared_expense_categories)?agreementRows[0].shared_expense_categories as unknown[]:[];
+        if(!allowed.map(String).includes(String(data.expense_category)))return jsonError(c,'این دسته هزینه در قرارداد به‌عنوان هزینه مشترک تعیین نشده است.',400);
+      }
+      addManaged('paid_amount',paidAmount);addManaged('payment_status',paymentStatus);addManaged('direction',direction);addManaged('paid_by',paidBy);addManaged('currency','TOMAN');
+    }
     if(kind==='farm-sites'&&Boolean(data.latitude)!==Boolean(data.longitude))return jsonError(c,'برای ثبت مختصات، عرض و طول جغرافیایی باید با هم وارد شوند.',400);
     if(kind==='partnership-agreements'){
       const companyShare=Number(data.company_profit_share_pct),partnerShare=Number(data.partner_profit_share_pct);
       if(Math.abs(companyShare+partnerShare-100)>0.0001)return jsonError(c,'مجموع سهم شرکت و شریک باید ۱۰۰ درصد باشد.',400);
       if(!Array.isArray(data.shared_expense_categories)||!data.shared_expense_categories.length)return jsonError(c,'حداقل یک دسته هزینه مشترک انتخاب کن.',400);
     }
-    if(kind==='partner-finance'){
-      const amount=Number(data.amount),paid=Number(data.paid_amount||0),entryType=String(data.entry_type||'');
-      if(!Number.isFinite(amount)||amount<=0||paid<0||paid>amount)return jsonError(c,'مبلغ سند یا مبلغ پرداخت‌شده معتبر نیست.',400);
-      if(['sale_collection','partner_advance'].includes(entryType)&&(!String(data.external_reference||'').trim()||paid!==amount))return jsonError(c,'دریافت و پیش‌پرداخت باید با مبلغ کامل و مرجع واقعی ثبت شوند.',400);
-      if(entryType==='sale_collection'&&!data.linked_entry_id)return jsonError(c,'دریافت فروش باید به فاکتور واقعی متصل باشد.',400);
+    const relationTables:Record<string,string>={supplier_id:'suppliers',assignee_supplier_id:'suppliers',farm_site_id:'farm_sites',batch_id:'production_batches',template_id:'task_templates',agreement_id:'partnership_agreements',flock_cycle_id:'flock_cycles',product_id:'products',lot_id:'lots',task_id:'operational_tasks',supersedes_agreement_id:'partnership_agreements',linked_entry_id:'partner_financial_entries'};
+    for(const [field,table] of Object.entries(relationTables)){
+      if(data[field]!==undefined&&data[field]!==null&&data[field]!==''){
+        if(!await sameCompanyRow(sql,table,data[field],companyId))return jsonError(c,'ارجاع «'+field+'» پیدا نشد یا متعلق به این مجموعه نیست.',400);
+      }
+    }
+    if(data.assignee_user_id){
+      const assignee=await sql`SELECT id FROM public.memberships WHERE company_id=${companyId}::uuid AND user_id=${String(data.assignee_user_id)}::uuid AND active=true AND role::text IN ('owner','admin','staff') LIMIT 1`;
+      if(!assignee.length)return jsonError(c,'مسئول وظیفه عضو فعال همین مجموعه نیست.',400);
     }
     const placeholders=insertValues.map((_,index)=>'$'+(index+1)).join(',');
     const query=`INSERT INTO public.${config.table} (${insertFields.join(',')}) VALUES (${placeholders}) RETURNING *`;
