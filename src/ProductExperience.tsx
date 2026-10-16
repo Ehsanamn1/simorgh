@@ -121,7 +121,7 @@ export default function ProductExperience() {
 
   useEffect(() => {
     if (!user || memberships.length) return;
-    const metadata = user.user_metadata as Record<string, unknown>;
+    const metadata = user.user_metadata ?? {};
     if (requestedRoles.some(role => role.value === metadata.requested_role)) setRequestedRole(metadata.requested_role as PublicRequestedRole);
     if (typeof metadata.full_name === 'string' && metadata.full_name.trim()) setFullName(metadata.full_name);
     if (typeof metadata.organization_name === 'string') setOrganizationName(metadata.organization_name);
@@ -130,7 +130,7 @@ export default function ProductExperience() {
 
   useEffect(() => {
     if (!neonAuth || !user || loading || membershipsLoading || memberships.length > 0) return;
-    const metadata = user.user_metadata as Record<string, unknown>;
+    const metadata = user.user_metadata ?? {};
     if (metadata.signup_workspace_pending !== true || provisionedUserIds.current.has(user.id)) return;
     provisionedUserIds.current.add(user.id);
     void (async () => {
