@@ -262,6 +262,7 @@ export default function ProductExperience() {
             {mode === 'signin' && <button type="button" className="auth-text-action" onClick={() => {setMode('reset');setError('');setNotice('');}}>گذرواژه‌ات را فراموش کرده‌ای؟</button>}
             {mode === 'reset' && <button type="button" className="auth-text-action" onClick={() => {setMode('signin');setError('');setNotice('');}}>بازگشت به ورود</button>}
             <div className="signin-no-signup"><ShieldCheck size={16}/><span>ثبت‌نام عمومی غیرفعال است؛ حساب‌های جدید فقط از مسیر مدیریت امن شرکت ایجاد می‌شوند.</span></div>
+            <div className="signin-owner-guide"><span>اگر هنوز حساب مالک ساخته نشده است،</span> <a href="https://github.com/Ehsanamn1/simorgh/blob/main/docs/OWNER_PROVISIONING.md" target="_blank" rel="noreferrer">راهنمای راه‌اندازی نخستین مالک</a></div>
             <div className="signin-form-foot"><span><Check size={13}/> کنترل دسترسی سمت سرور</span><span>مدار · فضای امن</span></div>
           </div>
         </div>
