@@ -713,7 +713,7 @@ app.post('/api/rpc/:name', async c => {
         FROM public.memberships m JOIN public.medar_users u ON u.id=m.user_id
         WHERE m.company_id=${companyId}::uuid
         ORDER BY m.created_at DESC`;
-      const data=rows.map(row=>({id:row.id,user_id:row.user_id,role:row.role,active:row.active,created_at:row.created_at,username:row.username,profiles:{full_name:row.display_name,phone:row.phone_e164}}));
+      const data=rows.map(row=>({id:row.id,user_id:row.user_id,role:row.role,active:row.active,created_at:row.created_at,username:row.username,full_name:row.display_name,phone:row.phone_e164,profiles:{full_name:row.display_name,phone:row.phone_e164}}));
       return c.json({data,count:data.length});
     }
     if(name==='allocate_order_item'){
