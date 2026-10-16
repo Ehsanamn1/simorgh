@@ -513,6 +513,182 @@ async function sameCompanyRow(sql: ReturnType<typeof neon>, table: string, id: u
   const rows=await queryRows(sql,`SELECT id FROM public.${table} WHERE id=$1::uuid AND company_id=$2::uuid LIMIT 1`,[id,companyId]);
   return rows.length>0;
 }
+type DataTableConfig={readRoles:string[];writeRoles:string[];managerOnly?:boolean;readOnly?:boolean};
+const dataTableConfigs:Record<string,DataTableConfig>={
+  orders:{readRoles:['owner','admin','staff','customer','supplier'],writeRoles:['owner','admin','staff','customer']},
+  order_items:{readRoles:['owner','admin','staff','customer','supplier'],writeRoles:['owner','admin','staff','customer']},
+  customers:{readRoles:['owner','admin','staff','customer'],writeRoles:['owner','admin','staff']},
+  suppliers:{readRoles:['owner','admin','staff','supplier'],writeRoles:['owner','admin','staff']},
+  products:{readRoles:['owner','admin','staff','customer','supplier'],writeRoles:['owner','admin','staff']},
+  price_agreements:{readRoles:['owner','admin','staff','customer'],writeRoles:['owner','admin']},
+  capacity_commitments:{readRoles:['owner','admin','staff','supplier'],writeRoles:['owner','admin','staff','supplier']},
+  shipments:{readRoles:['owner','admin','staff','driver','customer','supplier'],writeRoles:['owner','admin','staff','driver']},
+  shipment_locations:{readRoles:['owner','admin','staff','driver','customer','supplier'],writeRoles:['owner','admin','staff','driver']},
+  delivery_evidence:{readRoles:['owner','admin','staff','driver','customer','supplier'],writeRoles:['owner','admin','staff','driver']},
+  invoices:{readRoles:['owner','admin','staff','customer'],writeRoles:['owner','admin','staff']},
+  settlements:{readRoles:['owner','admin','staff','supplier'],writeRoles:['owner','admin']},
+  farm_sites:{readRoles:['owner','admin','staff','supplier'],writeRoles:[]},
+  lots:{readRoles:['owner','admin','staff','supplier'],writeRoles:['owner','admin','staff','supplier']},
+  quality_reviews:{readRoles:['owner','admin','staff','supplier'],writeRoles:['owner','admin','staff']},
+  inventory_movements:{readRoles:['owner','admin','staff','supplier'],writeRoles:[],readOnly:true},
+  inventory_balances:{readRoles:['owner','admin','staff'],writeRoles:[],readOnly:true},
+  company_goals:{readRoles:['owner','admin','staff'],writeRoles:['owner','admin','staff']},
+  operational_tasks:{readRoles:['owner','admin','staff','supplier'],writeRoles:[],readOnly:true},
+  operational_incidents:{readRoles:['owner','admin','staff','supplier'],writeRoles:[],readOnly:true},
+  access_requests:{readRoles:['owner','admin'],writeRoles:[],managerOnly:true,readOnly:true},
+  audit_events:{readRoles:['owner','admin'],writeRoles:[],managerOnly:true,readOnly:true},
+};
+type SelectNode={fields:string[];relations:{name:string;alias:string;fields:string[];relations:SelectNode['relations']}[]};
+function splitTopLevel(value:string):string[]{
+  const out:string[]=[];let depth=0,start=0;
+  for(let i=0;i<value.length;i++){const ch=value[i];if(ch==='(')depth++;else if(ch===')')depth--;else if(ch===','&&depth===0){out.push(value.slice(start,i).trim());start=i+1;}}
+  const tail=value.slice(start).trim();if(tail)out.push(tail);return out;
+}
+function parseSelect(value:string):SelectNode{
+  const fields:string[]=[],relations:SelectNode['relations']=[];
+  for(const token of splitTopLevel(value||'*')){
+    const open=token.indexOf('(');
+    if(open>0&&token.endsWith(')')){
+      const head=token.slice(0,open).trim(),parts=head.split(':');
+      const name=(parts.length>1?parts[1]:parts[0]).trim(),alias=(parts.length>1?parts[0]:parts[0]).trim();
+      const nested=parseSelect(token.slice(open+1,-1));
+      relations.push({name,alias,fields:nested.fields,relations:nested.relations});
+    }else if(token)fields.push(token.trim());
+  }
+  return {fields,relations};
+}
+const dataRelations:Record<string,Record<string,{table:string;parentKey:string;relatedKey:string;many?:boolean}>>={
+  orders:{customers:{table:'customers',parentKey:'customer_id',relatedKey:'id'},order_items:{table:'order_items',parentKey:'id',relatedKey:'order_id',many:true}},
+  order_items:{products:{table:'products',parentKey:'product_id',relatedKey:'id'},orders:{table:'orders',parentKey:'order_id',relatedKey:'id'},suppliers:{table:'suppliers',parentKey:'supplier_id',relatedKey:'id'},capacity_commitments:{table:'capacity_commitments',parentKey:'capacity_commitment_id',relatedKey:'id'},lots:{table:'lots',parentKey:'lot_id',relatedKey:'id'}},
+  capacity_commitments:{suppliers:{table:'suppliers',parentKey:'supplier_id',relatedKey:'id'},products:{table:'products',parentKey:'product_id',relatedKey:'id'}},
+  price_agreements:{customers:{table:'customers',parentKey:'customer_id',relatedKey:'id'},products:{table:'products',parentKey:'product_id',relatedKey:'id'}},
+  lots:{suppliers:{table:'suppliers',parentKey:'supplier_id',relatedKey:'id'},products:{table:'products',parentKey:'product_id',relatedKey:'id'}},
+  quality_reviews:{lots:{table:'lots',parentKey:'lot_id',relatedKey:'id'}},
+  shipments:{orders:{table:'orders',parentKey:'order_id',relatedKey:'id'}},
+  invoices:{customers:{table:'customers',parentKey:'customer_id',relatedKey:'id'},orders:{table:'orders',parentKey:'order_id',relatedKey:'id'}},
+  settlements:{suppliers:{table:'suppliers',parentKey:'supplier_id',relatedKey:'id'}},
+  shipment_locations:{shipments:{table:'shipments',parentKey:'shipment_id',relatedKey:'id'}},
+  delivery_evidence:{shipments:{table:'shipments',parentKey:'shipment_id',relatedKey:'id'}},
+};
+const dataColumnCache=new Map<string,Promise<Set<string>>>();
+async function dataColumns(sql:ReturnType<typeof neon>,table:string):Promise<Set<string>>{
+  let cached=dataColumnCache.get(table);if(!cached){cached=queryRows(sql,'SELECT column_name FROM information_schema.columns WHERE table_schema=$1 AND table_name=$2',['public',table]).then(rows=>new Set(rows.map(row=>String(row.column_name))));dataColumnCache.set(table,cached);}
+  return cached;
+}
+function splitOrExpression(expression:string):{column:string;op:string;value:string|null}[]{
+  return expression.split(',').map(part=>part.trim()).filter(Boolean).map(part=>{
+    const bits=part.split('.');
+    if(bits.length<3)throw new Error('فیلتر OR معتبر نیست');
+    const column=bits[0],op=bits[1],value=bits.slice(2).join('.');
+    if(!/^[a-z_][a-z0-9_]*$/i.test(column)||!['eq','neq','gte','gt','lte','lt','is'].includes(op))throw new Error('عملگر فیلتر OR مجاز نیست');
+    return {column,op,value:value==='null'?null:value};
+  });
+}
+function dataRoleScope(table:string,membership:{role:string;supplier_id:string|null;customer_id:string|null},userId:string,params:unknown[]):string|null{
+  const role=membership.role;
+  if(['owner','admin','staff'].includes(role))return null;
+  if(role==='supplier'){
+    if(!membership.supplier_id)return 'FALSE';
+    params.push(membership.supplier_id);const n=params.length;
+    if(['customers','invoices','price_agreements','company_goals','inventory_balances','access_requests','audit_events'].includes(table))return 'FALSE';
+    if(['farm_sites','lots','capacity_commitments','inventory_movements','settlements'].includes(table))return `t.supplier_id=$${n}::uuid`;
+    if(table==='quality_reviews')return `EXISTS(SELECT 1 FROM public.lots l WHERE l.company_id=t.company_id AND l.id=t.lot_id AND l.supplier_id=$${n}::uuid)`;
+    if(table==='operational_tasks')return `t.assignee_supplier_id=$${n}::uuid`;
+    if(table==='operational_incidents')return `(t.reported_supplier_id=$${n}::uuid OR t.farm_site_id IN (SELECT id FROM public.farm_sites WHERE company_id=t.company_id AND supplier_id=$${n}::uuid) OR t.batch_id IN (SELECT id FROM public.production_batches WHERE company_id=t.company_id AND supplier_id=$${n}::uuid))`;
+    if(table==='orders')return `EXISTS(SELECT 1 FROM public.order_items oi WHERE oi.company_id=t.company_id AND oi.order_id=t.id AND oi.supplier_id=$${n}::uuid)`;
+    if(table==='order_items')return `t.supplier_id=$${n}::uuid`;
+    if(table==='shipments')return `EXISTS(SELECT 1 FROM public.order_items oi WHERE oi.company_id=t.company_id AND oi.order_id=t.order_id AND oi.supplier_id=$${n}::uuid)`;
+    if(table==='shipment_locations'||table==='delivery_evidence')return `EXISTS(SELECT 1 FROM public.shipments s JOIN public.order_items oi ON oi.company_id=s.company_id AND oi.order_id=s.order_id WHERE s.company_id=t.company_id AND s.id=t.shipment_id AND oi.supplier_id=$${n}::uuid)`;
+    return null;
+  }
+  if(role==='customer'){
+    if(!membership.customer_id)return 'FALSE';
+    params.push(membership.customer_id);const n=params.length;
+    if(table==='customers')return `t.id=$${n}::uuid`;
+    if(table==='orders')return `t.customer_id=$${n}::uuid`;
+    if(table==='order_items')return `t.order_id IN (SELECT id FROM public.orders WHERE company_id=t.company_id AND customer_id=$${n}::uuid)`;
+    if(table==='invoices'||table==='price_agreements')return `t.customer_id=$${n}::uuid`;
+    if(table==='shipments')return `t.order_id IN (SELECT id FROM public.orders WHERE company_id=t.company_id AND customer_id=$${n}::uuid)`;
+    if(table==='shipment_locations'||table==='delivery_evidence')return `EXISTS(SELECT 1 FROM public.shipments s JOIN public.orders o ON o.company_id=s.company_id AND o.id=s.order_id WHERE s.company_id=t.company_id AND s.id=t.shipment_id AND o.customer_id=$${n}::uuid)`;
+    if(['products'].includes(table))return null;
+    return 'FALSE';
+  }
+  if(role==='driver'){
+    params.push(userId);const n=params.length;
+    if(table==='shipments')return `t.driver_user_id=$${n}::uuid`;
+    if(table==='shipment_locations'||table==='delivery_evidence')return `EXISTS(SELECT 1 FROM public.shipments s WHERE s.company_id=t.company_id AND s.id=t.shipment_id AND s.driver_user_id=$${n}::uuid)`;
+    return 'FALSE';
+  }
+  return 'FALSE';
+}
+async function hydrateDataRows(sql:ReturnType<typeof neon>,table:string,rows:Record<string,unknown>[],nodes:SelectNode['relations'],companyId:string,membership:{role:string;supplier_id:string|null;customer_id:string|null},userId:string):Promise<void>{
+  if(!rows.length)return;
+  if(table==='access_requests'&&rows.some(row=>typeof row.user_id==='string')){
+    const ids=[...new Set(rows.map(row=>row.user_id).filter((id):id is string=>typeof id==='string'&&validUuid(id)))];
+    if(ids.length){const users=await queryRows(sql,'SELECT id,username,display_name,phone_e164 FROM public.medar_users WHERE id=ANY($1::uuid[])',[ids]);const byId=new Map(users.map(u=>[String(u.id),u]));for(const row of rows){const u=byId.get(String(row.user_id));if(u){row.username=u.username;row.display_name=u.display_name;row.phone=u.phone_e164;}}}
+  }
+  for(const node of nodes){
+    const relation=dataRelations[table]?.[node.name];
+    if(!relation)throw new Error('رابطه داده‌ای مجاز نیست: '+table+'.'+node.name);
+    const ids=[...new Set(rows.map(row=>row[relation.parentKey]).filter((id):id is string=>typeof id==='string'&&validUuid(id)))];
+    if(!ids.length){for(const row of rows)row[node.alias]=relation.many?[]:null;continue;}
+    const params:unknown[]=[companyId,ids];let extra='';
+    if(membership.role==='supplier'&&relation.table==='order_items'&&membership.supplier_id){params.push(membership.supplier_id);extra+=` AND supplier_id=$${params.length}::uuid`;}
+    if(membership.role==='customer'&&relation.table==='order_items'&&membership.customer_id){params.push(membership.customer_id);extra+=` AND order_id IN (SELECT id FROM public.orders WHERE company_id=$1::uuid AND customer_id=$${params.length}::uuid)`;}
+    if(membership.role==='customer'&&relation.table==='orders'&&membership.customer_id){params.push(membership.customer_id);extra+=` AND customer_id=$${params.length}::uuid`;}
+    if(membership.role==='supplier'&&relation.table==='orders'&&membership.supplier_id){params.push(membership.supplier_id);extra+=` AND EXISTS(SELECT 1 FROM public.order_items oi WHERE oi.company_id=orders.company_id AND oi.order_id=orders.id AND oi.supplier_id=$${params.length}::uuid)`;}
+    const related=await queryRows(sql,`SELECT * FROM public.${relation.table} WHERE company_id=$1::uuid AND ${relation.relatedKey}=ANY($2::uuid[])${extra}`,params);
+    await hydrateDataRows(sql,relation.table,related,node.relations,companyId,membership,userId);
+    const byKey=new Map<string,Record<string,unknown>[]>();
+    for(const item of related){const key=String(item[relation.relatedKey]??'');const list=byKey.get(key)??[];list.push(item);byKey.set(key,list);}
+    for(const row of rows){
+      const key=String(row[relation.parentKey]??'');const matches=byKey.get(key)??[];
+      row[node.alias]=relation.many?matches.map(item=>projectDataRow(item,node.fields,node.relations)):matches.length?projectDataRow(matches[0],node.fields,node.relations):null;
+    }
+  }
+}
+function projectDataRow(row:Record<string,unknown>,fields:string[],relations:SelectNode['relations']):Record<string,unknown>{
+  const output:Record<string,unknown>={};
+  const blocked=new Set(['password_hash','email','encrypted_password','token_hash','refresh_token']);
+  if(fields.includes('*')){for(const [key,value] of Object.entries(row))if(!blocked.has(key))output[key]=value;}
+  else for(const field of fields)if(!blocked.has(field)&&Object.prototype.hasOwnProperty.call(row,field))output[field]=row[field];
+  for(const relation of relations)if(Object.prototype.hasOwnProperty.call(row,relation.alias))output[relation.alias]=row[relation.alias];
+  return output;
+}
+function addDataRoleFilter(table:string,membership:{role:string;supplier_id:string|null;customer_id:string|null},userId:string,params:unknown[],where:string[]){
+  const scope=dataRoleScope(table,membership,userId,params);if(scope)where.push(scope);
+}
+function buildDataWhere(table:string,columns:Set<string>,filters:Filter[],companyId:string,membership:{role:string;supplier_id:string|null;customer_id:string|null},userId:string){
+  const params:unknown[]=[companyId],where=['t.company_id=$1::uuid'];
+  addDataRoleFilter(table,membership,userId,params,where);
+  for(const filter of filters){
+    if(filter.column==='company_id')continue;
+    if(filter.column==='__onConflict')continue;
+    if(filter.column==='__or'){
+      for(const cond of splitOrExpression(String(filter.value??''))){
+        if(!columns.has(cond.column))throw new Error('فیلد فیلتر مجاز نیست: '+cond.column);
+        const col='t.'+cond.column;
+        if(cond.op==='is'&&cond.value===null)where.push(`(${col} IS NULL)`);
+        else if(cond.op==='is')where.push(`(${col} IS NOT NULL)`);
+        else{params.push(cond.value);const n=params.length;const op=cond.op==='eq'?'=':cond.op==='neq'?'<>':cond.op==='gte'?'>=':cond.op==='gt'?'>':cond.op==='lte'?'<=':'<';where.push(`(${col} ${op} $${n})`);}
+      }
+      continue;
+    }
+    if(!/^[a-z_][a-z0-9_]*$/i.test(filter.column)||!columns.has(filter.column))throw new Error('فیلد فیلتر مجاز نیست: '+filter.column);
+    const col='t.'+filter.column,op=filter.op;
+    if(op==='is'&&filter.value===null){where.push(`${col} IS NULL`);continue;}
+    if(op==='not_is'&&filter.value===null){where.push(`${col} IS NOT NULL`);continue;}
+    if(op==='in'||op==='not_in'){
+      const values=Array.isArray(filter.value)?filter.value.map(String):[];
+      params.push(values);const n=params.length;where.push(op==='in'?`${col}::text=ANY($${n}::text[])`:`${col}::text<>ALL($${n}::text[])`);continue;
+    }
+    const operators:Record<string,string>={eq:'=',neq:'<>',gte:'>=',gt:'>',lte:'<=',lt:'<',not_eq:'<>',not_gte:'<',not_lte:'>'};
+    const sqlOp=operators[op];if(!sqlOp)throw new Error('عملگر فیلتر مجاز نیست');
+    if(filter.value===null&&op==='eq'){where.push(`${col} IS NULL`);continue;}
+    params.push(filter.value);where.push(`${col} ${sqlOp} $${params.length}`);
+  }
+  return {params,where:where.join(' AND ')};
+}
 const allowedUploadTypes=new Set(['application/pdf','image/jpeg','image/png','image/webp']);
 function safeUploadName(value:string){return value.replace(/[^a-zA-Z0-9._-]/g,'_').slice(-120)||'upload';}
 function evidenceFileHeaders(contentType:string,filename:string){
