@@ -138,6 +138,7 @@ test('generic farm types and daily rejected quantities are validated before writ
   await expect(page.getByRole('heading', { name: 'چرخه‌های کشت و پرورش' })).toBeVisible();
   await page.getByRole('button', { name: 'ثبت رکورد', exact: true }).click();
   const cycleType = page.locator('#ops-cycle_type');
+  await expect(cycleType).toHaveValue('mixed');
   for (const kind of ['crop','livestock','poultry','dairy','aquaculture','greenhouse','orchard','apiary','mixed','other']) {
     await expect(cycleType.locator('option[value="' + kind + '"]')).toHaveCount(1);
   }
