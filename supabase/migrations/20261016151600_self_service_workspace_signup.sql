@@ -90,7 +90,7 @@ begin
   values (actor_id, safe_full_name, safe_phone)
   on conflict (id) do update
     set full_name = excluded.full_name,
-        phone = coalesce(excluded.phone, public.profiles.phone),
+        phone = coalesce(excluded.phone, profiles.phone),
         updated_at = now();
 
   insert into public.memberships (company_id, user_id, role, active, created_by)
