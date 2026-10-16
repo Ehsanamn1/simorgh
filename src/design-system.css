@@ -895,3 +895,49 @@ html[data-theme="light"] .ops-live-flow-icon,html[data-theme="light"] .ops-live-
  .ops-live-roadmap{padding:11px}
 }
 
+
+
+/* مدار — نقشه‌ی مدیریتی از مختصات واقعی سایت‌ها */
+:root{
+  --obs-bg:#101719;
+  --obs-accent:#82BDB1;
+  --obs-accent-2:#94B4B2;
+  --obs-highlight:#D7E3DE;
+  --role-accent:#82BDB1;
+  --sim-emerald-700:#82BDB1;
+  --sim-lime:#D7E3DE;
+}
+.tower-map-grid{display:grid;grid-template-columns:minmax(0,1fr);margin-bottom:16px}
+.farm-map-panel{min-width:0;overflow:hidden}
+.farm-map-layout{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(220px,.8fr);min-width:0}
+.farm-map-layout iframe{display:block;width:100%;min-width:0;min-height:310px;border:0;background:var(--obs-surface-2)}
+.farm-map-sites{display:grid;align-content:start;gap:7px;max-height:310px;overflow-y:auto;padding:12px;border-right:1px solid var(--obs-border)}
+.farm-map-site{display:flex;align-items:center;gap:10px;min-width:0;padding:10px;border:1px solid var(--obs-border);border-radius:12px;background:var(--obs-surface-2);color:var(--obs-text);text-align:right;cursor:pointer;transition:border-color var(--sim-motion-fast),background var(--sim-motion-fast)}
+.farm-map-site:hover{border-color:#486b64}
+.farm-map-site.active{border-color:#567b73;background:#1b2c2c}
+.farm-map-site>span:last-child{display:grid;gap:2px;min-width:0}
+.farm-map-site b{overflow-wrap:anywhere;font-size:11px}
+.farm-map-site small{color:var(--obs-muted);font-size:9px;line-height:1.7}
+.farm-map-pin{display:grid;place-items:center;flex:none;width:34px;height:34px;border-radius:10px;background:#203536;color:var(--obs-accent)}
+.farm-map-footer{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:11px 16px;border-top:1px solid var(--obs-border);color:var(--obs-subtle);font-size:10px}
+.farm-map-footer a{display:inline-flex;align-items:center;gap:5px;color:var(--obs-accent);text-decoration:none}
+.farm-map-warning{display:flex;align-items:flex-start;gap:12px;padding:18px;color:var(--obs-muted);font-size:11px;line-height:1.9}
+.farm-map-warning>svg{flex:none;color:var(--obs-warning)}
+.farm-map-warning b{display:block;color:var(--obs-text);font-size:12px}
+.farm-map-warning p{margin:4px 0}
+.farm-map-warning small{color:var(--obs-subtle);font-size:10px}
+@media(max-width:860px){
+  .tower-map-grid{margin-bottom:13px}
+  .farm-map-layout{grid-template-columns:minmax(0,1fr)}
+  .farm-map-layout iframe{min-height:260px}
+  .farm-map-sites{grid-template-columns:repeat(2,minmax(0,1fr));max-height:220px;border-right:0;border-top:1px solid var(--obs-border);padding:9px}
+  .farm-map-site{align-items:flex-start;gap:7px;padding:8px}
+  .farm-map-pin{width:30px;height:30px}
+}
+@media(max-width:640px){
+  .farm-map-layout iframe{min-height:235px}
+  .farm-map-sites{gap:6px;max-height:210px}
+  .farm-map-site b{font-size:10px}
+  .farm-map-footer{padding:10px 12px}
+  .farm-map-warning{padding:14px}
+}
