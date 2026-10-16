@@ -283,6 +283,35 @@ app.get('/api/workspace/memberships', async c => {
   } catch { return jsonError(c, 'خواندن فضای کاری انجام نشد. اجرای مهاجرت دیتابیس را بررسی کنید.', 500); }
 });
 
+app.post('/api/workspace/members/:id/reset-credentials', async c => {
+  let user:AuthUser|null;
+  try{user=await currentUser(c);}catch{return jsonError(c,'پایگاه داده پیکربندی نشده است.',503);}
+  if(!user)return jsonError(c,'ابتدا وارد حساب شو.',401);
+  let data:Record<string,unknown>;
+  try{data=await c.req.json();}catch{return jsonError(c,'بدنه درخواست معتبر نیست.',400);}
+  const companyId=typeof data.companyId==='string'?data.companyId:'';
+  const phone=normalizePhone(data.phone);
+  const password=typeof data.password==='string'?data.password:'';
+  if(!validUuid(companyId)||!validUuid(c.req.param('id')))return jsonError(c,'شناسه مجموعه یا عضویت معتبر نیست.',400);
+  if(!phone)return jsonError(c,'شماره موبایل ایران معتبر نیست.',400);
+  if(password.length<10||password.length>128)return jsonError(c,'رمز عبور موقت باید ۱۰ تا ۱۲۸ نویسه باشد.',400);
+  try{
+    const sql=sqlFor(c),membership=await operationMembership(sql,user.id,companyId);
+    if(!membership||membership.role!=='owner')return jsonError(c,'بازنشانی رمز فقط برای مالک مجموعه مجاز است.',403);
+    const targetRows=await sql`SELECT m.user_id,m.role::text AS role,u.username FROM public.memberships m JOIN public.medar_users u ON u.id=m.user_id WHERE m.id=${c.req.param('id')}::uuid AND m.company_id=${companyId}::uuid LIMIT 1`;
+    if(!targetRows[0])return jsonError(c,'عضویت پیدا نشد.',404);
+    const target=targetRows[0] as {user_id:string;role:string;username:string};
+    if(target.role==='owner'||target.user_id===user.id)return jsonError(c,'برای امنیت، بازنشانی مالک یا حساب خودت از این مسیر مجاز نیست.',403);
+    const duplicate=await sql`SELECT id FROM public.medar_users WHERE phone_e164=${phone} AND id<>${target.user_id}::uuid LIMIT 1`;
+    if(duplicate.length)return jsonError(c,'این شماره موبایل به حساب دیگری متصل است.',409);
+    const hash=await passwordHash(password);
+    await sql`UPDATE public.medar_users SET phone_e164=${phone},password_hash=${hash},account_status='active',updated_at=now() WHERE id=${target.user_id}::uuid`;
+    await sql`UPDATE public.medar_sessions SET revoked_at=now() WHERE user_id=${target.user_id}::uuid AND revoked_at IS NULL`;
+    await sql`INSERT INTO public.medar_audit_log(actor_user_id,action,entity_type,entity_id,metadata)
+      VALUES(${user.id}::uuid,'member.credentials.reset','user',${target.user_id},jsonb_build_object('company_id',${companyId},'target_role',${target.role}))`;
+    return c.json({ok:true,username:target.username});
+  }catch(error){const message=error instanceof Error?error.message:'';if(message.includes('duplicate key'))return jsonError(c,'این شماره موبایل قبلاً ثبت شده است.',409);return jsonError(c,'بازنشانی رمز و شماره انجام نشد.',500);}
+});
 app.get('/api/workspace/members', async c => {
   let user: AuthUser | null;
   try { user = await currentUser(c); } catch { return jsonError(c, 'پایگاه داده پیکربندی نشده است.', 503); }
