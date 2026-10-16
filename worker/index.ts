@@ -1574,7 +1574,7 @@ app.post('/api/operations/:kind/:id/update', async c => {
 });
 
 app.post('/api/auth/change-password', async c => {
-  if (!c.env.DATABASE_URL) return jsonError(c, 'پایگاه داده پیکربندی نشده است.', 503);
+  if (!c.env?.DATABASE_URL) return jsonError(c, 'پایگاه داده پیکربندی نشده است.', 503);
   let user: AuthUser | null;
   try { user = await currentUser(c); } catch { return jsonError(c, 'خواندن نشست کاربری انجام نشد.', 500); }
   if (!user) return jsonError(c, 'برای تغییر رمز عبور ابتدا وارد حساب شو.', 401);
