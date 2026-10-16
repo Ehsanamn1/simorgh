@@ -47,7 +47,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          npx wrangler@4 deploy --name medar-api-migration 2>&1 | tee "$RUNNER_TEMP/worker-deploy.log"
+          npx wrangler@4 deploy --name medar-api 2>&1 | tee "$RUNNER_TEMP/worker-deploy.log"
           worker_url="$(grep -Eo 'https://[^[:space:]]+\.workers\.dev' "$RUNNER_TEMP/worker-deploy.log" | tail -n 1 || true)"
           if [[ -z "$worker_url" ]]; then echo "Could not extract the deployed Worker URL."; exit 1; fi
           echo "MEDAR_WORKER_URL=$worker_url" >> "$GITHUB_ENV"
