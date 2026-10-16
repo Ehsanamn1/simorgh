@@ -820,3 +820,30 @@ html[data-theme="light"] .driver-map-frame iframe{filter:saturate(.75) contrast(
 html[data-theme="light"] .goal-card{background:linear-gradient(150deg,#fff,#f6f9f9)}
 @media(max-width:860px){.tower-quick-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:700px){.goal-card-grid{grid-template-columns:minmax(0,1fr);padding:10px}.goal-card{padding:12px}.goal-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.goal-card h3{font-size:12px}}
+
+
+/* Goal planning: live progress, not fabricated dashboard indicators. */
+.tower-panel-link{display:inline-flex;align-items:center;gap:6px;color:var(--obs-accent);font-size:10px;font-weight:800;text-decoration:none;white-space:nowrap}
+.tower-panel-link:hover{text-decoration:underline}
+.tower-goals-summary{margin:0 0 14px;overflow:hidden}
+.tower-goal-list{display:grid;padding:0 14px}
+.tower-goal-row{display:grid;grid-template-columns:34px minmax(0,1fr) minmax(120px,190px);align-items:center;gap:10px;padding:12px 0;border-bottom:1px solid var(--obs-border);text-decoration:none;min-width:0}
+.tower-goal-row:last-child{border-bottom:0}
+.tower-goal-row:hover .tower-goal-main b{color:var(--obs-accent)}
+.tower-goal-row.overdue{background:linear-gradient(90deg,transparent,rgba(217,130,125,.055))}
+.tower-goal-dot{display:grid;place-items:center;width:32px;height:32px;border:1px solid var(--obs-border);border-radius:9px;background:var(--obs-elevated);color:var(--obs-accent-2)}
+.tower-goal-main{display:grid;gap:4px;min-width:0}
+.tower-goal-main b{color:var(--obs-text);font-size:10px;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tower-goal-main small{color:var(--obs-subtle);font-size:8px;line-height:1.6}
+.tower-goal-progress{display:grid;grid-template-columns:minmax(0,1fr) 37px;align-items:center;gap:8px}
+.tower-goal-progress>i{display:block;height:6px;overflow:hidden;border-radius:99px;background:var(--obs-elevated)}
+.tower-goal-progress>i>span{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,var(--obs-accent-2),var(--obs-accent))}
+.tower-goal-progress>b{text-align:left;color:var(--obs-muted);font-size:9px;font-weight:800}
+.goal-workspace-panel .panel-heading{align-items:center}
+html[data-theme="light"] .tower-goal-dot{background:#edf4f3}
+@media(max-width:640px){
+ .tower-goal-row{grid-template-columns:30px minmax(0,1fr);gap:8px;padding:10px 0}
+ .tower-goal-progress{grid-column:2;grid-template-columns:minmax(0,1fr) 38px}
+ .tower-goal-main b{font-size:9px}
+ .tower-goal-main small{font-size:7px}
+}
