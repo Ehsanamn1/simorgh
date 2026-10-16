@@ -834,7 +834,6 @@ async function validateDataReferences(sql:ReturnType<typeof neon>,table:string,r
     if(membership.role==='driver'&&String(shipment[0].driver_user_id)!==userId)throw new Error('این محموله به راننده فعلی تخصیص داده نشده است.');
     if(path){
       if(!path.startsWith(companyId+'/'+shipmentId+'/')||path.split('/').length!==3)throw new Error('مسیر فایل مدرک با شرکت یا محموله مطابقت ندارد.');
-      if(!await (await Promise.resolve(null as unknown)).value){} 
     }else if(!String(row.note??'').trim()&&!String(row.recipient_name??'').trim()&&row.reading_celsius===undefined)throw new Error('برای ثبت مدرک، فایل یا یادداشت معتبر لازم است.');
   }
   if(table==='shipment_locations'){
