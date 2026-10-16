@@ -6,7 +6,7 @@ const companyId = '00000000-0000-4000-8000-000000000022';
 const supplierId = '00000000-0000-4000-8000-000000000033';
 const customerId = '00000000-0000-4000-8000-000000000055';
 
-async function installIsolatedSession(page: Page, role: 'owner' | 'supplier' | 'driver' | 'customer') {
+async function installIsolatedSession(page: Page, role: 'owner' | 'supplier' | 'driver' | 'customer' | 'unprovisioned') {
   const now = Math.floor(Date.now() / 1000);
   await page.addInitScript(({ storageKey, session }) => {
     window.localStorage.setItem(storageKey, JSON.stringify(session));
@@ -22,7 +22,7 @@ async function installIsolatedSession(page: Page, role: 'owner' | 'supplier' | '
         id: userId, aud: 'authenticated', role: 'authenticated',
         email: role + '@example.test', email_confirmed_at: new Date().toISOString(),
         app_metadata: { provider: 'email', providers: ['email'] },
-        user_metadata: { full_name: role === 'owner' ? 'مالک تست سیمرغ' : role === 'supplier' ? 'تأمین‌کننده تست سیمرغ' : role === 'driver' ? 'راننده تست سیمرغ' : 'مشتری تست سیمرغ' },
+        user_metadata: { full_name: role === 'owner' ? 'مالک تست سیمرغ' : role === 'supplier' ? 'تأمین‌کننده تست سیمرغ' : role === 'driver' ? 'راننده تست سیمرغ' : role === 'unprovisioned' ? 'کاربر بدون عضویت' : 'مشتری تست سیمرغ' },
         created_at: new Date().toISOString(),
       },
     },
@@ -45,15 +45,16 @@ async function installIsolatedSession(page: Page, role: 'owner' | 'supplier' | '
       return;
     }
     if (table === 'memberships') {
+      const memberships = role === 'unprovisioned' ? [] : [{
+        id: '00000000-0000-4000-8000-000000000044',
+        company_id: companyId, user_id: userId, role,
+        customer_id: role === 'customer' ? customerId : null, supplier_id: role === 'supplier' ? supplierId : null,
+        active: true, companies: { name: 'شبکه سیمرغ' },
+      }];
       await route.fulfill({
         status: 200,
-        headers: { ...headers, 'content-range': '0-0/1' },
-        body: JSON.stringify([{
-          id: '00000000-0000-4000-8000-000000000044',
-          company_id: companyId, user_id: userId, role,
-          customer_id: role === 'customer' ? customerId : null, supplier_id: role === 'supplier' ? supplierId : null,
-          active: true, companies: { name: 'شبکه سیمرغ' },
-        }]),
+        headers: { ...headers, 'content-range': role === 'unprovisioned' ? '*/0' : '0-0/1' },
+        body: JSON.stringify(memberships),
       });
       return;
     }
@@ -99,6 +100,19 @@ test('manager workspace retains operations and captures a real rendered control-
   expect(dimensions.document).toBeLessThanOrEqual(dimensions.viewport);
   expect(dimensions.body).toBeLessThanOrEqual(dimensions.viewport);
   expect(errors).toEqual([]);
+});
+
+test('signed-in users without membership can request access instead of being stranded', async ({ page }) => {
+  await installIsolatedSession(page, 'unprovisioned');
+  await page.goto('/simorgh/app/command', { waitUntil: 'domcontentloaded' });
+
+  await expect(page.locator('.waiting-screen')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'حساب شما هنوز به مجموعه‌ای متصل نیست.' })).toBeVisible();
+  await expect(page.locator('.access-request-card')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'درخواست فضای کاری' })).toBeVisible();
+  await expect(page.getByLabel('نام و نام خانوادگی')).toBeVisible();
+  await expect(page.getByLabel('نوع دسترسی')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'ارسال برای تأیید مدیر' })).toBeVisible();
 });
 
 test('manager forms support generic farm types, species, production and daily records', async ({ page }) => {
