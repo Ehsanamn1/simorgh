@@ -98,14 +98,14 @@ jobs:
           tmp="$RUNNER_TEMP/medar-live-auth-smoke"
           mkdir -p "$tmp"
           touch "$tmp/a-signup.cookies" "$tmp/a-login.cookies" "$tmp/a-new-password.cookies" "$tmp/b-signup.cookies" "$tmp/b-login.cookies" "$tmp/old-password.cookies"
-          user_a="ci_smoke_\${GITHUB_RUN_ID}"
-          user_b="ci_smoke_b_\${GITHUB_RUN_ID}"
+          user_a="ci_smoke_$GITHUB_RUN_ID"
+          user_b="ci_smoke_b_$GITHUB_RUN_ID"
           phone_a="09$(printf '%09d' "$((GITHUB_RUN_ID % 1000000000))")"
           phone_b="09$(printf '%09d' "$(((GITHUB_RUN_ID + 1) % 1000000000))")"
-          org_a="CI Smoke A \${GITHUB_RUN_ID}"
-          org_b="CI Smoke B \${GITHUB_RUN_ID}"
-          password_old="MedarCI-\${GITHUB_RUN_ID}-Old!"
-          password_new="MedarCI-\${GITHUB_RUN_ID}-New!"
+          org_a="CI Smoke A $GITHUB_RUN_ID"
+          org_b="CI Smoke B $GITHUB_RUN_ID"
+          password_old="MedarCI-$GITHUB_RUN_ID-Old!"
+          password_new="MedarCI-$GITHUB_RUN_ID-New!"
           cleanup() {
             psql "$MEDAR_DATABASE_URL" -v ON_ERROR_STOP=1 -v ua="$user_a" -v ub="$user_b" -v oa="$org_a" -v ob="$org_b" <<'SQL'
           DELETE FROM public.medar_sessions WHERE user_id IN (SELECT id FROM public.medar_users WHERE username IN (:'ua', :'ub'));
@@ -151,7 +151,7 @@ jobs:
           cat "$tmp/cross-company.json"
           test "$cross_company_status" = "403"
 
-          wrong_current_status="$(curl --silent --show-error -o "$tmp/wrong-current.json" -w '%{http_code}' -b "$tmp/a-login.cookies" -H 'content-type: application/json' -X POST --data "$(jq -n --arg currentPassword "wrong-\${GITHUB_RUN_ID}" --arg newPassword "$password_new" '{currentPassword:$currentPassword,newPassword:$newPassword}')" "$MEDAR_WORKER_URL/api/auth/change-password")"
+          wrong_current_status="$(curl --silent --show-error -o "$tmp/wrong-current.json" -w '%{http_code}' -b "$tmp/a-login.cookies" -H 'content-type: application/json' -X POST --data "$(jq -n --arg currentPassword "wrong-$GITHUB_RUN_ID" --arg newPassword "$password_new" '{currentPassword:$currentPassword,newPassword:$newPassword}')" "$MEDAR_WORKER_URL/api/auth/change-password")"
           test "$wrong_current_status" = "403"
           change_status="$(curl --silent --show-error -o "$tmp/change-password.json" -w '%{http_code}' -b "$tmp/a-login.cookies" -c "$tmp/a-login.cookies" -H 'content-type: application/json' -X POST --data "$(jq -n --arg currentPassword "$password_old" --arg newPassword "$password_new" '{currentPassword:$currentPassword,newPassword:$newPassword}')" "$MEDAR_WORKER_URL/api/auth/change-password")"
           cat "$tmp/change-password.json"
