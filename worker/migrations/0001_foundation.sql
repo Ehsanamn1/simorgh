@@ -9,7 +9,7 @@ create table if not exists public.medar_users (
   phone_e164 text not null,
   display_name text not null,
   password_hash text not null,
-  requested_role text not null default 'customer' check (requested_role in ('customer','supplier','driver','staff')),
+  requested_role text not null default 'customer' check (requested_role in ('owner','customer','supplier','driver','staff')),
   account_status text not null default 'active' check (account_status in ('active','locked','disabled')),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
