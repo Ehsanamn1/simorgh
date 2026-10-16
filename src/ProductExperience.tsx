@@ -109,7 +109,7 @@ export default function ProductExperience() {
   }, [appMain, location.pathname, user?.id, memberships.length, memberships[0]?.role]);
 
   useEffect(() => {
-    if (!supabase) return;
+    if (!neonAuth) return;
     const { data: listener } = neonAuth.onAuthStateChange(event => {
       if (event === 'PASSWORD_RECOVERY') {
         setMode('recovery'); setError(''); setNotice('گذرواژه جدید را وارد کن تا بازیابی حساب تکمیل شود.');
@@ -129,17 +129,17 @@ export default function ProductExperience() {
   }, [user?.id, user?.user_metadata, memberships.length]);
 
   useEffect(() => {
-    if (!supabase || !user || loading || membershipsLoading || memberships.length > 0) return;
+    if (!neonAuth || !user || loading || membershipsLoading || memberships.length > 0) return;
     const metadata = user.user_metadata as Record<string, unknown>;
     if (metadata.signup_workspace_pending !== true || provisionedUserIds.current.has(user.id)) return;
     provisionedUserIds.current.add(user.id);
     void (async () => {
       setWorkspaceProvisioning(true);
       setWorkspaceProvisionError('');
-      const { error: createError } = await supabase.rpc('create_company_workspace', {
-        _company_name: typeof metadata.organization_name === 'string' ? metadata.organization_name : '',
-        _full_name: typeof metadata.full_name === 'string' ? metadata.full_name : '',
-        _phone: typeof metadata.phone === 'string' ? metadata.phone : null,
+      const { error: createError } = await api.post<{ companyId: string }>('/api/workspace/provision', {
+        companyName: typeof metadata.organization_name === 'string' ? metadata.organization_name : '',
+        fullName: typeof metadata.full_name === 'string' ? metadata.full_name : '',
+        phone: typeof metadata.phone === 'string' ? metadata.phone : null,
       });
       if (createError) {
         provisionedUserIds.current.delete(user.id);
@@ -147,7 +147,7 @@ export default function ProductExperience() {
         setWorkspaceProvisioning(false);
         return;
       }
-      await neonAuth!.auth.updateUser({ data: { signup_workspace_pending: false } });
+      await neonAuth.updateUser({ data: { signup_workspace_pending: false } });
       await refreshMemberships();
       setWorkspaceProvisioning(false);
       setWorkspaceProvisionError('');
@@ -214,12 +214,12 @@ export default function ProductExperience() {
     try {
       if (mode === 'reset') {
         const redirectUrl = new URL((import.meta.env.BASE_URL || '/') + '#signin', window.location.origin).toString();
-        const { error: resetError } = await neonAuth!.auth.resetPasswordForEmail(email.trim(), { redirectTo: redirectUrl });
+        const { error: resetError } = await neonAuth.resetPasswordForEmail(email.trim(), { redirectTo: redirectUrl });
         if (resetError) { setError('ارسال ایمیل بازیابی انجام نشد. ایمیل و تنظیمات Auth را بررسی کن.'); return; }
         setNotice('اگر این ایمیل حساب فعالی داشته باشد، لینک بازیابی برای آن ارسال می‌شود.');
       } else if (mode === 'signup') {
         const emailRedirectTo = new URL(basePath + '/#signin', window.location.origin).toString();
-        const { data, error: signUpError } = await neonAuth!.auth.signUp({
+        const { data, error: signUpError } = await neonAuth.signUp({
           email: email.trim(),
           password,
           options: {
@@ -252,12 +252,12 @@ export default function ProductExperience() {
       } else if (mode === 'recovery') {
         if (password.length < 8) { setError('گذرواژه جدید باید حداقل ۸ نویسه باشد.'); return; }
         if (password !== confirmPassword) { setError('تکرار گذرواژه یکسان نیست.'); return; }
-        const { error: updateError } = await neonAuth!.auth.updateUser({ password });
+        const { error: updateError } = await neonAuth.updateUser({ password });
         if (updateError) { setError('تغییر گذرواژه انجام نشد. لینک بازیابی ممکن است منقضی شده باشد.'); return; }
-        await neonAuth!.auth.signOut();
+        await neonAuth.signOut();
         setPassword(''); setConfirmPassword(''); setMode('signin'); setNotice('گذرواژه تغییر کرد. حالا با گذرواژه جدید وارد شو.');
       } else {
-        const { error: authError } = await neonAuth!.auth.signInWithPassword({ email: email.trim(), password });
+        const { error: authError } = await neonAuth.signInWithPassword({ email: email.trim(), password });
         if (authError) { setError('ورود انجام نشد. ایمیل و گذرواژه را بررسی کن یا ایمیل حساب را تأیید و دوباره تلاش کن.'); return; }
         setPassword(''); navigate(protectedDestination, { replace: true });
       }
@@ -271,10 +271,11 @@ export default function ProductExperience() {
     if (!neonAuth || !user) { setError('برای ثبت درخواست ابتدا وارد حساب شو.'); return; }
     if (['customer', 'supplier'].includes(requestedRole) && organizationName.trim().length < 2) { setError('نام شرکت یا مزرعه برای این نقش ضروری است.'); return; }
     setBusy(true); setError(''); setNotice('');
-    const { data, error: requestError } = await supabase.rpc('submit_access_request', {
-      _role: requestedRole as AppRole, _full_name: fullName.trim(),
-      _organization_name: organizationName.trim() || null, _phone: phone.trim() || null, _notes: '',
+    const result = await api.post<{ requestId: string }>('/api/access-requests', {
+      role: requestedRole as AppRole, fullName: fullName.trim(), organizationName: organizationName.trim() || null, phone: phone.trim() || null,
     });
+    const data = result.requestId;
+    const requestError = null;
     if (requestError) {
       setError(requestError.message.includes('عضویت فعال') ? 'برای این حساب قبلاً عضویت فعال وجود دارد؛ صفحه را تازه‌سازی کن.' : requestError.message);
     } else {
