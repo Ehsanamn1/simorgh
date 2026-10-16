@@ -1,5 +1,7 @@
 name: Deploy Medar to Cloudflare Workers
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
 permissions:
   contents: read
@@ -7,7 +9,6 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     env:
-      VITE_NEON_AUTH_URL: https://ep-wild-mountain-baaweix2.neonauth.c-8.eu-central-1.aws.neon.tech/neondb/auth
       MEDAR_DATABASE_URL: ${{ secrets.MEDAR_DATABASE_URL }}
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -27,13 +28,34 @@ jobs:
           test -n "$CLOUDFLARE_API_TOKEN" || { echo "CLOUDFLARE_API_TOKEN is missing"; exit 1; }
           test -n "$CLOUDFLARE_ACCOUNT_ID" || { echo "CLOUDFLARE_ACCOUNT_ID is missing"; exit 1; }
           test -n "$MEDAR_DATABASE_URL" || { echo "MEDAR_DATABASE_URL is missing"; exit 1; }
-      - name: Apply Neon foundation schema
+      - name: Install PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - name: Apply additive Neon migrations in order
         shell: bash
-        run: psql "$MEDAR_DATABASE_URL" -v ON_ERROR_STOP=1 -f worker/migrations/0001_foundation.sql
+        run: |
+          set -euo pipefail
+          for migration in worker/migrations/*.sql; do
+            echo "Applying $migration"
+            psql "$MEDAR_DATABASE_URL" -v ON_ERROR_STOP=1 -f "$migration"
+          done
       - name: Configure Neon database secret
         working-directory: worker
         shell: bash
         run: printf '%s' "$MEDAR_DATABASE_URL" | npx wrangler@4 secret put DATABASE_URL
       - name: Deploy Worker
         working-directory: worker
-        run: npx wrangler@4 deploy --name medar-api-migration
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx wrangler@4 deploy --name medar-api-migration 2>&1 | tee "$RUNNER_TEMP/worker-deploy.log"
+          worker_url="$(grep -Eo 'https://[^[:space:]]+\.workers\.dev' "$RUNNER_TEMP/worker-deploy.log" | tail -n 1 || true)"
+          if [[ -z "$worker_url" ]]; then echo "Could not extract the deployed Worker URL."; exit 1; fi
+          echo "MEDAR_WORKER_URL=$worker_url" >> "$GITHUB_ENV"
+      - name: Smoke-test Worker API and Neon connection
+        shell: bash
+        run: |
+          set -euo pipefail
+          response="$(curl --fail --silent --show-error --retry 5 --retry-all-errors --retry-delay 3 "$MEDAR_WORKER_URL/api/health")"
+          echo "$response"
+          echo "$response" | grep -q '"ok":true'
+          echo "$response" | grep -q '"database":true'
