@@ -74,3 +74,8 @@ These tests verify the public role-screening interface. They are not a security 
 ## Cloudflare/Neon migration
 
 The migration branch contains a Cloudflare Worker API foundation and Neon Managed Auth configuration. Production cutover remains gated on Cloudflare secrets and the complete Neon application schema/data migration. GitHub Pages remains the active production surface until those gates pass.
+
+
+## Guarded release attempt
+
+The release workflow now runs the complete browser acceptance suite before any database changes and refuses to run migrations unless `MEDAR_DATABASE_URL` points to the isolated `medar-migration` Neon endpoint (`ep-wild-mountain-baaweix2*`). A marked commit `[deploy-medar]` requests this guarded rollout; missing Cloudflare/Neon credentials or an unexpected database endpoint stops the workflow before migration/deployment.
