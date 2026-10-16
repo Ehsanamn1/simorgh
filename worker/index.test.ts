@@ -17,7 +17,7 @@ describe('Medar username authentication primitives', () => {
 
   it('hashes passwords with a random salt and verifies only the correct password', async () => {
     const hash = await passwordHash('correct horse battery staple');
-    expect(hash.startsWith('pbkdf2$210000$')).toBe(true);
+    expect(hash.startsWith('pbkdf2$600000$')).toBe(true);
     expect(await verifyPassword('correct horse battery staple', hash)).toBe(true);
     expect(await verifyPassword('wrong password', hash)).toBe(false);
   });
