@@ -45,12 +45,14 @@ test('dark and light themes work, and the four quick-access cards navigate to th
   await page.getByRole('button', { name: 'فعال‌کردن حالت تاریک' }).click();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
 
-  await page.getByRole('button', { name: /مدیریت سفارش‌ها/ }).click();
-  await expect(page).toHaveURL(/module=orders/);
-  await expect(page.getByRole('heading', { name: 'سفارش‌ها', level: 1 })).toBeVisible();
   await page.locator('.ops-live-quick-card').filter({ hasText: 'اهداف و برنامه' }).click();
   await expect(page).toHaveURL(/module=goals/);
   await expect(page.getByRole('heading', { name: 'اهداف و برنامه', level: 1 })).toBeVisible();
+
+  await page.goto('/simorgh/app/command', { waitUntil: 'domcontentloaded' });
+  await page.locator('.ops-live-quick-card').filter({ hasText: 'مدیریت سفارش‌ها' }).click();
+  await expect(page).toHaveURL(/module=orders/);
+  await expect(page.getByRole('heading', { name: 'سفارش‌ها', level: 1 })).toBeVisible();
   await expect(page.locator('.simorgh-signin-layer')).toHaveCount(0);
 });
 
