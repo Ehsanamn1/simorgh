@@ -628,7 +628,59 @@ ALTER TABLE public.access_requests ADD CONSTRAINT access_requests_user_id_fkey F
 UPDATE public.access_requests SET organization_name = company_name WHERE organization_name IS NULL AND company_name IS NOT NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS access_requests_one_pending_per_role ON public.access_requests(user_id, requested_role) WHERE status='pending';
 
--- 6. Query indexes.
+-- 6. Generalized farm/product constraints from later source migrations.
+ALTER TABLE public.products ALTER COLUMN kind TYPE text USING kind::text;
+ALTER TABLE public.products DROP CONSTRAINT IF EXISTS products_kind_check;
+ALTER TABLE public.products ADD CONSTRAINT products_kind_check
+  CHECK (kind IN ('farm_product','crop','livestock','poultry','aquaculture','dairy','eggs','meat','honey','forestry','greenhouse','orchard','input','feed','equipment','processed','service','other'));
+
+ALTER TABLE public.production_batches DROP CONSTRAINT IF EXISTS production_batches_production_kind_check;
+ALTER TABLE public.production_batches ADD CONSTRAINT production_batches_production_kind_check
+  CHECK (production_kind IN ('farm_product','crop','livestock','poultry','dairy','eggs','meat','aquaculture','honey','forestry','greenhouse','orchard','input','feed','equipment','processed','service','other'));
+
+ALTER TABLE public.farm_sites ALTER COLUMN province SET DEFAULT 'نامشخص';
+ALTER TABLE public.farm_sites ALTER COLUMN province DROP NOT NULL;
+ALTER TABLE public.farm_sites DROP CONSTRAINT IF EXISTS farm_sites_site_type_check;
+ALTER TABLE public.farm_sites ADD CONSTRAINT farm_sites_site_type_check
+  CHECK (site_type IN ('crop','livestock','poultry','dairy','aquaculture','greenhouse','orchard','apiary','processing','warehouse','distribution','mixed','other'));
+ALTER TABLE public.farm_sites DROP CONSTRAINT IF EXISTS farm_sites_coordinates_pair_check;
+ALTER TABLE public.farm_sites ADD CONSTRAINT farm_sites_coordinates_pair_check
+  CHECK ((latitude IS NULL AND longitude IS NULL) OR (latitude IS NOT NULL AND longitude IS NOT NULL AND latitude BETWEEN -90 AND 90 AND longitude BETWEEN -180 AND 180));
+
+ALTER TABLE public.flock_cycles ALTER COLUMN species SET DEFAULT 'عمومی';
+ALTER TABLE public.flock_cycles ALTER COLUMN cycle_type SET DEFAULT 'mixed';
+ALTER TABLE public.flock_cycles DROP CONSTRAINT IF EXISTS flock_cycles_species_check;
+ALTER TABLE public.flock_cycles ADD CONSTRAINT flock_cycles_species_check CHECK (length(trim(species)) BETWEEN 1 AND 80);
+ALTER TABLE public.flock_cycles DROP CONSTRAINT IF EXISTS flock_cycles_cycle_type_check;
+ALTER TABLE public.flock_cycles ADD CONSTRAINT flock_cycles_cycle_type_check
+  CHECK (cycle_type IN ('crop','livestock','poultry','dairy','aquaculture','greenhouse','orchard','apiary','mixed','other'));
+ALTER TABLE public.flock_cycles DROP CONSTRAINT IF EXISTS flock_cycles_initial_quantity_check;
+ALTER TABLE public.flock_cycles ADD CONSTRAINT flock_cycles_initial_quantity_check CHECK (initial_quantity IS NULL OR initial_quantity >= 0);
+ALTER TABLE public.flock_cycles DROP CONSTRAINT IF EXISTS flock_cycles_quantity_unit_check;
+ALTER TABLE public.flock_cycles ADD CONSTRAINT flock_cycles_quantity_unit_check CHECK (length(trim(quantity_unit)) BETWEEN 1 AND 24);
+
+ALTER TABLE public.daily_production_records DROP CONSTRAINT IF EXISTS daily_production_records_resource_name_check;
+ALTER TABLE public.daily_production_records ADD CONSTRAINT daily_production_records_resource_name_check CHECK (resource_name IS NULL OR length(trim(resource_name)) <= 120);
+ALTER TABLE public.daily_production_records DROP CONSTRAINT IF EXISTS daily_production_records_input_quantity_check;
+ALTER TABLE public.daily_production_records ADD CONSTRAINT daily_production_records_input_quantity_check CHECK (input_quantity >= 0);
+ALTER TABLE public.daily_production_records DROP CONSTRAINT IF EXISTS daily_production_records_input_unit_check;
+ALTER TABLE public.daily_production_records ADD CONSTRAINT daily_production_records_input_unit_check CHECK (length(trim(input_unit)) BETWEEN 1 AND 24);
+ALTER TABLE public.daily_production_records DROP CONSTRAINT IF EXISTS daily_production_records_loss_quantity_check;
+ALTER TABLE public.daily_production_records ADD CONSTRAINT daily_production_records_loss_quantity_check CHECK (loss_quantity >= 0);
+ALTER TABLE public.daily_production_records DROP CONSTRAINT IF EXISTS daily_production_records_loss_unit_check;
+ALTER TABLE public.daily_production_records ADD CONSTRAINT daily_production_records_loss_unit_check CHECK (length(trim(loss_unit)) BETWEEN 1 AND 24);
+ALTER TABLE public.daily_production_records DROP CONSTRAINT IF EXISTS daily_production_records_rejected_quantity_check;
+ALTER TABLE public.daily_production_records ADD CONSTRAINT daily_production_records_rejected_quantity_check
+  CHECK (rejected_quantity >= 0 AND (rejected_quantity = 0 OR (produced_quantity IS NOT NULL AND rejected_quantity <= produced_quantity)));
+
+ALTER TABLE public.company_goals DROP CONSTRAINT IF EXISTS company_goals_baseline_nonnegative;
+ALTER TABLE public.company_goals ADD CONSTRAINT company_goals_baseline_nonnegative CHECK (baseline_value >= 0);
+ALTER TABLE public.company_goals DROP CONSTRAINT IF EXISTS company_goals_current_nonnegative;
+ALTER TABLE public.company_goals ADD CONSTRAINT company_goals_current_nonnegative CHECK (current_value >= 0);
+ALTER TABLE public.company_goals DROP CONSTRAINT IF EXISTS company_goals_target_above_baseline;
+ALTER TABLE public.company_goals ADD CONSTRAINT company_goals_target_above_baseline CHECK (target_value > baseline_value);
+
+-- 7. Query indexes.
 CREATE INDEX IF NOT EXISTS memberships_user_idx on public.memberships(user_id,active);
 CREATE INDEX IF NOT EXISTS price_agreements_lookup_idx on public.price_agreements(company_id,customer_id,product_id,valid_from);
 CREATE INDEX IF NOT EXISTS orders_company_status_idx on public.orders(company_id,status,created_at desc);
