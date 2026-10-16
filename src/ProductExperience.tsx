@@ -128,6 +128,37 @@ export default function ProductExperience() {
   }, [user?.id, user?.user_metadata, memberships.length]);
 
   useEffect(() => {
+    if (!supabase || !user || loading || membershipsLoading || memberships.length > 0) return;
+    const metadata = user.user_metadata as Record<string, unknown>;
+    if (metadata.signup_workspace_pending !== true || provisionedUserIds.current.has(user.id)) return;
+    provisionedUserIds.current.add(user.id);
+    void (async () => {
+      setWorkspaceProvisioning(true);
+      setWorkspaceProvisionError('');
+      const { error: createError } = await supabase.rpc('create_company_workspace', {
+        _company_name: typeof metadata.organization_name === 'string' ? metadata.organization_name : '',
+        _full_name: typeof metadata.full_name === 'string' ? metadata.full_name : '',
+        _phone: typeof metadata.phone === 'string' ? metadata.phone : null,
+      });
+      if (createError) {
+        provisionedUserIds.current.delete(user.id);
+        setWorkspaceProvisionError('ساخت فضای کاری انجام نشد. تأیید ایمیل، اتصال و نسخه پایگاه داده را بررسی کن و دوباره تلاش کن.');
+        setWorkspaceProvisioning(false);
+        return;
+      }
+      await supabase.auth.updateUser({ data: { signup_workspace_pending: false } });
+      await refreshMemberships();
+      setWorkspaceProvisioning(false);
+      setWorkspaceProvisionError('');
+      setNotice('فضای کاری اختصاصی آماده شد.');
+    })().catch(() => {
+      provisionedUserIds.current.delete(user.id);
+      setWorkspaceProvisioning(false);
+      setWorkspaceProvisionError('ارتباط برای ساخت فضای کاری قطع شد. دوباره تلاش کن.');
+    });
+  }, [user?.id, user?.user_metadata, loading, membershipsLoading, memberships.length, refreshMemberships, workspaceProvisionRetry]);
+
+  useEffect(() => {
     const canCloseWithEscape: boolean = mode !== 'recovery';
     if (!signInOpen) return;
     const background = document.querySelector<HTMLElement>('.portal, .app-frame');
@@ -286,27 +317,30 @@ export default function ProductExperience() {
         <div className="simorgh-signin-form-area">
           {!protectedRoute && mode !== 'recovery' && <button type="button" className="signin-close" onClick={closeSignIn} aria-label="بستن ورود"><X size={20}/></button>}
           <div className="simorgh-signin-form-card" dir="rtl">
-            {mode === 'signin' ? <MedarLogo compact className="signin-form-logo"/> : <span className="signin-form-icon"><KeyRound size={21}/></span>}
-            <span className="signin-overline">{mode === 'reset' ? 'بازیابی گذرواژه' : mode === 'recovery' ? 'تنظیم گذرواژه تازه' : 'ورود امن'}</span>
-            <h2 id="simorgh-signin-title">{mode === 'reset' ? 'بازیابی گذرواژه' : mode === 'recovery' ? 'گذرواژه جدید' : 'ورود به مدار'}</h2>
-            <p>{mode === 'reset' ? 'ایمیل حساب را وارد کن تا در صورت وجود حساب، لینک بازیابی ارسال شود.' : mode === 'recovery' ? 'یک گذرواژه جدید و قوی برای حساب انتخاب کن.' : 'برای ورود از حسابی استفاده کن که مالک شرکت ساخته یا دعوت آن را صادر کرده است.'}</p>
-            <form className="simorgh-signin-form" onSubmit={event => void submitAuth(event)}>
-              <label htmlFor="simorgh-signin-email">ایمیل</label><input id="simorgh-signin-email" className="auth-input" type="email" autoComplete="username" inputMode="email" required={mode !== 'recovery'} value={email} onChange={e => setEmail(e.target.value)} placeholder="name@company.com" dir="ltr"/>
-              {mode !== 'reset' && <>
-                <label htmlFor="simorgh-signin-password">{mode === 'recovery' ? 'گذرواژه جدید' : 'گذرواژه'}</label>
-                <div className="auth-password-wrap"><input id="simorgh-signin-password" className="auth-input" type={showPassword ? 'text' : 'password'} minLength={8} autoComplete={mode === 'recovery' ? 'new-password' : 'current-password'} required value={password} onChange={e => setPassword(e.target.value)} placeholder="حداقل ۸ نویسه" dir="ltr"/><button type="button" onClick={() => setShowPassword(value => !value)} aria-label={showPassword ? 'پنهان‌کردن گذرواژه' : 'نمایش گذرواژه'}>{showPassword ? <EyeOff size={16}/> : <Eye size={16}/>}</button></div>
-                {mode === 'recovery' && <><label htmlFor="simorgh-confirm-password">تکرار گذرواژه</label><input id="simorgh-confirm-password" className="auth-input" type="password" autoComplete="new-password" required minLength={8} value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="گذرواژه را دوباره وارد کن" dir="ltr"/></>}
-              </>}
-              {error && <div className="auth-feedback error" role="alert">{error}</div>}{notice && <div className="auth-feedback success" role="status">{notice}</div>}
-              <button className="signin-submit" type="submit" disabled={busy || (mode !== 'recovery' && !email.trim()) || (mode !== 'reset' && !password)}>
-                {busy ? <><span className="signin-spinner" aria-hidden="true"/> در حال پردازش…</> : mode === 'reset' ? <>ارسال لینک بازیابی <RotateCcw size={16}/></> : mode === 'recovery' ? <>ذخیره گذرواژه جدید <Check size={17}/></> : <>ورود به فضای کار <ArrowLeft size={17}/></>}
-              </button>
-            </form>
-            {mode === 'signin' && <button type="button" className="auth-text-action" onClick={() => {setMode('reset');setError('');setNotice('');}}>گذرواژه‌ات را فراموش کرده‌ای؟</button>}
-            {mode === 'reset' && <button type="button" className="auth-text-action" onClick={() => {setMode('signin');setError('');setNotice('');}}>بازگشت به ورود</button>}
-            <div className="signin-no-signup"><ShieldCheck size={16}/><span>ثبت‌نام عمومی غیرفعال است؛ حساب‌های جدید فقط از مسیر مدیریت امن شرکت ایجاد می‌شوند.</span></div>
-            <div className="signin-owner-guide"><span>اگر هنوز حساب مالک ساخته نشده است،</span> <a href="https://github.com/Ehsanamn1/simorgh/blob/main/docs/OWNER_PROVISIONING.md" target="_blank" rel="noreferrer">راهنمای راه‌اندازی نخستین مالک</a></div>
-            <div className="signin-form-foot"><span><Check size={13}/> کنترل دسترسی سمت سرور</span><span>مدار · فضای امن</span></div>
+            {mode === 'signin' || mode === 'signup' ? <MedarLogo compact className="signin-form-logo"/> : <span className="signin-form-icon"><KeyRound size={21}/></span>}
+            <span className="signin-overline">{mode === 'signup' ? 'ثبت‌نام مجموعه' : mode === 'reset' ? 'بازیابی گذرواژه' : mode === 'recovery' ? 'تنظیم گذرواژه تازه' : 'ورود امن'}</span>
+            <h2 id="simorgh-signin-title">{mode === 'signup' ? 'ساخت حساب و فضای کاری' : mode === 'reset' ? 'بازیابی گذرواژه' : mode === 'recovery' ? 'گذرواژه جدید' : 'ورود به مدار'}</h2>
+            <p>{mode === 'signup' ? 'حساب بساز و فضای کاری خصوصی مجموعه‌ات را ایجاد کن. داده‌های شرکت‌های دیگر از این حساب جدا می‌ماند.' : mode === 'reset' ? 'ایمیل حساب را وارد کن تا در صورت وجود حساب، لینک بازیابی ارسال شود.' : mode === 'recovery' ? 'یک گذرواژه جدید و قوی برای حساب انتخاب کن.' : 'با ایمیل و گذرواژه وارد فضای کاری‌ات شو.'}</p>
+             <form className="simorgh-signin-form" onSubmit={event => void submitAuth(event)}>
+               {mode === 'signup' && <>
+                 <label htmlFor="simorgh-signin-full-name">نام و نام خانوادگی</label><input id="simorgh-signin-full-name" className="auth-input" type="text" autoComplete="name" required minLength={2} maxLength={160} value={fullName} onChange={e => setFullName(e.target.value)} placeholder="نام کامل"/>
+                 <label htmlFor="simorgh-signin-organization">نام مزرعه یا مجموعه</label><input id="simorgh-signin-organization" className="auth-input" type="text" required minLength={2} maxLength={160} value={organizationName} onChange={e => setOrganizationName(e.target.value)} placeholder="نام مجموعه"/>
+                 <label htmlFor="simorgh-signin-phone">شماره تماس <span className="signin-optional">اختیاری</span></label><input id="simorgh-signin-phone" className="auth-input" type="tel" autoComplete="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="شماره تماس" dir="ltr"/>
+               </>}
+               <label htmlFor="simorgh-signin-email">ایمیل</label><input id="simorgh-signin-email" className="auth-input" type="email" autoComplete="username" inputMode="email" required={mode !== 'recovery'} value={email} onChange={e => setEmail(e.target.value)} placeholder="name@company.com" dir="ltr"/>
+               {mode !== 'reset' && <>
+                 <label htmlFor="simorgh-signin-password">{mode === 'recovery' ? 'گذرواژه جدید' : 'گذرواژه'}</label>
+                 <div className="auth-password-wrap"><input id="simorgh-signin-password" className="auth-input" type={showPassword ? 'text' : 'password'} minLength={8} autoComplete={mode === 'recovery' || mode === 'signup' ? 'new-password' : 'current-password'} required value={password} onChange={e => setPassword(e.target.value)} placeholder="حداقل ۸ نویسه" dir="ltr"/><button type="button" onClick={() => setShowPassword(value => !value)} aria-label={showPassword ? 'پنهان‌کردن گذرواژه' : 'نمایش گذرواژه'}>{showPassword ? <EyeOff size={16}/> : <Eye size={16}/>}</button></div>
+                 {(mode === 'recovery' || mode === 'signup') && <><label htmlFor="simorgh-confirm-password">تکرار گذرواژه</label><input id="simorgh-confirm-password" className="auth-input" type="password" autoComplete="new-password" required minLength={8} value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="گذرواژه را دوباره وارد کن" dir="ltr"/></>}
+               </>}
+               {error && <div className="auth-feedback error" role="alert">{error}</div>}{notice && <div className="auth-feedback success" role="status">{notice}</div>}
+               <button className="signin-submit" type="submit" disabled={busy || (mode !== 'recovery' && !email.trim()) || (mode !== 'reset' && !password) || (mode === 'signup' && (!fullName.trim() || !organizationName.trim() || !confirmPassword))}>
+                 {busy ? <><span className="signin-spinner" aria-hidden="true"/> در حال پردازش…</> : mode === 'reset' ? <>ارسال لینک بازیابی <RotateCcw size={16}/></> : mode === 'recovery' ? <>ذخیره گذرواژه جدید <Check size={17}/></> : mode === 'signup' ? <>ساخت حساب و فضای کاری <ArrowLeft size={17}/></> : <>ورود به فضای کار <ArrowLeft size={17}/></>}
+               </button>
+             </form>
+             {mode === 'signin' && <><button type="button" className="auth-text-action" onClick={() => {setMode('reset');setError('');setNotice('');}}>گذرواژه‌ات را فراموش کرده‌ای؟</button><div className="signin-registration-cta"><span>برای مجموعه جدید حساب می‌خواهی؟</span><button type="button" onClick={() => {setMode('signup');setError('');setNotice('');navigate({pathname:location.pathname,search:location.search,hash:'#signup'},{replace:true});}}>ساخت حساب و فضای کاری</button></div></>}
+             {(mode === 'reset' || mode === 'signup') && <button type="button" className="auth-text-action" onClick={() => {setMode('signin');setError('');setNotice('');navigate({pathname:location.pathname,search:location.search,hash:'#signin'},{replace:true});}}>بازگشت به ورود</button>}
+             <div className="signin-form-foot"><span><Check size={13}/> کنترل دسترسی سمت سرور</span><span>مدار · فضای امن</span></div>
           </div>
         </div>
       </section>
