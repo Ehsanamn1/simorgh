@@ -49,15 +49,17 @@ export async function passwordHash(password: string) {
   return `pbkdf2$${ITERATIONS}$${salt}$${base64url(new Uint8Array(bits))}`;
 }
 export async function verifyPassword(password: string, stored: string) {
-  if (/^\\$2[aby]\\$\\d{2}\\$/.test(stored)) {
+  if (/^\$2[aby]\$\d{2}\$/.test(stored)) {
     try { return await bcrypt.compare(password, stored); } catch { return false; }
   }
-  const [algorithm, rounds, salt, expected] = stored.split('
+  const [algorithm, rounds, salt, expected] = stored.split('$');
   if (algorithm !== 'pbkdf2' || !Number.isInteger(Number(rounds)) || Number(rounds) < 100_000 || Number(rounds) > 1_000_000 || !salt || !expected) return false;
+  let wanted: Uint8Array;
+  let saltBytes: Uint8Array;
+  try { wanted = fromBase64url(expected); saltBytes = fromBase64url(salt); } catch { return false; }
   const key = await crypto.subtle.importKey('raw', encoder.encode(password), 'PBKDF2', false, ['deriveBits']);
-  const bits = await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: fromBase64url(salt), iterations: Number(rounds) }, key, 256);
+  const bits = await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: saltBytes, iterations: Number(rounds) }, key, 256);
   const actual = new Uint8Array(bits);
-  const wanted = fromBase64url(expected);
   if (actual.length !== wanted.length) return false;
   let difference = 0;
   for (let i = 0; i < actual.length; i++) difference |= actual[i] ^ wanted[i];
@@ -91,7 +93,7 @@ async function rateLimit(sql: ReturnType<typeof neon>, key: string, maxAttempts:
     VALUES(${keyHash},now(),1,now())
     ON CONFLICT (key_hash) DO UPDATE SET
       attempts=CASE WHEN existing_limit.window_started_at < now()-(${windowMinutes}::int * interval '1 minute') THEN 1 ELSE existing_limit.attempts+1 END,
-      window_started_at=CASE WHEN current.window_started_at < now()-(${windowMinutes}::int * interval '1 minute') THEN now() ELSE current.window_started_at END,
+      window_started_at=CASE WHEN existing_limit.window_started_at < now()-(${windowMinutes}::int * interval '1 minute') THEN now() ELSE existing_limit.window_started_at END,
       updated_at=now()
     RETURNING attempts`;
   return Number((rows[0] as {attempts:number}).attempts) > maxAttempts;
@@ -211,7 +213,7 @@ app.post('/api/auth/login', async c => {
     const valid = Boolean(found && found.account_status === 'active' && await verifyPassword(password,found.password_hash));
     await sql`INSERT INTO public.medar_login_attempts(username_normalized,succeeded) VALUES(${username},${valid})`;
     if (!valid || !found) return jsonError(c, 'نام کاربری یا رمز عبور نادرست است.', 401);
-    if (/^\\$2[aby]\\$\\d{2}\\$/.test(found.password_hash)) {
+    if (/^\$2[aby]\$\d{2}\$/.test(found.password_hash)) {
       const upgraded=await passwordHash(password);
       await sql`UPDATE public.medar_users SET password_hash=${upgraded},updated_at=now() WHERE id=${found.id}::uuid`;
     }
@@ -1637,7 +1639,7 @@ async function rateLimit(sql: ReturnType<typeof neon>, key: string, maxAttempts:
     VALUES(${keyHash},now(),1,now())
     ON CONFLICT (key_hash) DO UPDATE SET
       attempts=CASE WHEN existing_limit.window_started_at < now()-(${windowMinutes}::int * interval '1 minute') THEN 1 ELSE existing_limit.attempts+1 END,
-      window_started_at=CASE WHEN current.window_started_at < now()-(${windowMinutes}::int * interval '1 minute') THEN now() ELSE current.window_started_at END,
+      window_started_at=CASE WHEN existing_limit.window_started_at < now()-(${windowMinutes}::int * interval '1 minute') THEN now() ELSE existing_limit.window_started_at END,
       updated_at=now()
     RETURNING attempts`;
   return Number((rows[0] as {attempts:number}).attempts) > maxAttempts;
