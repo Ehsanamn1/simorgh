@@ -12,7 +12,7 @@ async function readResult<T>(response:Response):Promise<ApiResult<T>>{
   }
   return {data:(body.data??null) as T|null,error:null,count:typeof body.count==='number'?body.count:null};
 }
-class MedarQueryBuilder implements PromiseLike<ApiResult<unknown>> {
+class MedarQueryBuilder implements PromiseLike<ApiResult<unknown[]>> {
   private operation:'select'|'insert'|'update'|'delete'|'upsert'='select';
   private selectFields='*';
   private values:unknown;
@@ -54,27 +54,27 @@ class MedarQueryBuilder implements PromiseLike<ApiResult<unknown>> {
   order(column:string,options?:{ascending?:boolean}):this{this.orders.push({column,ascending:options?.ascending!==false});this.cached=null;return this;}
   limit(value:number):this{this.limitValue=Math.max(0,Math.floor(value));this.cached=null;return this;}
   range(from:number,to:number):this{this.offsetValue=Math.max(0,Math.floor(from));this.limitValue=Math.max(0,Math.floor(to)-this.offsetValue+1);this.cached=null;return this;}
-  single():Promise<ApiResult<unknown>>{this.singleMode='single';return this.execute().then(result=>this.one(result,false));}
-  maybeSingle():Promise<ApiResult<unknown>>{this.singleMode='maybeSingle';return this.execute().then(result=>this.one(result,true));}
+  single():Promise<ApiResult<Record<string, unknown>>>{this.singleMode='single';return this.execute().then(result=>this.one(result,false));}
+  maybeSingle():Promise<ApiResult<Record<string, unknown>>>{this.singleMode='maybeSingle';return this.execute().then(result=>this.one(result,true));}
   private filter(column:string,op:string,value:unknown):this{this.filters.push({column,op,value});this.cached=null;return this;}
-  private one(result:ApiResult<unknown>,allowEmpty:boolean):ApiResult<unknown>{
-    if(result.error)return result;
-    const rows=Array.isArray(result.data)?result.data:result.data==null?[]:[result.data];
+  private one(result:ApiResult<unknown[]>,allowEmpty:boolean):ApiResult<Record<string, unknown>>{
+    if(result.error)return {data:null,error:result.error,count:result.count};
+    const rows=Array.isArray(result.data)?result.data:[];
     if(rows.length===0&&!allowEmpty)return {data:null,error:{message:'درخواست باید دقیقاً یک رکورد برگرداند.',code:'PGRST116'},count:result.count};
     if(rows.length>1)return {data:null,error:{message:'بیش از یک رکورد برگشت؛ شناسه یا فیلتر را دقیق‌تر کن.',code:'PGRST116'},count:result.count};
-    return {...result,data:rows[0]??null};
+    return {data:(rows[0] as Record<string, unknown>|undefined)??null,error:null,count:result.count};
   }
-  private execute():Promise<ApiResult<unknown>>{
+  private execute():Promise<ApiResult<unknown[]>>{
     if(this.cached)return this.cached;
     const query:QueryOptions={select:this.selectFields,filters:this.filters,orders:this.orders,limit:this.limitValue,offset:this.offsetValue,count:this.countValue,head:this.headValue};
     const path=this.operation==='select'?'/api/data/'+encodeURIComponent(this.table)+'/query':'/api/data/'+encodeURIComponent(this.table);
     this.cached=fetch(API_BASE+path,{method:'POST',credentials:'same-origin',headers:{'content-type':'application/json'},body:JSON.stringify({operation:this.operation,query,values:this.values,returning:this.returning})})
-      .then(response=>readResult<unknown>(response))
+      .then(response=>readResult<unknown[]>(response))
       .catch(error=>({data:null,error:{message:error instanceof Error?error.message:'ارتباط با سرور برقرار نشد.'},count:null}));
     return this.cached;
   }
-  then<TResult1=ApiResult<unknown>,TResult2=never>(
-    onfulfilled?:((value:ApiResult<unknown>)=>TResult1|PromiseLike<TResult1>)|null,
+  then<TResult1=ApiResult<unknown[]>,TResult2=never>(
+    onfulfilled?:((value:ApiResult<unknown[]>)=>TResult1|PromiseLike<TResult1>)|null,
     onrejected?:((reason:unknown)=>TResult2|PromiseLike<TResult2>)|null,
   ):PromiseLike<TResult1|TResult2>{return this.execute().then(onfulfilled??undefined,onrejected??undefined);}
 }
