@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   Activity, AlertTriangle, ArrowUpLeft, BarChart3, Bell, Boxes,
   CalendarDays, CheckCircle2, ChevronLeft, ClipboardCheck, Clock3, CreditCard,
-  Factory, FileText, Gauge, Home, Layers3, Map, MapPin, Menu, Moon, Network,
+  Factory, FileText, Gauge, Home, Layers3, LogIn, Map, MapPin, Menu, Moon, Network,
   Route, Search, Settings2, ShieldCheck, Sun, Target, Truck, Users,
   Warehouse, X, CircleHelp,
 } from 'lucide-react';
@@ -119,7 +119,7 @@ export default function OperationalWorkspace({authLoading=false,hasMembership=fa
     <div className="ops-live-sidebar-status"><span className={hasMembership?'healthy':''}/><div><b>{hasMembership?'دسترسی سازمانی فعال':'کنترل دسترسی فعال است'}</b><small>{hasMembership?'ماژول‌ها با نقش واقعی محدود شده‌اند':'داده‌ی خصوصی بدون عضویت نمایش داده نمی‌شود'}</small></div><ShieldCheck size={16}/></div>
    </aside>
    <section className="ops-live-main">
-    <div className="ops-live-toolbar"><button type="button" className="ops-live-menu" aria-label="بازکردن منو" onClick={()=>setDrawerOpen(true)}><Menu size={19}/></button><div className="ops-live-crumb"><span>سیمرغ</span><ChevronLeft size={13}/><b>{active.label}</b></div><div className="ops-live-toolbar-right"><span className={'ops-live-status '+(hasMembership?'connected':'')}><i/>{statusText}</span><button type="button" aria-label="تنظیمات" onClick={()=>go('settings')}><Settings2 size={16}/></button><button type="button" aria-label="مرکز راهنما" onClick={()=>go('goals')}><CircleHelp size={16}/></button></div></div>
+    <div className="ops-live-toolbar"><button type="button" className="ops-live-menu" aria-label="بازکردن منو" onClick={()=>setDrawerOpen(true)}><Menu size={19}/></button><div className="ops-live-crumb"><span>سیمرغ</span><ChevronLeft size={13}/><b>{active.label}</b></div><div className="ops-live-toolbar-right"><span className={'ops-live-status '+(hasMembership?'connected':'')}><i/>{statusText}</span>{!hasMembership&&!authLoading&&<button type="button" className="ops-live-auth-trigger" aria-label="ورود مدیر و اعضا" onClick={()=>navigate({pathname:location.pathname,search:location.search,hash:"#signin"})}><LogIn size={15}/><span>ورود مدیر و اعضا</span></button>}<button type="button" aria-label="تنظیمات" onClick={()=>go('settings')}><Settings2 size={16}/></button><button type="button" aria-label="مرکز راهنما" onClick={()=>go('goals')}><CircleHelp size={16}/></button></div></div>
     <div className="ops-live-content">
      {page==='command'?<>
       <div className="ops-live-heading"><div><span>مدیریت یکپارچه‌ی مزرعه و عملیات</span><h1>مرکز فرمان شبکه</h1><p>از هدف و ظرفیت تا سفارش، کیفیت، ارسال و تسویه؛ همه در یک نمای مدیریتی.</p></div><div className="ops-live-heading-side"><span><Clock3 size={14}/> نمای روز جاری</span><small>{statusText}</small></div></div>
