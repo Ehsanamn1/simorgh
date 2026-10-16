@@ -66,3 +66,11 @@ html[data-theme="light"] .ops-live-auth-trigger {
   gap: 12px;
   flex-wrap: wrap;
 }
+
+/* Operations forms follow the product-wide Persian RTL language rules. */
+.ops-eyebrow {
+  font-family: Vazirmatn, Tahoma, sans-serif;
+  direction: rtl;
+  letter-spacing: 0;
+  text-transform: none;
+}
