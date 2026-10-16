@@ -54,7 +54,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } finally { setMembershipsLoading(false); }
   }, [session?.user?.id]);
 
-  useEffect(() => { void refreshSession(); }, [refreshSession]);
+  useEffect(() => {
+    void refreshSession();
+    const onAuthChange = () => { void refreshSession(); };
+    window.addEventListener('medar-auth-change', onAuthChange);
+    return () => window.removeEventListener('medar-auth-change', onAuthChange);
+  }, [refreshSession]);
   useEffect(() => { void refreshMemberships(); }, [refreshMemberships]);
 
   const value = useMemo<AuthValue>(() => ({
