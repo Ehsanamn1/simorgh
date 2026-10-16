@@ -27,3 +27,16 @@ R2 provisioning and the R2 binding have been removed per product decision. File/
 - Keep file/evidence upload and retrieval disabled until an alternative storage backend is implemented.
 - No SMS OTP, email recovery, bank transfer execution, or external integration is claimed as active.
 - Keep PR #26 in Draft until these remaining acceptance/security gates are reviewed. Do not remove the GitHub Pages fallback until the broader cutover is approved.
+
+
+## Candidate release — username auth hardening
+
+The current branch adds the following changes; they are **not live until the tagged release workflow succeeds**:
+
+- Self-service password change through the Worker API, requiring the current password, rate-limiting attempts, hashing the replacement, revoking other sessions and writing an audit event.
+- A regression test verifies that password change without a session returns 401.
+- The frontend data adapter is named `src/lib/medarData.ts` and routes table/RPC/storage requests through the Worker API.
+- Unused Supabase and Neon Auth SDK dependencies and the unused legacy auth adapter were removed. Historical Supabase migrations remain in source for reconciliation; operational data has not been migrated or deleted.
+- The seven-priority acceptance document is `docs/MEDAR_7_PRIORITY_ACCEPTANCE.md`.
+
+Release acceptance must still verify the full account lifecycle and multi-company role isolation. The R2-backed file paths remain unavailable by design until an alternative storage provider is selected and implemented.
