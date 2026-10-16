@@ -12,7 +12,15 @@ import type { AppRole } from './lib/types';
 type NavigationEntry = { key: string; label: string };
 type PublicRequestedRole = 'staff' | 'supplier' | 'driver' | 'customer';
 type AuthMode = 'signin' | 'signup' | 'reset' | 'recovery';
-function normalizeIranPhone(value: string): string {\n  const digits = value.trim().replace(/[\\s()-]/g, '');\n  if (/^09\\d{9}$/.test(digits)) return '+98' + digits.slice(1);\n  if (/^9\\d{9}$/.test(digits)) return '+98' + digits;\n  if (/^\\+989\\d{9}$/.test(digits)) return digits;\n  return '';\n}\n\nconst requestedRoles: { value: PublicRequestedRole; label: string; Icon: LucideIcon }[] = [
+function normalizeIranPhone(value: string): string {
+  const digits = value.trim().replace(/[\\s()-]/g, '');
+  if (/^09\\d{9}$/.test(digits)) return '+98' + digits.slice(1);
+  if (/^9\\d{9}$/.test(digits)) return '+98' + digits;
+  if (/^\\+989\\d{9}$/.test(digits)) return digits;
+  return '';
+}
+
+const requestedRoles: { value: PublicRequestedRole; label: string; Icon: LucideIcon }[] = [
   { value: 'customer', label: 'خریدار عمده', Icon: Boxes },
   { value: 'supplier', label: 'شریک مزرعه', Icon: Factory },
   { value: 'driver', label: 'راننده / حمل', Icon: Truck },
@@ -207,7 +215,8 @@ export default function ProductExperience() {
       if (fullName.trim().length < 2 || fullName.trim().length > 160) { setError('نام کامل باید بین ۲ تا ۱۶۰ نویسه باشد.'); return; }
       if (organizationName.trim().length < 2 || organizationName.trim().length > 160) { setError('نام مجموعه باید بین ۲ تا ۱۶۰ نویسه باشد.'); return; }
       if (password.length < 8) { setError('گذرواژه باید حداقل ۸ نویسه باشد.'); return; }
-      const normalizedPhone = normalizeIranPhone(phone);\n      if (!normalizedPhone) { setError('شماره موبایل ایران معتبر وارد کن؛ مثال: 09121234567'); return; }
+      const normalizedPhone = normalizeIranPhone(phone);
+      if (!normalizedPhone) { setError('شماره موبایل ایران معتبر وارد کن؛ مثال: 09121234567'); return; }
       if (password !== confirmPassword) { setError('تکرار گذرواژه یکسان نیست.'); return; }
     }
     setBusy(true); setError(''); setNotice('');
