@@ -132,7 +132,7 @@ function useDbRows(table: string, membership: Membership, options?: { select?: s
 function Dashboard({ membership }: { membership: Membership }) {
   const [orders, setOrders] = useState<Row[]>([]);
   const [counts, setCounts] = useState({ orders: 0, customers: 0, suppliers: 0, shipments: 0, capacity: 0, lateOrders: 0, overdueTasks: 0, reviewTasks: 0, incidents: 0, invoices: 0, failedShipments: 0, expiringLicenses: 0, pendingRequests: 0, goals: 0 });
-  const [signals, setSignals] = useState({ lateOrders: [] as Row[], overdueTasks: [] as Row[], reviewTasks: [] as Row[], incidents: [] as Row[], invoices: [] as Row[], failedShipments: [] as Row[], expiringLicenses: [] as Row[], pendingRequests: [] as Row[], audit: [] as Row[], goals: [] as Row[] });
+  const [signals, setSignals] = useState({ lateOrders: [] as Row[], overdueTasks: [] as Row[], reviewTasks: [] as Row[], incidents: [] as Row[], invoices: [] as Row[], failedShipments: [] as Row[], expiringLicenses: [] as Row[], pendingRequests: [] as Row[], audit: [] as Row[], goals: [] as Row[], farmSites: [] as Row[] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [lastUpdated, setLastUpdated] = useState('');
@@ -148,7 +148,7 @@ function Dashboard({ membership }: { membership: Membership }) {
     const horizon = `${horizonParts.year}-${horizonParts.month}-${horizonParts.day}`;
     const now = new Date().toISOString();
     const company = membership.company_id;
-    const [o, c, s, sh, cap, late, due, review, incidents, invoices, failed, licenses, requests, audit, goals] = await Promise.all([
+    const [o, c, s, sh, cap, late, due, review, incidents, invoices, failed, licenses, requests, audit, goals, sites] = await Promise.all([
       supabase.from('orders').select('id,reference,status,requested_delivery,created_at,customers(name)', { count: 'exact' }).eq('company_id', company).order('created_at', { ascending: false }).limit(8),
       supabase.from('customers').select('id', { count: 'exact', head: true }).eq('company_id', company),
       supabase.from('suppliers').select('id', { count: 'exact', head: true }).eq('company_id', company),
@@ -164,8 +164,9 @@ function Dashboard({ membership }: { membership: Membership }) {
       supabase.from('access_requests').select('id,email,full_name,requested_role,organization_name,created_at', { count: 'exact' }).eq('company_id', company).eq('status', 'pending').order('created_at', { ascending: true }).limit(3),
       supabase.from('audit_events').select('id,table_name,action,record_id,occurred_at', { count: 'exact' }).eq('company_id', company).order('occurred_at', { ascending: false }).limit(5),
       supabase.from('company_goals').select('id,title,description,category,status,baseline_value,target_value,current_value,unit,due_date,priority,created_at', { count: 'exact' }).eq('company_id', company).not('status', 'in', '(achieved,cancelled)').order('created_at', { ascending: false }).limit(4),
+      supabase.from('farm_sites').select('id,site_code,name,site_type,province,city,latitude,longitude,active').eq('company_id', company).eq('active', true).order('name', { ascending: true }).limit(300),
     ]);
-    const dbError = o.error ?? c.error ?? s.error ?? sh.error ?? cap.error ?? late.error ?? due.error ?? review.error ?? incidents.error ?? invoices.error ?? failed.error ?? licenses.error ?? requests.error ?? audit.error ?? goals.error;
+    const dbError = o.error ?? c.error ?? s.error ?? sh.error ?? cap.error ?? late.error ?? due.error ?? review.error ?? incidents.error ?? invoices.error ?? failed.error ?? licenses.error ?? requests.error ?? audit.error ?? goals.error ?? sites.error;
     if (dbError) setError(dbError.message);
     const rowCount = (result: { count: number | null; data: unknown[] | null }) => result.count ?? result.data?.length ?? 0;
     setOrders((o.data ?? []) as Row[]);
@@ -180,7 +181,7 @@ function Dashboard({ membership }: { membership: Membership }) {
       reviewTasks: (review.data ?? []) as Row[], incidents: (incidents.data ?? []) as Row[],
       invoices: (invoices.data ?? []) as Row[], failedShipments: (failed.data ?? []) as Row[],
       expiringLicenses: (licenses.data ?? []) as Row[], pendingRequests: (requests.data ?? []) as Row[],
-      audit: (audit.data ?? []) as Row[], goals: (goals.data ?? []) as Row[],
+      audit: (audit.data ?? []) as Row[], goals: (goals.data ?? []) as Row[], farmSites: (sites.data ?? []) as Row[],
     });
     setLastUpdated(new Date().toISOString());
     setLoading(false);
@@ -255,10 +256,60 @@ function Dashboard({ membership }: { membership: Membership }) {
         {actionCount > visibleAlerts.length && <div className="tower-alert-foot">حداکثر ۱۲ ردیف برجسته نمایش داده می‌شود. ممکن است یک رکورد هم‌زمان چند وضعیت پیگیری داشته باشد.</div>}
       </section>
     </div>
+    <FarmSitesMapPanel sites={signals.farmSites} />
     <section className="panel tower-audit-panel"><div className="panel-heading"><div><span className="section-number">۰۳</span><div><h3>آخرین رویدادهای ممیزی</h3><p>عملیات ثبت‌شده در audit log موجود</p></div></div><Button variant="soft" onClick={() => void load()}><Activity size={15}/> تازه‌سازی</Button></div>
       {loading ? <div className="panel-loading"><span className="spinner small"/></div> : signals.audit.length ? <div className="tower-audit-list">{signals.audit.map(row => <div className="tower-audit-row" key={String(row.id)}><span className="tower-audit-mark"><Activity size={15}/></span><div><b>{({INSERT:'ایجاد',UPDATE:'ویرایش',DELETE:'حذف'} as Record<string,string>)[String(row.action).toUpperCase()] ?? String(row.action ?? 'رویداد')} · {pageSectionLabel(String(row.table_name ?? ''))}</b><small>شناسه رکورد: {String(row.record_id ?? '—').slice(0,12)}</small></div><time>{dateTimeFa(String(row.occurred_at ?? ''))}</time></div>)}</div> : <EmptyState title="رویداد ممیزی ثبت نشده" description="پس از تغییر جدول‌های تحت ممیزی، رویدادهای واقعی اینجا ظاهر می‌شوند." icon={Activity}/>}
     </section>
   </>;
+}
+function FarmSitesMapPanel({sites}:{sites:Row[]}) {
+  const points=useMemo(()=>sites.flatMap(site=>{
+    const latitude=Number(site.latitude),longitude=Number(site.longitude);
+    if(site.latitude===null||site.latitude===undefined||site.longitude===null||site.longitude===undefined||
+      !Number.isFinite(latitude)||!Number.isFinite(longitude)||Math.abs(latitude)>85||Math.abs(longitude)>180)return [];
+    return [{site,latitude,longitude}];
+  }),[sites]);
+  const bounds=useMemo(()=>{
+    if(!points.length)return {west:43,south:24,east:65,north:41};
+    const lons=points.map(p=>p.longitude),lats=points.map(p=>p.latitude);
+    const lonMin=Math.min(...lons),lonMax=Math.max(...lons),latMin=Math.min(...lats),latMax=Math.max(...lats);
+    const lonPad=Math.max(.45,(lonMax-lonMin)*.18),latPad=Math.max(.4,(latMax-latMin)*.18);
+    let west=Math.max(-180,lonMin-lonPad),east=Math.min(180,lonMax+lonPad);
+    let south=Math.max(-85,latMin-latPad),north=Math.min(85,latMax+latPad);
+    if(east-west<.5){west=Math.max(-180,west-.25);east=Math.min(180,east+.25);}
+    if(north-south<.5){south=Math.max(-85,south-.25);north=Math.min(85,north+.25);}
+    return {west,south,east,north};
+  },[points]);
+  const mapSource='https://www.openstreetmap.org/export/embed.html?bbox='+
+    [bounds.west,bounds.south,bounds.east,bounds.north].map(v=>v.toFixed(5)).join('%2C')+'&layer=mapnik';
+  const projectY=(latitude:number)=> (1-Math.log(Math.tan(Math.PI/4+latitude*Math.PI/360))/Math.PI)/2;
+  const topY=projectY(bounds.north),bottomY=projectY(bounds.south);
+  return <section className="panel tower-geo-panel">
+    <div className="panel-heading"><div><span className="section-number">۰۴</span><div><h3>نقشه‌ی عملیاتی مزارع و واحدها</h3><p>موقعیت‌ها از مختصات ثبت‌شده‌ی هر واحد خوانده می‌شوند؛ نقطه‌ی ساختگی نمایش داده نمی‌شود.</p></div></div><Link className="tower-panel-link" to="/app/farm-sites">مدیریت واحدها <ArrowLeft size={14}/></Link></div>
+    <div className="tower-geo-grid">
+      <div className="tower-geo-map" aria-label="نقشه‌ی واحدهای عملیاتی">
+        <iframe title="نقشه جغرافیایی واحدهای مجموعه" loading="lazy" referrerPolicy="no-referrer-when-downgrade" src={mapSource}/>
+        {points.map(({site,latitude,longitude})=>{
+          const x=Math.min(98,Math.max(2,(longitude-bounds.west)/(bounds.east-bounds.west)*100));
+          const y=Math.min(97,Math.max(3,(projectY(latitude)-topY)/(bottomY-topY)*100));
+          const label=String(site.name??site.site_code??'واحد مزرعه');
+          const location=[site.city,site.province].filter(Boolean).join('، ');
+          return <a className="tower-geo-pin" style={{left:x+'%',top:y+'%'}} key={String(site.id)}
+            href={'https://www.openstreetmap.org/?mlat='+latitude+'&mlon='+longitude+'#map=14/'+latitude+'/'+longitude}
+            target="_blank" rel="noreferrer" aria-label={'بازکردن موقعیت '+label} title={label+(location?' · '+location:'')}>
+            <MapPin size={17}/><span>{label}</span>
+          </a>;
+        })}
+        {!points.length&&<div className="tower-geo-no-pins"><MapPin size={20}/><b>هنوز موقعیت جغرافیایی ثبت نشده</b><span>در فرم «مزارع و واحدها» عرض و طول جغرافیایی را وارد کن.</span><Link to="/app/farm-sites">ثبت موقعیت</Link></div>}
+      </div>
+      <aside className="tower-geo-sidebar">
+        <div className="tower-geo-counts"><span><small>واحدهای فعال</small><b>{numberFa(sites.length)}</b></span><span><small>موقعیت ثبت‌شده</small><b>{numberFa(points.length)}</b></span></div>
+        {points.length? <div className="tower-geo-site-list">{points.slice(0,8).map(({site,latitude,longitude})=><a key={String(site.id)} href={'https://www.openstreetmap.org/?mlat='+latitude+'&mlon='+longitude+'#map=14/'+latitude+'/'+longitude} target="_blank" rel="noreferrer" className="tower-geo-site"><span><b>{String(site.name??'واحد بدون نام')}</b><small>{[fa(String(site.site_type??'')),site.city,site.province].filter(v=>v&&v!=='—').join(' · ')||'نشانی ثبت نشده'}</small></span><MapPin size={15}/></a>)}</div>:<p className="tower-geo-sidebar-empty">برای ترسیم نقاط دقیق، مختصات را برای هر واحد ثبت کن. آدرس به‌تنهایی به مختصات حدسی تبدیل نمی‌شود.</p>}
+        {points.length>8&&<small className="tower-geo-more">۸ واحد از {numberFa(points.length)} واحد روی فهرست کناری نمایش داده شده‌اند.</small>}
+      </aside>
+    </div>
+    <footer className="tower-geo-foot"><span><MapPin size={14}/> مختصات واقعی فقط پس از ثبت توسط کاربر مجاز نمایش داده می‌شوند.</span><a href="https://www.openstreetmap.org/" target="_blank" rel="noreferrer">نقشه از OpenStreetMap <ArrowLeft size={13}/></a></footer>
+  </section>;
 }
 function todayForDisplay() {
   const parts = Object.fromEntries(new Intl.DateTimeFormat('en-CA', {timeZone:'Asia/Tehran',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date()).map(part => [part.type,part.value]));
