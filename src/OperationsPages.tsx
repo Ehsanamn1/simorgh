@@ -35,7 +35,12 @@ const statusFa: Record<string,string> = {
   draft:'پیش‌نویس', pending_signature:'در انتظار امضا', active:'فعال', suspended:'معلق', expired:'منقضی',
   terminated:'خاتمه‌یافته', planned:'برنامه‌ریزی‌شده', in_progress:'در حال انجام', submitted:'ارسال برای بررسی',
   approved:'تأییدشده', rejected:'ردشده', completed:'تکمیل‌شده', on_hold:'متوقف', cancelled:'لغوشده',
-  eggs:'تخم‌مرغ', meat:'گوشت', other:'سایر', not_inspected:'بازرسی‌نشده', passed:'قبول',
+  eggs:'تخم‌مرغ', meat:'گوشت', crop:'کشت و محصولات زراعی', livestock:'دام و فرآورده دامی',
+  poultry:'طیور', aquaculture:'آبزی‌پروری', dairy:'لبنیات', greenhouse:'گلخانه', orchard:'باغ',
+  mixed:'چندمنظوره', processing:'فرآوری', warehouse:'انبار', distribution:'توزیع',
+  farm_product:'محصول مزرعه', input:'نهاده و مواد اولیه', feed:'خوراک', equipment:'تجهیزات',
+  processed:'محصول فرآوری‌شده', service:'خدمات', other:'سایر', unit:'واحد',
+  not_inspected:'بازرسی‌نشده', passed:'قبول',
   pending_review:'در انتظار بازبینی', open:'باز', investigating:'در حال بررسی', action_required:'نیازمند اقدام',
   resolved:'رفع‌شده', closed:'بسته', sale_invoice:'فاکتور فروش', sale_collection:'دریافت فروش',
   expense:'هزینه', partner_advance:'پیش‌پرداخت شریک', settlement_payment:'پرداخت تسویه',
@@ -57,48 +62,52 @@ const batchOpt = (r: Row): Option => ({value:String(r.id),label:String(r.batch_c
 const agreementOpt = (r: Row): Option => ({value:String(r.id),label:String(r.agreement_code ?? '') + ' · نسخه ' + String(r.version ?? 1) + ' · ' + fa(r.status)});
 
 const configs: Record<OperationsKind, Config> = {
-  'farm-sites': {title:'سایت‌های مزرعه',eyebrow:'FARM / FACILITIES',description:'مزارع، واحدهای تولیدی، مجوزها و مسئولیت هر سایت را ثبت کنید.',table:'farm_sites',icon:Warehouse,columns:[
-    {key:'site_code',label:'کد سایت'},{key:'name',label:'نام سایت'},{key:'supplier_id',label:'مسئول مزرعه',value:(r,refs)=>refName(refs.suppliers,r.supplier_id,'name')},
+  'farm-sites': {title:'سایت‌های مزرعه',eyebrow:'مزارع و سایت‌ها',description:'نوع فعالیت، مسئولیت، مجوز و مختصات جغرافیایی هر سایت را ثبت کنید.',table:'farm_sites',icon:Warehouse,columns:[
+    {key:'site_code',label:'کد سایت'},{key:'name',label:'نام سایت'},{key:'site_type',label:'نوع فعالیت',value:r=>fa(r.site_type)},
+    {key:'supplier_id',label:'مسئول / شریک',value:(r,refs)=>refName(refs.suppliers,r.supplier_id,'name')},
     {key:'city',label:'شهر'},{key:'license_expires_on',label:'انقضای مجوز',value:r=>dateValue(r.license_expires_on)},{key:'active',label:'فعال',value:r=>r.active?'بله':'خیر'}]},
-  'flock-cycles': {title:'چرخه‌های گله',eyebrow:'FARM / FLOCK CYCLES',description:'تاریخ ورود گله، تعداد اولیه و برنامه پایان چرخه را ثبت کنید.',table:'flock_cycles',icon:Factory,columns:[
-    {key:'cycle_code',label:'کد چرخه'},{key:'farm_site_id',label:'سایت',value:(r,refs)=>refName(refs.sites,r.farm_site_id,'name')},
-    {key:'arrived_on',label:'ورود',value:r=>dateValue(r.arrived_on)},{key:'initial_bird_count',label:'تعداد اولیه',value:r=>numberFa(numeric(r.initial_bird_count))},
+  'flock-cycles': {title:'چرخه‌های کشت و پرورش',eyebrow:'چرخه‌های کشت و پرورش',description:'نوع چرخه، گونه یا محصول، مقدار اولیه و بازه‌ی اجرا را ثبت کنید.',table:'flock_cycles',icon:Factory,columns:[
+    {key:'cycle_code',label:'کد چرخه'},{key:'cycle_type',label:'نوع چرخه',value:r=>fa(r.cycle_type)},
+    {key:'species',label:'گونه / محصول'},{key:'farm_site_id',label:'سایت',value:(r,refs)=>refName(refs.sites,r.farm_site_id,'name')},
+    {key:'arrived_on',label:'تاریخ شروع',value:r=>dateValue(r.arrived_on)},
+    {key:'initial_quantity',label:'مقدار اولیه',value:r=>r.initial_quantity==null?'—':numberFa(numeric(r.initial_quantity))+' '+text(r.quantity_unit)},
     {key:'planned_end_on',label:'پایان برنامه‌ای',value:r=>dateValue(r.planned_end_on)},{key:'status',label:'وضعیت',value:r=>fa(r.status)}]},
-  'production-batches': {title:'بچ‌های تولید',eyebrow:'PRODUCTION / TRACEABILITY',description:'برنامه و خروجی هر بچ را به سایت، شریک و مسیر ردیابی متصل کنید.',table:'production_batches',icon:ClipboardCheck,columns:[
+  'production-batches': {title:'بچ‌های تولید',eyebrow:'رهگیری تولید',description:'برنامه و خروجی هر بچ را به سایت، شریک و مسیر ردیابی متصل کنید.',table:'production_batches',icon:ClipboardCheck,columns:[
     {key:'batch_code',label:'کد بچ'},{key:'production_kind',label:'نوع محصول',value:r=>fa(r.production_kind)},
     {key:'farm_site_id',label:'سایت',value:(r,refs)=>refName(refs.sites,r.farm_site_id,'name')},
     {key:'planned_quantity',label:'برنامه',value:r=>r.planned_quantity==null?'—':numberFa(numeric(r.planned_quantity))+' '+text(r.unit)},
     {key:'produced_quantity',label:'تولید',value:r=>numberFa(numeric(r.produced_quantity))+' '+text(r.unit)},
     {key:'status',label:'وضعیت',value:r=>fa(r.status)},{key:'quality_status',label:'کیفیت',value:r=>fa(r.quality_status)}]},
-  'daily-production': {title:'ثبت روزانه تولید',eyebrow:'PRODUCTION / DAILY LOG',description:'خوراک، تلفات، تخم جمع‌آوری‌شده و مقدار محصول را با تاریخ و بچ مشخص ثبت کنید.',table:'daily_production_records',icon:Activity,columns:[
+  'daily-production': {title:'ثبت روزانه عملیات',eyebrow:'ثبت روزانه عملیات',description:'منابع مصرفی، ضایعات و خروجی واقعی هر بچ را با تاریخ و واحد سنجش ثبت کنید.',table:'daily_production_records',icon:Activity,columns:[
     {key:'record_date',label:'تاریخ',value:r=>dateValue(r.record_date)},{key:'batch_id',label:'بچ',value:(r,refs)=>refName(refs.batches,r.batch_id,'batch_code')},
-    {key:'feed_consumed_kg',label:'خوراک (کیلوگرم)',value:r=>numberFa(numeric(r.feed_consumed_kg))},
-    {key:'mortality_count',label:'تلفات',value:r=>numberFa(numeric(r.mortality_count))},
-    {key:'eggs_collected',label:'تخم جمع‌آوری',value:r=>numberFa(numeric(r.eggs_collected))},{key:'eggs_rejected',label:'تخم مردود',value:r=>numberFa(numeric(r.eggs_rejected))}]},
-  'task-templates': {title:'دستورالعمل‌های کاری',eyebrow:'OPERATIONS / SOP LIBRARY',description:'دستورالعمل را پیش‌نویس کنید؛ تأیید مدیر نسخه را برای استفاده در وظایف قفل می‌کند.',table:'task_templates',icon:FileCheck2,columns:[
+    {key:'resource_name',label:'منبع مصرفی',value:r=>text(r.resource_name)},
+    {key:'input_quantity',label:'مصرف',value:r=>numberFa(numeric(r.input_quantity))+' '+text(r.input_unit)},
+    {key:'loss_quantity',label:'ضایعات / تلفات',value:r=>numberFa(numeric(r.loss_quantity))+' '+text(r.loss_unit)},
+    {key:'produced_quantity',label:'خروجی',value:(r,refs)=>numberFa(numeric(r.produced_quantity??r.eggs_collected))+' '+refName(refs.batches,r.batch_id,'unit')}]},
+  'task-templates': {title:'دستورالعمل‌های کاری',eyebrow:'دستورالعمل‌های کاری',description:'دستورالعمل را پیش‌نویس کنید؛ تأیید مدیر نسخه را برای استفاده در وظایف قفل می‌کند.',table:'task_templates',icon:FileCheck2,columns:[
     {key:'template_code',label:'کد دستورالعمل'},{key:'title',label:'عنوان'},{key:'category',label:'گروه'},
     {key:'priority',label:'اولویت',value:r=>fa(r.priority)},{key:'evidence_required',label:'مدرک لازم',value:r=>r.evidence_required?'بله':'خیر'},
     {key:'status',label:'وضعیت',value:r=>fa(r.status)}]},
-  'operational-tasks': {title:'وظایف عملیاتی',eyebrow:'OPERATIONS / TASK CONTROL',description:'مسئول، موعد، مدرک اجباری و نتیجه بازبینی را ثبت و پیگیری کنید.',table:'operational_tasks',icon:ClipboardCheck,columns:[
+  'operational-tasks': {title:'وظایف عملیاتی',eyebrow:'وظایف عملیاتی',description:'مسئول، موعد، مدرک اجباری و نتیجه بازبینی را ثبت و پیگیری کنید.',table:'operational_tasks',icon:ClipboardCheck,columns:[
     {key:'title',label:'وظیفه'},{key:'assignee_supplier_id',label:'مسئول',value:(r,refs)=>refName(refs.suppliers,r.assignee_supplier_id,'name')},
     {key:'due_at',label:'موعد',value:r=>typeof r.due_at==='string'?dateTimeFa(r.due_at):'—'},
     {key:'priority',label:'اولویت',value:r=>fa(r.priority)},{key:'evidence_required',label:'مدرک لازم',value:r=>r.evidence_required?'بله':'خیر'},
     {key:'status',label:'وضعیت',value:r=>fa(r.status)}]},
-  incidents: {title:'رخدادها و مغایرت‌ها',eyebrow:'OPERATIONS / INCIDENTS',description:'رخدادهای تولید، کیفیت، حمل یا ایمنی را ثبت و اقدام اصلاحی را پیگیری کنید.',table:'operational_incidents',icon:Activity,columns:[
+  incidents: {title:'رخدادها و مغایرت‌ها',eyebrow:'رخدادها و مغایرت‌ها',description:'رخدادهای تولید، کیفیت، حمل یا ایمنی را ثبت و اقدام اصلاحی را پیگیری کنید.',table:'operational_incidents',icon:Activity,columns:[
     {key:'title',label:'رخداد'},{key:'category',label:'گروه',value:r=>fa(r.category)},{key:'severity',label:'شدت',value:r=>fa(r.severity)},
     {key:'farm_site_id',label:'سایت',value:(r,refs)=>refName(refs.sites,r.farm_site_id,'name')},
     {key:'status',label:'وضعیت',value:r=>fa(r.status)},{key:'created_at',label:'ثبت',value:r=>typeof r.created_at==='string'?dateTimeFa(r.created_at):'—'}]},
-  'partnership-agreements': {title:'قراردادهای مشارکت',eyebrow:'PARTNERSHIPS / AGREEMENTS',description:'نسخه قرارداد، نسبت تقسیم و دسته‌های هزینه را ثبت کنید. فعال‌سازی نیازمند فایل امضاست.',table:'partnership_agreements',icon:FileText,columns:[
+  'partnership-agreements': {title:'قراردادهای مشارکت',eyebrow:'قراردادهای مشارکت',description:'نسخه قرارداد، نسبت تقسیم و دسته‌های هزینه را ثبت کنید. فعال‌سازی نیازمند فایل امضاست.',table:'partnership_agreements',icon:FileText,columns:[
     {key:'agreement_code',label:'کد قرارداد'},{key:'version',label:'نسخه'},{key:'supplier_id',label:'شریک',value:(r,refs)=>refName(refs.suppliers,r.supplier_id,'name')},
     {key:'company_profit_share_pct',label:'سهم شرکت',value:r=>numberFa(numeric(r.company_profit_share_pct))+'٪'},
     {key:'partner_profit_share_pct',label:'سهم شریک',value:r=>numberFa(numeric(r.partner_profit_share_pct))+'٪'},
     {key:'effective_from',label:'شروع',value:r=>dateValue(r.effective_from)},{key:'status',label:'وضعیت',value:r=>fa(r.status)}]},
-  'partner-finance': {title:'دفتر مالی شریک',eyebrow:'FINANCE / PARTNER LEDGER',description:'فاکتور، دریافت، هزینه و پیش‌پرداخت را با مرجع مشخص ثبت کنید؛ سامانه انتقال بانکی انجام نمی‌دهد.',table:'partner_financial_entries',icon:CreditCard,columns:[
+  'partner-finance': {title:'دفتر مالی شریک',eyebrow:'دفتر مالی شریک',description:'فاکتور، دریافت، هزینه و پیش‌پرداخت را با مرجع مشخص ثبت کنید؛ سامانه انتقال بانکی انجام نمی‌دهد.',table:'partner_financial_entries',icon:CreditCard,columns:[
     {key:'recognized_on',label:'تاریخ',value:r=>dateValue(r.recognized_on)},{key:'entry_type',label:'نوع سند',value:r=>fa(r.entry_type)},
     {key:'supplier_id',label:'شریک',value:(r,refs)=>refName(refs.suppliers,r.supplier_id,'name')},
     {key:'amount',label:'مبلغ',value:r=>moneyFa(numeric(r.amount))},{key:'paid_amount',label:'پرداخت ثبت‌شده',value:r=>moneyFa(numeric(r.paid_amount))},
     {key:'external_reference',label:'مرجع'},{key:'status',label:'وضعیت',value:r=>fa(r.status)}]},
-  'partner-settlements': {title:'دوره‌ها و تسویه شریک',eyebrow:'FINANCE / PARTNER RECONCILIATION',description:'دوره را از دفتر مالی محاسبه کنید. پرداخت فقط با مرجع واقعی و کنترل وجه ثبت‌شده قابل ثبت است.',table:'partner_settlement_periods',icon:CreditCard,columns:[
+  'partner-settlements': {title:'دوره‌ها و تسویه شریک',eyebrow:'دوره‌ها و تسویه شریک',description:'دوره را از دفتر مالی محاسبه کنید. پرداخت فقط با مرجع واقعی و کنترل وجه ثبت‌شده قابل ثبت است.',table:'partner_settlement_periods',icon:CreditCard,columns:[
     {key:'period_start',label:'شروع دوره',value:r=>dateValue(r.period_start)},{key:'period_end',label:'پایان دوره',value:r=>dateValue(r.period_end)},
     {key:'supplier_id',label:'شریک',value:(r,refs)=>refName(refs.suppliers,r.supplier_id,'name')},
     {key:'collected_revenue',label:'وصول‌شده',value:r=>moneyFa(numeric(r.collected_revenue))},
@@ -107,7 +116,26 @@ const configs: Record<OperationsKind, Config> = {
     {key:'balance_due_to_partner',label:'سهم قابل پرداخت',value:r=>moneyFa(numeric(r.balance_due_to_partner))},
     {key:'settled_amount',label:'پرداخت ثبت‌شده',value:r=>moneyFa(numeric(r.settled_amount))},{key:'status',label:'وضعیت',value:r=>fa(r.status)}]},
 };
-const types: Option[] = [{value:'eggs',label:'تخم‌مرغ'},{value:'meat',label:'گوشت'},{value:'other',label:'سایر محصول'}];
+const types: Option[] = [
+  {value:'crop',label:'محصول زراعی'},{value:'livestock',label:'دام و فرآورده دامی'},
+  {value:'poultry',label:'طیور'},{value:'aquaculture',label:'آبزی‌پروری'},
+  {value:'dairy',label:'لبنیات'},{value:'eggs',label:'تخم‌مرغ'},{value:'meat',label:'گوشت'},
+  {value:'processed',label:'محصول فرآوری‌شده'},{value:'feed',label:'خوراک و نهاده'},
+  {value:'other',label:'سایر محصول'},
+];
+const siteTypes: Option[] = [
+  {value:'crop',label:'کشت زراعی'},{value:'livestock',label:'دامداری'},
+  {value:'poultry',label:'پرورش طیور'},{value:'aquaculture',label:'آبزی‌پروری'},
+  {value:'greenhouse',label:'گلخانه'},{value:'orchard',label:'باغ'},
+  {value:'processing',label:'فرآوری'},{value:'warehouse',label:'انبار'},
+  {value:'distribution',label:'مرکز توزیع'},{value:'mixed',label:'چندمنظوره'},
+  {value:'other',label:'سایر'},
+];
+const cycleTypes: Option[] = siteTypes.filter(option => ['crop','livestock','poultry','aquaculture','greenhouse','orchard','mixed','other'].includes(option.value));
+const quantityUnits: Option[] = [
+  {value:'عدد',label:'عدد'},{value:'کیلوگرم',label:'کیلوگرم'},{value:'تن',label:'تن'},
+  {value:'لیتر',label:'لیتر'},{value:'هکتار',label:'هکتار'},{value:'مترمربع',label:'مترمربع'},
+];
 const categories: Option[] = [
   {value:'production',label:'تولید'},{value:'quality',label:'کیفیت'},{value:'animal_welfare',label:'سلامت دام و طیور'},
   {value:'inventory',label:'موجودی'},{value:'safety',label:'ایمنی'},{value:'logistics',label:'حمل‌ونقل'},
@@ -176,16 +204,23 @@ export function OperationsWorkspacePage({kind,membership,search}:{kind:Operation
     const agreements=refs.agreements.filter(r=>['active','suspended','expired','terminated'].includes(String(r.status))).map(agreementOpt);
     const map: Record<OperationsKind,Field[]> = {
       'farm-sites':[
-        {name:'site_code',label:'کد یکتای سایت',required:true},{name:'name',label:'نام مزرعه',required:true},
-        {name:'supplier_id',label:'مسئول تأمین',type:'select',required:true,options:suppliers},
-        {name:'province',label:'استان',defaultValue:'گلستان'},{name:'city',label:'شهر'},
+        {name:'site_code',label:'کد یکتای سایت',required:true},{name:'name',label:'نام مزرعه یا واحد',required:true},
+        {name:'site_type',label:'نوع فعالیت',type:'select',required:true,options:siteTypes,defaultValue:'mixed'},
+        {name:'supplier_id',label:'مسئول / شریک (اختیاری)',type:'select',options:suppliers},
+        {name:'province',label:'استان'},{name:'city',label:'شهر'},
+        {name:'latitude',label:'عرض جغرافیایی',type:'number',min:'-90',max:'90',step:'0.000001'},
+        {name:'longitude',label:'طول جغرافیایی',type:'number',min:'-180',max:'180',step:'0.000001'},
         {name:'address',label:'نشانی',type:'textarea',full:true},{name:'registration_reference',label:'شناسه یا مجوز'},
         {name:'license_expires_on',label:'تاریخ انقضای مجوز',type:'date'},
       ],
       'flock-cycles':[
         {name:'farm_site_id',label:'سایت مزرعه',type:'select',required:true,options:sites},{name:'cycle_code',label:'کد چرخه',required:true},
-        {name:'arrived_on',label:'تاریخ ورود',type:'date'},{name:'planned_end_on',label:'پایان برنامه‌ای',type:'date'},
-        {name:'initial_bird_count',label:'تعداد اولیه پرنده',type:'number',min:'0',step:'1'},{name:'notes',label:'یادداشت',type:'textarea',full:true},
+        {name:'cycle_type',label:'نوع چرخه',type:'select',required:true,options:cycleTypes,defaultValue:'poultry'},
+        {name:'species',label:'گونه یا محصول',required:true,helper:'برای مثال: گندم، گوجه، مرغ، گوسفند یا ماهی'},
+        {name:'arrived_on',label:'تاریخ شروع',type:'date'},{name:'planned_end_on',label:'پایان برنامه‌ای',type:'date'},
+        {name:'initial_quantity',label:'مقدار اولیه',type:'number',min:'0',step:'0.001'},
+        {name:'quantity_unit',label:'واحد مقدار',type:'select',required:true,options:quantityUnits,defaultValue:'عدد'},
+        {name:'notes',label:'یادداشت',type:'textarea',full:true},
       ],
       'production-batches':[
         {name:'farm_site_id',label:'سایت مزرعه',type:'select',required:true,options:sites},{name:'batch_code',label:'کد بچ',required:true},
@@ -198,13 +233,13 @@ export function OperationsWorkspacePage({kind,membership,search}:{kind:Operation
       'daily-production':[
         {name:'batch_id',label:'بچ تولید',type:'select',options:batches,required:true},
         {name:'record_date',label:'تاریخ ثبت',type:'date',required:true,defaultValue:new Date().toISOString().slice(0,10)},
-        {name:'shift_label',label:'شیفت',defaultValue:'daily',required:true},
-        {name:'feed_consumed_kg',label:'خوراک مصرفی (کیلوگرم)',type:'number',min:'0',step:'0.001',defaultValue:'0'},
-        {name:'mortality_count',label:'تلفات',type:'number',min:'0',step:'1',defaultValue:'0'},
-        {name:'eggs_collected',label:'تخم جمع‌آوری‌شده',type:'number',min:'0',step:'1',defaultValue:'0'},
-        {name:'eggs_rejected',label:'تخم مردود',type:'number',min:'0',step:'1',defaultValue:'0'},
-        {name:'produced_quantity',label:'مقدار محصول',type:'number',min:'0',step:'0.001'},
-        {name:'average_weight_grams',label:'میانگین وزن (گرم)',type:'number',min:'0',step:'0.01'},
+        {name:'shift_label',label:'شیفت / نوبت',defaultValue:'daily',required:true},
+        {name:'resource_name',label:'منبع مصرفی',helper:'نام نهاده یا منبع اصلی مصرف‌شده'},
+        {name:'input_quantity',label:'مقدار مصرف',type:'number',min:'0',step:'0.001',defaultValue:'0'},
+        {name:'input_unit',label:'واحد مصرف',type:'select',required:true,options:quantityUnits,defaultValue:'کیلوگرم'},
+        {name:'loss_quantity',label:'ضایعات / تلفات',type:'number',min:'0',step:'0.001',defaultValue:'0'},
+        {name:'loss_unit',label:'واحد ضایعات',type:'select',required:true,options:quantityUnits,defaultValue:'عدد'},
+        {name:'produced_quantity',label:'مقدار خروجی',type:'number',min:'0',step:'0.001'},
         {name:'note',label:'یادداشت',type:'textarea',full:true},
       ],
       'task-templates':[
@@ -272,20 +307,27 @@ export function OperationsWorkspacePage({kind,membership,search}:{kind:Operation
     const yes=(k:string)=>draft[k]===true;
     const base:Record<string,unknown>={company_id:membership.company_id};
     let payload:Record<string,unknown>=base;
-    if(kind==='daily-production' && (num('eggs_rejected')??0)>(num('eggs_collected')??0)){
-      setBusy(false);setError('تعداد تخم مردود نمی‌تواند بیشتر از تخم جمع‌آوری‌شده باشد.');return;
+    if(kind==='farm-sites' && Boolean(str('latitude'))!==Boolean(str('longitude'))){
+      setBusy(false);setError('برای نمایش سایت روی نقشه، عرض و طول جغرافیایی را با هم وارد کن.');return;
+    }
+    if(kind==='flock-cycles' && str('cycle_type')==='poultry' && num('initial_quantity')!==null && !Number.isInteger(num('initial_quantity'))){
+      setBusy(false);setError('تعداد اولیه طیور باید عدد صحیح باشد.');return;
     }
     if(kind==='incidents' && membership.role==='supplier'){
       const site=refs.sites.find(r=>String(r.id)===str('farm_site_id')&&String(r.supplier_id)===String(membership.supplier_id));
       if(!site){setBusy(false);setError('برای ثبت رخداد از حساب تأمین‌کننده، سایت متعلق به همان تأمین‌کننده را انتخاب کن.');return;}
     }
     if(kind==='farm-sites'){
-      payload={...base,site_code:str('site_code'),name:str('name'),supplier_id:str('supplier_id')||null,province:str('province')||'گلستان',
-        city:str('city')||null,address:str('address')||null,registration_reference:str('registration_reference')||null,
+      payload={...base,site_code:str('site_code'),name:str('name'),site_type:str('site_type')||'mixed',
+        supplier_id:str('supplier_id')||null,province:str('province')||'نامشخص',
+        city:str('city')||null,latitude:num('latitude'),longitude:num('longitude'),
+        address:str('address')||null,registration_reference:str('registration_reference')||null,
         license_expires_on:date('license_expires_on'),created_by:membership.user_id,active:true};
     }else if(kind==='flock-cycles'){
       payload={...base,farm_site_id:str('farm_site_id'),cycle_code:str('cycle_code'),arrived_on:date('arrived_on'),planned_end_on:date('planned_end_on'),
-        initial_bird_count:num('initial_bird_count'),notes:str('notes')||null,status:'planned',species:'quail',created_by:membership.user_id};
+        cycle_type:str('cycle_type')||'poultry',species:str('species'),initial_quantity:num('initial_quantity'),
+        quantity_unit:str('quantity_unit')||'عدد',initial_bird_count:str('cycle_type')==='poultry'?num('initial_quantity'):null,
+        notes:str('notes')||null,status:'planned',created_by:membership.user_id};
     }else if(kind==='production-batches'){
       const site=refs.sites.find(r=>String(r.id)===str('farm_site_id'));
       payload={...base,farm_site_id:str('farm_site_id'),supplier_id:site?.supplier_id??null,batch_code:str('batch_code'),
@@ -293,9 +335,13 @@ export function OperationsWorkspacePage({kind,membership,search}:{kind:Operation
         planned_quantity:num('planned_quantity'),produced_quantity:0,rejected_quantity:0,started_on:date('started_on'),expected_on:date('expected_on'),
         manager_notes:str('manager_notes')||null,status:'planned',quality_status:'not_inspected',created_by:membership.user_id};
     }else if(kind==='daily-production'){
+      const inputQty=num('input_quantity')??0, inputUnit=str('input_unit')||'کیلوگرم';
+      const lossQty=num('loss_quantity')??0, lossUnit=str('loss_unit')||'عدد';
       payload={...base,batch_id:str('batch_id'),record_date:str('record_date'),shift_label:str('shift_label')||'daily',
-        feed_consumed_kg:num('feed_consumed_kg')??0,mortality_count:num('mortality_count')??0,eggs_collected:num('eggs_collected')??0,
-        eggs_rejected:num('eggs_rejected')??0,produced_quantity:num('produced_quantity'),average_weight_grams:num('average_weight_grams'),
+        resource_name:str('resource_name')||null,input_quantity:inputQty,input_unit:inputUnit,
+        loss_quantity:lossQty,loss_unit:lossUnit,
+        feed_consumed_kg:inputUnit==='کیلوگرم'?inputQty:0,mortality_count:lossUnit==='عدد'?Math.trunc(lossQty):0,
+        eggs_collected:0,eggs_rejected:0,produced_quantity:num('produced_quantity'),average_weight_grams:null,
         note:str('note')||null,recorded_by:membership.user_id};
     }else if(kind==='task-templates'){
       payload={...base,template_code:str('template_code'),version:num('version')??1,title:str('title'),instructions:str('instructions'),
@@ -516,7 +562,7 @@ export function OperationsWorkspacePage({kind,membership,search}:{kind:Operation
 
     {openForm&&<div className="ops-modal-backdrop" role="presentation" onMouseDown={e=>{if(e.target===e.currentTarget){setOpenForm(false);setDraft({});}}}>
       <div className="ops-modal" role="dialog" aria-modal="true" aria-label={'ثبت رکورد '+cfg.title}>
-        <header><div><span className="ops-eyebrow">NEW RECORD / CONTROLLED INPUT</span><h2>{kind==='partner-settlements'?'ایجاد دوره تسویه':'ثبت '+cfg.title}</h2><p>وضعیت اولیه و مجوزها توسط PostgreSQL کنترل می‌شوند.</p></div><button className="ops-refresh" onClick={()=>{setOpenForm(false);setDraft({});}} aria-label="بستن"><X size={18}/></button></header>
+        <header><div><span className="ops-eyebrow">ثبت رکورد جدید</span><h2>{kind==='partner-settlements'?'ایجاد دوره تسویه':'ثبت '+cfg.title}</h2><p>وضعیت اولیه و مجوزها توسط PostgreSQL کنترل می‌شوند.</p></div><button className="ops-refresh" onClick={()=>{setOpenForm(false);setDraft({});}} aria-label="بستن"><X size={18}/></button></header>
         {kind==='partner-settlements'
           ?<form className="ops-form" onSubmit={createPeriod}>
             <label className="ops-field full"><span>قرارداد امضاشده</span><select required value={String(draft.agreement_id??'')} onChange={e=>assignDraft('agreement_id',e.target.value)}><option value="">انتخاب قرارداد</option>{refs.agreements.filter(a=>['active','suspended','expired','terminated'].includes(String(a.status))).map(a=><option value={String(a.id)} key={String(a.id)}>{String(a.agreement_code)} · نسخه {String(a.version)}</option>)}</select></label>
@@ -533,7 +579,7 @@ export function OperationsWorkspacePage({kind,membership,search}:{kind:Operation
 
     {evidenceTask&&<div className="ops-modal-backdrop" role="presentation" onMouseDown={e=>{if(e.target===e.currentTarget)setEvidenceTask('');}}>
       <div className="ops-modal compact" role="dialog" aria-modal="true" aria-label="ثبت مدرک وظیفه">
-        <header><div><span className="ops-eyebrow">TASK / EVIDENCE</span><h2>ثبت مدرک انجام کار</h2><p>فایل‌ها در فضای خصوصی و با مسیر محدود به همان شرکت و وظیفه ذخیره می‌شوند.</p></div><button className="ops-refresh" onClick={()=>setEvidenceTask('')} aria-label="بستن"><X size={18}/></button></header>
+        <header><div><span className="ops-eyebrow">مستندات انجام کار</span><h2>ثبت مدرک انجام کار</h2><p>فایل‌ها در فضای خصوصی و با مسیر محدود به همان شرکت و وظیفه ذخیره می‌شوند.</p></div><button className="ops-refresh" onClick={()=>setEvidenceTask('')} aria-label="بستن"><X size={18}/></button></header>
         <form className="ops-form" onSubmit={addEvidence}>
           <label className="ops-field"><span>نوع مدرک</span><select value={evidenceType} onChange={e=>setEvidenceType(e.target.value)}>{evidenceTypes.map(t=><option key={t.value} value={t.value}>{t.label}</option>)}</select></label>
           {(evidenceType==='photo'||evidenceType==='document')&&<label className="ops-field full"><span>فایل</span><input type="file" accept={evidenceType==='photo'?'image/*':'.pdf,.jpg,.jpeg,.png'} required onChange={e=>setEvidenceFile(e.target.files?.[0]??null)}/></label>}
@@ -546,7 +592,7 @@ export function OperationsWorkspacePage({kind,membership,search}:{kind:Operation
 
     {paymentPeriod&&<div className="ops-modal-backdrop" role="presentation" onMouseDown={e=>{if(e.target===e.currentTarget)setPaymentPeriod(null);}}>
       <div className="ops-modal compact" role="dialog" aria-modal="true" aria-label="ثبت مرجع پرداخت">
-        <header><div><span className="ops-eyebrow">FINANCE / PAYMENT PROOF</span><h2>ثبت مدرک پرداخت واقعی</h2><p>انتقال وجه توسط سامانه انجام نمی‌شود؛ مرجع واقعی پرداخت در دفتر ثبت می‌شود.</p></div><button className="ops-refresh" onClick={()=>setPaymentPeriod(null)} aria-label="بستن"><X size={18}/></button></header>
+        <header><div><span className="ops-eyebrow">مدرک پرداخت</span><h2>ثبت مدرک پرداخت واقعی</h2><p>انتقال وجه توسط سامانه انجام نمی‌شود؛ مرجع واقعی پرداخت در دفتر ثبت می‌شود.</p></div><button className="ops-refresh" onClick={()=>setPaymentPeriod(null)} aria-label="بستن"><X size={18}/></button></header>
         <form className="ops-form" onSubmit={payPeriod}>
           <label className="ops-field"><span>مبلغ (تومان)</span><input type="number" min="1" max={Math.max(1,numeric(paymentPeriod.balance_due_to_partner)-numeric(paymentPeriod.settled_amount))} step="1" required value={paymentAmount} onChange={e=>setPaymentAmount(e.target.value)}/></label>
           <label className="ops-field"><span>مرجع رسید / تراکنش</span><input required value={paymentRef} onChange={e=>setPaymentRef(e.target.value)} placeholder="شناسه واقعی رسید"/></label>

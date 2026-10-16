@@ -48,7 +48,7 @@ function readAllowedLinks(): NavigationEntry[] {
 
 /** Private operational app entry. Public self-registration is intentionally disabled. */
 export default function ProductExperience() {
-  const { user, loading, memberships } = useAuth();
+  const { user, memberships } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [appMain, setAppMain] = useState<HTMLElement | null>(null);
@@ -69,10 +69,10 @@ export default function ProductExperience() {
   const [requestId, setRequestId] = useState('');
   const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
   const protectedRoute = location.pathname.includes('/app');
-  // Keep the real auth implementation intact, but make the public auth UI a final-phase feature.
-  // Set VITE_ENABLE_AUTH_UI=true only when the owner-provisioning flow is ready to be launched.
-  const authUiEnabled = import.meta.env.VITE_ENABLE_AUTH_UI === 'true';
-  const signInOpen = authUiEnabled && (mode === 'recovery' || (location.hash === '#signin' && !user) || (protectedRoute && !user && !loading));
+  // Enable secure sign-in by default in web, preview and native builds; only an explicit false disables it.
+  // Public self-registration remains disabled independently of this UI flag.
+  const authUiEnabled = import.meta.env.VITE_ENABLE_AUTH_UI !== 'false';
+  const signInOpen = authUiEnabled && (mode === 'recovery' || (location.hash === '#signin' && !user) || (protectedRoute && !user));
   const normalizedPath = location.pathname.startsWith(basePath) ? location.pathname.slice(basePath.length) || '/' : location.pathname;
   const protectedDestination = normalizedPath.startsWith('/app') ? normalizedPath : '/app';
 
@@ -125,7 +125,7 @@ export default function ProductExperience() {
   useEffect(() => {
     const canCloseWithEscape: boolean = mode !== 'recovery';
     if (!signInOpen) return;
-    const background = document.querySelector<HTMLElement>('.portal, .app-frame');
+    const background = document.querySelector<HTMLElement>('.portal, .app-frame, .ops-live-app');
     const oldOverflow = document.body.style.overflow;
     if (background) background.inert = true;
     document.body.style.overflow = 'hidden';
@@ -221,7 +221,7 @@ export default function ProductExperience() {
       </nav>, appMain)}
     {authUiEnabled && user && waitingScreen && memberships.length === 0 && createPortal(
       <section className="access-request-card" dir="rtl" aria-labelledby="access-request-title">
-        <div className="access-request-heading"><span className="access-request-icon"><UserPlus size={20}/></span><div><span className="obsidian-eyebrow">ROLE REQUEST</span><h2 id="access-request-title">درخواست فضای کاری</h2><p>نقش را مشخص کن؛ مدیر پس از بررسی آن را تأیید یا رد می‌کند.</p></div></div>
+        <div className="access-request-heading"><span className="access-request-icon"><UserPlus size={20}/></span><div><span className="obsidian-eyebrow">درخواست دسترسی</span><h2 id="access-request-title">درخواست فضای کاری</h2><p>نقش را مشخص کن؛ مدیر پس از بررسی آن را تأیید یا رد می‌کند.</p></div></div>
         <form className="access-request-form" onSubmit={submitRoleRequest}>
           <label>نام و نام خانوادگی<input required minLength={2} maxLength={160} autoComplete="name" value={fullName} onChange={e => setFullName(e.target.value)} placeholder="نام کامل"/></label>
           <label>نوع دسترسی<select value={requestedRole} onChange={e => { setRequestedRole(e.target.value as PublicRequestedRole); setRequestId(''); }}><option value="customer">خریدار عمده</option><option value="supplier">شریک مزرعه</option><option value="driver">راننده / پیمانکار حمل</option><option value="staff">عضو تیم داخلی</option></select></label>
@@ -233,19 +233,19 @@ export default function ProductExperience() {
         </form>
         <p className="access-request-foot"><ShieldCheck size={15}/> انتخاب نقش به‌تنهایی دسترسی نمی‌دهد. مدیر باید درخواست را در پنل کاربران بررسی کند.</p>
       </section>, waitingScreen)}
-    {signInOpen && (!user || mode === 'recovery') && (!loading || mode === 'recovery') && (
-      <section className="simorgh-signin-layer" role="dialog" aria-modal="true" aria-labelledby="simorgh-signin-title" aria-label="ورود امن سیمرغ">
+    {signInOpen && (!user || mode === 'recovery') && (
+      <section className="simorgh-signin-layer" role="dialog" aria-modal="true" aria-labelledby="simorgh-signin-title" aria-label="ورود امن مدار">
         <div className="simorgh-signin-brand">
-          <div className="simorgh-signin-brand-top"><span className="simorgh-signin-mark"><ShieldCheck size={26}/></span><span><strong>سیمرغ</strong><small>OBSIDIAN INTELLIGENCE</small></span></div>
-          <div className="simorgh-signin-story"><span className="signin-overline">SIMORGH / SECURE WORKSPACE</span><h1>یک شبکه.<br/><em>کنترل دقیق.</em></h1><p>عملیات تولید، سفارش، کیفیت، حمل و تسویه؛ در یک فضای کاری نقش‌محور و قابل پیگیری.</p><div className="signin-assurance"><ShieldCheck size={17}/><span>نقش‌های داخلی و مدیریتی فقط با دعوت یا تأیید مالک فعال می‌شوند.</span></div></div>
-          <div className="signin-brand-foot"><span>NETWORK OPERATIONS</span><span>AUTHENTICATED ACCESS</span></div>
+          <div className="simorgh-signin-brand-top"><span className="simorgh-signin-mark"><ShieldCheck size={26}/></span><span><strong>مدار</strong><small>مدیریت یکپارچه عملیات</small></span></div>
+          <div className="simorgh-signin-story"><span className="signin-overline">مدار / فضای کاری امن</span><h1>یک شبکه.<br/><em>کنترل دقیق.</em></h1><p>مدیریت مزرعه، منابع، سفارش، کیفیت، حمل و حساب‌ها؛ در یک فضای کاری امن و قابل پیگیری.</p><div className="signin-assurance"><ShieldCheck size={17}/><span>نقش‌های داخلی و مدیریتی فقط با دعوت یا تأیید مالک فعال می‌شوند.</span></div></div>
+          <div className="signin-brand-foot"><span>عملیات و منابع</span><span>ورود امن</span></div>
         </div>
         <div className="simorgh-signin-form-area">
           {!protectedRoute && mode !== 'recovery' && <button type="button" className="signin-close" onClick={closeSignIn} aria-label="بستن ورود"><X size={20}/></button>}
           <div className="simorgh-signin-form-card" dir="rtl">
             <span className="signin-form-icon">{mode === 'reset' || mode === 'recovery' ? <KeyRound size={21}/> : <LogIn size={21}/>}</span>
-            <span className="signin-overline">{mode === 'reset' ? 'PASSWORD RECOVERY' : mode === 'recovery' ? 'SET A NEW PASSWORD' : 'SECURE SIGN IN'}</span>
-            <h2 id="simorgh-signin-title">{mode === 'reset' ? 'بازیابی گذرواژه' : mode === 'recovery' ? 'گذرواژه جدید' : 'ورود به سیمرغ'}</h2>
+            <span className="signin-overline">{mode === 'reset' ? 'بازیابی گذرواژه' : mode === 'recovery' ? 'تنظیم گذرواژه تازه' : 'ورود امن'}</span>
+            <h2 id="simorgh-signin-title">{mode === 'reset' ? 'بازیابی گذرواژه' : mode === 'recovery' ? 'گذرواژه جدید' : 'ورود به مدار'}</h2>
             <p>{mode === 'reset' ? 'ایمیل حساب را وارد کن تا در صورت وجود حساب، لینک بازیابی ارسال شود.' : mode === 'recovery' ? 'یک گذرواژه جدید و قوی برای حساب انتخاب کن.' : 'برای ورود از حسابی استفاده کن که مالک شرکت ساخته یا دعوت آن را صادر کرده است.'}</p>
             <form className="simorgh-signin-form" onSubmit={event => void submitAuth(event)}>
               <label htmlFor="simorgh-signin-email">ایمیل</label><input id="simorgh-signin-email" className="auth-input" type="email" autoComplete="username" inputMode="email" required={mode !== 'recovery'} value={email} onChange={e => setEmail(e.target.value)} placeholder="name@company.com" dir="ltr"/>
@@ -262,7 +262,8 @@ export default function ProductExperience() {
             {mode === 'signin' && <button type="button" className="auth-text-action" onClick={() => {setMode('reset');setError('');setNotice('');}}>گذرواژه‌ات را فراموش کرده‌ای؟</button>}
             {mode === 'reset' && <button type="button" className="auth-text-action" onClick={() => {setMode('signin');setError('');setNotice('');}}>بازگشت به ورود</button>}
             <div className="signin-no-signup"><ShieldCheck size={16}/><span>ثبت‌نام عمومی غیرفعال است؛ حساب‌های جدید فقط از مسیر مدیریت امن شرکت ایجاد می‌شوند.</span></div>
-            <div className="signin-form-foot"><span><Check size={13}/> کنترل دسترسی سمت سرور</span><span>سیمرغ · فضای امن</span></div>
+            <div className="signin-owner-guide"><span>اگر هنوز حساب مالک ساخته نشده است،</span> <a href="https://github.com/Ehsanamn1/simorgh/blob/main/docs/OWNER_PROVISIONING.md" target="_blank" rel="noreferrer">راهنمای راه‌اندازی نخستین مالک</a></div>
+            <div className="signin-form-foot"><span><Check size={13}/> کنترل دسترسی سمت سرور</span><span>مدار · فضای امن</span></div>
           </div>
         </div>
       </section>

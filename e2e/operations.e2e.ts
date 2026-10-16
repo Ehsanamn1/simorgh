@@ -8,21 +8,35 @@ const customerId = '00000000-0000-4000-8000-000000000055';
 
 async function installIsolatedSession(page: Page, role: 'owner' | 'supplier' | 'driver' | 'customer') {
   const now = Math.floor(Date.now() / 1000);
+  const expiresAt = now + 60 * 60 * 24 * 365;
+  const email = role + '@example.test';
+  const fullName = role === 'owner' ? 'مالک آزمایشی مدار' : role === 'supplier' ? 'تأمین‌کننده آزمایشی مدار' : role === 'driver' ? 'راننده آزمایشی مدار' : 'مشتری آزمایشی مدار';
+  const encodeBase64Url = (value: Record<string, unknown>) => Buffer.from(JSON.stringify(value)).toString('base64url');
+  const accessToken = [
+    encodeBase64Url({ alg: 'HS256', typ: 'JWT' }),
+    encodeBase64Url({
+      aud: 'authenticated', role: 'authenticated', sub: userId,
+      iat: now, exp: expiresAt, email, iss: projectUrl + '/auth/v1',
+      app_metadata: { provider: 'email', providers: ['email'] },
+      user_metadata: { full_name: fullName },
+    }),
+    Buffer.from('isolated-e2e-signature').toString('base64url'),
+  ].join('.');
   await page.addInitScript(({ storageKey, session }) => {
     window.localStorage.setItem(storageKey, JSON.stringify(session));
   }, {
     storageKey: 'sb-aoxerjimfiwusidaparx-auth-token',
     session: {
-      access_token: 'simorgh-isolated-e2e-access-token',
+      access_token: accessToken,
       token_type: 'bearer',
       expires_in: 60 * 60 * 24 * 365,
-      expires_at: now + 60 * 60 * 24 * 365,
+      expires_at: expiresAt,
       refresh_token: 'simorgh-isolated-e2e-refresh-token',
       user: {
         id: userId, aud: 'authenticated', role: 'authenticated',
-        email: role + '@example.test', email_confirmed_at: new Date().toISOString(),
+        email, email_confirmed_at: new Date().toISOString(),
         app_metadata: { provider: 'email', providers: ['email'] },
-        user_metadata: { full_name: role === 'owner' ? 'مالک تست سیمرغ' : role === 'supplier' ? 'تأمین‌کننده تست سیمرغ' : role === 'driver' ? 'راننده تست سیمرغ' : 'مشتری تست سیمرغ' },
+        user_metadata: { full_name: fullName },
         created_at: new Date().toISOString(),
       },
     },
@@ -77,9 +91,9 @@ test('manager workspace retains operations and captures a real rendered control-
 
   const paths = [
     ['farm-sites', 'سایت‌های مزرعه'],
-    ['flock-cycles', 'چرخه‌های گله'],
+    ['flock-cycles', 'چرخه‌های کشت و پرورش'],
     ['production-batches', 'بچ‌های تولید'],
-    ['daily-production', 'ثبت روزانه تولید'],
+    ['daily-production', 'ثبت روزانه عملیات'],
     ['task-templates', 'دستورالعمل‌های کاری'],
     ['operational-tasks', 'وظایف عملیاتی'],
     ['incidents', 'رخدادها و مغایرت‌ها'],
