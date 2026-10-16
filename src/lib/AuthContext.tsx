@@ -6,6 +6,7 @@ import type { Membership } from './types';
 type UserShape = {
   id: string;
   username: string;
+  email?: string;
   phone?: string;
   display_name?: string;
   user_metadata?: Record<string, unknown>;
@@ -30,7 +31,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const result = await api.get<{ user: null | { id: string; username: string; phone: string; displayName: string; requestedRole: string } }>('/api/auth/me');
       if (!result.user) { setSession(null); setMemberships([]); return; }
       const u = result.user;
-      setSession({ user: { id: u.id, username: u.username, phone: u.phone, display_name: u.displayName,
+      setSession({ user: { id: u.id, username: u.username, email: u.username, phone: u.phone, display_name: u.displayName,
         user_metadata: { requested_role: u.requestedRole, full_name: u.displayName, phone: u.phone } } });
       setError(null);
     } catch (caught) {
