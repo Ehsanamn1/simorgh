@@ -140,12 +140,14 @@ app.post('/api/auth/signup', async c => {
   const username = typeof data.username === 'string' ? data.username.trim() : '';
   const normalized = username.toLowerCase();
   const displayName = typeof data.displayName === 'string' && data.displayName.trim() ? data.displayName.trim() : username;
+  const organizationName = typeof data.organizationName === 'string' ? data.organizationName.trim() : '';
   const phone = normalizePhone(data.phone);
   const password = typeof data.password === 'string' ? data.password : '';
   const role = typeof data.requestedRole === 'string' ? data.requestedRole : 'customer';
   if (!/^[a-zA-Z0-9_.-]{3,32}$/.test(username)) return jsonError(c, 'نام کاربری باید ۳ تا ۳۲ نویسه و فقط شامل حروف انگلیسی، عدد، نقطه، خط تیره یا زیرخط باشد.', 400);
   if (!phone) return jsonError(c, 'شماره موبایل ایران معتبر نیست.', 400);
   if (displayName.length < 2 || displayName.length > 120) return jsonError(c, 'نام نمایشی باید بین ۲ تا ۱۲۰ نویسه باشد.', 400);
+  if (role === 'owner' && (organizationName.length < 2 || organizationName.length > 160)) return jsonError(c, 'نام مجموعه باید بین ۲ تا ۱۶۰ نویسه باشد.', 400);
   if (password.length < 10 || password.length > 128) return jsonError(c, 'رمز عبور باید حداقل ۱۰ نویسه داشته باشد.', 400);
   if (!['owner','customer','supplier','driver','staff'].includes(role)) return jsonError(c, 'نقش انتخابی معتبر نیست.', 400);
   try {
@@ -162,7 +164,8 @@ app.post('/api/auth/signup', async c => {
       ),
       new_company AS (
         INSERT INTO public.companies(name)
-        SELECT username || ' · مجموعه' FROM new_user WHERE requested_role='owner'
+        SELECT CASE WHEN ${organizationName} <> '' THEN ${organizationName} ELSE username || ' · مجموعه' END
+        FROM new_user WHERE requested_role='owner'
         RETURNING id
       ),
       new_profile AS (
