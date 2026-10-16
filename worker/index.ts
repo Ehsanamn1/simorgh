@@ -101,7 +101,15 @@ app.use('/api/*', async (c, next) => {
   if (c.req.method !== 'GET' && !originAllowed(c.req.raw)) return c.json({ message: 'درخواست از مبدأ نامعتبر رد شد.' }, 403);
   await next();
 });
-app.get('/api/health', c => c.json({ ok: true, service: 'medar-api', database: Boolean(c.env.DATABASE_URL), auth: 'username-password' }));
+app.get('/api/health', async c => {
+  if (!c.env.DATABASE_URL) return c.json({ ok: false, service: 'medar-api', database: false }, 503);
+  try {
+    const rows = await neon(c.env.DATABASE_URL)`SELECT 1 AS ready`;
+    return c.json({ ok: true, service: 'medar-api', database: Number((rows[0] as {ready:number}).ready) === 1, auth: 'username-password' });
+  } catch {
+    return c.json({ ok: false, service: 'medar-api', database: false }, 503);
+  }
+});
 
 app.post('/api/auth/signup', async c => {
   if (!c.env.DATABASE_URL) return jsonError(c, 'پایگاه داده پیکربندی نشده است.', 503);
