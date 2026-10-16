@@ -136,19 +136,18 @@ export default function ProductExperience() {
     void (async () => {
       setWorkspaceProvisioning(true);
       setWorkspaceProvisionError('');
-      const { error: createError } = await api.post<{ companyId: string }>('/api/workspace/provision', {
+      const result = await api.post<{ companyId: string }>('/api/workspace/provision', {
         companyName: typeof metadata.organization_name === 'string' ? metadata.organization_name : '',
         fullName: typeof metadata.full_name === 'string' ? metadata.full_name : '',
         phone: typeof metadata.phone === 'string' ? metadata.phone : null,
       });
-      if (createError) {
+      if (!result?.companyId) {
         provisionedUserIds.current.delete(user.id);
         setWorkspaceProvisionError('ساخت فضای کاری انجام نشد. تأیید ایمیل، اتصال و نسخه پایگاه داده را بررسی کن و دوباره تلاش کن.');
         setWorkspaceProvisioning(false);
         return;
       }
-      await neonAuth.updateUser({ data: { signup_workspace_pending: false } });
-      await refreshMemberships();
+            await refreshMemberships();
       setWorkspaceProvisioning(false);
       setWorkspaceProvisionError('');
       setNotice('فضای کاری اختصاصی آماده شد.');
