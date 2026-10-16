@@ -83,8 +83,9 @@ const configs: Record<OperationsKind, Config> = {
     {key:'record_date',label:'تاریخ',value:r=>dateValue(r.record_date)},{key:'batch_id',label:'بچ',value:(r,refs)=>refName(refs.batches,r.batch_id,'batch_code')},
     {key:'resource_name',label:'منبع مصرفی',value:r=>text(r.resource_name)},
     {key:'input_quantity',label:'مصرف',value:r=>numberFa(numeric(r.input_quantity))+' '+text(r.input_unit)},
-    {key:'loss_quantity',label:'ضایعات / تلفات',value:r=>numberFa(numeric(r.loss_quantity))+' '+text(r.loss_unit)},
-    {key:'produced_quantity',label:'خروجی',value:(r,refs)=>numberFa(numeric(r.produced_quantity??r.eggs_collected))+' '+refName(refs.batches,r.batch_id,'unit')}]},
+    {key:'produced_quantity',label:'خروجی',value:(r,refs)=>numberFa(numeric(r.produced_quantity??r.eggs_collected))+' '+refName(refs.batches,r.batch_id,'unit')},
+    {key:'rejected_quantity',label:'مردودی',value:(r,refs)=>numberFa(numeric(r.rejected_quantity))+' '+refName(refs.batches,r.batch_id,'unit')},
+    {key:'loss_quantity',label:'ضایعات / تلفات',value:r=>numberFa(numeric(r.loss_quantity))+' '+text(r.loss_unit)}]},
   'task-templates': {title:'دستورالعمل‌های کاری',eyebrow:'دستورالعمل‌های کاری',description:'دستورالعمل را پیش‌نویس کنید؛ تأیید مدیر نسخه را برای استفاده در وظایف قفل می‌کند.',table:'task_templates',icon:FileCheck2,columns:[
     {key:'template_code',label:'کد دستورالعمل'},{key:'title',label:'عنوان'},{key:'category',label:'گروه'},
     {key:'priority',label:'اولویت',value:r=>fa(r.priority)},{key:'evidence_required',label:'مدرک لازم',value:r=>r.evidence_required?'بله':'خیر'},
@@ -245,13 +246,14 @@ export function OperationsWorkspacePage({kind,membership,search}:{kind:Operation
       'daily-production':[
         {name:'batch_id',label:'بچ تولید',type:'select',options:batches,required:true},
         {name:'record_date',label:'تاریخ ثبت',type:'date',required:true,defaultValue:new Date().toISOString().slice(0,10)},
-        {name:'shift_label',label:'شیفت / نوبت',defaultValue:'daily',required:true},
+        {name:'shift_label',label:'شیفت / نوبت',defaultValue:'روزانه',required:true},
         {name:'resource_name',label:'منبع مصرفی',helper:'نام نهاده یا منبع اصلی مصرف‌شده'},
         {name:'input_quantity',label:'مقدار مصرف',type:'number',min:'0',step:'0.001',defaultValue:'0'},
         {name:'input_unit',label:'واحد مصرف',type:'select',required:true,options:quantityUnits,defaultValue:'کیلوگرم'},
         {name:'loss_quantity',label:'ضایعات / تلفات',type:'number',min:'0',step:'0.001',defaultValue:'0'},
         {name:'loss_unit',label:'واحد ضایعات',type:'select',required:true,options:quantityUnits,defaultValue:'عدد'},
         {name:'produced_quantity',label:'مقدار خروجی',type:'number',min:'0',step:'0.001'},
+        {name:'rejected_quantity',label:'مقدار مردودی',type:'number',min:'0',step:'0.001',defaultValue:'0',helper:'باید صفر باشد یا از خروجی ثبت‌شده بیشتر نباشد'},
         {name:'note',label:'یادداشت',type:'textarea',full:true},
       ],
       'task-templates':[
@@ -325,6 +327,13 @@ export function OperationsWorkspacePage({kind,membership,search}:{kind:Operation
     if(kind==='flock-cycles' && str('cycle_type')==='poultry' && num('initial_quantity')!==null && !Number.isInteger(num('initial_quantity'))){
       setBusy(false);setError('تعداد اولیه طیور باید عدد صحیح باشد.');return;
     }
+    if(kind==='daily-production'){
+      const output=num('produced_quantity');
+      const rejected=num('rejected_quantity')??0;
+      if(rejected>0 && (output===null || rejected>output)){
+        setBusy(false);setError('مقدار مردودی باید صفر باشد یا از مقدار خروجی ثبت‌شده بیشتر نباشد.');return;
+      }
+    }
     if(kind==='incidents' && membership.role==='supplier'){
       const site=refs.sites.find(r=>String(r.id)===str('farm_site_id')&&String(r.supplier_id)===String(membership.supplier_id));
       if(!site){setBusy(false);setError('برای ثبت رخداد از حساب تأمین‌کننده، سایت متعلق به همان تأمین‌کننده را انتخاب کن.');return;}
@@ -349,11 +358,15 @@ export function OperationsWorkspacePage({kind,membership,search}:{kind:Operation
     }else if(kind==='daily-production'){
       const inputQty=num('input_quantity')??0, inputUnit=str('input_unit')||'کیلوگرم';
       const lossQty=num('loss_quantity')??0, lossUnit=str('loss_unit')||'عدد';
-      payload={...base,batch_id:str('batch_id'),record_date:str('record_date'),shift_label:str('shift_label')||'daily',
+      const output=num('produced_quantity'), rejected=num('rejected_quantity')??0;
+      const selectedBatch=refs.batches.find(r=>String(r.id)===str('batch_id'));
+      const animalKind=['livestock','poultry','dairy','aquaculture'].includes(String(selectedBatch?.production_kind??''));
+      const isFeed=['خوراک','feed'].includes(str('resource_name').toLocaleLowerCase()) && inputUnit==='کیلوگرم';
+      payload={...base,batch_id:str('batch_id'),record_date:str('record_date'),shift_label:str('shift_label')||'روزانه',
         resource_name:str('resource_name')||null,input_quantity:inputQty,input_unit:inputUnit,
-        loss_quantity:lossQty,loss_unit:lossUnit,
-        feed_consumed_kg:inputUnit==='کیلوگرم'?inputQty:0,mortality_count:lossUnit==='عدد'?Math.trunc(lossQty):0,
-        eggs_collected:0,eggs_rejected:0,produced_quantity:num('produced_quantity'),average_weight_grams:null,
+        loss_quantity:lossQty,loss_unit:lossUnit,rejected_quantity:rejected,
+        feed_consumed_kg:isFeed?inputQty:0,mortality_count:animalKind && lossUnit==='عدد'?Math.trunc(lossQty):0,
+        eggs_collected:0,eggs_rejected:0,produced_quantity:output,average_weight_grams:null,
         note:str('note')||null,recorded_by:membership.user_id};
     }else if(kind==='task-templates'){
       payload={...base,template_code:str('template_code'),version:num('version')??1,title:str('title'),instructions:str('instructions'),
