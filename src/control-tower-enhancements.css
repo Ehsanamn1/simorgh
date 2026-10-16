@@ -1,0 +1,48 @@
+/* Simorgh product polish: consistent Persian brand lockup + real account entry. */
+.brand-lockup .brand-words small {
+  font-family: Vazirmatn, Tahoma, sans-serif;
+  direction: rtl;
+  letter-spacing: 0;
+  font-weight: 650;
+  line-height: 1.7;
+}
+.ops-live-auth-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--ol-border);
+  border-radius: 9px;
+  background: var(--ol-surface2);
+  color: var(--ol-text);
+  font-size: 9px;
+  font-weight: 850;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: border-color .15s ease, background .15s ease, transform .15s ease;
+}
+.ops-live-auth-trigger svg { flex: none; color: var(--ol-accent); }
+.ops-live-auth-trigger:hover {
+  border-color: var(--ol-accent);
+  background: var(--ol-raised);
+  transform: translateY(-1px);
+}
+.ops-live-auth-trigger:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--ol-accent) 28%, transparent);
+  outline-offset: 2px;
+}
+html[data-theme="light"] .ops-live-auth-trigger {
+  background: #edf4f3;
+  color: #172729;
+}
+@media (max-width: 600px) {
+  .ops-live-auth-trigger {
+    width: 31px;
+    min-width: 31px;
+    min-height: 30px;
+    padding: 0;
+  }
+  .ops-live-auth-trigger span { display: none; }
+}
