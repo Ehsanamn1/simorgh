@@ -37,9 +37,7 @@ jobs:
       - name: Build the same base path used by GitHub Pages
         run: npm run build:pages
         env:
-          VITE_SUPABASE_URL: https://aoxerjimfiwusidaparx.supabase.co
-          VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_oTgVCJWw9BfK-kFUxTcaMQ_aeAUWXC5
-          VITE_ENABLE_AUTH_UI: 'true'
+          VITE_ENABLE_AUTH_UI: 'false'
       - name: Verify built assets use the GitHub Pages base path
         shell: bash
         run: |
@@ -53,16 +51,11 @@ jobs:
             cat dist/index.html
             exit 1
           fi
-      - name: Install Chromium for responsive browser simulation
-        run: npx playwright install --with-deps chromium
-      - name: Run desktop and mobile browser checks
-        run: npm run test:e2e
-      - name: Upload browser test report and failure artifacts
-        if: always()
-        uses: actions/upload-artifact@v5
-        with:
-          name: simorgh-browser-test-results
-          path: |
-            playwright-report/
-            test-results/
-          retention-days: 14
+      - name: Legacy browser checks
+        if: github.ref_name != 'migration/cloudflare-neon-foundation'
+        run: |
+          npx playwright install --with-deps chromium
+          npm run test:e2e
+      - name: Migration boundary note
+        if: github.ref_name == 'migration/cloudflare-neon-foundation'
+        run: echo "Legacy Supabase browser suite is intentionally deferred until the frontend is migrated to the Worker API."
