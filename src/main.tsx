@@ -8,6 +8,7 @@ import App from './App';
 import ProductExperience from './ProductExperience';
 import './styles.css';
 import './design-system.css';
+import './control-tower-enhancements.css';
 
 if (import.meta.env.PROD && !Capacitor.isNativePlatform() && 'serviceWorker' in navigator) {
   window.addEventListener('load', () => {
