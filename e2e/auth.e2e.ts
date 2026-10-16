@@ -4,7 +4,6 @@ test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
     try {
       localStorage.removeItem('simorgh-theme');
-      localStorage.removeItem('simorgh-theme');
     } catch {
       // Private mode may disable storage.
     }
