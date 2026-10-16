@@ -58,6 +58,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: build
     permissions:
+      contents: read
       pages: write
       id-token: write
     steps:
@@ -99,3 +100,51 @@ jobs:
           grep -q 'مرکز فرمان شبکه' "$js_file"
           grep -q 'ops-live-app' "$css_file"
           echo "Published app entry, JavaScript bundle, and CSS bundle are reachable."
+
+      - name: Install Chromium for published application test
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - name: Install browser test dependencies
+        run: |
+          npm install --no-audit --no-fund
+          npx playwright install --with-deps chromium
+
+      - name: Verify the deployed app renders on desktop and mobile
+        shell: bash
+        env:
+          SITE_URL: ${{ steps.deployment.outputs.page_url }}
+        run: |
+          node --input-type=module <<'NODE'
+          import { chromium } from '@playwright/test';
+
+          const browser = await chromium.launch({ headless: true });
+          const errors = [];
+          try {
+            const page = await browser.newPage({ viewport: { width: 1365, height: 900 } });
+            page.on('pageerror', error => errors.push(error.message));
+            await page.goto(process.env.SITE_URL, { waitUntil: 'networkidle', timeout: 60000 });
+            await page.locator('.ops-live-app').waitFor({ state: 'visible', timeout: 20000 });
+            if (await page.locator('#app-boot-screen').count()) throw new Error('Startup overlay was not dismissed.');
+            await page.getByRole('heading', { name: 'مرکز فرمان شبکه' }).waitFor({ state: 'visible' });
+            if (await page.locator('.ops-live-quick-card').count() !== 5) throw new Error('The quick access section did not render all five actions.');
+            if (errors.length) throw new Error('Browser runtime error: ' + errors.join(' | '));
+
+            await page.getByRole('button', { name: 'فعال‌کردن حالت روشن' }).click();
+            if (await page.locator('html').getAttribute('data-theme') !== 'light') throw new Error('Light theme toggle did not apply.');
+
+            await page.setViewportSize({ width: 390, height: 844 });
+            await page.reload({ waitUntil: 'networkidle', timeout: 60000 });
+            await page.locator('.ops-live-bottom-nav').waitFor({ state: 'visible', timeout: 20000 });
+            if (await page.locator('.ops-live-bottom-nav button').count() !== 4) throw new Error('The mobile navigation must have exactly four items.');
+            if (await page.locator('.ops-live-app').count() !== 1) throw new Error('The mobile workspace root is missing.');
+            const widths = await page.evaluate(() => ({ viewport: innerWidth, document: document.documentElement.scrollWidth, body: document.body.scrollWidth }));
+            if (widths.document > widths.viewport || widths.body > widths.viewport) throw new Error('Mobile horizontal overflow: ' + JSON.stringify(widths));
+            if (errors.length) throw new Error('Browser runtime error after mobile reload: ' + errors.join(' | '));
+            await page.screenshot({ path: 'simorgh-published-mobile.png', fullPage: true });
+            console.log('Published app rendered and passed desktop/mobile runtime checks: ' + process.env.SITE_URL);
+          } finally {
+            await browser.close();
+          }
+          NODE
