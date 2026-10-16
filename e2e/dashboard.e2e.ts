@@ -10,7 +10,7 @@ test('the operations control tower has real-data placeholders, map, goals and qu
   await expect(page.locator('.ops-live-sidebar')).toBeVisible();
   await expect(page.locator('.ops-live-stat')).toHaveCount(4);
   await expect(page.locator('.ops-live-stat strong')).toHaveText(['—', '—', '—', '—']);
-  await expect(page.locator('.ops-live-quick-card')).toHaveCount(4);
+  await expect(page.locator('.ops-live-quick-card')).toHaveCount(5);
   await expect(page.locator('.ops-live-map-frame iframe')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'مرکز فرمان شبکه' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'اهداف و مسیر اجرا' })).toBeVisible();
