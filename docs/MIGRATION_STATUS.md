@@ -71,3 +71,13 @@ Do not:
 - Neon SQL mutation was not applied automatically from this session; schema creation therefore remains a gated migration task and the Worker data endpoints are not production-ready until the schema and Cloudflare secrets are configured and smoke-tested.
 
 - Neon project: `weathered-shadow-56159151` (region `aws-eu-central-1`); migration branch: `br-divine-sun-ba4ib9rw`.
+
+## Latest implementation checkpoint — 2026-10-16
+
+- Neon migration branch `br-divine-sun-ba4ib9rw` was verified as ready.
+- Foundation schema was applied to the isolated Neon migration branch; no production/main data was modified.
+- Signup now requires and normalizes an Iranian mobile number (`09...` / `+98...`) and stores it in the profile metadata path.
+- Neon Auth on the migration branch is Better Auth. Current managed Neon Auth does not expose arbitrary Better Auth plugins/custom server handlers; therefore SMS OTP/phone-only authentication is **not falsely marked complete**. A real Iranian SMS provider credential and a supported server-side OTP integration are required before enabling phone OTP login.
+- The Worker JWKS configuration was corrected to the migration branch's actual Neon Auth endpoint.
+- UI direction remains Persian/RTL, mobile-first, task/action oriented, with operational hierarchy rather than a generic analytics dashboard.
+- Current remaining production gate: migrate operational data access from direct Supabase calls to Worker APIs, then run real multi-tenant E2E tests and deploy with configured Cloudflare secrets.
