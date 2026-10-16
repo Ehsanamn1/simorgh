@@ -31,10 +31,10 @@ R2 provisioning and the R2 binding have been removed per product decision. File/
 
 ## Current deployment and next candidate
 
-- **Latest live release:** [run 38982056018](https://github.com/Ehsanamn1/simorgh/actions/runs/38982056018) succeeded on commit `c186a8b7a0476261484d89ce91bf562b5d084219`.
+- **Latest live release:** [run 38982749400](https://github.com/Ehsanamn1/simorgh/actions/runs/38982749400) succeeded on commit `984439c4334b724b09c10643c296a3c02bfbd9a8`.
 - Pre-release typecheck, lint, unit tests, full browser acceptance suite, Worker build, Neon migrations, deploy, and health/database/auth guard smoke checks all passed.
 - The live release includes the username-auth hardening, password-change API and signed-in self-service password-change dialog, Medar data adapter rename, and removal of unused Supabase/Neon Auth SDK dependencies.
-- The current branch adds a company alert inbox API and RTL UI for overdue orders/tasks/invoices, submitted tasks, failed shipments and expiring farm licenses. Access-request alerts are returned only to owners/admins; the endpoint itself is restricted to owner/admin/staff. This alert-inbox addition is not live until the next tagged deployment completes.
+- The live release also includes the company alert inbox API and RTL UI for overdue orders/tasks/invoices, submitted tasks, failed shipments and expiring farm licenses. Access-request alerts are returned only to owners/admins; the endpoint itself is restricted to owner/admin/staff.
 - `docs/MEDAR_7_PRIORITY_ACCEPTANCE.md` tracks all seven priorities and distinguishes implemented source from production acceptance gates.
 
 The password-change API requires the current password, limits attempts, hashes the replacement, revokes other sessions and records an audit event. The UI requires matching new-password entries and displays server errors.
