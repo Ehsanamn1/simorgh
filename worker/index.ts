@@ -83,6 +83,4 @@ app.post('/api/access-requests', async (c) => {
 
 app.notFound((c) => c.env.ASSETS ? c.env.ASSETS.fetch(c.req.raw) : c.json({ message: 'مسیر پیدا نشد.' }, 404));
 
-app.notFound((c) => c.env.ASSETS ? c.env.ASSETS.fetch(c.req.raw) : c.json({ message: 'مسیر پیدا نشد.' }, 404));
-
 export default app;
