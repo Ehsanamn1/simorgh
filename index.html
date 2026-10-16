@@ -18,7 +18,7 @@
       html,body{margin:0;min-width:320px;min-height:100%;background:#101719;color:#E7EFEB;font-family:Vazirmatn,Tahoma,sans-serif}
       #app-boot-screen{position:fixed;inset:0;z-index:99999;display:grid;place-items:center;padding:24px;background:radial-gradient(ellipse at 50% 20%,rgba(112,154,168,.12),transparent 42%),#101719;transition:opacity .18s ease}
       .boot-card{width:min(100%,380px);box-sizing:border-box;padding:28px;border:1px solid #29373B;border-radius:20px;background:#11191C;text-align:center;box-shadow:0 24px 80px rgba(0,0,0,.3)}
-      .boot-mark{display:grid;place-items:center;width:54px;height:54px;margin:0 auto 16px;border:1px solid #365050;border-radius:16px;background:#203536;color:#D8E6E0;font-size:26px;font-weight:900}
+      .boot-mark{display:grid;place-items:center;width:54px;height:54px;margin:0 auto 16px;border:0;border-radius:16px;background:transparent;overflow:hidden}.boot-mark img{display:block;width:54px;height:54px;object-fit:contain}
       .boot-brand{font-size:21px;font-weight:850;letter-spacing:-.03em}
       .boot-brand-sub{display:block;margin-top:2px;color:#82BDB1;font-size:11px}
       .boot-spinner{width:23px;height:23px;margin:22px auto 14px;border:2px solid #29373B;border-top-color:#82BDB1;border-radius:50%;animation:boot-spin .8s linear infinite}
@@ -35,7 +35,7 @@
   <body>
     <div id="app-boot-screen" role="status" aria-live="polite">
       <div class="boot-card">
-        <div class="boot-mark" aria-hidden="true">س</div>
+        <div class="boot-mark" aria-hidden="true"><img src="%BASE_URL%medar-icon.svg" alt="" width="54" height="54" /></div>
         <div class="boot-brand">مدار<span class="boot-brand-sub">مدیریت یکپارچه عملیات</span></div>
         <div class="boot-spinner" aria-hidden="true"></div>
         <div class="boot-wait">در حال راه‌اندازی محیط عملیاتی…</div>
