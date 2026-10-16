@@ -426,20 +426,20 @@ export function OperationsWorkspacePage({kind,membership,search}:{kind:Operation
     ? String(row.assignee_supplier_id)===String(membership.supplier_id)
     : String(row.assignee_user_id)===String(membership.user_id)||manager;
   const startTask=(row:Row)=>action(
-    ()=>supabase?supabase.rpc('start_operational_task',{_task:String(row.id)}):Promise.resolve({error:{message:'Supabase تنظیم نشده است.'}}),
+    ()=>api.post(`/api/operations/operational-tasks/${encodeURIComponent(String(row.id))}/action`,{companyId:membership.company_id,action:'start'}),
     'وظیفه شروع شد.'
   );
   const submitTask=(row:Row)=>{
     const note=window.prompt('یادداشت تکمیل کار (اختیاری):')??'';
-    return action(()=>supabase?supabase.rpc('submit_operational_task',{_task:String(row.id),_completion_note:note}):Promise.resolve({error:{message:'Supabase تنظیم نشده است.'}}),'وظیفه برای بازبینی ارسال شد.');
+    return action(()=>api.post(`/api/operations/operational-tasks/${encodeURIComponent(String(row.id))}/action`,{companyId:membership.company_id,action:'submit',completionNote:note}),'وظیفه برای بازبینی ارسال شد.');
   };
   const reviewTask=(row:Row,decision:'approved'|'rejected')=>{
     const note=window.prompt(decision==='approved'?'یادداشت تأیید (اختیاری):':'علت رد و اقدام اصلاحی:')??'';
     if(decision==='rejected'&&!note.trim()){setError('برای رد وظیفه باید دلیل ثبت شود.');return;}
-    void action(()=>supabase?supabase.rpc('review_operational_task',{_task:String(row.id),_decision:decision,_review_note:note}):Promise.resolve({error:{message:'Supabase تنظیم نشده است.'}}),decision==='approved'?'وظیفه تأیید شد.':'وظیفه رد شد و نیازمند اصلاح است.');
+    void action(()=>api.post(`/api/operations/operational-tasks/${encodeURIComponent(String(row.id))}/action`,{companyId:membership.company_id,action:'review',decision,reviewNote:note}),decision==='approved'?'وظیفه تأیید شد.':'وظیفه رد شد و نیازمند اصلاح است.');
   };
-  const approveTemplate=(row:Row)=>void action(()=>updateRow('task_templates',row.id,{status:'approved'}),'دستورالعمل تأیید و قفل نسخه شد.');
-  const startBatch=(row:Row)=>void action(()=>updateRow('production_batches',row.id,{status:'active',started_on:row.started_on??new Date().toISOString().slice(0,10)}),'بچ تولید آغاز شد.');
+  const approveTemplate=(row:Row)=>void action(()=>api.post(`/api/operations/task-templates/${encodeURIComponent(String(row.id))}/action`,{companyId:membership.company_id,action:'approve-template'}),'دستورالعمل تأیید و قفل نسخه شد.');
+  const startBatch=(row:Row)=>void action(()=>api.post(`/api/operations/production-batches/${encodeURIComponent(String(row.id))}/action`,{companyId:membership.company_id,action:'start-batch'}),'بچ تولید آغاز شد.');
   const resolveIncident=(row:Row)=>{
     const note=window.prompt('اقدام اصلاحی برای رفع رخداد:');
     if(!note?.trim()){setError('برای بستن رخداد، اقدام اصلاحی لازم است.');return;}
