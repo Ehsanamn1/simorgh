@@ -62,13 +62,13 @@ const agreementOpt = (r: Row): Option => ({value:String(r.id),label:String(r.agr
 
 const configs: Record<OperationsKind, Config> = {
   'farm-sites': {title:'مزارع و واحدها',eyebrow:'مزارع و تأسیسات',description:'نوع بهره‌برداری، موقعیت، مسئولیت و اطلاعات مجوز هر واحد را مدیریت کنید.',table:'farm_sites',icon:Warehouse,columns:[
-    {key:'site_code',label:'کد واحد'},{key:'name',label:'نام واحد'},{key:'farm_type',label:'نوع فعالیت',value:r=>fa(r.farm_type)},
+    {key:'site_code',label:'کد واحد'},{key:'name',label:'نام واحد'},{key:'site_type',label:'نوع فعالیت',value:r=>fa(r.site_type)},
     {key:'supplier_id',label:'مسئول / شریک',value:(r,refs)=>refName(refs.suppliers,r.supplier_id,'name')},
     {key:'province',label:'استان'},{key:'city',label:'شهر'},{key:'license_expires_on',label:'انقضای مجوز',value:r=>dateValue(r.license_expires_on)},{key:'active',label:'فعال',value:r=>r.active?'بله':'خیر'}]},
-  'flock-cycles': {title:'چرخه‌های پرورش',eyebrow:'چرخه‌های تولید و پرورش',description:'چرخه‌ی کشت، پرورش یا نگهداری را با گونه، تعداد اولیه و تاریخ‌های اجرایی ثبت کنید.',table:'flock_cycles',icon:Factory,columns:[
-    {key:'cycle_code',label:'کد چرخه'},{key:'species',label:'گونه / نوع',value:r=>text(r.species)},
+  'flock-cycles': {title:'چرخه‌های پرورش',eyebrow:'چرخه‌های تولید و پرورش',description:'چرخه‌ی کشت، پرورش یا نگهداری را با نوع فعالیت، گونه و مقدار اولیه ثبت کنید.',table:'flock_cycles',icon:Factory,columns:[
+    {key:'cycle_code',label:'کد چرخه'},{key:'cycle_type',label:'نوع چرخه',value:r=>fa(r.cycle_type)},{key:'species',label:'گونه / نوع',value:r=>text(r.species)},
     {key:'farm_site_id',label:'واحد',value:(r,refs)=>refName(refs.sites,r.farm_site_id,'name')},
-    {key:'arrived_on',label:'شروع',value:r=>dateValue(r.arrived_on)},{key:'initial_count',label:'مقدار اولیه',value:r=>r.initial_count==null?'—':numberFa(numeric(r.initial_count))},
+    {key:'arrived_on',label:'شروع',value:r=>dateValue(r.arrived_on)},{key:'initial_quantity',label:'مقدار اولیه',value:r=>r.initial_quantity==null?'—':numberFa(numeric(r.initial_quantity))+' '+text(r.quantity_unit)},
     {key:'planned_end_on',label:'پایان برنامه‌ای',value:r=>dateValue(r.planned_end_on)},{key:'status',label:'وضعیت',value:r=>fa(r.status)}]},
   'production-batches': {title:'دوره‌ها و بچ‌های تولید',eyebrow:'ردیابی و ثبت تولید',description:'خروجی هر محصول را به واحد، نوع فعالیت و مسیر ردیابی مرتبط کنید.',table:'production_batches',icon:ClipboardCheck,columns:[
     {key:'batch_code',label:'کد بچ'},{key:'production_kind',label:'نوع تولید',value:r=>fa(r.production_kind)},
@@ -78,9 +78,9 @@ const configs: Record<OperationsKind, Config> = {
     {key:'status',label:'وضعیت',value:r=>fa(r.status)},{key:'quality_status',label:'کیفیت',value:r=>fa(r.quality_status)}]},
   'daily-production': {title:'گزارش روزانه',eyebrow:'ثبت و پایش روزانه',description:'ورودی مصرفی، خروجی، ضایعات و واحد اندازه‌گیری را برای هر بچ ثبت و مقایسه کنید.',table:'daily_production_records',icon:Activity,columns:[
     {key:'record_date',label:'تاریخ',value:r=>dateValue(r.record_date)},{key:'batch_id',label:'بچ تولید',value:(r,refs)=>refName(refs.batches,r.batch_id,'batch_code')},
-    {key:'input_name',label:'ورودی / مصرف'},{key:'input_quantity',label:'مقدار ورودی',value:r=>r.input_quantity==null?'—':numberFa(numeric(r.input_quantity))+' '+text(r.input_unit)},
+    {key:'resource_name',label:'ورودی / مصرف'},{key:'input_quantity',label:'مقدار ورودی',value:r=>numberFa(numeric(r.input_quantity))+' '+text(r.input_unit)},
     {key:'produced_quantity',label:'خروجی',value:(r,refs)=>{const b=refs.batches.find(x=>String(x.id)===String(r.batch_id));return r.produced_quantity==null?'—':numberFa(numeric(r.produced_quantity))+' '+text(b?.unit)}},
-    {key:'rejected_quantity',label:'مردودی',value:r=>numberFa(numeric(r.rejected_quantity))},{key:'loss_count',label:'تعداد اتلاف',value:r=>numberFa(numeric(r.loss_count))}]},
+    {key:'rejected_quantity',label:'مردودی',value:r=>numberFa(numeric(r.rejected_quantity))},{key:'loss_quantity',label:'مقدار اتلاف',value:r=>numberFa(numeric(r.loss_quantity))+' '+text(r.loss_unit)}]},
   'task-templates': {title:'دستورالعمل‌های کاری',eyebrow:'کتابخانه دستورالعمل‌ها',description:'دستورالعمل را پیش‌نویس کنید؛ تأیید مدیر نسخه را برای استفاده در وظایف قفل می‌کند.',table:'task_templates',icon:FileCheck2,columns:[
     {key:'template_code',label:'کد دستورالعمل'},{key:'title',label:'عنوان'},{key:'category',label:'گروه'},
     {key:'priority',label:'اولویت',value:r=>fa(r.priority)},{key:'evidence_required',label:'مدرک لازم',value:r=>r.evidence_required?'بله':'خیر'},
@@ -116,14 +116,21 @@ const configs: Record<OperationsKind, Config> = {
 const farmTypes: Option[] = [
   {value:'mixed',label:'ترکیبی'},{value:'crop',label:'کشت و زراعت'},{value:'livestock',label:'دامداری'},
   {value:'poultry',label:'طیور'},{value:'dairy',label:'لبنیات'},{value:'aquaculture',label:'آبزی‌پروری'},
-  {value:'greenhouse',label:'گلخانه'},{value:'orchard',label:'باغداری'},{value:'apiary',label:'زنبورداری'},{value:'other',label:'سایر'},
+  {value:'greenhouse',label:'گلخانه'},{value:'orchard',label:'باغداری'},{value:'apiary',label:'زنبورداری'},
+  {value:'processing',label:'فرآوری'},{value:'warehouse',label:'انبار'},{value:'distribution',label:'توزیع'},{value:'other',label:'سایر'},
+];
+const cycleTypes: Option[] = [
+  {value:'crop',label:'کشت'},{value:'livestock',label:'دام'},{value:'poultry',label:'طیور'},
+  {value:'dairy',label:'لبنیات'},{value:'aquaculture',label:'آبزی‌پروری'},{value:'greenhouse',label:'گلخانه'},
+  {value:'orchard',label:'باغداری'},{value:'apiary',label:'زنبورداری'},{value:'mixed',label:'ترکیبی'},{value:'other',label:'سایر'},
 ];
 const types: Option[] = [
-  {value:'crop',label:'محصول زراعی'},{value:'livestock',label:'دام و فرآورده‌های دامی'},
+  {value:'farm_product',label:'محصول مزرعه'},{value:'crop',label:'محصول زراعی'},{value:'livestock',label:'دام و فرآورده‌های دامی'},
   {value:'poultry',label:'طیور و فرآورده‌های طیور'},{value:'dairy',label:'محصول لبنی'},
   {value:'eggs',label:'تخم‌مرغ'},{value:'meat',label:'گوشت'},{value:'aquaculture',label:'محصول آبزی‌پروری'},
   {value:'honey',label:'عسل'},{value:'forestry',label:'محصول جنگلی'},{value:'greenhouse',label:'محصول گلخانه‌ای'},
-  {value:'orchard',label:'محصول باغی'},{value:'other',label:'سایر محصول'},
+  {value:'orchard',label:'محصول باغی'},{value:'input',label:'نهاده و ورودی'},{value:'feed',label:'خوراک'},
+  {value:'equipment',label:'تجهیزات'},{value:'processed',label:'محصول فرآوری‌شده'},{value:'service',label:'خدمت'},{value:'other',label:'سایر محصول'},
 ];
 const categories: Option[] = [
   {value:'production',label:'تولید'},{value:'quality',label:'کیفیت'},{value:'animal_welfare',label:'سلامت و رفاه زیستی'},
@@ -167,7 +174,7 @@ export function OperationsWorkspacePage({kind,membership,search}:{kind:Operation
     const [main,suppliers,sites,batches,templates,agreements,entries,products]=await Promise.all([
       supabase.from(cfg.table).select('*').eq('company_id',membership.company_id).order('created_at',{ascending:false}).limit(200),
       supabase.from('suppliers').select('id,name,city,active').eq('company_id',membership.company_id).order('name').limit(300),
-      supabase.from('farm_sites').select('id,site_code,name,farm_type,supplier_id,active').eq('company_id',membership.company_id).order('name').limit(300),
+      supabase.from('farm_sites').select('id,site_code,name,site_type,supplier_id,active').eq('company_id',membership.company_id).order('name').limit(300),
       supabase.from('production_batches').select('id,batch_code,farm_site_id,supplier_id,status,production_kind,unit').eq('company_id',membership.company_id).order('created_at',{ascending:false}).limit(300),
       supabase.from('task_templates').select('id,template_code,version,title,instructions,category,priority,evidence_required,expected_evidence_types,status').eq('company_id',membership.company_id).order('created_at',{ascending:false}).limit(200),
       supabase.from('partnership_agreements').select('id,supplier_id,agreement_code,version,status,effective_from,effective_to,shared_expense_categories,settlement_basis,company_profit_share_pct,partner_profit_share_pct').eq('company_id',membership.company_id).order('created_at',{ascending:false}).limit(200),
@@ -194,17 +201,21 @@ export function OperationsWorkspacePage({kind,membership,search}:{kind:Operation
     const map: Record<OperationsKind,Field[]> = {
       'farm-sites':[
         {name:'site_code',label:'کد یکتای واحد',required:true},{name:'name',label:'نام واحد',required:true},
-        {name:'farm_type',label:'نوع فعالیت',type:'select',options:farmTypes,defaultValue:'mixed',required:true},
+        {name:'site_type',label:'نوع فعالیت',type:'select',options:farmTypes,defaultValue:'mixed',required:true},
         {name:'supplier_id',label:'مسئول / شریک',type:'select',options:suppliers},
-        {name:'province',label:'استان'},{name:'city',label:'شهر'},
+        {name:'province',label:'استان / ناحیه'},{name:'city',label:'شهر'},
+        {name:'latitude',label:'عرض جغرافیایی',type:'number',min:'-90',max:'90',step:'0.000001',helper:'اختیاری؛ برای جای‌گذاری نقطه روی نقشه'},
+        {name:'longitude',label:'طول جغرافیایی',type:'number',min:'-180',max:'180',step:'0.000001',helper:'اختیاری؛ برای جای‌گذاری نقطه روی نقشه'},
         {name:'address',label:'نشانی',type:'textarea',full:true},{name:'registration_reference',label:'شناسه یا مجوز'},
         {name:'license_expires_on',label:'تاریخ انقضای مجوز',type:'date'},
       ],
       'flock-cycles':[
         {name:'farm_site_id',label:'واحد مزرعه',type:'select',required:true,options:sites},{name:'cycle_code',label:'کد چرخه',required:true},
-        {name:'species',label:'گونه / نوع فعالیت',required:true,defaultValue:'عمومی',helper:'مثلاً گندم، برنج، گاو، گوسفند، طیور، ماهی یا گونه‌ی دیگر'},
+        {name:'cycle_type',label:'نوع چرخه',type:'select',options:cycleTypes,defaultValue:'mixed',required:true},
+        {name:'species',label:'گونه / محصول / فعالیت',required:true,defaultValue:'عمومی',helper:'مثلاً گندم، برنج، گاو، گوسفند، طیور، ماهی یا گونه‌ی دیگر'},
         {name:'arrived_on',label:'تاریخ شروع',type:'date'},{name:'planned_end_on',label:'پایان برنامه‌ای',type:'date'},
-        {name:'initial_count',label:'مقدار اولیه',type:'number',min:'0',step:'0.001',helper:'متناسب با واحد گونه یا چرخه؛ مانند عدد، بوته یا کیلوگرم'},
+        {name:'initial_quantity',label:'مقدار اولیه',type:'number',min:'0',step:'0.001',helper:'مقدار اولیه را متناسب با واحد سنجش وارد کنید'},
+        {name:'quantity_unit',label:'واحد مقدار اولیه',defaultValue:'عدد',required:true},
         {name:'notes',label:'یادداشت',type:'textarea',full:true},
       ],
       'production-batches':[
@@ -220,12 +231,13 @@ export function OperationsWorkspacePage({kind,membership,search}:{kind:Operation
         {name:'batch_id',label:'بچ تولید',type:'select',options:batches,required:true},
         {name:'record_date',label:'تاریخ ثبت',type:'date',required:true,defaultValue:new Date().toISOString().slice(0,10)},
         {name:'shift_label',label:'شیفت / نوبت',defaultValue:'روزانه',required:true},
-        {name:'input_name',label:'ورودی / مصرف',helper:'مثلاً آب، بذر، خوراک، کود یا ماده‌ی مصرفی'},
-        {name:'input_quantity',label:'مقدار ورودی',type:'number',min:'0',step:'0.001'},
-        {name:'input_unit',label:'واحد ورودی',defaultValue:'کیلوگرم'},
-        {name:'loss_count',label:'تعداد اتلاف / تلفات',type:'number',min:'0',step:'0.001',defaultValue:'0'},
+        {name:'resource_name',label:'ورودی / منبع مصرف',helper:'مثلاً آب، بذر، خوراک، کود یا ماده‌ی مصرفی'},
+        {name:'input_quantity',label:'مقدار ورودی',type:'number',min:'0',step:'0.001',defaultValue:'0'},
+        {name:'input_unit',label:'واحد ورودی',defaultValue:'کیلوگرم',required:true},
+        {name:'loss_quantity',label:'مقدار اتلاف / ضایعات',type:'number',min:'0',step:'0.001',defaultValue:'0'},
+        {name:'loss_unit',label:'واحد اتلاف',defaultValue:'عدد',required:true},
         {name:'produced_quantity',label:'مقدار خروجی',type:'number',min:'0',step:'0.001'},
-        {name:'rejected_quantity',label:'مقدار مردودی / ضایعات',type:'number',min:'0',step:'0.001',defaultValue:'0'},
+        {name:'rejected_quantity',label:'مقدار مردودی',type:'number',min:'0',step:'0.001',defaultValue:'0'},
         {name:'note',label:'یادداشت',type:'textarea',full:true},
       ],
       'task-templates':[
@@ -305,13 +317,15 @@ export function OperationsWorkspacePage({kind,membership,search}:{kind:Operation
       if(!site){setBusy(false);setError('برای ثبت رخداد از حساب تأمین‌کننده، سایت متعلق به همان تأمین‌کننده را انتخاب کن.');return;}
     }
     if(kind==='farm-sites'){
-      payload={...base,site_code:str('site_code'),name:str('name'),farm_type:str('farm_type')||'mixed',
-        supplier_id:str('supplier_id')||null,province:str('province')||null,
-        city:str('city')||null,address:str('address')||null,registration_reference:str('registration_reference')||null,
-        license_expires_on:date('license_expires_on'),created_by:membership.user_id,active:true};
+      payload={...base,site_code:str('site_code'),name:str('name'),site_type:str('site_type')||'mixed',
+        supplier_id:str('supplier_id')||null,province:str('province')||null,city:str('city')||null,
+        latitude:num('latitude'),longitude:num('longitude'),address:str('address')||null,
+        registration_reference:str('registration_reference')||null,license_expires_on:date('license_expires_on'),
+        created_by:membership.user_id,active:true};
     }else if(kind==='flock-cycles'){
       payload={...base,farm_site_id:str('farm_site_id'),cycle_code:str('cycle_code'),arrived_on:date('arrived_on'),planned_end_on:date('planned_end_on'),
-        initial_count:num('initial_count'),species:str('species')||'عمومی',notes:str('notes')||null,status:'planned',created_by:membership.user_id};
+        cycle_type:str('cycle_type')||'mixed',species:str('species')||'عمومی',initial_quantity:num('initial_quantity'),
+        quantity_unit:str('quantity_unit')||'عدد',initial_bird_count:null,notes:str('notes')||null,status:'planned',created_by:membership.user_id};
     }else if(kind==='production-batches'){
       const site=refs.sites.find(r=>String(r.id)===str('farm_site_id'));
       payload={...base,farm_site_id:str('farm_site_id'),supplier_id:site?.supplier_id??null,batch_code:str('batch_code'),
@@ -325,9 +339,9 @@ export function OperationsWorkspacePage({kind,membership,search}:{kind:Operation
       const produced=num('produced_quantity');
       const rejected=num('rejected_quantity')??0;
       payload={...base,batch_id:str('batch_id'),record_date:str('record_date'),shift_label:str('shift_label')||'daily',
-        input_name:str('input_name')||null,input_quantity:num('input_quantity'),input_unit:str('input_unit')||null,
-        loss_count:num('loss_count')??0,rejected_quantity:rejected,
-        feed_consumed_kg:0,mortality_count:animalKinds.includes(productionKind)?Math.trunc(num('loss_count')??0):0,
+        resource_name:str('resource_name')||null,input_quantity:num('input_quantity')??0,input_unit:str('input_unit')||'کیلوگرم',
+        loss_quantity:num('loss_quantity')??0,loss_unit:str('loss_unit')||'عدد',rejected_quantity:rejected,
+        feed_consumed_kg:0,mortality_count:animalKinds.includes(productionKind)?Math.trunc(num('loss_quantity')??0):0,
         eggs_collected:productionKind==='eggs'&&produced!==null?Math.trunc(produced):0,
         eggs_rejected:productionKind==='eggs'?Math.trunc(rejected):0,
         produced_quantity:produced,average_weight_grams:null,note:str('note')||null,recorded_by:membership.user_id};
