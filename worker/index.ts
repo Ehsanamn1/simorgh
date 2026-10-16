@@ -695,6 +695,49 @@ function buildDataWhere(table:string,columns:Set<string>,filters:DataFilter[],co
   }
   return {params,where:where.join(' AND ')};
 }
+app.post('/api/rpc/:name', async c => {
+  let user:AuthUser|null;
+  try{user=await currentUser(c);}catch{return jsonError(c,'پایگاه داده پیکربندی نشده است.',503);}
+  if(!user)return jsonError(c,'برای اجرای عملیات ابتدا وارد حساب شو.',401);
+  const name=c.req.param('name');
+  let args:Record<string,unknown>;
+  try{args=await c.req.json();}catch{return jsonError(c,'پارامترهای عملیات معتبر نیست.',400);}
+  const companyId=typeof args._company==='string'?args._company:typeof args.company_id==='string'?args.company_id:'';
+  if(!validUuid(companyId))return jsonError(c,'شناسه مجموعه معتبر نیست.',400);
+  try{
+    const sql=sqlFor(c),membership=await operationMembership(sql,user.id,companyId);
+    if(!membership)return jsonError(c,'عضویت فعال در این مجموعه پیدا نشد.',403);
+    if(name==='company_members'){
+      if(!['owner','admin','staff'].includes(membership.role))return jsonError(c,'فهرست اعضای مجموعه برای این نقش مجاز نیست.',403);
+      const rows=await sql`SELECT m.id,m.user_id,m.role::text AS role,m.active,m.created_at,u.username,u.display_name,u.phone_e164
+        FROM public.memberships m JOIN public.medar_users u ON u.id=m.user_id
+        WHERE m.company_id=${companyId}::uuid
+        ORDER BY m.created_at DESC`;
+      const data=rows.map(row=>({id:row.id,user_id:row.user_id,role:row.role,active:row.active,created_at:row.created_at,username:row.username,profiles:{full_name:row.display_name,phone:row.phone_e164}}));
+      return c.json({data,count:data.length});
+    }
+    if(name==='allocate_order_item'){
+      if(!['owner','admin'].includes(membership.role))return jsonError(c,'تخصیص ظرفیت فقط برای مالک یا مدیر مجاز است.',403);
+      const orderItem=typeof args._order_item==='string'?args._order_item:'',capacity=typeof args._capacity==='string'?args._capacity:'';
+      if(!validUuid(orderItem)||!validUuid(capacity))return jsonError(c,'ردیف سفارش یا ظرفیت معتبر نیست.',400);
+      await sql`SELECT public.medar_allocate_order_item(${user.id}::uuid,${companyId}::uuid,${orderItem}::uuid,${capacity}::uuid)`;
+      await sql`INSERT INTO public.audit_events(company_id,actor_id,table_name,record_id,action,changes,occurred_at)
+        VALUES(${companyId}::uuid,${user.id}::uuid,'order_items',${orderItem},'order.item.allocated',jsonb_build_object('capacity_commitment_id',${capacity}),now())`;
+      return c.json({data:null,count:null});
+    }
+    if(name==='record_inventory_movement'){
+      if(!['owner','admin','staff'].includes(membership.role))return jsonError(c,'ثبت گردش انبار برای این نقش مجاز نیست.',403);
+      const product=typeof args._product==='string'?args._product:'',movementType=typeof args._movement_type==='string'?args._movement_type:'',quantity=Number(args._quantity);
+      if(!validUuid(product)||!Number.isFinite(quantity)||quantity<=0)return jsonError(c,'محصول یا مقدار گردش معتبر نیست.',400);
+      const unitCost=args._unit_cost===null||args._unit_cost===undefined?null:Number(args._unit_cost);
+      const supplier=typeof args._supplier==='string'?args._supplier:null,order=typeof args._order==='string'?args._order:null,lot=typeof args._lot==='string'?args._lot:null;
+      const reference=typeof args._reference_code==='string'?args._reference_code:null,note=typeof args._note==='string'?args._note:null;
+      const rows=await sql`SELECT public.medar_record_inventory_movement(${user.id}::uuid,${companyId}::uuid,${product}::uuid,${movementType},${quantity},${unitCost},${supplier}::uuid,${order}::uuid,${lot}::uuid,${reference},${note}) AS id`;
+      return c.json({data:(rows[0] as {id:string}).id,count:null});
+    }
+    return jsonError(c,'این عملیات سروری پشتیبانی نمی‌شود.',404);
+  }catch(error){const message=error instanceof Error?error.message:'';return jsonError(c,message||'اجرای عملیات انجام نشد.',400);}
+});
 app.post('/api/data/:table/query', async c => {
   let user:AuthUser|null;
   try{user=await currentUser(c);}catch{return jsonError(c,'پایگاه داده پیکربندی نشده است.',503);}
