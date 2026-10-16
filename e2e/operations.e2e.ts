@@ -187,13 +187,18 @@ test('signed-in accounts without membership wait for lookup and stay on the acce
   await installIsolatedSession(page, 'unprovisioned');
   let membershipRequests = 0;
   await page.route(projectUrl + '/rest/v1/memberships*', async route => {
+    const headers = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': 'GET,HEAD,OPTIONS,POST,PATCH,DELETE,PUT', 'content-type': 'application/json', 'cache-control': 'no-store' };
+    if (route.request().method() === 'OPTIONS') {
+      await route.fulfill({ status: 204, headers, body: '' });
+      return;
+    }
+    if (route.request().method() === 'HEAD') {
+      await route.fulfill({ status: 200, headers: { ...headers, 'content-range': '*/0' }, body: '' });
+      return;
+    }
     membershipRequests += 1;
     await new Promise(resolve => setTimeout(resolve, 450));
-    await route.fulfill({
-      status: 200,
-      headers: { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': 'GET,HEAD,OPTIONS', 'content-type': 'application/json', 'content-range': '*/0', 'cache-control': 'no-store' },
-      body: '[]',
-    });
+    await route.fulfill({ status: 200, headers: { ...headers, 'content-range': '*/0' }, body: '[]' });
   });
 
   await page.goto('/simorgh/app/command', { waitUntil: 'domcontentloaded' });
@@ -203,8 +208,9 @@ test('signed-in accounts without membership wait for lookup and stay on the acce
   await expect(page.getByRole('heading', { name: 'حساب شما هنوز به مجموعه‌ای متصل نیست.' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'بررسی دوباره دسترسی' })).toBeVisible();
 
+  const beforeRetry = membershipRequests;
   await page.getByRole('button', { name: 'بررسی دوباره دسترسی' }).click();
-  await expect.poll(() => membershipRequests).toBeGreaterThan(1);
+  await expect.poll(() => membershipRequests).toBeGreaterThan(beforeRetry);
   await expect(page.locator('.waiting-screen')).toBeVisible();
   await expect(page.getByRole('button', { name: 'خروج از حساب' })).toBeVisible();
 });
