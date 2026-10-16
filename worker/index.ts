@@ -1608,7 +1608,7 @@ app.post('/api/auth/change-password', async c => {
 });
 
 
-app.get('/api/operations/alerts', async c => {
+app.get('/api/alerts', async c => {
   let user: AuthUser | null;
   try { user = await currentUser(c); } catch { return jsonError(c, 'پایگاه داده پیکربندی نشده است.', 503); }
   if (!user) return jsonError(c, 'برای مشاهده مرکز هشدارها ابتدا وارد حساب شو.', 401);
