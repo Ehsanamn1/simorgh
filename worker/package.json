@@ -1,0 +1,8 @@
+{
+  "name": "medar-api",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "hono": "^4.9.7"
+  }
+}
