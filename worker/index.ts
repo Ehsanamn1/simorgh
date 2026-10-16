@@ -782,7 +782,7 @@ app.post('/api/operations/:kind', async c => {
   if(!validUuid(companyId))return jsonError(c,'شناسه مجموعه معتبر نیست.',400);
   try{
     const sql=sqlFor(c),membership=await operationMembership(sql,user.id,companyId);
-    if(!membership||!['owner','admin','staff'].includes(membership.role))return jsonError(c,'برای ثبت این عملیات مجوز نداری.',403);
+    if(!membership||(!['owner','admin','staff'].includes(membership.role)&&!(membership.role==='supplier'&&['daily-production','incidents'].includes(kind))))return jsonError(c,'برای ثبت این عملیات مجوز نداری.',403);
     if(config.managerOnly&&!['owner','admin'].includes(membership.role))return jsonError(c,'ثبت این سند فقط برای مالک یا مدیر مجاز است.',403);
     const serverManaged=new Set(['status','created_by','recorded_by','assigned_by','reported_by','reported_supplier_id','quality_status','direction','paid_amount','payment_status','paid_by','currency','signed_document_path','signed_at','completion_note','review_note','created_at','updated_at']);
     const fields=config.fields.filter(field=>Object.prototype.hasOwnProperty.call(data,field)&&!serverManaged.has(field));
@@ -806,8 +806,9 @@ app.post('/api/operations/:kind', async c => {
       if(!Number.isFinite(amount)||amount<=0||!Number.isFinite(paidInput)||paidInput<0||paidInput>amount)return jsonError(c,'مبلغ سند یا مبلغ پرداخت‌شده معتبر نیست.',400);
       const paidAmount=['sale_collection','partner_advance'].includes(entryType)?amount:paidInput;
       const paymentStatus=['sale_collection','partner_advance'].includes(entryType)?'paid':paidAmount<=0?(entryType==='expense'?'unpaid':'not_applicable'):paidAmount>=amount?'paid':'partial';
-      const direction=entryType==='sale_collection'?'inflow_to_company':entryType==='partner_advance'?'company_to_partner':'not_cash';
-      const paidBy=entryType==='sale_collection'?'customer':entryType==='partner_advance'?'company':entryType==='expense'?(String(data.paid_by||'none')):'none';
+      const paidBy=entryType==='sale_collection'?'customer':entryType==='partner_advance'?(String(data.paid_by||'company')):entryType==='expense'?(String(data.paid_by||'none')):'none';
+      const direction=entryType==='sale_collection'?'inflow_to_company':entryType==='partner_advance'?(paidBy==='partner'?'partner_to_company':'company_to_partner'):entryType==='expense'?(paidBy==='company'?'outflow_from_company':'not_cash'):'not_cash';
+      if(entryType==='partner_advance'&&!['company','partner'].includes(paidBy))return jsonError(c,'پیش‌پرداخت باید به‌عنوان پرداخت شرکت یا شریک مشخص شود.',400);
       if(entryType==='expense'&&!String(data.expense_category||'').trim())return jsonError(c,'برای هزینه، دسته هزینه لازم است.',400);
       if(['sale_collection','partner_advance'].includes(entryType)&&!String(data.external_reference||'').trim())return jsonError(c,'شماره رسید یا مرجع واقعی لازم است.',400);
       if(entryType==='sale_collection'){
@@ -821,7 +822,7 @@ app.post('/api/operations/:kind', async c => {
       }
       addManaged('paid_amount',paidAmount);addManaged('payment_status',paymentStatus);addManaged('direction',direction);addManaged('paid_by',paidBy);addManaged('currency','TOMAN');
     }
-    if(kind==='farm-sites'&&Boolean(data.latitude)!==Boolean(data.longitude))return jsonError(c,'برای ثبت مختصات، عرض و طول جغرافیایی باید با هم وارد شوند.',400);
+    if(kind==='farm-sites'){const lat=data.latitude===null||data.latitude===''||data.latitude===undefined?null:Number(data.latitude);const lon=data.longitude===null||data.longitude===''||data.longitude===undefined?null:Number(data.longitude);if((lat===null)!==(lon===null)||(lat!==null&&(!Number.isFinite(lat)||lat < -90||lat > 90))||(lon!==null&&(!Number.isFinite(lon)||lon < -180||lon > 180)))return jsonError(c,'عرض و طول جغرافیایی باید با هم و در محدوده معتبر وارد شوند.',400);}
     if(kind==='partnership-agreements'){
       const companyShare=Number(data.company_profit_share_pct),partnerShare=Number(data.partner_profit_share_pct);
       if(Math.abs(companyShare+partnerShare-100)>0.0001)return jsonError(c,'مجموع سهم شرکت و شریک باید ۱۰۰ درصد باشد.',400);
@@ -836,6 +837,36 @@ app.post('/api/operations/:kind', async c => {
     if(data.assignee_user_id){
       const assignee=await sql`SELECT id FROM public.memberships WHERE company_id=${companyId}::uuid AND user_id=${String(data.assignee_user_id)}::uuid AND active=true AND role::text IN ('owner','admin','staff') LIMIT 1`;
       if(!assignee.length)return jsonError(c,'مسئول وظیفه عضو فعال همین مجموعه نیست.',400);
+    }
+    if(kind==='operational-tasks'&&!data.assignee_user_id&&!data.assignee_supplier_id)return jsonError(c,'برای وظیفه باید یک مسئول داخلی یا تأمین‌کننده تعیین شود.',400);
+    if(kind==='production-batches'&&data.farm_site_id){
+      const siteRows=await queryRows(sql,'SELECT supplier_id FROM public.farm_sites WHERE id=$1::uuid AND company_id=$2::uuid LIMIT 1',[data.farm_site_id,companyId]);
+      if(!siteRows.length)return jsonError(c,'مزرعه انتخاب‌شده متعلق به این مجموعه نیست.',400);
+      const siteSupplier=(siteRows[0] as {supplier_id:string|null}).supplier_id;
+      if(siteSupplier&&data.supplier_id&&siteSupplier!==data.supplier_id)return jsonError(c,'تأمین‌کننده بچ باید با تأمین‌کننده مزرعه هماهنگ باشد.',400);
+      if(siteSupplier)addManaged('supplier_id',siteSupplier);
+    }
+    if(kind==='daily-production'&&membership.role==='supplier'){
+      if(!membership.supplier_id)return jsonError(c,'این حساب به پروفایل تأمین‌کننده متصل نیست.',403);
+      const batch=await queryRows(sql,'SELECT id FROM public.production_batches WHERE id=$1::uuid AND company_id=$2::uuid AND supplier_id=$3::uuid LIMIT 1',[data.batch_id,companyId,membership.supplier_id]);
+      if(!batch.length)return jsonError(c,'ثبت تولید فقط برای بچ‌های همین تأمین‌کننده مجاز است.',403);
+    }
+    if(kind==='incidents'){
+      let reportSupplier:string|null=null;
+      if(membership.role==='supplier'){
+        if(!membership.supplier_id)return jsonError(c,'این حساب به پروفایل تأمین‌کننده متصل نیست.',403);
+        const siteOk=data.farm_site_id?await queryRows(sql,'SELECT id FROM public.farm_sites WHERE id=$1::uuid AND company_id=$2::uuid AND supplier_id=$3::uuid LIMIT 1',[data.farm_site_id,companyId,membership.supplier_id]):[];
+        const batchOk=data.batch_id?await queryRows(sql,'SELECT id FROM public.production_batches WHERE id=$1::uuid AND company_id=$2::uuid AND supplier_id=$3::uuid LIMIT 1',[data.batch_id,companyId,membership.supplier_id]):[];
+        if(!siteOk.length&&!batchOk.length)return jsonError(c,'گزارش رخداد باید به مزرعه یا بچ همین تأمین‌کننده متصل باشد.',403);
+        reportSupplier=membership.supplier_id;
+      }else if(data.farm_site_id){
+        const site=await queryRows(sql,'SELECT supplier_id FROM public.farm_sites WHERE id=$1::uuid AND company_id=$2::uuid LIMIT 1',[data.farm_site_id,companyId]);
+        if(site.length)reportSupplier=(site[0] as {supplier_id:string|null}).supplier_id;
+      }else if(data.batch_id){
+        const batch=await queryRows(sql,'SELECT supplier_id FROM public.production_batches WHERE id=$1::uuid AND company_id=$2::uuid LIMIT 1',[data.batch_id,companyId]);
+        if(batch.length)reportSupplier=(batch[0] as {supplier_id:string|null}).supplier_id;
+      }
+      addManaged('reported_supplier_id',reportSupplier);
     }
     const placeholders=insertValues.map((_,index)=>'$'+(index+1)).join(',');
     const query=`INSERT INTO public.${config.table} (${insertFields.join(',')}) VALUES (${placeholders}) RETURNING *`;
