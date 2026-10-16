@@ -1,12 +1,21 @@
 import type * as React from 'react';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { neonAuth } from './neonAuth';
 import { api } from './apiClient';
 import type { Membership } from './types';
 
-type UserShape = { id: string; email?: string; user_metadata?: Record<string, unknown> };
+type UserShape = {
+  id: string;
+  username: string;
+  phone?: string;
+  display_name?: string;
+  user_metadata?: Record<string, unknown>;
+};
 type SessionShape = { user: UserShape };
-type AuthValue = { session: SessionShape | null; user: UserShape | null; memberships: Membership[]; loading: boolean; membershipsLoading: boolean; error: string | null; refreshMemberships: () => Promise<void>; signOut: () => Promise<void> };
+type AuthValue = {
+  session: SessionShape | null; user: UserShape | null; memberships: Membership[];
+  loading: boolean; membershipsLoading: boolean; error: string | null;
+  refreshMemberships: () => Promise<void>; refreshSession: () => Promise<void>; signOut: () => Promise<void>;
+};
 const AuthContext = createContext<AuthValue | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -15,6 +24,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [membershipsLoading, setMembershipsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const refreshSession = useCallback(async () => {
+    try {
+      const result = await api.get<{ user: null | { id: string; username: string; phone: string; displayName: string; requestedRole: string } }>('/api/auth/me');
+      if (!result.user) { setSession(null); setMemberships([]); return; }
+      const u = result.user;
+      setSession({ user: { id: u.id, username: u.username, phone: u.phone, display_name: u.displayName,
+        user_metadata: { requested_role: u.requestedRole, full_name: u.displayName, phone: u.phone } } });
+      setError(null);
+    } catch (caught) {
+      setSession(null);
+      if (caught instanceof Error && 'status' in caught && (caught as { status?: number }).status !== 401) {
+        setError(caught.message);
+      }
+    } finally { setLoading(false); }
+  }, []);
 
   const refreshMemberships = useCallback(async () => {
     if (!session?.user?.id) { setMemberships([]); setMembershipsLoading(false); return; }
@@ -29,34 +54,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } finally { setMembershipsLoading(false); }
   }, [session?.user?.id]);
 
-  useEffect(() => {
-    let alive = true;
-    if (!neonAuth) { setLoading(false); return () => { alive = false; }; }
-    void neonAuth.getSession().then((result) => {
-      if (!alive) return;
-      const data = result?.data as { session?: SessionShape; user?: UserShape } | null;
-      setSession(data?.session ?? (data?.user ? { user: data.user } : null));
-      setLoading(false);
-    }).catch((caught: unknown) => {
-      if (!alive) return;
-      setError(caught instanceof Error ? caught.message : 'خواندن نشست کاربری ناموفق بود.');
-      setLoading(false);
-    });
-    const listener = neonAuth.onAuthStateChange?.((_event: string, nextSession: unknown) => {
-      if (!alive) return;
-      setSession(nextSession as SessionShape | null);
-      setLoading(false);
-      if (!nextSession) { setMemberships([]); setError(null); }
-    });
-    return () => { alive = false; listener?.data?.subscription?.unsubscribe?.(); };
-  }, []);
-
+  useEffect(() => { void refreshSession(); }, [refreshSession]);
   useEffect(() => { void refreshMemberships(); }, [refreshMemberships]);
 
   const value = useMemo<AuthValue>(() => ({
-    session, user: session?.user ?? null, memberships, loading, membershipsLoading, error, refreshMemberships,
-    signOut: async () => { if (neonAuth) await neonAuth.signOut(); setSession(null); setMemberships([]); setMembershipsLoading(false); },
-  }), [session, memberships, loading, membershipsLoading, error, refreshMemberships]);
+    session, user: session?.user ?? null, memberships, loading, membershipsLoading, error,
+    refreshMemberships, refreshSession,
+    signOut: async () => {
+      try { await api.post('/api/auth/logout', {}); }
+      finally { setSession(null); setMemberships([]); setMembershipsLoading(false); }
+    },
+  }), [session, memberships, loading, membershipsLoading, error, refreshMemberships, refreshSession]);
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 export function useAuth() { const context = useContext(AuthContext); if (!context) throw new Error('AuthProvider missing'); return context; }
