@@ -12,7 +12,7 @@ import type { AppRole } from './lib/types';
 type NavigationEntry = { key: string; label: string };
 type PublicRequestedRole = 'staff' | 'supplier' | 'driver' | 'customer';
 type AuthMode = 'signin' | 'signup' | 'reset' | 'recovery';
-const requestedRoles: { value: PublicRequestedRole; label: string; Icon: LucideIcon }[] = [
+function normalizeIranPhone(value: string): string {\n  const digits = value.trim().replace(/[\\s()-]/g, '');\n  if (/^09\\d{9}$/.test(digits)) return '+98' + digits.slice(1);\n  if (/^9\\d{9}$/.test(digits)) return '+98' + digits;\n  if (/^\\+989\\d{9}$/.test(digits)) return digits;\n  return '';\n}\n\nconst requestedRoles: { value: PublicRequestedRole; label: string; Icon: LucideIcon }[] = [
   { value: 'customer', label: 'خریدار عمده', Icon: Boxes },
   { value: 'supplier', label: 'شریک مزرعه', Icon: Factory },
   { value: 'driver', label: 'راننده / حمل', Icon: Truck },
@@ -206,7 +206,7 @@ export default function ProductExperience() {
     if (mode === 'signup') {
       if (fullName.trim().length < 2 || fullName.trim().length > 160) { setError('نام کامل باید بین ۲ تا ۱۶۰ نویسه باشد.'); return; }
       if (organizationName.trim().length < 2 || organizationName.trim().length > 160) { setError('نام مجموعه باید بین ۲ تا ۱۶۰ نویسه باشد.'); return; }
-      if (password.length < 8) { setError('گذرواژه باید حداقل ۸ نویسه باشد.'); return; }
+      if (password.length < 8) { setError('گذرواژه باید حداقل ۸ نویسه باشد.'); return; }\n      const normalizedPhone = normalizeIranPhone(phone);\n      if (!normalizedPhone) { setError('شماره موبایل ایران معتبر وارد کن؛ مثال: 09121234567'); return; }
       if (password !== confirmPassword) { setError('تکرار گذرواژه یکسان نیست.'); return; }
     }
     setBusy(true); setError(''); setNotice('');
@@ -226,7 +226,7 @@ export default function ProductExperience() {
             data: {
               full_name: fullName.trim(),
               organization_name: organizationName.trim(),
-              phone: phone.trim() || null,
+              phone: normalizedPhone,
               signup_workspace_pending: true,
             },
           },
@@ -318,12 +318,12 @@ export default function ProductExperience() {
             {mode === 'signin' || mode === 'signup' ? <MedarLogo compact className="signin-form-logo"/> : <span className="signin-form-icon"><KeyRound size={21}/></span>}
             <span className="signin-overline">{mode === 'signup' ? 'ثبت‌نام مجموعه' : mode === 'reset' ? 'بازیابی گذرواژه' : mode === 'recovery' ? 'تنظیم گذرواژه تازه' : 'ورود امن'}</span>
             <h2 id="simorgh-signin-title">{mode === 'signup' ? 'ساخت حساب و فضای کاری' : mode === 'reset' ? 'بازیابی گذرواژه' : mode === 'recovery' ? 'گذرواژه جدید' : 'ورود به مدار'}</h2>
-            <p>{mode === 'signup' ? 'حساب بساز و فضای کاری خصوصی مجموعه‌ات را ایجاد کن. داده‌های شرکت‌های دیگر از این حساب جدا می‌ماند.' : mode === 'reset' ? 'ایمیل حساب را وارد کن تا در صورت وجود حساب، لینک بازیابی ارسال شود.' : mode === 'recovery' ? 'یک گذرواژه جدید و قوی برای حساب انتخاب کن.' : 'با ایمیل و گذرواژه وارد فضای کاری‌ات شو.'}</p>
+            <p>{mode === 'signup' ? 'حساب بساز، شماره موبایل ایرانی‌ات را ثبت کن و فضای کاری خصوصی مجموعه‌ات را ایجاد کن. داده‌های شرکت‌های دیگر از این حساب جدا می‌ماند.' : mode === 'reset' ? 'ایمیل حساب را وارد کن تا در صورت وجود حساب، لینک بازیابی ارسال شود.' : mode === 'recovery' ? 'یک گذرواژه جدید و قوی برای حساب انتخاب کن.' : 'با ایمیل و گذرواژه وارد فضای کاری‌ات شو. شماره موبایل برای بازیابی و ارتباط عملیاتی حساب ثبت می‌شود.'}</p>
              <form className="simorgh-signin-form" onSubmit={event => void submitAuth(event)}>
                {mode === 'signup' && <>
                  <label htmlFor="simorgh-signin-full-name">نام و نام خانوادگی</label><input id="simorgh-signin-full-name" className="auth-input" type="text" autoComplete="name" required minLength={2} maxLength={160} value={fullName} onChange={e => setFullName(e.target.value)} placeholder="نام کامل"/>
                  <label htmlFor="simorgh-signin-organization">نام مزرعه یا مجموعه</label><input id="simorgh-signin-organization" className="auth-input" type="text" required minLength={2} maxLength={160} value={organizationName} onChange={e => setOrganizationName(e.target.value)} placeholder="نام مجموعه"/>
-                 <label htmlFor="simorgh-signin-phone">شماره تماس <span className="signin-optional">اختیاری</span></label><input id="simorgh-signin-phone" className="auth-input" type="tel" autoComplete="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="شماره تماس" dir="ltr"/>
+                 <label htmlFor="simorgh-signin-phone">شماره موبایل</label><input id="simorgh-signin-phone" className="auth-input" type="tel" autoComplete="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="09121234567" pattern="(?:09\\d{9}|9\\d{9}|\\+989\\d{9})" required dir="ltr"/>
                </>}
                <label htmlFor="simorgh-signin-email">ایمیل</label><input id="simorgh-signin-email" className="auth-input" type="email" autoComplete="username" inputMode="email" required={mode !== 'recovery'} value={email} onChange={e => setEmail(e.target.value)} placeholder="name@company.com" dir="ltr"/>
                {mode !== 'reset' && <>
