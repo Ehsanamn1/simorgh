@@ -70,7 +70,7 @@ jobs:
           worker_url="$(grep -Eo 'https://[^[:space:]]+\.workers\.dev' "$RUNNER_TEMP/worker-deploy.log" | tail -n 1 || true)"
           if [[ -z "$worker_url" ]]; then echo "Could not extract the deployed Worker URL."; exit 1; fi
           echo "MEDAR_WORKER_URL=$worker_url" >> "$GITHUB_ENV"
-      - name: Smoke-test Worker API and Neon connection
+      - name: Smoke-test Worker health, database, and authentication guards
         shell: bash
         run: |
           set -euo pipefail
@@ -78,3 +78,16 @@ jobs:
           echo "$response"
           echo "$response" | grep -q '"ok":true'
           echo "$response" | grep -q '"database":true'
+
+          auth_status="$(curl --silent --show-error -o "$RUNNER_TEMP/auth-me.json" -w '%{http_code}' "$MEDAR_WORKER_URL/api/auth/me")"
+          cat "$RUNNER_TEMP/auth-me.json"
+          test "$auth_status" = "401"
+          grep -q '"user":null' "$RUNNER_TEMP/auth-me.json"
+
+          protected_status="$(curl --silent --show-error -o "$RUNNER_TEMP/protected.json" -w '%{http_code}' "$MEDAR_WORKER_URL/api/workspace/memberships")"
+          cat "$RUNNER_TEMP/protected.json"
+          test "$protected_status" = "401"
+
+          signup_status="$(curl --silent --show-error -o "$RUNNER_TEMP/signup-validation.json" -w '%{http_code}' -X POST -H 'content-type: application/json' --data '{}' "$MEDAR_WORKER_URL/api/auth/signup")"
+          cat "$RUNNER_TEMP/signup-validation.json"
+          test "$signup_status" = "400"
