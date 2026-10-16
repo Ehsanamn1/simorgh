@@ -101,6 +101,11 @@ jobs:
           grep -q 'ops-live-app' "$css_file"
           echo "Published app entry, JavaScript bundle, and CSS bundle are reachable."
 
+      - name: Checkout source for the browser runtime smoke test
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && github.sha || github.event.workflow_run.head_sha }}
+
       - name: Install Chromium for published application test
         uses: actions/setup-node@v7
         with:
