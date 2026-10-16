@@ -83,12 +83,12 @@ function AppShell() {
     document.documentElement.dataset.theme = theme;
     document.documentElement.style.colorScheme = theme;
     const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
-    if (meta) meta.content = theme === 'dark' ? '#0B1012' : '#F4F7F7';
+    if (meta) meta.content = theme === 'dark' ? '#101719' : '#F4F7F7';
     if (Capacitor.isNativePlatform()) {
       void StatusBar.setStyle({ style: theme === 'dark' ? Style.Light : Style.Dark }).catch(() => {});
       void StatusBar.setOverlaysWebView({ overlay: false }).catch(() => {});
       if (Capacitor.getPlatform() === 'android') {
-        void StatusBar.setBackgroundColor({ color: theme === 'dark' ? '#0B1012' : '#F4F7F7' }).catch(() => {});
+        void StatusBar.setBackgroundColor({ color: theme === 'dark' ? '#101719' : '#F4F7F7' }).catch(() => {});
       }
     }
     try { window.localStorage.setItem('simorgh-theme', theme); } catch { /* Private browsing may disable storage. */ }
