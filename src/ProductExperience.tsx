@@ -206,7 +206,8 @@ export default function ProductExperience() {
     if (mode === 'signup') {
       if (fullName.trim().length < 2 || fullName.trim().length > 160) { setError('نام کامل باید بین ۲ تا ۱۶۰ نویسه باشد.'); return; }
       if (organizationName.trim().length < 2 || organizationName.trim().length > 160) { setError('نام مجموعه باید بین ۲ تا ۱۶۰ نویسه باشد.'); return; }
-      if (password.length < 8) { setError('گذرواژه باید حداقل ۸ نویسه باشد.'); return; }\n      const normalizedPhone = normalizeIranPhone(phone);\n      if (!normalizedPhone) { setError('شماره موبایل ایران معتبر وارد کن؛ مثال: 09121234567'); return; }
+      if (password.length < 8) { setError('گذرواژه باید حداقل ۸ نویسه باشد.'); return; }
+      const normalizedPhone = normalizeIranPhone(phone);\n      if (!normalizedPhone) { setError('شماره موبایل ایران معتبر وارد کن؛ مثال: 09121234567'); return; }
       if (password !== confirmPassword) { setError('تکرار گذرواژه یکسان نیست.'); return; }
     }
     setBusy(true); setError(''); setNotice('');
@@ -234,7 +235,7 @@ export default function ProductExperience() {
         if (signUpError) {
           const message = signUpError.message.toLowerCase();
           setError(message.includes('signup is disabled') || message.includes('signups not allowed')
-            ? 'ثبت‌نام در تنظیمات Auth پروژه غیرفعال است؛ باید ثبت‌نام ایمیلی در Supabase فعال شود.'
+            ? 'ثبت‌نام در تنظیمات Auth پروژه غیرفعال است؛ باید ثبت‌نام ایمیلی در Neon Auth فعال شود.'
             : 'ساخت حساب انجام نشد. ایمیل را بررسی کن و اگر قبلاً حسابی با آن ساخته‌ای، وارد شو.');
           return;
         }
