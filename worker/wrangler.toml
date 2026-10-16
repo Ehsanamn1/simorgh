@@ -1,0 +1,6 @@
+name = "medar-api"
+main = "index.ts"
+compatibility_date = "2026-10-16"
+
+[vars]
+# Non-secret configuration only. DATABASE_URL must be configured as a Cloudflare secret.
