@@ -443,14 +443,14 @@ export function OperationsWorkspacePage({kind,membership,search}:{kind:Operation
   const resolveIncident=(row:Row)=>{
     const note=window.prompt('اقدام اصلاحی برای رفع رخداد:');
     if(!note?.trim()){setError('برای بستن رخداد، اقدام اصلاحی لازم است.');return;}
-    void action(()=>updateRow('operational_incidents',row.id,{status:'resolved',resolution_note:note.trim(),resolved_by:membership.user_id,resolved_at:new Date().toISOString()}),'اقدام اصلاحی ثبت شد.');
+    void action(()=>api.post(`/api/operations/incidents/${encodeURIComponent(String(row.id))}/action`,{companyId:membership.company_id,action:'resolve-incident',resolutionNote:note.trim()}),'اقدام اصلاحی ثبت شد.');
   };
   const financeTransition=(row:Row,next:string)=>{
     if(next==='posted'&&['sale_collection','partner_advance','settlement_payment'].includes(String(row.entry_type))
       &&(String(row.payment_status)!=='paid'||numeric(row.paid_amount)!==numeric(row.amount)||!String(row.external_reference??'').trim())){
       setError('ثبت نهایی این سند به مبلغ پرداخت‌شده کامل و مرجع رسید واقعی نیاز دارد.');return;
     }
-    void action(()=>updateRow('partner_financial_entries',row.id,{status:next}),'وضعیت سند به «'+fa(next)+'» تغییر کرد.');
+    void action(()=>api.post(`/api/operations/partner-finance/${encodeURIComponent(String(row.id))}/action`,{companyId:membership.company_id,action:'finance-transition',nextStatus:next}),'وضعیت سند به «'+fa(next)+'» تغییر کرد.');
   };
   const createPeriod=async(e:FormEvent<HTMLFormElement>)=>{
     e.preventDefault();
