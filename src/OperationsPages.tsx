@@ -536,6 +536,7 @@ export function OperationsWorkspacePage({kind,membership,search}:{kind:Operation
       if(row.status==='open')buttons.push({label:'شروع بررسی',tone:'soft',fn:()=>void action(()=>api.post(`/api/operations/incidents/${encodeURIComponent(String(row.id))}/action`,{companyId:membership.company_id,action:'investigate'}),'رخداد وارد مرحله بررسی شد.')});
       buttons.push({label:'ثبت رفع رخداد',fn:()=>resolveIncident(row)});
     }
+    if(kind==='partnership-agreements'&&row.signed_document_path&&(manager||membership.role==='supplier'))buttons.push({label:'مشاهده سند امضا',tone:'soft',fn:()=>window.open(`/api/operations/partnership-agreements/${encodeURIComponent(String(row.id))}/document?companyId=${encodeURIComponent(membership.company_id)}`,'_blank','noopener,noreferrer')});
     if(kind==='partnership-agreements'&&manager){
       if(row.status==='draft')buttons.push({label:'ارسال برای امضا',tone:'soft',fn:()=>void action(()=>api.post(`/api/operations/partnership-agreements/${encodeURIComponent(String(row.id))}/action`,{companyId:membership.company_id,action:'submit-for-signature'}),'قرارداد برای امضا آماده شد.')});
       if(row.status==='pending_signature')buttons.push({label:'بارگذاری سند امضا',fn:()=>{setUploadAgreementId(String(row.id));document.getElementById('ops-agreement-file')?.click();}});
