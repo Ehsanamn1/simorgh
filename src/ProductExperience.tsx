@@ -1,10 +1,9 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Activity, ArrowLeft, Boxes, Building2, Check, ClipboardCheck, CreditCard, Factory, FileText, Home, LayoutDashboard, ListTodo, MapPin, Menu, Package, ShieldCheck, Target, Truck, Warehouse, X, UserPlus, Eye, EyeOff, KeyRound, RotateCcw } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useAuth } from './lib/AuthContext';
-import { neonAuth } from './lib/neonAuth';
 import { api } from './lib/apiClient';
 import { MedarLogo } from './MedarLogo';
 import type { AppRole } from './lib/types';
@@ -61,7 +60,7 @@ function readAllowedLinks(): NavigationEntry[] {
 
 /** Private operational app entry. Public self-registration is intentionally disabled. */
 export default function ProductExperience() {
-  const { user, loading, memberships, membershipsLoading, refreshMemberships } = useAuth();
+  const { user, loading, memberships, membershipsLoading, refreshMemberships, refreshSession } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [appMain, setAppMain] = useState<HTMLElement | null>(null);
@@ -83,7 +82,6 @@ export default function ProductExperience() {
   const [workspaceProvisionError, setWorkspaceProvisionError] = useState('');
   const [workspaceProvisioning, setWorkspaceProvisioning] = useState(false);
   const [workspaceProvisionRetry, setWorkspaceProvisionRetry] = useState(0);
-  const provisionedUserIds = useRef<Set<string>>(new Set());
   const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
   const protectedRoute = location.pathname.includes('/app');
   // Enable secure sign-in by default in web, preview and native builds; only an explicit false disables it.
@@ -120,17 +118,6 @@ export default function ProductExperience() {
   }, [appMain, location.pathname, user?.id, memberships.length, memberships[0]?.role]);
 
   useEffect(() => {
-    if (!neonAuth) return;
-    const { data: listener } = neonAuth.onAuthStateChange(event => {
-      if (event === 'PASSWORD_RECOVERY') {
-        setMode('recovery'); setError(''); setNotice('گذرواژه جدید را وارد کن تا بازیابی حساب تکمیل شود.');
-        navigate({ pathname: location.pathname, search: location.search, hash: '#signin' }, { replace: true });
-      }
-    });
-    return () => listener.subscription.unsubscribe();
-  }, [navigate, location.pathname, location.search]);
-
-  useEffect(() => {
     if (!user || memberships.length) return;
     const metadata = user.user_metadata ?? {};
     if (requestedRoles.some(role => role.value === metadata.requested_role)) setRequestedRole(metadata.requested_role as PublicRequestedRole);
@@ -138,36 +125,6 @@ export default function ProductExperience() {
     if (typeof metadata.organization_name === 'string') setOrganizationName(metadata.organization_name);
     if (typeof metadata.phone === 'string') setPhone(metadata.phone);
   }, [user?.id, user?.user_metadata, memberships.length]);
-
-  useEffect(() => {
-    if (!neonAuth || !user || loading || membershipsLoading || memberships.length > 0) return;
-    const metadata = user.user_metadata ?? {};
-    if (metadata.signup_workspace_pending !== true || provisionedUserIds.current.has(user.id)) return;
-    provisionedUserIds.current.add(user.id);
-    void (async () => {
-      setWorkspaceProvisioning(true);
-      setWorkspaceProvisionError('');
-      const result = await api.post<{ companyId: string }>('/api/workspace/provision', {
-        companyName: typeof metadata.organization_name === 'string' ? metadata.organization_name : '',
-        fullName: typeof metadata.full_name === 'string' ? metadata.full_name : '',
-        phone: typeof metadata.phone === 'string' ? metadata.phone : null,
-      });
-      if (!result?.companyId) {
-        provisionedUserIds.current.delete(user.id);
-        setWorkspaceProvisionError('ساخت فضای کاری انجام نشد. تأیید نام کاربری، اتصال و نسخه پایگاه داده را بررسی کن و دوباره تلاش کن.');
-        setWorkspaceProvisioning(false);
-        return;
-      }
-            await refreshMemberships();
-      setWorkspaceProvisioning(false);
-      setWorkspaceProvisionError('');
-      setNotice('فضای کاری اختصاصی آماده شد.');
-    })().catch(() => {
-      provisionedUserIds.current.delete(user.id);
-      setWorkspaceProvisioning(false);
-      setWorkspaceProvisionError('ارتباط برای ساخت فضای کاری قطع شد. دوباره تلاش کن.');
-    });
-  }, [user?.id, user?.user_metadata, loading, membershipsLoading, memberships.length, refreshMemberships, workspaceProvisionRetry]);
 
   useEffect(() => {
     const canCloseWithEscape: boolean = mode !== 'recovery';
@@ -213,67 +170,45 @@ export default function ProductExperience() {
 
   async function submitAuth(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!neonAuth) { setError('اتصال احراز هویت در این نسخه پیکربندی نشده است. ورود آنلاین در دسترس نیست.'); return; }
+    if (mode === 'reset' || mode === 'recovery') {
+      setError('بازیابی خودکار رمز بدون ایمیل یا پیامک فعال نیست. برای بازنشانی امن رمز، از مالک مجموعه درخواست بازنشانی کن.');
+      return;
+    }
+    const username = email.trim();
     const normalizedPhone = mode === 'signup' ? normalizeIranPhone(phone) : '';
+    if (!/^[a-zA-Z0-9_.-]{3,32}$/.test(username)) {
+      setError('نام کاربری باید ۳ تا ۳۲ نویسه و شامل حروف انگلیسی، عدد، نقطه، خط تیره یا زیرخط باشد.');
+      return;
+    }
+    if (password.length < 10 || password.length > 128) {
+      setError('رمز عبور باید حداقل ۱۰ نویسه داشته باشد.');
+      return;
+    }
     if (mode === 'signup') {
-      if (password.length < 10) { setError('رمز عبور باید حداقل ۱۰ نویسه باشد.'); return; }
+      if (fullName.trim().length < 2 || fullName.trim().length > 120) { setError('نام کامل باید بین ۲ تا ۱۲۰ نویسه باشد.'); return; }
+      if (organizationName.trim().length < 2 || organizationName.trim().length > 160) { setError('نام مجموعه باید بین ۲ تا ۱۶۰ نویسه باشد.'); return; }
       if (!normalizedPhone) { setError('شماره موبایل ایران معتبر وارد کن؛ مثال: 09121234567'); return; }
       if (password !== confirmPassword) { setError('تکرار گذرواژه یکسان نیست.'); return; }
     }
     setBusy(true); setError(''); setNotice('');
     try {
-      if (mode === 'reset') {
-        const redirectUrl = new URL((import.meta.env.BASE_URL || '/') + '#signin', window.location.origin).toString();
-        const { error: resetError } = await neonAuth.resetPasswordForEmail(email.trim(), { redirectTo: redirectUrl });
-        if (resetError) { setError('ارسال نام کاربری بازیابی انجام نشد. نام کاربری و تنظیمات Auth را بررسی کن.'); return; }
-        setNotice('اگر این نام کاربری حساب فعالی داشته باشد، لینک بازیابی برای آن ارسال می‌شود.');
-      } else if (mode === 'signup') {
-        const emailRedirectTo = new URL(basePath + '/#signin', window.location.origin).toString();
-        const { data, error: signUpError } = await neonAuth.signUp({
-          email: email.trim(),
-          password,
-          options: {
-            emailRedirectTo,
-            data: {
-              full_name: fullName.trim(),
-              organization_name: organizationName.trim(),
-              phone: normalizedPhone,
-              requested_role: requestedRole,
-              signup_workspace_pending: true,
-            },
-          },
+      if (mode === 'signup') {
+        await api.post('/api/auth/signup', {
+          username, password, displayName: fullName.trim(), organizationName: organizationName.trim(),
+          phone: normalizedPhone, requestedRole,
         });
-        if (signUpError) {
-          const message = signUpError.message.toLowerCase();
-          setError(message.includes('signup is disabled') || message.includes('signups not allowed')
-            ? 'ثبت‌نام در تنظیمات Auth پروژه غیرفعال است؛ باید ثبت‌نام در سرویس احراز هویت فعال شود.'
-            : 'ساخت حساب انجام نشد. نام کاربری را بررسی کن و اگر قبلاً حسابی با آن ساخته‌ای، وارد شو.');
-          return;
-        }
-        if (!data.user) { setError('پاسخ سرویس ثبت‌نام معتبر نبود. دوباره تلاش کن.'); return; }
         setPassword(''); setConfirmPassword('');
-        if (data.session) {
-          setNotice('حساب ساخته شد؛ در حال ورود به مدار…');
-          navigate(protectedDestination, { replace: true });
-        } else {
-          setMode('signin');
-          navigate({ pathname: location.pathname, search: location.search, hash: '#signin' }, { replace: true });
-          setError('حساب ساخته شد اما نشست ورود ایجاد نشد. با نام کاربری و رمز عبور وارد شو.');
-        }
-      } else if (mode === 'recovery') {
-        if (password.length < 8) { setError('گذرواژه جدید باید حداقل ۸ نویسه باشد.'); return; }
-        if (password !== confirmPassword) { setError('تکرار گذرواژه یکسان نیست.'); return; }
-        const { error: updateError } = await neonAuth.updateUser({ password });
-        if (updateError) { setError('تغییر گذرواژه انجام نشد. لینک بازیابی ممکن است منقضی شده باشد.'); return; }
-        await neonAuth.signOut();
-        setPassword(''); setConfirmPassword(''); setMode('signin'); setNotice('گذرواژه تغییر کرد. حالا با گذرواژه جدید وارد شو.');
+        setNotice('حساب ساخته شد و نشست امن ایجاد شد؛ در حال ورود به مدار…');
       } else {
-        const { error: authError } = await neonAuth.signInWithPassword({ email: email.trim(), password });
-        if (authError) { setError('ورود انجام نشد. نام کاربری و گذرواژه را بررسی کن یا نام کاربری حساب را تأیید و دوباره تلاش کن.'); return; }
-        setPassword(''); navigate(protectedDestination, { replace: true });
+        await api.post('/api/auth/login', { username, password });
+        setPassword('');
+        setNotice('ورود موفق بود؛ در حال بارگذاری فضای کاری…');
       }
-    } catch {
-      setError('ارتباط با سرویس احراز هویت برقرار نشد. اتصال اینترنت را بررسی کن و دوباره تلاش کن.');
+      window.dispatchEvent(new Event('medar-auth-change'));
+      await refreshSession();
+      navigate(protectedDestination, { replace: true });
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'احراز هویت انجام نشد. اطلاعات را بررسی و دوباره تلاش کن.');
     } finally { setBusy(false); }
   }
 
@@ -346,14 +281,18 @@ export default function ProductExperience() {
                  <label htmlFor="simorgh-signin-phone">شماره موبایل</label><input id="simorgh-signin-phone" className="auth-input" type="tel" autoComplete="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="09121234567" required dir="ltr"/>
                </>}
                {mode === 'signup' && <><label htmlFor="simorgh-signin-role">نقش مورد درخواست</label><select id="simorgh-signin-role" className="auth-input" value={requestedRole} onChange={e => setRequestedRole(e.target.value as PublicRequestedRole)}><option value="owner">مالک مجموعه جدید</option><option value="customer">خریدار عمده</option><option value="supplier">تأمین‌کننده / شریک مزرعه</option><option value="driver">راننده / حمل‌ونقل</option><option value="staff">عضو تیم (نیازمند تأیید)</option></select></>}
-               <label htmlFor="simorgh-signin-username">نام کاربری</label><input id="simorgh-signin-username" className="auth-input" type="text" autoComplete="username" inputMode="text" required={mode !== 'recovery'} value={email} onChange={e => setEmail(e.target.value)} placeholder="username" dir="ltr"/>
+               {mode === 'signup' && <>
+                  <label htmlFor="simorgh-signin-fullname">نام و نام خانوادگی</label><input id="simorgh-signin-fullname" className="auth-input" autoComplete="name" required minLength={2} maxLength={120} value={fullName} onChange={e => setFullName(e.target.value)} placeholder="نام کامل" />
+                  <label htmlFor="simorgh-signin-organization">نام مجموعه / شرکت</label><input id="simorgh-signin-organization" className="auth-input" required minLength={2} maxLength={160} value={organizationName} onChange={e => setOrganizationName(e.target.value)} placeholder="نام واقعی مجموعه" />
+                </>}
+                <label htmlFor="simorgh-signin-username">نام کاربری</label><input id="simorgh-signin-username" className="auth-input" type="text" autoComplete="username" inputMode="text" required={mode !== 'recovery'} value={email} onChange={e => setEmail(e.target.value)} placeholder="username" dir="ltr"/>
                {mode !== 'reset' && <>
                  <label htmlFor="simorgh-signin-password">{mode === 'recovery' ? 'گذرواژه جدید' : 'گذرواژه'}</label>
                  <div className="auth-password-wrap"><input id="simorgh-signin-password" className="auth-input" type={showPassword ? 'text' : 'password'} minLength={10} autoComplete={mode === 'recovery' || mode === 'signup' ? 'new-password' : 'current-password'} required value={password} onChange={e => setPassword(e.target.value)} placeholder="حداقل ۱۰ نویسه" dir="ltr"/><button type="button" onClick={() => setShowPassword(value => !value)} aria-label={showPassword ? 'پنهان‌کردن گذرواژه' : 'نمایش گذرواژه'}>{showPassword ? <EyeOff size={16}/> : <Eye size={16}/>}</button></div>
                  {(mode === 'recovery' || mode === 'signup') && <><label htmlFor="simorgh-confirm-password">تکرار گذرواژه</label><input id="simorgh-confirm-password" className="auth-input" type="password" autoComplete="new-password" required minLength={10} value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="گذرواژه را دوباره وارد کن" dir="ltr"/></>}
                </>}
                {error && <div className="auth-feedback error" role="alert">{error}</div>}{notice && <div className="auth-feedback success" role="status">{notice}</div>}
-               <button className="signin-submit" type="submit" disabled={busy || (mode !== 'recovery' && !email.trim()) || (mode !== 'reset' && !password) || (mode === 'signup' && (!phone.trim() || !confirmPassword))}>
+               <button className="signin-submit" type="submit" disabled={busy || !email.trim() || !password || (mode === 'signup' && (!phone.trim() || !confirmPassword || !fullName.trim() || !organizationName.trim()))}>
                  {busy ? <><span className="signin-spinner" aria-hidden="true"/> در حال پردازش…</> : mode === 'reset' ? <>ارسال لینک بازیابی <RotateCcw size={16}/></> : mode === 'recovery' ? <>ذخیره گذرواژه جدید <Check size={17}/></> : mode === 'signup' ? <>ساخت حساب و فضای کاری <ArrowLeft size={17}/></> : <>ورود به فضای کار <ArrowLeft size={17}/></>}
                </button>
              </form>
