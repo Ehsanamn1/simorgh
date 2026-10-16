@@ -533,14 +533,14 @@ export function OperationsWorkspacePage({kind,membership,search}:{kind:Operation
     }
     if(kind==='production-batches'&&manager&&row.status==='planned')buttons.push({label:'شروع تولید',fn:()=>startBatch(row)});
     if(kind==='incidents'&&manager&&['open','investigating','action_required'].includes(String(row.status))){
-      if(row.status==='open')buttons.push({label:'شروع بررسی',tone:'soft',fn:()=>void action(()=>updateRow('operational_incidents',row.id,{status:'investigating'}),'رخداد وارد مرحله بررسی شد.')});
+      if(row.status==='open')buttons.push({label:'شروع بررسی',tone:'soft',fn:()=>void action(()=>api.post(`/api/operations/incidents/${encodeURIComponent(String(row.id))}/action`,{companyId:membership.company_id,action:'investigate'}),'رخداد وارد مرحله بررسی شد.')});
       buttons.push({label:'ثبت رفع رخداد',fn:()=>resolveIncident(row)});
     }
     if(kind==='partnership-agreements'&&manager){
-      if(row.status==='draft')buttons.push({label:'ارسال برای امضا',tone:'soft',fn:()=>void action(()=>updateRow('partnership_agreements',row.id,{status:'pending_signature'}),'قرارداد برای امضا آماده شد.')});
+      if(row.status==='draft')buttons.push({label:'ارسال برای امضا',tone:'soft',fn:()=>void action(()=>api.post(`/api/operations/partnership-agreements/${encodeURIComponent(String(row.id))}/action`,{companyId:membership.company_id,action:'submit-for-signature'}),'قرارداد برای امضا آماده شد.')});
       if(row.status==='pending_signature')buttons.push({label:'بارگذاری سند امضا',fn:()=>{setUploadAgreementId(String(row.id));document.getElementById('ops-agreement-file')?.click();}});
-      if(row.status==='active')buttons.push({label:'تعلیق قرارداد',tone:'danger',fn:()=>void action(()=>updateRow('partnership_agreements',row.id,{status:'suspended'}),'قرارداد تعلیق شد.')});
-      if(row.status==='suspended')buttons.push({label:'فعال‌سازی مجدد',fn:()=>void action(()=>updateRow('partnership_agreements',row.id,{status:'active'}),'درخواست فعال‌سازی بررسی شد.')});
+      if(row.status==='active')buttons.push({label:'تعلیق قرارداد',tone:'danger',fn:()=>void action(()=>api.post(`/api/operations/partnership-agreements/${encodeURIComponent(String(row.id))}/action`,{companyId:membership.company_id,action:'suspend-agreement'}),'قرارداد تعلیق شد.')});
+      if(row.status==='suspended')buttons.push({label:'فعال‌سازی مجدد',fn:()=>void action(()=>api.post(`/api/operations/partnership-agreements/${encodeURIComponent(String(row.id))}/action`,{companyId:membership.company_id,action:'reactivate-agreement'}),'قرارداد فعال شد.')});
     }
     if(kind==='partner-finance'&&manager)for(const status of nextFinance[String(row.status)]??[])buttons.push({
       label:status==='submitted'?'ارسال':status==='approved'?'تأیید':status==='posted'?'ثبت نهایی':status==='rejected'?'رد':'بازگردانی پیش‌نویس',
