@@ -435,3 +435,11 @@ html[data-theme="light"] .tower-onboarding-links a:hover{background:#DFEEE8;bord
 .signin-owner-guide a{color:var(--obs-accent);font-weight:800;text-decoration:none;text-underline-offset:3px}
 .signin-owner-guide a:hover{text-decoration:underline}
 html[data-theme="light"] .signin-owner-guide{color:var(--obs-muted)}
+
+/* Persian-only UI labels must not inherit Latin uppercase tracking. */
+.account-summary .eyebrow {
+  direction: rtl;
+  letter-spacing: 0;
+  text-transform: none;
+  font-family: Vazirmatn, Tahoma, sans-serif;
+}
