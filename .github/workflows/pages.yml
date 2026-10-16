@@ -77,8 +77,8 @@ jobs:
           curl --fail --silent --show-error --location --retry 8 --retry-all-errors --retry-delay 3 "$SITE_URL" -o "$html_file"
           grep -q 'id="root"' "$html_file"
           grep -q 'id="app-boot-screen"' "$html_file"
-          js_path="$(grep -oE 'src="[^"]+\\.js"' "$html_file" | head -n 1 | cut -d '"' -f 2)"
-          css_path="$(grep -oE 'href="[^"]+\\.css"' "$html_file" | head -n 1 | cut -d '"' -f 2)"
+          js_path="$(grep -oE 'src="[^"]+[.]js"' "$html_file" | head -n 1 | cut -d '"' -f 2)"
+          css_path="$(grep -oE 'href="[^"]+[.]css"' "$html_file" | head -n 1 | cut -d '"' -f 2)"
           if [[ -z "$js_path" || -z "$css_path" ]]; then
             echo "Published HTML is missing its JavaScript or CSS bundle reference."
             cat "$html_file"
