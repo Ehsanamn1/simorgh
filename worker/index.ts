@@ -634,6 +634,121 @@ app.get('/api/operations/:kind', async c => {
     return c.json({rows:main,refs:{suppliers,sites,batches,templates,agreements,financeEntries,products}});
   }catch{return jsonError(c,'خواندن عملیات انجام نشد. طرح دیتابیس و دسترسی مجموعه را بررسی کن.',500);}
 });
+app.post('/api/operations/settlements', async c => {
+  let user:AuthUser|null;
+  try{user=await currentUser(c);}catch{return jsonError(c,'پایگاه داده پیکربندی نشده است.',503);}
+  if(!user)return jsonError(c,'برای ایجاد دوره تسویه ابتدا وارد حساب شو.',401);
+  let data:Record<string,unknown>;
+  try{data=await c.req.json();}catch{return jsonError(c,'بدنه درخواست معتبر نیست.',400);}
+  const companyId=typeof data.companyId==='string'?data.companyId:'';
+  const agreementId=typeof data.agreementId==='string'?data.agreementId:'';
+  const periodStart=typeof data.periodStart==='string'?data.periodStart:'';
+  const periodEnd=typeof data.periodEnd==='string'?data.periodEnd:'';
+  if(!validUuid(companyId)||!validUuid(agreementId)||!/^\d{4}-\d{2}-\d{2}$/.test(periodStart)||!/^\d{4}-\d{2}-\d{2}$/.test(periodEnd)||periodEnd<periodStart)return jsonError(c,'قرارداد و بازه زمانی معتبر را انتخاب کن.',400);
+  try{
+    const sql=sqlFor(c),membership=await operationMembership(sql,user.id,companyId);
+    if(!membership||!['owner','admin'].includes(membership.role))return jsonError(c,'ایجاد دوره تسویه فقط برای مالک یا مدیر مجاز است.',403);
+    const rows=await sql`SELECT public.medar_create_partner_settlement_period(${user.id}::uuid,${agreementId}::uuid,${periodStart}::date,${periodEnd}::date) AS id`;
+    const id=String((rows[0] as {id:string}).id);
+    await sql`INSERT INTO public.medar_audit_log(actor_user_id,action,entity_type,entity_id,metadata)
+      VALUES(${user.id}::uuid,'settlement.period.created','partner_settlement_period',${id},jsonb_build_object('company_id',${companyId},'agreement_id',${agreementId},'period_start',${periodStart},'period_end',${periodEnd}))`;
+    return c.json({id},201);
+  }catch(error){const message=error instanceof Error?error.message:'';if(message.includes('هم‌پوشانی'))return jsonError(c,message,409);return jsonError(c,message||'ایجاد دوره تسویه انجام نشد.',400);}
+});
+
+app.post('/api/operations/:kind/:id/action', async c => {
+  let user:AuthUser|null;
+  try{user=await currentUser(c);}catch{return jsonError(c,'پایگاه داده پیکربندی نشده است.',503);}
+  if(!user)return jsonError(c,'برای اجرای عملیات ابتدا وارد حساب شو.',401);
+  const kind=c.req.param('kind') as OperationKind,id=c.req.param('id');
+  const config=operationConfigs[kind];
+  if(!config||!validUuid(id))return jsonError(c,'بخش یا شناسه رکورد معتبر نیست.',400);
+  let data:Record<string,unknown>;
+  try{data=await c.req.json();}catch{return jsonError(c,'بدنه درخواست معتبر نیست.',400);}
+  const companyId=typeof data.companyId==='string'?data.companyId:'';
+  const action=typeof data.action==='string'?data.action:'';
+  if(!validUuid(companyId))return jsonError(c,'شناسه مجموعه معتبر نیست.',400);
+  try{
+    const sql=sqlFor(c),membership=await operationMembership(sql,user.id,companyId);
+    if(!membership)return jsonError(c,'عضویت فعال در این مجموعه پیدا نشد.',403);
+    if(kind==='partner-settlements'){
+      if(!['owner','admin'].includes(membership.role))return jsonError(c,'تغییر دوره تسویه فقط برای مالک یا مدیر مجاز است.',403);
+      if(action==='refresh')await sql`SELECT public.medar_refresh_partner_settlement_period(${user.id}::uuid,${id}::uuid)`;
+      else if(action==='approve')await sql`SELECT public.medar_approve_partner_settlement_period(${user.id}::uuid,${id}::uuid)`;
+      else if(action==='pay'){
+        const amount=Number(data.amount),reference=typeof data.paymentReference==='string'?data.paymentReference.trim():'';
+        if(!Number.isFinite(amount)||amount<=0||reference.length<2)return jsonError(c,'مبلغ و مرجع پرداخت واقعی لازم است.',400);
+        await sql`SELECT public.medar_record_partner_settlement_payment(${user.id}::uuid,${id}::uuid,${amount},${reference},now())`;
+      }else return jsonError(c,'عملیات دوره تسویه پشتیبانی نمی‌شود.',400);
+      await sql`INSERT INTO public.medar_audit_log(actor_user_id,action,entity_type,entity_id,metadata)
+        VALUES(${user.id}::uuid,${'settlement.'+action},'partner_settlement_period',${id},jsonb_build_object('company_id',${companyId}))`;
+      const updated=await sql`SELECT * FROM public.partner_settlement_periods WHERE id=${id}::uuid AND company_id=${companyId}::uuid LIMIT 1`;
+      return c.json({row:updated[0]});
+    }
+    const rows=await queryRows(sql,`SELECT * FROM public.${config.table} WHERE id=$1::uuid AND company_id=$2::uuid LIMIT 1`,[id,companyId]);
+    if(!rows[0])return jsonError(c,'رکورد پیدا نشد.',404);
+    const row=rows[0];
+    const manager=['owner','admin'].includes(membership.role);
+    const internal=['owner','admin','staff'].includes(membership.role);
+    if(kind==='operational-tasks'){
+      const assigneeUser=String(row.assignee_user_id??'')===user.id;
+      const assigneeSupplier=membership.role==='supplier'&&Boolean(membership.supplier_id)&&String(row.assignee_supplier_id??'')===membership.supplier_id;
+      if(!internal&&!assigneeSupplier)return jsonError(c,'این وظیفه به شما تخصیص داده نشده است.',403);
+      if(membership.role==='staff'&&!assigneeUser)return jsonError(c,'این وظیفه به شما تخصیص داده نشده است.',403);
+      if(action==='start'){
+        if(!['pending','rejected','blocked'].includes(String(row.status)))return jsonError(c,'فقط وظیفه در انتظار یا نیازمند اصلاح قابل شروع است.',409);
+        await sql`UPDATE public.operational_tasks SET status='in_progress',started_at=COALESCE(started_at,now()),updated_at=now() WHERE id=${id}::uuid AND company_id=${companyId}::uuid`;
+      }else if(action==='submit'){
+        if(String(row.status)!=='in_progress')return jsonError(c,'فقط وظیفه در حال اجرا قابل ارسال است.',409);
+        const note=typeof data.completionNote==='string'?data.completionNote.trim().slice(0,2000):'';
+        await sql`UPDATE public.operational_tasks SET status='submitted',submitted_at=now(),completion_note=${note||null},updated_at=now() WHERE id=${id}::uuid AND company_id=${companyId}::uuid`;
+      }else if(action==='review'){
+        if(!manager)return jsonError(c,'بازبینی وظیفه فقط برای مالک یا مدیر مجاز است.',403);
+        if(String(row.status)!=='submitted')return jsonError(c,'فقط وظیفه ارسال‌شده قابل بازبینی است.',409);
+        const decision=data.decision,note=typeof data.reviewNote==='string'?data.reviewNote.trim().slice(0,2000):'';
+        if(decision!=='approved'&&decision!=='rejected')return jsonError(c,'نتیجه بازبینی معتبر نیست.',400);
+        if(decision==='rejected'&&note.length<2)return jsonError(c,'برای رد وظیفه دلیل لازم است.',400);
+        await sql`UPDATE public.operational_tasks SET status=${decision},reviewed_by=${user.id}::uuid,reviewed_at=now(),review_note=${note||null},updated_at=now() WHERE id=${id}::uuid AND company_id=${companyId}::uuid`;
+      }else return jsonError(c,'عملیات وظیفه پشتیبانی نمی‌شود.',400);
+    }else if(kind==='task-templates'&&action==='approve-template'){
+      if(!manager)return jsonError(c,'تأیید دستورالعمل فقط برای مالک یا مدیر مجاز است.',403);
+      if(String(row.status)!=='draft')return jsonError(c,'فقط نسخه پیش‌نویس قابل تأیید است.',409);
+      await sql`UPDATE public.task_templates SET status='approved',approved_by=${user.id}::uuid,approved_at=now(),updated_at=now() WHERE id=${id}::uuid AND company_id=${companyId}::uuid`;
+    }else if(kind==='production-batches'&&action==='start-batch'){
+      if(!internal)return jsonError(c,'شروع تولید برای این نقش مجاز نیست.',403);
+      if(String(row.status)!=='planned')return jsonError(c,'فقط بچ برنامه‌ریزی‌شده قابل شروع است.',409);
+      await sql`UPDATE public.production_batches SET status='active',started_on=COALESCE(started_on,current_date),updated_at=now() WHERE id=${id}::uuid AND company_id=${companyId}::uuid`;
+    }else if(kind==='incidents'&&action==='resolve-incident'){
+      if(!internal)return jsonError(c,'ثبت اقدام اصلاحی برای این نقش مجاز نیست.',403);
+      if(!['open','investigating','action_required'].includes(String(row.status)))return jsonError(c,'این رخداد قبلاً بسته شده یا در وضعیت قابل حل نیست.',409);
+      const note=typeof data.resolutionNote==='string'?data.resolutionNote.trim().slice(0,2000):'';
+      if(note.length<2)return jsonError(c,'شرح اقدام اصلاحی لازم است.',400);
+      await sql`UPDATE public.operational_incidents SET status='resolved',resolution_note=${note},resolved_by=${user.id}::uuid,resolved_at=now(),updated_at=now() WHERE id=${id}::uuid AND company_id=${companyId}::uuid`;
+    }else if(kind==='partner-finance'&&action==='finance-transition'){
+      const next=typeof data.nextStatus==='string'?data.nextStatus:'';
+      if(next==='submitted'){
+        if(!['owner','admin','staff'].includes(membership.role))return jsonError(c,'ارسال سند برای این نقش مجاز نیست.',403);
+        if(String(row.status)!=='draft')return jsonError(c,'فقط سند پیش‌نویس قابل ارسال است.',409);
+        await sql`UPDATE public.partner_financial_entries SET status='submitted',submitted_by=${user.id}::uuid,submitted_at=now(),updated_at=now() WHERE id=${id}::uuid AND company_id=${companyId}::uuid`;
+      }else if(next==='approved'||next==='rejected'){
+        if(!manager)return jsonError(c,'تأیید یا رد سند فقط برای مالک یا مدیر مجاز است.',403);
+        if(String(row.status)!=='submitted')return jsonError(c,'فقط سند ارسال‌شده قابل بررسی است.',409);
+        if(next==='approved')await sql`UPDATE public.partner_financial_entries SET status='approved',approved_by=${user.id}::uuid,approved_at=now(),updated_at=now() WHERE id=${id}::uuid AND company_id=${companyId}::uuid`;
+        else await sql`UPDATE public.partner_financial_entries SET status='rejected',updated_at=now() WHERE id=${id}::uuid AND company_id=${companyId}::uuid`;
+      }else if(next==='posted'){
+        if(!manager)return jsonError(c,'ثبت نهایی سند فقط برای مالک یا مدیر مجاز است.',403);
+        if(String(row.status)!=='approved')return jsonError(c,'فقط سند تأییدشده قابل ثبت نهایی است.',409);
+        if(['sale_collection','partner_advance','settlement_payment'].includes(String(row.entry_type))&&(Number(row.paid_amount)!==Number(row.amount)||String(row.payment_status)!=='paid'||!String(row.external_reference??'').trim()))return jsonError(c,'سند نقدی بدون مبلغ کامل و مرجع پرداخت واقعی ثبت نهایی نمی‌شود.',400);
+        await sql`UPDATE public.partner_financial_entries SET status='posted',posted_by=${user.id}::uuid,posted_at=now(),updated_at=now() WHERE id=${id}::uuid AND company_id=${companyId}::uuid`;
+      }else return jsonError(c,'گذار وضعیت مالی معتبر نیست.',400);
+    }else return jsonError(c,'این عملیات برای این نوع رکورد پشتیبانی نمی‌شود.',400);
+    await sql`INSERT INTO public.medar_audit_log(actor_user_id,action,entity_type,entity_id,metadata)
+      VALUES(${user.id}::uuid,${'operation.'+action},${config.table},${id},jsonb_build_object('company_id',${companyId}))`;
+    const updated=await queryRows(sql,`SELECT * FROM public.${config.table} WHERE id=$1::uuid AND company_id=$2::uuid LIMIT 1`,[id,companyId]);
+    return c.json({row:updated[0]});
+  }catch(error){const message=error instanceof Error?error.message:'';return jsonError(c,message||'عملیات انجام نشد.',400);}
+});
+
 app.post('/api/operations/:kind', async c => {
   let user: AuthUser|null;
   try{user=await currentUser(c);}catch{return jsonError(c,'پایگاه داده پیکربندی نشده است.',503);}
