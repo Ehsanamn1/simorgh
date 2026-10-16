@@ -1,4 +1,4 @@
-const CACHE_NAME = 'simorgh-shell-v8';
+const CACHE_NAME = 'medar-shell-v1';
 const scopeURL = new URL(self.registration.scope);
 const isLocal = url => url.origin === self.location.origin && url.href.startsWith(scopeURL.href);
 const isSensitiveAPI = url => ['/auth/v1/', '/rest/v1/', '/storage/v1/'].some(part => url.pathname.includes(part));
@@ -14,7 +14,7 @@ self.addEventListener('install', event => {
 self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys()
-      .then(keys => Promise.all(keys.filter(key => key.startsWith('simorgh-shell-') && key !== CACHE_NAME).map(key => caches.delete(key))))
+      .then(keys => Promise.all(keys.filter(key => (key.startsWith('simorgh-shell-') || key.startsWith('medar-shell-')) && key !== CACHE_NAME).map(key => caches.delete(key))))
       .then(() => self.clients.claim())
   );
 });
