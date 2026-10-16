@@ -636,9 +636,9 @@ ALTER TABLE public.memberships ADD CONSTRAINT memberships_company_id_customer_id
 ALTER TABLE public.memberships DROP CONSTRAINT IF EXISTS memberships_company_id_supplier_id_fkey;
 ALTER TABLE public.memberships ADD CONSTRAINT memberships_company_id_supplier_id_fkey FOREIGN KEY(company_id,supplier_id) REFERENCES public.suppliers(company_id,id) ON DELETE CASCADE;
 ALTER TABLE public.access_requests DROP CONSTRAINT IF EXISTS access_requests_company_id_customer_id_fkey;
-ALTER TABLE public.access_requests ADD CONSTRAINT access_requests_company_id_customer_id_fkey FOREIGN KEY(company_id,customer_id) REFERENCES public.customers(company_id,id) ON DELETE SET NULL;
+ALTER TABLE public.access_requests ADD CONSTRAINT access_requests_company_id_customer_id_fkey FOREIGN KEY(company_id,customer_id) REFERENCES public.customers(company_id,id) ON DELETE CASCADE;
 ALTER TABLE public.access_requests DROP CONSTRAINT IF EXISTS access_requests_company_id_supplier_id_fkey;
-ALTER TABLE public.access_requests ADD CONSTRAINT access_requests_company_id_supplier_id_fkey FOREIGN KEY(company_id,supplier_id) REFERENCES public.suppliers(company_id,id) ON DELETE SET NULL;
+ALTER TABLE public.access_requests ADD CONSTRAINT access_requests_company_id_supplier_id_fkey FOREIGN KEY(company_id,supplier_id) REFERENCES public.suppliers(company_id,id) ON DELETE CASCADE;
 ALTER TABLE public.access_requests DROP CONSTRAINT IF EXISTS access_requests_user_id_fkey;
 ALTER TABLE public.access_requests ADD CONSTRAINT access_requests_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.medar_users(id) ON DELETE CASCADE;
 UPDATE public.access_requests SET organization_name = company_name WHERE organization_name IS NULL AND company_name IS NOT NULL;
