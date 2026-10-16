@@ -145,17 +145,49 @@ function FarmMapPanel({sites,schemaWarning}:{sites:Row[];schemaWarning:string}) 
   useEffect(() => {
     setSelectedId(old => mapped.some(site => String(site.id) === old) ? old : String(mapped[0]?.id ?? ''));
   }, [mapped]);
-  const selected = mapped.find(site => String(site.id) === selectedId);
-  const lat = selected ? Number(selected.latitude) : 0;
-  const lon = selected ? Number(selected.longitude) : 0;
-  const bbox = [Math.max(-180,lon-0.25),Math.max(-90,lat-0.18),Math.min(180,lon+0.25),Math.min(90,lat+0.18)].map(value=>value.toFixed(6)).join('%2C');
-  const mapUrl = selected ? `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${lat.toFixed(6)}%2C${lon.toFixed(6)}` : '';
+  const bounds = useMemo(() => {
+    const clampLatitude = (value:number) => Math.min(85.0511,Math.max(-85.0511,value));
+    if (!mapped.length) return {west:0,east:1,south:-1,north:1};
+    const latitudes = mapped.map(site=>clampLatitude(Number(site.latitude)));
+    const longitudes = mapped.map(site=>Number(site.longitude));
+    const rawSouth=Math.min(...latitudes),rawNorth=Math.max(...latitudes);
+    const rawWest=Math.min(...longitudes),rawEast=Math.max(...longitudes);
+    const latPad=Math.max(0.12,(rawNorth-rawSouth)*0.18);
+    const lonPad=Math.max(0.12,(rawEast-rawWest)*0.18);
+    let south=Math.max(-85.0511,rawSouth-latPad),north=Math.min(85.0511,rawNorth+latPad);
+    let west=Math.max(-180,rawWest-lonPad),east=Math.min(180,rawEast+lonPad);
+    if(north-south<0.12){south=Math.max(-85.0511,rawSouth-0.12);north=Math.min(85.0511,rawNorth+0.12);}
+    if(east-west<0.12){west=Math.max(-180,rawWest-0.12);east=Math.min(180,rawEast+0.12);}
+    return {west,east,south,north};
+  }, [mapped]);
+  const mapY = (latitude:number) => {
+    const project=(value:number)=>Math.log(Math.tan(Math.PI/4+Math.min(85.0511,Math.max(-85.0511,value))*Math.PI/360));
+    const north=project(bounds.north),south=project(bounds.south);
+    return south===north?50:(project(latitude)-north)/(south-north)*100;
+  };
+  const bbox=[bounds.west,bounds.south,bounds.east,bounds.north].map(value=>value.toFixed(6)).join('%2C');
+  const mapUrl=mapped.length? `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik` : '';
+  const siteName=(site:Row)=>String(site.name??site.site_code??'سایت بدون نام');
   return <section className="panel farm-map-panel">
-    <div className="panel-heading"><div><span className="section-number">۰۳</span><div><h3>نقشه‌ی سایت‌های مجموعه</h3><p>نقشه و نشانگر فقط از مختصات واقعی ثبت‌شده خوانده می‌شود.</p></div></div><span className="status-badge neutral">{numberFa(mapped.length)} موقعیت</span></div>
+    <div className="panel-heading"><div><span className="section-number">۰۳</span><div><h3>نقشه‌ی سایت‌های مجموعه</h3><p>همه‌ی نشانگرها از مختصات واقعی ثبت‌شده خوانده می‌شوند؛ برای انتخاب هر سایت، روی نشانگر یا نام آن بزن.</p></div></div><span className="status-badge neutral">{numberFa(mapped.length)} موقعیت</span></div>
     {schemaWarning ? <div className="farm-map-warning"><MapPin size={18}/><div><b>به‌روزرسانی ساختار نقشه لازم است</b><p>{schemaWarning}</p><small>پس از اجرای مهاجرت، طول و عرض جغرافیایی هر سایت را از بخش «سایت‌های مزرعه» وارد کن.</small></div></div>
-    : selected ? <div className="farm-map-layout">
-      <iframe key={String(selected.id)} title={`نقشه‌ی موقعیت ${String(selected.name ?? 'سایت')}`} src={mapUrl} loading="lazy" referrerPolicy="no-referrer-when-downgrade"/>
-      <div className="farm-map-sites" aria-label="فهرست موقعیت‌های ثبت‌شده">{mapped.map(site=><button type="button" key={String(site.id)} className={'farm-map-site'+(String(site.id)===selectedId?' active':'')} aria-pressed={String(site.id)===selectedId} onClick={()=>setSelectedId(String(site.id))}><span className="farm-map-pin"><MapPin size={16}/></span><span><b>{String(site.name ?? 'سایت بدون نام')}</b><small>{[site.city,site.province].filter(Boolean).map(String).join(' · ') || 'نشانی ثبت نشده'}</small><small>{farmSiteTypeLabels[String(site.site_type ?? 'mixed')] ?? 'سایر'}</small></span></button>)}</div>
+    : mapped.length ? <div className="farm-map-layout">
+      <div className="farm-map-canvas">
+        <iframe title="نقشه‌ی جغرافیایی سایت‌های مجموعه" src={mapUrl} loading="lazy" referrerPolicy="no-referrer-when-downgrade"/>
+        {mapped.map((site,index)=>{
+          const latitude=Math.min(85.0511,Math.max(-85.0511,Number(site.latitude)));
+          const longitude=Number(site.longitude);
+          const x=Math.min(98,Math.max(2,(longitude-bounds.west)/(bounds.east-bounds.west)*100));
+          const y=Math.min(98,Math.max(2,mapY(latitude)));
+          const active=String(site.id)===selectedId;
+          return <button type="button" key={String(site.id)} className={'farm-map-marker'+(active?' active':'')} style={{left:x+'%',top:y+'%'}} aria-label={'انتخاب '+siteName(site)} aria-pressed={active} title={siteName(site)} onClick={()=>setSelectedId(String(site.id))}>
+            <span className="farm-map-marker-icon"><MapPin size={18}/></span>
+            {active&&<span className="farm-map-marker-label">{siteName(site)}</span>}
+            <span className="sr-only">نشانگر {numberFa(index+1)}</span>
+          </button>;
+        })}
+      </div>
+      <div className="farm-map-sites" aria-label="فهرست موقعیت‌های ثبت‌شده">{mapped.map(site=><button type="button" key={String(site.id)} className={'farm-map-site'+(String(site.id)===selectedId?' active':'')} aria-pressed={String(site.id)===selectedId} onClick={()=>setSelectedId(String(site.id))}><span className="farm-map-pin"><MapPin size={16}/></span><span><b>{siteName(site)}</b><small>{[site.city,site.province].filter(Boolean).map(String).join(' · ') || 'نشانی ثبت نشده'}</small><small>{farmSiteTypeLabels[String(site.site_type ?? 'mixed')] ?? 'سایر'}</small></span></button>)}</div>
     </div>
     : <EmptyState title="مختصات جغرافیایی ثبت نشده" description="از بخش سایت‌های مزرعه، مختصات واقعی GPS را ذخیره کن تا نقشه‌ی مدیریتی فعال شود. نقطه‌ی آزمایشی یا ساختگی نمایش داده نمی‌شود." icon={MapPin}/>}
     <div className="farm-map-footer"><span>نقشه‌ی پایه: OpenStreetMap</span><Link to="/app/farm-sites">مدیریت سایت‌ها <ArrowLeft size={14}/></Link></div>
