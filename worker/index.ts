@@ -266,7 +266,7 @@ app.get('/api/workspace/memberships', async c => {
   if (!user) return jsonError(c, 'برای مشاهده فضای کاری ابتدا وارد حساب شو.', 401);
   try {
     const sql = sqlFor(c);
-    const rows = await sql`SELECT m.id,m.company_id,m.user_id,m.role,m.active,json_build_object('name',co.name) AS company
+    const rows = await sql`SELECT m.id,m.company_id,m.user_id,m.role::text AS role,m.customer_id,m.supplier_id,m.active,json_build_object('name',co.name) AS company
       FROM public.memberships m JOIN public.companies co ON co.id=m.company_id
       WHERE m.user_id=${user.id}::uuid AND m.active=true ORDER BY m.created_at`;
     const requests = await sql`SELECT id,requested_role AS role,organization_name AS "organizationName",status,created_at AS "createdAt"
