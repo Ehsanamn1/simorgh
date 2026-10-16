@@ -733,10 +733,9 @@ function SupplierCapacityPage({membership,search}:{membership:Membership;search:
 function SupplierSettlementPage({membership,search}:{membership:Membership;search:string}) {const {rows,loading,error,refresh}=useDbRows('settlements',membership,{order:'created_at'});const shown=rows.filter(r=>(!membership.supplier_id||r.supplier_id===membership.supplier_id)&&(!search||`${r.invoice_ref??''} ${r.status}`.toLowerCase().includes(search.toLowerCase())));return <><PageHeading eyebrow="SUPPLIER / SETTLEMENT" title="تسویه‌های من" description="مبالغ و وضعیت تسویه را بر اساس رکوردهای داخلی ببین؛ وضعیت «پرداخت‌شده» باید پس از تطبیق واقعی ثبت شود." action={<Button variant="soft" onClick={()=>void refresh()}>تازه‌سازی</Button>}/>{error&&<InlineError error={error} retry={()=>void refresh()}/>}<section className="panel entity-panel">{loading?<div className="panel-loading"><span className="spinner small"/></div>:shown.length?<DataTable rows={shown} columns={[{key:'invoice_ref',label:'مرجع سند'},{key:'amount',label:'مبلغ',render:r=>moneyFa(String(r.amount))},{key:'due_date',label:'سررسید'},{key:'status',label:'وضعیت',render:r=><Badge value={r.status}/>},{key:'note',label:'یادداشت'}]}/>:<EmptyState title="تسویه‌ای برای نمایش وجود ندارد" description="سوابق تسویه پس از ثبت توسط تیم مالی مجموعه اینجا قرار می‌گیرند." icon={CreditCard}/>}</section></>}
 
 function WorkspaceGate() {
-  const { user, memberships, loading } = useAuth();
-  // Authenticated members enter the real, role-filtered application. Before the
-  // final account-provisioning step, guests see the operational product shell,
-  // never a role picker or "preview" experience. Supabase RLS still protects records.
+  const { user, loading } = useAuth();
+  // Authenticated sessions enter the role-filtered app, including the access-request
+  // flow for users without a membership. Guests see the secure sign-in layer.
   return user
     ? <AppShell/>
     : <OperationalWorkspace authLoading={loading} hasMembership={false}/>;
