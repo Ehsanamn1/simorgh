@@ -107,7 +107,7 @@ test('manager map shows every saved farm coordinate and allows marker selection'
       await route.fulfill({ status: 200, headers: { ...headers, 'content-range': '*/2' }, body: '' });
       return;
     }
-    await route.fulfill({ status: 200, headers: { ...headers, 'content-range': '0-1/2' }, body: JSON.stringify(sites) });
+    await route.fulfill({ status: 200, headers: { ...headers, 'content-range': '0-1/2' }, body: JSON.stringify({ data: sites, count: sites.length }) });
   });
 
   await page.goto('/simorgh/app/command', { waitUntil: 'domcontentloaded' });
