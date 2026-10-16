@@ -68,9 +68,11 @@ export const neonAuth = {
     return { error: result.error };
   },
   async resetPasswordForEmail(_username?: string, _options?: { redirectTo?: string }) {
+    void _username; void _options;
     return { error: { name: 'AuthError', message: 'بازیابی رمز عبور در نسخه بدون ایمیل فعال نیست.' } as AuthError };
   },
   async updateUser(_data?: { password?: string }) {
+    void _data;
     return { error: { name: 'AuthError', message: 'تغییر رمز عبور در این نسخه هنوز پیاده‌سازی نشده است.' } as AuthError };
   },
 };
