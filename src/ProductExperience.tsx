@@ -60,7 +60,7 @@ function readAllowedLinks(): NavigationEntry[] {
 
 /** Private operational app entry. Public self-registration is intentionally disabled. */
 export default function ProductExperience() {
-  const { user, loading, memberships, membershipsLoading, refreshMemberships, refreshSession } = useAuth();
+  const { user, loading, memberships, membershipsLoading, refreshSession } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [appMain, setAppMain] = useState<HTMLElement | null>(null);
@@ -79,9 +79,6 @@ export default function ProductExperience() {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [requestId, setRequestId] = useState('');
-  const [workspaceProvisionError, setWorkspaceProvisionError] = useState('');
-  const [workspaceProvisioning, setWorkspaceProvisioning] = useState(false);
-  const [workspaceProvisionRetry, setWorkspaceProvisionRetry] = useState(0);
   const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
   const protectedRoute = location.pathname.includes('/app');
   // Enable secure sign-in by default in web, preview and native builds; only an explicit false disables it.
@@ -249,8 +246,6 @@ export default function ProductExperience() {
     {authUiEnabled && user && waitingScreen && memberships.length === 0 && createPortal(
       <section className="access-request-card" dir="rtl" aria-labelledby="access-request-title">
         <div className="access-request-heading"><span className="access-request-icon"><UserPlus size={20}/></span><div><span className="obsidian-eyebrow">فضای کاری مدار</span><h2 id="access-request-title">{user.user_metadata?.signup_workspace_pending === true ? 'آماده‌سازی فضای کاری' : 'درخواست فضای کاری'}</h2><p>{user.user_metadata?.signup_workspace_pending === true ? 'پس از تأیید نام کاربری، فضای کاری خصوصی مجموعه‌ات ساخته می‌شود.' : 'نقش را مشخص کن؛ مدیر پس از بررسی آن را تأیید یا رد می‌کند.'}</p></div></div>
-        {workspaceProvisioning && <div className="auth-feedback success" role="status">در حال ساخت فضای کاری اختصاصی…</div>}
-        {workspaceProvisionError && <div className="auth-feedback error workspace-provision-error" role="alert"><span>{workspaceProvisionError}</span><button type="button" onClick={() => setWorkspaceProvisionRetry(value => value + 1)}>تلاش دوباره</button></div>}
         {user.user_metadata?.signup_workspace_pending !== true && <form className="access-request-form" onSubmit={submitRoleRequest}>
           <label>نام و نام خانوادگی<input required minLength={2} maxLength={160} autoComplete="name" value={fullName} onChange={e => setFullName(e.target.value)} placeholder="نام کامل"/></label>
           <label>نوع دسترسی<select value={requestedRole} onChange={e => { setRequestedRole(e.target.value as PublicRequestedRole); setRequestId(''); }}><option value="customer">خریدار عمده</option><option value="supplier">شریک مزرعه</option><option value="driver">راننده / پیمانکار حمل</option><option value="staff">عضو تیم داخلی</option></select></label>
