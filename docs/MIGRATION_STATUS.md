@@ -59,3 +59,13 @@ Do not:
 4. place Neon credentials, session secrets, email-provider credentials or Cloudflare API credentials in Vite variables;
 5. claim a Cloudflare deployment until a real Worker URL responds and is smoke-tested.
 
+
+## 2026-10-16 implementation checkpoint
+
+- Created Neon project `medar` in `aws-eu-central-1` and enabled Managed Neon Auth (Better Auth).
+- Managed Auth base/JWKS are configured for the new Worker integration; no secret values are committed.
+- Added Worker JWT verification, `/api/auth/me`, workspace membership read, workspace provisioning, and access-request endpoints.
+- Added Worker Assets SPA hosting configuration and a GitHub Actions Cloudflare deployment workflow.
+- Frontend authentication is now routed through Neon Auth; the legacy Supabase data client remains temporarily because operational pages still contain direct table/RPC/storage calls. It must not be removed until the data API migration is complete.
+- The Neon project currently has no application rows. Existing production data has not been copied or deleted.
+- Neon SQL mutation was not applied automatically from this session; schema creation therefore remains a gated migration task and the Worker data endpoints are not production-ready until the schema and Cloudflare secrets are configured and smoke-tested.
