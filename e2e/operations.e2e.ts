@@ -112,6 +112,55 @@ test('manager workspace retains operations and captures a real rendered control-
   expect(errors).toEqual([]);
 });
 
+test('manager map shows every saved farm coordinate and allows marker selection', async ({ page }) => {
+  await installIsolatedSession(page, 'owner');
+  const headers = {
+    'access-control-allow-origin': '*',
+    'access-control-allow-headers': '*',
+    'access-control-allow-methods': 'GET,HEAD,OPTIONS,POST,PATCH,DELETE,PUT',
+    'content-type': 'application/json',
+    'cache-control': 'no-store',
+  };
+  const sites = [
+    { id: '00000000-0000-4000-8000-000000000101', name: 'مزرعه تهران', site_type: 'crop', city: 'تهران', province: 'تهران', latitude: 35.6892, longitude: 51.3890, license_expires_on: null, active: true },
+    { id: '00000000-0000-4000-8000-000000000102', name: 'واحد کرمان', site_type: 'livestock', city: 'کرمان', province: 'کرمان', latitude: 30.2839, longitude: 57.0834, license_expires_on: null, active: true },
+  ];
+  await page.route(projectUrl + '/rest/v1/farm_sites*', async route => {
+    if (route.request().method() === 'OPTIONS') {
+      await route.fulfill({ status: 204, headers, body: '' });
+      return;
+    }
+    if (route.request().method() === 'HEAD') {
+      await route.fulfill({ status: 200, headers: { ...headers, 'content-range': '*/2' }, body: '' });
+      return;
+    }
+    await route.fulfill({ status: 200, headers: { ...headers, 'content-range': '0-1/2' }, body: JSON.stringify(sites) });
+  });
+
+  await page.goto('/simorgh/app/command', { waitUntil: 'domcontentloaded' });
+  const map = page.locator('.farm-map-panel');
+  await expect(map.getByRole('heading', { name: 'نقشه‌ی سایت‌های مجموعه' })).toBeVisible();
+  await expect(map.locator('.farm-map-marker')).toHaveCount(2);
+  await expect(map.locator('.farm-map-sites .farm-map-site')).toHaveCount(2);
+  await expect(map.locator('.farm-map-marker.active .farm-map-marker-label')).toHaveText('مزرعه تهران');
+  const embedUrl = await map.locator('.farm-map-canvas iframe').getAttribute('src');
+  expect(embedUrl).toContain('bbox=');
+  expect(embedUrl).not.toContain('marker=');
+
+  const markerPositions = await map.locator('.farm-map-marker').evaluateAll(elements => elements.map(element => {
+    const rect = element.getBoundingClientRect();
+    return { left: rect.left, top: rect.top, width: rect.width, height: rect.height };
+  }));
+  expect(markerPositions[0].width).toBeGreaterThan(0);
+  expect(markerPositions[1].width).toBeGreaterThan(0);
+  expect(Math.abs(markerPositions[0].left - markerPositions[1].left)).toBeGreaterThan(10);
+  expect(Math.abs(markerPositions[0].top - markerPositions[1].top)).toBeGreaterThan(10);
+
+  await map.getByRole('button', { name: 'انتخاب واحد کرمان' }).click();
+  await expect(map.locator('.farm-map-marker.active .farm-map-marker-label')).toHaveText('واحد کرمان');
+  await expect(map.locator('.farm-map-site.active b')).toHaveText('واحد کرمان');
+});
+
 test('generic farm types and daily rejected quantities are validated before writes', async ({ page }) => {
   await installIsolatedSession(page, 'owner');
 
