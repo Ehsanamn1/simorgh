@@ -45,7 +45,7 @@ test('password recovery is not advertised without a verified recovery channel', 
   await expect(page.getByLabel('گذرواژه', { exact: true })).toBeVisible();
 });
 
-test('signup submits only username, Iranian mobile, password and requested role to the Medar API', async ({ page }) => {
+test('signup submits username, profile, Iranian mobile, password and requested role to the Medar API', async ({ page }) => {
   const signupPayloads: Record<string, unknown>[] = [];
   let registered = false;
   const user = { id: '00000000-0000-4000-8000-000000000901', username: 'owner_test', phone: '+989120000000', displayName: 'Ehsan Test', requestedRole: 'supplier' };
