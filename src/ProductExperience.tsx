@@ -130,7 +130,7 @@ export default function ProductExperience() {
     if (background) background.inert = true;
     document.body.style.overflow = 'hidden';
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !protectedRoute && canCloseWithEscape) {
+      if (event.key === 'Escape' && canCloseWithEscape) {
         setError(''); setNotice('');
         navigate({ pathname: location.pathname, search: location.search, hash: '' }, { replace: true });
       }
@@ -241,7 +241,7 @@ export default function ProductExperience() {
           <div className="signin-brand-foot"><span>NETWORK OPERATIONS</span><span>AUTHENTICATED ACCESS</span></div>
         </div>
         <div className="simorgh-signin-form-area">
-          {!protectedRoute && mode !== 'recovery' && <button type="button" className="signin-close" onClick={closeSignIn} aria-label="بستن ورود"><X size={20}/></button>}
+          {mode !== 'recovery' && <button type="button" className="signin-close" onClick={closeSignIn} aria-label="بستن ورود"><X size={20}/></button>}
           <div className="simorgh-signin-form-card" dir="rtl">
             <span className="signin-form-icon">{mode === 'reset' || mode === 'recovery' ? <KeyRound size={21}/> : <LogIn size={21}/>}</span>
             <span className="signin-overline">{mode === 'reset' ? 'PASSWORD RECOVERY' : mode === 'recovery' ? 'SET A NEW PASSWORD' : 'SECURE SIGN IN'}</span>
