@@ -52,10 +52,10 @@ jobs:
             exit 1
           fi
       - name: Legacy browser checks
-        if: github.ref_name != 'migration/cloudflare-neon-foundation'
+        if: github.head_ref != 'migration/cloudflare-neon-foundation'
         run: |
           npx playwright install --with-deps chromium
           npm run test:e2e
       - name: Migration boundary note
-        if: github.ref_name == 'migration/cloudflare-neon-foundation'
+        if: github.head_ref == 'migration/cloudflare-neon-foundation'
         run: echo "Legacy Supabase browser suite is intentionally deferred until the frontend is migrated to the Worker API."
