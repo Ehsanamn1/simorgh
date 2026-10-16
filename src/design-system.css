@@ -443,3 +443,96 @@ html[data-theme="light"] .signin-owner-guide{color:var(--obs-muted)}
   text-transform: none;
   font-family: Vazirmatn, Tahoma, sans-serif;
 }
+
+
+/* Fit all persisted farm coordinates into one interactive manager map. */
+.farm-map-canvas {
+  position: relative;
+  min-width: 0;
+  min-height: 310px;
+  overflow: hidden;
+  isolation: isolate;
+  background: var(--obs-surface-2);
+}
+.farm-map-canvas iframe {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0 !important;
+  border: 0;
+  background: var(--obs-surface-2);
+}
+.farm-map-marker {
+  position: absolute;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: 28px;
+  min-height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #10201E;
+  cursor: pointer;
+  transform: translate(-50%, -50%);
+  touch-action: manipulation;
+}
+.farm-map-marker-icon {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 2px solid #F4FAF8;
+  border-radius: 50% 50% 50% 7px;
+  background: #337F73;
+  color: #FFFFFF;
+  box-shadow: 0 3px 12px rgba(7,20,18,.36);
+  transform: rotate(-45deg);
+  transition: background var(--sim-motion-fast), box-shadow var(--sim-motion-fast), scale var(--sim-motion-fast);
+}
+.farm-map-marker-icon svg { transform: rotate(45deg); stroke-width: 2.3; }
+.farm-map-marker.active { z-index: 4; }
+.farm-map-marker.active .farm-map-marker-icon {
+  background: #E7A55E;
+  color: #172729;
+  box-shadow: 0 0 0 4px rgba(231,165,94,.22), 0 5px 16px rgba(7,20,18,.4);
+  scale: 1.08;
+}
+.farm-map-marker:focus-visible { outline: 3px solid #E7A55E; outline-offset: 4px; }
+.farm-map-marker-label {
+  display: block;
+  max-width: min(165px, 40vw);
+  margin-top: -1px;
+  overflow: hidden;
+  padding: 4px 7px;
+  border: 1px solid rgba(234,240,240,.28);
+  border-radius: 7px;
+  background: rgba(17,25,28,.96);
+  color: #EAF0F0;
+  box-shadow: 0 4px 14px rgba(7,20,18,.24);
+  font: 800 9px/1.6 Vazirmatn, Tahoma, sans-serif;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.farm-map-marker.active .farm-map-marker-label { border-color: #E7A55E; }
+html[data-theme="light"] .farm-map-marker-icon { border-color: #FFFFFF; background: #337F73; }
+html[data-theme="light"] .farm-map-marker.active .farm-map-marker-icon { background: #E7A55E; color: #172729; }
+html[data-theme="light"] .farm-map-marker-label { border-color: #D5E0DD; background: rgba(255,255,255,.97); color: #172729; }
+html[data-theme="light"] .farm-map-marker.active .farm-map-marker-label { border-color: #C28B4A; }
+@media (max-width: 850px) {
+  .farm-map-canvas { min-height: 260px; }
+  .farm-map-marker-icon { width: 28px; height: 28px; }
+}
+@media (max-width: 560px) {
+  .farm-map-canvas { min-height: 235px; }
+  .farm-map-marker-icon { width: 25px; height: 25px; }
+  .farm-map-marker-label { max-width: 125px; font-size: 8px; padding: 3px 5px; }
+}
