@@ -12,7 +12,7 @@ concurrency:
 
 jobs:
   build:
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ vars.ENABLE_LEGACY_PAGES_DEPLOY == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -34,8 +34,6 @@ jobs:
       - name: Build for GitHub Pages
         run: npm run build:pages
         env:
-          VITE_SUPABASE_URL: https://aoxerjimfiwusidaparx.supabase.co
-          VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_oTgVCJWw9BfK-kFUxTcaMQ_aeAUWXC5
           VITE_ENABLE_AUTH_UI: 'true'
       - name: Prepare SPA routing fallback
         run: |
@@ -49,7 +47,7 @@ jobs:
           path: dist
 
   deploy:
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ vars.ENABLE_LEGACY_PAGES_DEPLOY == 'true' }}
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
