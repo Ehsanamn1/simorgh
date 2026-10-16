@@ -280,7 +280,7 @@ export default function ProductExperience() {
   async function submitRoleRequest(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!user) { setError('برای ثبت درخواست ابتدا وارد حساب شو.'); return; }
-    if (['customer', 'supplier'].includes(requestedRole) && organizationName.trim().length < 2) {
+    if (organizationName.trim().length < 2) {
       setError('نام شرکت یا مزرعه برای این نقش ضروری است.');
       return;
     }
@@ -319,7 +319,7 @@ export default function ProductExperience() {
         {user.user_metadata?.signup_workspace_pending !== true && <form className="access-request-form" onSubmit={submitRoleRequest}>
           <label>نام و نام خانوادگی<input required minLength={2} maxLength={160} autoComplete="name" value={fullName} onChange={e => setFullName(e.target.value)} placeholder="نام کامل"/></label>
           <label>نوع دسترسی<select value={requestedRole} onChange={e => { setRequestedRole(e.target.value as PublicRequestedRole); setRequestId(''); }}><option value="customer">خریدار عمده</option><option value="supplier">شریک مزرعه</option><option value="driver">راننده / پیمانکار حمل</option><option value="staff">عضو تیم داخلی</option></select></label>
-          {['customer', 'supplier'].includes(requestedRole) && <label className="wide">نام شرکت / مزرعه<input required minLength={2} maxLength={160} value={organizationName} onChange={e => setOrganizationName(e.target.value)} placeholder="نام مجموعه"/></label>}
+          <label className="wide">نام شرکت / مجموعه هدف<input required minLength={2} maxLength={160} value={organizationName} onChange={e => setOrganizationName(e.target.value)} placeholder="نام دقیق مجموعه‌ای که می‌خواهی به آن بپیوندی"/></label>
           <label>شماره تماس<input type="tel" autoComplete="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="اختیاری"/></label>
           {error && <div className="auth-feedback error wide" role="alert">{error}</div>}
           {notice && <div className="auth-feedback success wide" role="status">{notice}</div>}
