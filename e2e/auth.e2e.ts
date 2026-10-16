@@ -29,6 +29,19 @@ test('the app opens the Persian operational workspace with no sign-in page or pr
   expect(errors).toEqual([]);
 });
 
+test('provisioned members can open secure sign-in without public self-registration', async ({ page }) => {
+  await page.goto('/simorgh/', { waitUntil: 'domcontentloaded' });
+  await expect(page.locator('.simorgh-signin-layer')).toHaveCount(0);
+
+  await page.getByRole('button', { name: 'ورود مدیر و اعضا' }).click();
+  await expect(page.locator('.simorgh-signin-layer')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'ورود به سیمرغ' })).toBeVisible();
+  await expect(page.getByLabel('ایمیل')).toBeVisible();
+  await expect(page.getByLabel('گذرواژه', { exact: true })).toBeVisible();
+  await expect(page.getByText('ثبت‌نام عمومی غیرفعال است')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'ورود به فضای کار' })).toBeVisible();
+});
+
 test('a blocked JavaScript bundle shows a recovery state instead of a black page', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop-chromium', 'Run the startup failure simulation once.');
   await page.route(/\/simorgh\/assets\/.*\.js(?:\?.*)?$/, route => route.abort());
