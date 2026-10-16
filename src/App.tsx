@@ -184,7 +184,13 @@ function Dashboard({ membership }: { membership: Membership }) {
     setLoading(false);
   };
 
-  useEffect(() => { void load(); }, [membership.company_id, membership.role]);
+  useEffect(() => {
+    void load();
+    const timer = window.setInterval(() => void load(), 60_000);
+    const onFocus = () => void load();
+    window.addEventListener('focus', onFocus);
+    return () => { window.clearInterval(timer); window.removeEventListener('focus', onFocus); };
+  }, [membership.company_id, membership.role]);
   const chart = useMemo(() => {
     const names = ['draft','submitted','confirmed','allocated','in_fulfillment','dispatched','delivered','cancelled'];
     return names.map(key => ({ name: orderLabel[key], count: orders.filter(order => order.status === key).length })).filter(item => item.count > 0);
@@ -221,6 +227,7 @@ function Dashboard({ membership }: { membership: Membership }) {
         <Link to="/app/inventory"><span><Warehouse size={18}/></span><b>انبار و خرید</b><small>موجودی و گردش کالا</small><ArrowLeft size={14}/></Link>
         <Link to="/app/operational-tasks"><span><ClipboardCheck size={18}/></span><b>وظایف عملیاتی</b><small>کارهای باز و موعد</small><ArrowLeft size={14}/></Link>
         <Link to="/app/finance"><span><CreditCard size={18}/></span><b>مالی و تسویه</b><small>دفتر و اسناد مالی</small><ArrowLeft size={14}/></Link>
+        <Link to="/app/goals"><span><Target size={18}/></span><b>اهداف و برنامه</b><small>شاخص، موعد و مسئول</small><ArrowLeft size={14}/></Link>
       </div>
     </section>
     {counts.orders === 0 && counts.customers === 0 && counts.suppliers === 0 && <div className="tower-onboarding"><ShieldCheck size={18}/><div><b>داده‌ی عملیاتی هنوز ثبت نشده</b><p>برای شروع، محصولات، تأمین‌کنندگان و مشتریان واقعی را ثبت کن. سامانه تا آن زمان عدد ساختگی نمایش نمی‌دهد.</p></div><div className="tower-onboarding-links"><Link to="/app/products">تعریف محصول</Link><Link to="/app/suppliers">ثبت تأمین‌کننده</Link><Link to="/app/customers">ثبت مشتری</Link></div></div>}
