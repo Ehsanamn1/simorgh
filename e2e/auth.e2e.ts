@@ -40,6 +40,9 @@ test('provisioned members can open secure sign-in without public self-registrati
   await expect(page.getByLabel('گذرواژه', { exact: true })).toBeVisible();
   await expect(page.getByText('ثبت‌نام عمومی غیرفعال است')).toBeVisible();
   await expect(page.getByRole('button', { name: 'ورود به فضای کار' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'بستن ورود' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.simorgh-signin-layer')).toHaveCount(0);
 });
 
 test('a blocked JavaScript bundle shows a recovery state instead of a black page', async ({ page }, testInfo) => {
