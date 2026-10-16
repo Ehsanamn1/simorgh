@@ -2,7 +2,7 @@ import { neon } from '@neondatabase/serverless';
 import { Hono } from 'hono';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 
-type Bindings = { DATABASE_URL?: string; NEON_AUTH_JWKS_URL?: string };
+type Bindings = { DATABASE_URL?: string; NEON_AUTH_JWKS_URL?: string; ASSETS?: { fetch(request: Request): Promise<Response> } };
 type AuthUser = { id: string; email: string; emailVerified: boolean };
 type Ctx = { env: Bindings; req: { header(name: string): string | undefined; json<T>(): Promise<T> }; json(body: unknown, status?: number): Response };
 
@@ -80,5 +80,7 @@ app.post('/api/access-requests', async (c) => {
     values(${user.id},${body.organizationName?.trim() || null},${body.fullName?.trim() || user.email},${body.phone?.trim() || null},${body.role}::public.app_role) returning id`;
   return c.json({ requestId: (rows[0] as { id: string }).id }, 201);
 });
+
+app.notFound((c) => c.env.ASSETS ? c.env.ASSETS.fetch(c.req.raw) : c.json({ message: 'مسیر پیدا نشد.' }, 404));
 
 export default app;
