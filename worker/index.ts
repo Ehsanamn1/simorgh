@@ -117,7 +117,7 @@ app.post('/api/auth/signup', async c => {
   try { data = await c.req.json(); } catch { return jsonError(c, 'بدنه درخواست معتبر نیست.', 400); }
   const username = typeof data.username === 'string' ? data.username.trim() : '';
   const normalized = username.toLowerCase();
-  const displayName = typeof data.displayName === 'string' ? data.displayName.trim() : '';
+  const displayName = typeof data.displayName === 'string' && data.displayName.trim() ? data.displayName.trim() : username;
   const phone = normalizePhone(data.phone);
   const password = typeof data.password === 'string' ? data.password : '';
   const role = typeof data.requestedRole === 'string' ? data.requestedRole : 'customer';
