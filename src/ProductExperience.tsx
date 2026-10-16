@@ -125,7 +125,7 @@ export default function ProductExperience() {
   useEffect(() => {
     const canCloseWithEscape: boolean = mode !== 'recovery';
     if (!signInOpen) return;
-    const background = document.querySelector<HTMLElement>('.portal, .app-frame, .ops-live-app');
+    const background = document.querySelector<HTMLElement>('.portal, .app-frame');
     const oldOverflow = document.body.style.overflow;
     if (background) background.inert = true;
     document.body.style.overflow = 'hidden';
