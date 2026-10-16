@@ -737,7 +737,7 @@ function WorkspaceGate() {
   // Authenticated members enter the real, role-filtered application. Before the
   // final account-provisioning step, guests see the operational product shell,
   // never a role picker or "preview" experience. Supabase RLS still protects records.
-  return user && memberships.length > 0
+  return user
     ? <AppShell/>
     : <OperationalWorkspace authLoading={loading} hasMembership={false}/>;
 }
