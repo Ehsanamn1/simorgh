@@ -22,7 +22,7 @@ export async function apiRequest<T>(
   init: RequestInit = {},
 ): Promise<T> {
   const headers = new Headers(init.headers);
-  if (init.body && !headers.has('content-type')) {
+  if (init.body && !(init.body instanceof FormData) && !headers.has('content-type')) {
     headers.set('content-type', 'application/json');
   }
 
@@ -55,5 +55,8 @@ export const api = {
       method: 'POST',
       body: body === undefined ? undefined : JSON.stringify(body),
     });
+  },
+  upload<T>(path: string, body: FormData) {
+    return apiRequest<T>(path, { method: 'POST', body });
   },
 };
