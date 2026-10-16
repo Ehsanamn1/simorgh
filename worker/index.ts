@@ -544,35 +544,6 @@ const dataTableConfigs:Record<string,DataTableConfig>={
   access_requests:{readRoles:['owner','admin'],writeRoles:[],managerOnly:true,readOnly:true},
   audit_events:{readRoles:['owner','admin'],writeRoles:[],managerOnly:true,readOnly:true},
 };
-const dataInsertFields:Record<string,string[]>={
-  orders:['customer_id','requested_delivery','delivery_address','notes'],
-  order_items:['order_id','product_id','quantity','unit_price','notes'],
-  customers:['name','phone','address','city','province','active','notes','contact_name','customer_code'],
-  suppliers:['name','phone','address','city','province','active','notes','contact_name','supplier_code'],
-  products:['name','sku','kind','unit','description','active','shelf_life_days','storage_note'],
-  price_agreements:['customer_id','product_id','unit_price','min_qty','valid_from','valid_to','notes'],
-  capacity_commitments:['supplier_id','product_id','period_start','period_end','declared_qty','notes'],
-  shipments:['order_id','driver_user_id','vehicle','planned_departure'],
-  shipment_locations:['shipment_id','latitude','longitude','accuracy_m'],
-  delivery_evidence:['shipment_id','kind','storage_path','recipient_name','note','reading_celsius'],
-  invoices:['order_id','customer_id','reference','amount','due_date','note'],
-  settlements:['supplier_id','invoice_ref','amount','due_date','note'],
-  company_goals:['title','description','category','unit','baseline_value','target_value','current_value','priority','period_start','due_date','owner_user_id'],
-  lots:['supplier_id','product_id','code','produced_on','best_before','quantity'],
-};
-const dataUpdateFields:Record<string,string[]>={
-  orders:['status','requested_delivery','delivery_address','notes'],
-  customers:['name','phone','address','city','province','active','notes','contact_name','customer_code'],
-  suppliers:['name','phone','address','city','province','active','notes','contact_name','supplier_code'],
-  products:['name','sku','kind','unit','description','active','shelf_life_days','storage_note'],
-  price_agreements:['unit_price','min_qty','valid_from','valid_to','notes'],
-  capacity_commitments:['status','confirmed_qty'],
-  shipments:['stage','failure_reason','driver_user_id','vehicle','planned_departure'],
-  invoices:['status','paid_amount','payment_reference','due_date','note'],
-  settlements:['status','payment_reference','note','due_date'],
-  company_goals:['title','description','category','unit','baseline_value','target_value','current_value','priority','status','period_start','due_date','owner_user_id'],
-  lots:['code','produced_on','best_before','quantity'],
-};
 type SelectNode={fields:string[];relations:{name:string;alias:string;fields:string[];relations:SelectNode['relations']}[]};
 function splitTopLevel(value:string):string[]{
   const out:string[]=[];let depth=0,start=0;
@@ -1048,17 +1019,17 @@ app.post('/api/data/:table', async c => {
           const paidAmount=Number(patch.paid_amount??old.paid_amount),reference=String(patch.payment_reference??'').trim();
           if(paidAmount<Number(old.amount)||!reference)return jsonError(c,'برای ثبت پرداخت فاکتور، مبلغ کامل و مرجع پرداخت لازم است.',400);
           patch.paid_at=new Date().toISOString();patch.paid_by=user.id;
-        }else if(next==='overdue'&&current==='issued'){}
+        }else if(next==='overdue'&&current==='issued'){ /* Valid state-only transition. */ }
         else return jsonError(c,'گذار وضعیت فاکتور معتبر نیست.',409);
       }
       if(table==='settlements'&&patch.status!==undefined){
         if(!manager)return jsonError(c,'تغییر وضعیت تسویه فقط برای مالک یا مدیر مجاز است.',403);
         const current=String(old.status),next=String(patch.status);
-        if(next==='approved'&&current==='pending'){}
+        if(next==='approved'&&current==='pending'){ /* Approval has no payment side effect. */ }
         else if(next==='paid'&&current==='approved'){
           if(!String(patch.payment_reference??'').trim())return jsonError(c,'برای ثبت پرداخت تسویه، مرجع پرداخت لازم است.',400);
           patch.paid_at=new Date().toISOString();patch.paid_by=user.id;
-        }else if(next==='cancelled'&&['pending','approved'].includes(current)){}
+        }else if(next==='cancelled'&&['pending','approved'].includes(current)){ /* Cancellation has no payment side effect. */ }
         else return jsonError(c,'گذار وضعیت تسویه معتبر نیست.',409);
       }
       if(table==='company_goals'&&patch.status!==undefined&&!['planned','active','completed','paused'].includes(String(patch.status)))return jsonError(c,'وضعیت هدف معتبر نیست.',400);
