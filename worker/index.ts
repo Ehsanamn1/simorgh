@@ -790,6 +790,279 @@ app.post('/api/data/:table/query', async c => {
     return c.json({data,count});
   }catch(error){const message=error instanceof Error?error.message:'';return jsonError(c,message||'خواندن داده انجام نشد.',400);}
 });
+const serverManagedDataFields=new Set(['id','company_id','created_at','updated_at','created_by','updated_by','recorded_by','captured_by','reviewer_id','reviewed_at','approved_by','approved_at','submitted_by','submitted_at','posted_by','posted_at','paid_by','paid_at','issued_at','delivered_at','departed_at','returned_at','resolved_by','resolved_at','reported_by','assigned_by']);
+const dataReferenceTables:Record<string,string>={customer_id:'customers',supplier_id:'suppliers',product_id:'products',order_id:'orders',shipment_id:'shipments',lot_id:'lots',capacity_commitment_id:'capacity_commitments',farm_site_id:'farm_sites',batch_id:'production_batches',template_id:'task_templates',task_id:'operational_tasks',agreement_id:'partnership_agreements'};
+async function validateDataReferences(sql:ReturnType<typeof neon>,table:string,row:Record<string,unknown>,companyId:string,userId:string,membership:{role:string;supplier_id:string|null;customer_id:string|null}){
+  for(const [field,related] of Object.entries(dataReferenceTables)){
+    if(row[field]!==undefined&&row[field]!==null&&row[field]!==''&&!await sameCompanyRow(sql,related,row[field],companyId))throw new Error('ارجاع '+field+' متعلق به این مجموعه نیست.');
+  }
+  if(row.assignee_user_id){
+    const linked=await queryRows(sql,"SELECT id FROM public.memberships WHERE company_id=$1::uuid AND user_id=$2::uuid AND active=true AND role::text IN ('owner','admin','staff') LIMIT 1",[companyId,row.assignee_user_id]);
+    if(!linked.length)throw new Error('مسئول وظیفه عضو فعال همین مجموعه نیست.');
+  }
+  if(row.owner_user_id){
+    const linked=await queryRows(sql,"SELECT id FROM public.memberships WHERE company_id=$1::uuid AND user_id=$2::uuid AND active=true LIMIT 1",[companyId,row.owner_user_id]);
+    if(!linked.length)throw new Error('مالک هدف عضو فعال همین مجموعه نیست.');
+  }
+  if(row.driver_user_id){
+    const linked=await queryRows(sql,"SELECT id FROM public.memberships WHERE company_id=$1::uuid AND user_id=$2::uuid AND active=true AND role::text='driver' LIMIT 1",[companyId,row.driver_user_id]);
+    if(!linked.length)throw new Error('راننده انتخاب‌شده عضو فعال راننده در این مجموعه نیست.');
+  }
+  if(table==='order_items'&&row.order_id){
+    const order=await queryRows(sql,'SELECT customer_id,status FROM public.orders WHERE id=$1::uuid AND company_id=$2::uuid LIMIT 1',[row.order_id,companyId]);
+    if(!order.length||String(order[0].status)!=='draft')throw new Error('قلم فقط به سفارش پیش‌نویس همین مجموعه اضافه می‌شود.');
+    if(membership.role==='customer'&&String(order[0].customer_id)!==membership.customer_id)throw new Error('این سفارش متعلق به حساب مشتری شما نیست.');
+    const quantity=Number(row.quantity);
+    if(!Number.isFinite(quantity)||quantity<=0)throw new Error('مقدار سفارش باید بیشتر از صفر باشد.');
+    const agreement=await queryRows(sql,`SELECT unit_price FROM public.price_agreements WHERE company_id=$1::uuid AND customer_id=$2::uuid AND product_id=$3::uuid AND valid_from<=current_date AND (valid_to IS NULL OR valid_to>=current_date) AND min_qty<=$4 ORDER BY valid_from DESC LIMIT 1`,[companyId,order[0].customer_id,row.product_id,quantity]);
+    if(!agreement.length)throw new Error('برای این مشتری، محصول و مقدار، توافق قیمت معتبر وجود ندارد.');
+    row.unit_price=agreement[0].unit_price;
+  }
+  if(table==='invoices'&&row.order_id){
+    const order=await queryRows(sql,'SELECT customer_id,status FROM public.orders WHERE id=$1::uuid AND company_id=$2::uuid LIMIT 1',[row.order_id,companyId]);
+    if(!order.length||String(order[0].customer_id)!==String(row.customer_id))throw new Error('مشتری فاکتور باید با مشتری سفارش یکسان باشد.');
+    if(!['confirmed','allocated','in_fulfillment','dispatched','delivered'].includes(String(order[0].status)))throw new Error('برای این وضعیت سفارش، صدور فاکتور مجاز نیست.');
+  }
+  if(table==='shipments'&&row.order_id){
+    const order=await queryRows(sql,'SELECT status FROM public.orders WHERE id=$1::uuid AND company_id=$2::uuid LIMIT 1',[row.order_id,companyId]);
+    if(!order.length||!['allocated','in_fulfillment'].includes(String(order[0].status)))throw new Error('ارسال فقط برای سفارش تخصیص‌یافته یا در حال اجرا ساخته می‌شود.');
+  }
+  if(table==='delivery_evidence'){
+    const shipmentId=String(row.shipment_id??''),path=typeof row.storage_path==='string'?row.storage_path:'';
+    const shipment=await queryRows(sql,'SELECT driver_user_id FROM public.shipments WHERE id=$1::uuid AND company_id=$2::uuid LIMIT 1',[shipmentId,companyId]);
+    if(!shipment.length)throw new Error('محموله متعلق به این مجموعه نیست.');
+    if(membership.role==='driver'&&String(shipment[0].driver_user_id)!==userId)throw new Error('این محموله به راننده فعلی تخصیص داده نشده است.');
+    if(path){
+      if(!path.startsWith(companyId+'/'+shipmentId+'/')||path.split('/').length!==3)throw new Error('مسیر فایل مدرک با شرکت یا محموله مطابقت ندارد.');
+      if(!await (await Promise.resolve(null as unknown)).value){} 
+    }else if(!String(row.note??'').trim()&&!String(row.recipient_name??'').trim()&&row.reading_celsius===undefined)throw new Error('برای ثبت مدرک، فایل یا یادداشت معتبر لازم است.');
+  }
+  if(table==='shipment_locations'){
+    const shipmentId=String(row.shipment_id??''),lat=Number(row.latitude),lon=Number(row.longitude);
+    if(!Number.isFinite(lat)||lat < -90||lat > 90||!Number.isFinite(lon)||lon < -180||lon > 180)throw new Error('مختصات GPS معتبر نیست.');
+    const shipment=await queryRows(sql,'SELECT driver_user_id FROM public.shipments WHERE id=$1::uuid AND company_id=$2::uuid LIMIT 1',[shipmentId,companyId]);
+    if(!shipment.length)throw new Error('محموله متعلق به این مجموعه نیست.');
+    if(membership.role==='driver'&&String(shipment[0].driver_user_id)!==userId)throw new Error('این محموله به راننده فعلی تخصیص داده نشده است.');
+  }
+}
+async function auditDataChange(sql:ReturnType<typeof neon>,companyId:string,userId:string,table:string,id:string,action:string,changes:Record<string,unknown>={}){
+  await sql`INSERT INTO public.audit_events(company_id,actor_id,table_name,record_id,action,changes,occurred_at)
+    VALUES(${companyId}::uuid,${userId}::uuid,${table},${id}::uuid,${action},${JSON.stringify(changes)}::jsonb,now())`;
+}
+app.post('/api/data/:table', async c => {
+  let user:AuthUser|null;
+  try{user=await currentUser(c);}catch{return jsonError(c,'پایگاه داده پیکربندی نشده است.',503);}
+  if(!user)return jsonError(c,'برای تغییر داده ابتدا وارد حساب شو.',401);
+  const table=c.req.param('table'),config=dataTableConfigs[table];
+  if(!config)return jsonError(c,'این منبع داده در API مجاز نیست.',404);
+  let body:Record<string,unknown>;
+  try{body=await c.req.json();}catch{return jsonError(c,'درخواست تغییر داده معتبر نیست.',400);}
+  const operation=String(body.operation||''),query=(body.query&&typeof body.query==='object'?body.query:{}) as {select?:string;filters?:DataFilter[];orders?:{column:string;ascending:boolean}[];limit?:number|null;offset?:number;count?:string|null;head?:boolean};
+  const filters=Array.isArray(query.filters)?query.filters:[];
+  const companyFilter=filters.find(filter=>filter.column==='company_id'&&filter.op==='eq')?.value;
+  let companyId=typeof companyFilter==='string'?companyFilter:typeof body.companyId==='string'?body.companyId:'';
+  if(!['insert','update','delete','upsert'].includes(operation))return jsonError(c,'نوع تغییر داده معتبر نیست.',400);
+  try{
+    const sql=sqlFor(c);
+    if(!validUuid(companyId)){
+      const first=await sql`SELECT company_id FROM public.memberships WHERE user_id=${user.id}::uuid AND active=true ORDER BY CASE role::text WHEN 'owner' THEN 0 WHEN 'admin' THEN 1 WHEN 'staff' THEN 2 WHEN 'supplier' THEN 3 ELSE 4 END,created_at LIMIT 1`;
+      companyId=first[0]?String((first[0] as {company_id:string}).company_id):'';
+    }
+    if(!validUuid(companyId))return jsonError(c,'برای تغییر داده، عضویت فعال در یک مجموعه لازم است.',403);
+    const membership=await operationMembership(sql,user.id,companyId);
+    if(!membership||!config.writeRoles.includes(membership.role)||config.readOnly)return jsonError(c,'برای تغییر این داده مجوز نداری.',403);
+    const manager=['owner','admin'].includes(membership.role),columns=await dataColumns(sql,table);
+    const selection=parseSelect(typeof query.select==='string'?query.select:'*');
+    if(operation==='insert'){
+      if(table==='shipments'&&membership.role==='driver')return jsonError(c,'راننده نمی‌تواند محموله جدید بسازد.',403);
+      if(table==='quality_reviews'){
+        const payload=Array.isArray(body.values)?body.values[0]:body.values;
+        if(!payload||typeof payload!=='object')return jsonError(c,'داده بازبینی کیفیت معتبر نیست.',400);
+        const row=payload as Record<string,unknown>,lotId=String(row.lot_id??''),result=String(row.result??'');
+        if(!validUuid(lotId))return jsonError(c,'سری محصول معتبر نیست.',400);
+        const inserted=await sql`SELECT public.medar_record_quality_review(${user.id}::uuid,${companyId}::uuid,${lotId}::uuid,${result},${typeof row.notes==='string'?row.notes:null},${JSON.stringify(row.checklist??{})}::jsonb) AS id`;
+        const id=String((inserted[0] as {id:string}).id);
+        await auditDataChange(sql,companyId,user.id,table,id,'quality.review.recorded',{lot_id:lotId,result});
+        return c.json({data:body.returning?[{id,company_id:companyId,lot_id:lotId,result}]:null,count:1},201);
+      }
+      if(table==='orders'&&membership.role==='customer'&&!membership.customer_id)return jsonError(c,'حساب مشتری به عضویت متصل نیست.',403);
+      if(table==='order_items'&&membership.role==='customer'&&!membership.customer_id)return jsonError(c,'حساب مشتری به عضویت متصل نیست.',403);
+      const inputs=Array.isArray(body.values)?body.values:[body.values];
+      if(!inputs.length||inputs.some(value=>!value||typeof value!=='object'||Array.isArray(value)))return jsonError(c,'محتوای رکورد معتبر نیست.',400);
+      if(inputs.length>50)return jsonError(c,'در هر درخواست حداکثر ۵۰ رکورد ثبت می‌شود.',413);
+      const inserted:Record<string,unknown>[]=[];
+      for(const raw of inputs){
+        const input=raw as Record<string,unknown>,row:Record<string,unknown>={};
+        for(const [field,value] of Object.entries(input)){
+          if(!columns.has(field)||serverManagedDataFields.has(field)||field==='company_id')continue;
+          if(table==='order_items'&&['supplier_id','lot_id','capacity_commitment_id'].includes(field))continue;
+          if(table==='shipments'&&field==='stage')continue;
+          if(table==='orders'&&field==='status')continue;
+          if(table==='capacity_commitments'&&field==='status')continue;
+          if(table==='invoices'&&['status','paid_amount','payment_reference','paid_at','paid_by'].includes(field))continue;
+          if(table==='settlements'&&['status','paid_at','paid_by'].includes(field))continue;
+          if(table==='lots'&&field==='status')continue;
+          if(table==='company_goals'&&field==='status')continue;
+          row[field]=value;
+        }
+        row.company_id=companyId;
+        if(table==='orders'){row.status='draft';if(membership.role==='customer')row.customer_id=membership.customer_id;}
+        if(table==='order_items'){
+          if(!row.order_id||!row.product_id)return jsonError(c,'سفارش و محصول لازم است.',400);
+          if(membership.role==='customer'){
+            const ownOrder=await queryRows(sql,'SELECT customer_id FROM public.orders WHERE id=$1::uuid AND company_id=$2::uuid AND status=\'draft\' LIMIT 1',[row.order_id,companyId]);
+            if(!ownOrder.length||String(ownOrder[0].customer_id)!==membership.customer_id)return jsonError(c,'قلم فقط به سفارش پیش‌نویس خودت اضافه می‌شود.',403);
+          }
+        }
+        if(table==='shipments')row.stage='planned';
+        if(table==='capacity_commitments'){
+          row.status='declared';if(membership.role==='supplier')row.supplier_id=membership.supplier_id;
+          if(!Number.isFinite(Number(row.declared_qty))||Number(row.declared_qty)<=0)return jsonError(c,'ظرفیت اعلامی باید بیشتر از صفر باشد.',400);
+          if(String(row.period_end)<String(row.period_start))return jsonError(c,'پایان بازه ظرفیت قبل از شروع آن است.',400);
+        }
+        if(table==='invoices'){row.status='draft';row.paid_amount=0;}
+        if(table==='settlements')row.status='pending';
+        if(table==='lots'){row.status='pending_review';if(membership.role==='supplier')row.supplier_id=membership.supplier_id;}
+        if(table==='company_goals')row.status='planned';
+        if(table==='customers'||table==='suppliers'||table==='products')if(row.active===undefined)row.active=true;
+        if(table==='quality_reviews')return jsonError(c,'بازبینی کیفیت باید از مسیر ثبت تخصصی انجام شود.',400);
+        if(table==='delivery_evidence'&&membership.role==='driver'){
+          const shipmentId=String(row.shipment_id??'');
+          const assigned=await queryRows(sql,'SELECT id FROM public.shipments WHERE id=$1::uuid AND company_id=$2::uuid AND driver_user_id=$3::uuid LIMIT 1',[shipmentId,companyId,user.id]);
+          if(!assigned.length)return jsonError(c,'این محموله به راننده فعلی تخصیص داده نشده است.',403);
+        }
+        if(table==='shipment_locations'&&membership.role==='driver')row.driver_user_id=user.id;
+        if(columns.has('created_by'))row.created_by=user.id;
+        if(columns.has('updated_by'))row.updated_by=user.id;
+        if(columns.has('captured_by')&&table==='delivery_evidence')row.captured_by=user.id;
+        if(columns.has('reviewer_id')&&table==='quality_reviews')row.reviewer_id=user.id;
+        if(table==='invoices'){
+          const amount=Number(row.amount);
+          if(!Number.isFinite(amount)||amount<=0)return jsonError(c,'مبلغ فاکتور باید بیشتر از صفر باشد.',400);
+        }
+        if(table==='settlements'){
+          const amount=Number(row.amount);
+          if(!Number.isFinite(amount)||amount<=0)return jsonError(c,'مبلغ تسویه باید بیشتر از صفر باشد.',400);
+        }
+        if(table==='price_agreements'){
+          if(Number(row.unit_price)<0||Number(row.min_qty)<=0||!row.customer_id||!row.product_id||!row.valid_from)return jsonError(c,'قیمت، حداقل مقدار، مشتری، محصول و تاریخ شروع لازم است.',400);
+          if(row.valid_to&&String(row.valid_to)<String(row.valid_from))return jsonError(c,'پایان توافق قیمت قبل از شروع آن است.',400);
+        }
+        if(table==='delivery_evidence'){
+          const path=typeof row.storage_path==='string'?row.storage_path:'';
+          if(path&&(!path.startsWith(companyId+'/'+String(row.shipment_id)+'/')||path.split('/').length!==3))return jsonError(c,'مسیر فایل مدرک با محموله مطابقت ندارد.',400);
+        }
+        await validateDataReferences(sql,table,row,companyId,user.id,membership);
+        const fields=Object.keys(row).filter(field=>columns.has(field)&&/^[a-z_][a-z0-9_]*$/i.test(field));
+        if(!fields.length)return jsonError(c,'هیچ فیلد قابل ثبت ارسال نشده است.',400);
+        const params=fields.map(field=>row[field]),placeholders=params.map((_,i)=>'$'+(i+1));
+        const rows=await queryRows(sql,`INSERT INTO public.${table}(${fields.join(',')}) VALUES(${placeholders.join(',')}) RETURNING *`,params);
+        const created=rows[0];if(created){inserted.push(created);await auditDataChange(sql,companyId,user.id,table,String(created.id),'data.inserted',{fields});}
+      }
+      if(body.returning){
+        await hydrateDataRows(sql,table,inserted,selection.relations,companyId,membership,user.id);
+        return c.json({data:inserted.map(row=>projectDataRow(row,selection.fields,selection.relations)),count:inserted.length},201);
+      }
+      return c.json({data:null,count:inserted.length},201);
+    }
+    if(operation==='update'){
+      if(!filters.some(filter=>filter.column==='id'&&filter.op==='eq'&&typeof filter.value==='string'&&validUuid(filter.value)))return jsonError(c,'برای تغییر رکورد باید شناسه دقیق آن مشخص باشد.',400);
+      const built=buildDataWhere(table,columns,filters,companyId,membership,user.id);
+      const existing=await queryRows(sql,`SELECT t.* FROM public.${table} t WHERE ${built.where} LIMIT 2`,built.params);
+      if(!existing.length)return jsonError(c,'رکورد پیدا نشد یا دسترسی به آن مجاز نیست.',404);
+      if(existing.length>1)return jsonError(c,'فیلتر تغییر رکورد یکتا نیست.',400);
+      const old=existing[0],input=body.values&&typeof body.values==='object'?body.values as Record<string,unknown>:{};
+      const patch:Record<string,unknown>={};
+      for(const [field,value] of Object.entries(input)){
+        if(!columns.has(field)||serverManagedDataFields.has(field)||['id','company_id','created_at','created_by'].includes(field))continue;
+        if(table==='order_items')return jsonError(c,'تغییر تخصیص قلم سفارش فقط از مسیر تخصیص ظرفیت مجاز است.',403);
+        if(table==='lots'&&field==='status')return jsonError(c,'وضعیت سری محصول فقط از مسیر بازبینی کیفیت تغییر می‌کند.',403);
+        if(table==='shipments'&&field==='driver_user_id'&&!manager)return jsonError(c,'فقط مالک یا مدیر می‌تواند راننده محموله را تغییر دهد.',403);
+        patch[field]=value;
+      }
+      if(!Object.keys(patch).length)return jsonError(c,'هیچ فیلد قابل تغییر ارسال نشده است.',400);
+      if(table==='orders'&&patch.status!==undefined){
+        const current=String(old.status),next=String(patch.status);
+        const transitions:Record<string,string[]>={draft:['submitted','cancelled'],submitted:['confirmed','cancelled'],confirmed:['allocated','cancelled'],allocated:['in_fulfillment','cancelled'],in_fulfillment:['dispatched','cancelled'],dispatched:['delivered','partially_delivered','returned'],partially_delivered:['delivered','returned']};
+        if(membership.role==='customer'){if(String(old.customer_id)!==membership.customer_id||current!=='draft'||!['submitted','cancelled'].includes(next))return jsonError(c,'این گذار وضعیت سفارش برای حساب مشتری مجاز نیست.',403);}
+        else if(!['owner','admin','staff'].includes(membership.role)||!(transitions[current]??[]).includes(next))return jsonError(c,'گذار وضعیت سفارش معتبر نیست.',409);
+      }
+      if(table==='shipments'&&patch.stage!==undefined){
+        const current=String(old.stage),next=String(patch.stage),transitions:Record<string,string[]>={planned:['loading'],loading:['in_transit'],in_transit:['arrived','failed'],arrived:['delivered','failed','returned']};
+        if(!(transitions[current]??[]).includes(next))return jsonError(c,'گذار مرحله محموله معتبر نیست.',409);
+        if(membership.role==='driver'&&String(old.driver_user_id)!==user.id)return jsonError(c,'این محموله به راننده فعلی تخصیص داده نشده است.',403);
+        if(next==='failed'&&!String(patch.failure_reason??old.failure_reason??'').trim())return jsonError(c,'برای ثبت عدم تحویل، علت لازم است.',400);
+        if(next==='in_transit')patch.departed_at=new Date().toISOString();
+        if(next==='delivered')patch.delivered_at=new Date().toISOString();
+      }
+      if(table==='capacity_commitments'&&(patch.status!==undefined||patch.confirmed_qty!==undefined)){
+        if(!manager)return jsonError(c,'تأیید ظرفیت فقط برای مالک یا مدیر مجاز است.',403);
+        const current=String(old.status),next=String(patch.status??current),declared=Number(old.declared_qty),committed=Number(old.committed_qty??0),confirmed=Number(patch.confirmed_qty??old.confirmed_qty??0);
+        if(next==='confirmed'){
+          if(!['declared','confirmed'].includes(current)||!Number.isFinite(confirmed)||confirmed<committed||confirmed>declared)return jsonError(c,'مقدار تأییدشده باید بین تعهد فعلی و ظرفیت اعلامی باشد.',400);
+          patch.confirmed_qty=confirmed;
+        }else if(['released','cancelled'].includes(next)){
+          if(!['declared','confirmed'].includes(current))return jsonError(c,'این ظرفیت در وضعیت فعلی قابل آزادسازی نیست.',409);
+        }else if(next!==current)return jsonError(c,'گذار وضعیت ظرفیت معتبر نیست.',409);
+      }
+      if(table==='invoices'&&patch.status!==undefined){
+        if(!manager&&!['staff'].includes(membership.role))return jsonError(c,'تغییر وضعیت فاکتور برای این نقش مجاز نیست.',403);
+        const current=String(old.status),next=String(patch.status);
+        if(next==='issued'&&current==='draft')patch.issued_at=new Date().toISOString();
+        else if(next==='paid'&&['issued','overdue'].includes(current)){
+          const paidAmount=Number(patch.paid_amount??old.paid_amount),reference=String(patch.payment_reference??'').trim();
+          if(paidAmount<Number(old.amount)||!reference)return jsonError(c,'برای ثبت پرداخت فاکتور، مبلغ کامل و مرجع پرداخت لازم است.',400);
+          patch.paid_at=new Date().toISOString();patch.paid_by=user.id;
+        }else if(next==='overdue'&&current==='issued'){}
+        else return jsonError(c,'گذار وضعیت فاکتور معتبر نیست.',409);
+      }
+      if(table==='settlements'&&patch.status!==undefined){
+        if(!manager)return jsonError(c,'تغییر وضعیت تسویه فقط برای مالک یا مدیر مجاز است.',403);
+        const current=String(old.status),next=String(patch.status);
+        if(next==='approved'&&current==='pending'){}
+        else if(next==='paid'&&current==='approved'){
+          if(!String(patch.payment_reference??'').trim())return jsonError(c,'برای ثبت پرداخت تسویه، مرجع پرداخت لازم است.',400);
+          patch.paid_at=new Date().toISOString();patch.paid_by=user.id;
+        }else if(next==='cancelled'&&['pending','approved'].includes(current)){}
+        else return jsonError(c,'گذار وضعیت تسویه معتبر نیست.',409);
+      }
+      if(table==='company_goals'&&patch.status!==undefined&&!['planned','active','completed','paused'].includes(String(patch.status)))return jsonError(c,'وضعیت هدف معتبر نیست.',400);
+      if(columns.has('updated_at'))patch.updated_at=new Date().toISOString();
+      if(columns.has('updated_by'))patch.updated_by=user.id;
+      await validateDataReferences(sql,table,patch,companyId,user.id,membership);
+      const fields=Object.keys(patch).filter(field=>columns.has(field)&&/^[a-z_][a-z0-9_]*$/i.test(field));
+      const params=[...fields.map(field=>patch[field]),...built.params];
+      const assignments=fields.map((field,i)=>field+'=$'+(i+1)).join(',');
+      const where=built.where.replace(/\$(\d+)/g,(_,n)=>'$'+(Number(n)+fields.length));
+      const updated=await queryRows(sql,`UPDATE public.${table} t SET ${assignments} WHERE ${where} RETURNING t.*`,params);
+      for(const row of updated)await auditDataChange(sql,companyId,user.id,table,String(row.id),'data.updated',patch);
+      if(body.returning){
+        await hydrateDataRows(sql,table,updated,selection.relations,companyId,membership,user.id);
+        return c.json({data:updated.map(row=>projectDataRow(row,selection.fields,selection.relations)),count:updated.length});
+      }
+      return c.json({data:null,count:updated.length});
+    }
+    if(operation==='delete'){
+      if(!filters.some(filter=>filter.column==='id'&&filter.op==='eq'&&typeof filter.value==='string'&&validUuid(filter.value)))return jsonError(c,'برای حذف باید شناسه دقیق رکورد مشخص باشد.',400);
+      if(!['orders','price_agreements','company_goals'].includes(table))return jsonError(c,'حذف این نوع داده مجاز نیست.',403);
+      const built=buildDataWhere(table,columns,filters,companyId,membership,user.id);
+      const existing=await queryRows(sql,`SELECT t.* FROM public.${table} t WHERE ${built.where} LIMIT 2`,built.params);
+      if(!existing.length)return jsonError(c,'رکورد پیدا نشد.',404);
+      if(existing.length>1)return jsonError(c,'فیلتر حذف رکورد یکتا نیست.',400);
+      if(table==='orders'){
+        if(String(existing[0].status)!=='draft')return jsonError(c,'فقط سفارش پیش‌نویس قابل حذف است.',409);
+        const items=await queryRows(sql,'SELECT id FROM public.order_items WHERE company_id=$1::uuid AND order_id=$2::uuid LIMIT 1',[companyId,existing[0].id]);
+        if(items.length)return jsonError(c,'سفارشی که قلم دارد قابل حذف نیست.',409);
+      }
+      if(table==='price_agreements'&&!manager)return jsonError(c,'حذف توافق قیمت فقط برای مالک یا مدیر مجاز است.',403);
+      if(table==='company_goals'&&!['owner','admin','staff'].includes(membership.role))return jsonError(c,'حذف هدف برای این نقش مجاز نیست.',403);
+      const deleted=await queryRows(sql,`DELETE FROM public.${table} t WHERE ${built.where} RETURNING t.*`,built.params);
+      for(const row of deleted)await auditDataChange(sql,companyId,user.id,table,String(row.id),'data.deleted',{});
+      return c.json({data:null,count:deleted.length});
+    }
+    return jsonError(c,'این نوع تغییر داده پشتیبانی نمی‌شود.',400);
+  }catch(error){const message=error instanceof Error?error.message:'';return jsonError(c,message||'ذخیره تغییرات انجام نشد.',400);}
+});
 const allowedUploadTypes=new Set(['application/pdf','image/jpeg','image/png','image/webp']);
 function safeUploadName(value:string){return value.replace(/[^a-zA-Z0-9._-]/g,'_').slice(-120)||'upload';}
 function evidenceFileHeaders(contentType:string,filename:string){
