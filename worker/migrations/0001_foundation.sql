@@ -40,6 +40,13 @@ create table if not exists public.medar_login_attempts (
 );
 create index if not exists medar_login_attempts_recent on public.medar_login_attempts(username_normalized, attempted_at desc);
 
+create table if not exists public.medar_rate_limits (
+  key_hash text primary key,
+  window_started_at timestamptz not null default now(),
+  attempts integer not null default 0 check (attempts >= 0),
+  updated_at timestamptz not null default now()
+);
+
 create table if not exists public.medar_audit_log (
   id bigserial primary key,
   actor_user_id uuid references public.medar_users(id) on delete set null,
