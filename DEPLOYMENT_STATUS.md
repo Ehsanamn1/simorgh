@@ -29,14 +29,19 @@ R2 provisioning and the R2 binding have been removed per product decision. File/
 - Keep PR #26 in Draft until these remaining acceptance/security gates are reviewed. Do not remove the GitHub Pages fallback until the broader cutover is approved.
 
 
-## Candidate release — username auth hardening
+## Current deployment and next candidate
 
-The current branch adds the following changes; they are **not live until the tagged release workflow succeeds**:
+- **Live release:** [run 38981667956](https://github.com/Ehsanamn1/simorgh/actions/runs/38981667956) succeeded. Its pre-release typecheck, lint, unit tests, full browser acceptance suite, Worker build, migrations, deploy, and health/database/auth guard smoke checks all passed.
+- That release includes the username-auth hardening, password-change API, Medar data adapter rename, and removal of unused Supabase/Neon Auth SDK dependencies.
+- The current branch adds the self-service password-change dialog to the signed-in app. It is not live until the next tagged deployment completes.
+- `docs/MEDAR_7_PRIORITY_ACCEPTANCE.md` tracks all seven priorities and distinguishes implemented source from production acceptance gates.
 
-- Self-service password change through the Worker API, requiring the current password, rate-limiting attempts, hashing the replacement, revoking other sessions and writing an audit event.
-- A regression test verifies that password change without a session returns 401.
-- The frontend data adapter is named `src/lib/medarData.ts` and routes table/RPC/storage requests through the Worker API.
-- Unused Supabase and Neon Auth SDK dependencies and the unused legacy auth adapter were removed. Historical Supabase migrations remain in source for reconciliation; operational data has not been migrated or deleted.
-- The seven-priority acceptance document is `docs/MEDAR_7_PRIORITY_ACCEPTANCE.md`.
+The password-change API requires the current password, limits attempts, hashes the replacement, revokes other sessions and records an audit event. The UI requires matching new-password entries and displays server errors.
 
-Release acceptance must still verify the full account lifecycle and multi-company role isolation. The R2-backed file paths remain unavailable by design until an alternative storage provider is selected and implemented.
+## Remaining production-readiness gates
+
+- Test a real temporary account through signup, login, session persistence, password change and logout, plus positive/negative role access cases.
+- Verify data mapping and migration plan before moving existing Supabase operational data; existing operational data has not been migrated or deleted.
+- R2-backed file/evidence paths remain unavailable until an alternative storage backend is selected and implemented.
+- No SMS OTP, email recovery, bank transfer execution, or external integration is claimed as active.
+- Keep PR #26 in Draft and GitHub Pages as fallback until the remaining acceptance/security/data migration gates pass.
