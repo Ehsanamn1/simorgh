@@ -24,12 +24,7 @@ jobs:
       - run: npm run typecheck
       - run: npm run lint
       - run: npm run test
-      - name: Install Chromium for end-to-end release gate
-        run: npx playwright install --with-deps chromium
-      - name: Run complete browser acceptance suite before touching Neon
-        run: npm run test:e2e
-      - run: npm run build
-      - name: Validate deployment credentials
+      - name: Validate deployment credentials before expensive tests or database changes
         shell: bash
         run: |
           test -n "$CLOUDFLARE_API_TOKEN" || { echo "CLOUDFLARE_API_TOKEN is missing"; exit 1; }
@@ -44,6 +39,16 @@ jobs:
             ep-wild-mountain-baaweix2* ) echo "Verified isolated Neon migration endpoint: $db_host" ;;
             * ) echo "Refusing to migrate or deploy: MEDAR_DATABASE_URL must target the isolated medar-migration branch endpoint (ep-wild-mountain-baaweix2*)." >&2; exit 1 ;;
           esac
+      - name: Build Pages-shaped bundle required by the Playwright server
+        run: npm run build:pages
+        env:
+          VITE_ENABLE_AUTH_UI: 'true'
+      - name: Install Chromium for end-to-end release gate
+        run: npx playwright install --with-deps chromium
+      - name: Run complete browser acceptance suite before touching Neon
+        run: npm run test:e2e
+      - name: Build Worker-served SPA bundle
+        run: npm run build
       - name: Install PostgreSQL client
         run: sudo apt-get update && sudo apt-get install -y postgresql-client
       - name: Apply additive Neon migrations in order
