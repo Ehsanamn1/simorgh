@@ -57,8 +57,8 @@ function ConfigScreen() {
   return <main className="setup-screen" dir="rtl"><div className="setup-grid"><div className="setup-brand"><Logo/><span className="setup-chip"><span/> آماده استقرار · نیازمند پیکربندی</span><h1>شبکه‌ی تأمین را<br/><em>با داده واقعی</em> اداره کنید.</h1><p>سیمرغ برای اتصال سفارش، ظرفیت، کیفیت، ارسال و تسویه در یک جریان عملیاتی ساخته شده است. تا قبل از اتصال دیتابیس هیچ داده نمونه یا شاخص ساختگی نمایش داده نمی‌شود.</p><div className="setup-features"><span><ShieldCheck/> کنترل دسترسی نقش‌محور</span><span><Activity/> ثبت تغییرات و پیگیری</span><span><Boxes/> مسیر مستقل مشتری و تأمین‌کننده</span></div></div><section className="setup-panel"><div className="setup-panel-icon"><Settings2/></div><span className="eyebrow">راه‌اندازی اولیه</span><h2>اتصال پایگاه داده لازم است</h2><p>برای فعال‌شدن ورود کاربران و عملیات واقعی، یک پروژه اختصاصی Supabase بساز و متغیرهای زیر را در محیط محلی یا Cloudflare Pages قرار بده.</p><div className="env-item"><label>VITE_SUPABASE_URL</label><code>https://YOUR_PROJECT.supabase.co</code><button onClick={() => void navigator.clipboard?.writeText('VITE_SUPABASE_URL=')}>کپی نام متغیر</button></div><div className="env-item"><label>VITE_SUPABASE_PUBLISHABLE_KEY</label><code>sb_publishable_…</code><button onClick={() => void navigator.clipboard?.writeText('VITE_SUPABASE_PUBLISHABLE_KEY=')}>کپی نام متغیر</button></div><div className="setup-warning"><ShieldCheck size={17}/><span>کلید publishable تنها کلید قابل استفاده در مرورگر است. هرگز service-role یا secret key را در VITE_ قرار نده.</span></div><div className="setup-steps"><b>مراحل راه‌اندازی</b><span><i>۱</i> ساخت پروژه Supabase و اجرای migration</span><span><i>۲</i> تنظیم دو متغیر محیطی</span><span><i>۳</i> ساخت اولین شرکت و اعطای نقش مالک از SQL Editor</span></div><a className="button-primary setup-doc-link" href="https://supabase.com/dashboard" target="_blank" rel="noreferrer">رفتن به Supabase <ArrowUpLeft size={15}/></a></section></div><footer className="setup-footer"><span>سیمرغ / راه‌اندازی سامانه</span><span>هیچ داده‌ای تا اتصال واقعی ساخته نشده است.</span></footer></main>;
 }
 function WaitingAccess({ membershipsError }: { membershipsError: string | null }) {
-  const { user, signOut, refreshMemberships } = useAuth();
-  return <main className="waiting-screen" dir="rtl"><Logo/><div className="waiting-mark"><ShieldCheck size={30}/></div><span className="eyebrow">بررسی دسترسی</span><h1>حساب شما هنوز به مجموعه‌ای متصل نیست.</h1><p>حساب کاربری معتبر است، اما دسترسی عملیاتی فقط پس از دعوت یا تأیید مالک/مدیر مجموعه فعال می‌شود. این صفحه هیچ نقشی را خودکار اختصاص نمی‌دهد.</p><div className="waiting-email"><span>حساب</span><b dir="ltr">{user?.email}</b></div>{membershipsError && <div className="form-error">خواندن سطح دسترسی ناموفق بود: {membershipsError}</div>}<button className="button-primary" onClick={() => void refreshMemberships()}>بررسی دوباره دسترسی <Activity size={16}/></button><button className="button-ghost" onClick={() => void signOut()}>خروج از حساب <LogOut size={15}/></button><small>مالک مجموعه باید از بخش «دسترسی کاربران» حساب شما را اضافه کند.</small></main>;
+  const { user, signOut, refreshMemberships, membershipsLoading } = useAuth();
+  return <main className="waiting-screen" dir="rtl"><Logo/><div className="waiting-mark"><ShieldCheck size={30}/></div><span className="eyebrow">بررسی دسترسی</span><h1>حساب شما هنوز به مجموعه‌ای متصل نیست.</h1><p>حساب کاربری معتبر است، اما دسترسی عملیاتی فقط پس از دعوت یا تأیید مالک/مدیر مجموعه فعال می‌شود. این صفحه هیچ نقشی را خودکار اختصاص نمی‌دهد.</p><div className="waiting-email"><span>حساب</span><b dir="ltr">{user?.email}</b></div>{membershipsError && <div className="form-error">خواندن سطح دسترسی ناموفق بود: {membershipsError}</div>}<button className="button-primary" disabled={membershipsLoading} onClick={() => void refreshMemberships()}>{membershipsLoading?'در حال بررسی دسترسی…':'بررسی دوباره دسترسی'} <Activity size={16}/></button><button className="button-ghost" onClick={() => void signOut()}>خروج از حساب <LogOut size={15}/></button><small>مالک مجموعه باید از بخش «دسترسی کاربران» حساب شما را اضافه کند.</small></main>;
 }
 
 function MobileAccessScreen() {
@@ -742,8 +742,17 @@ function SupplierSettlementPage({membership,search}:{membership:Membership;searc
 
 function WorkspaceGate() {
   const { user, memberships, loading, membershipsLoading, error } = useAuth();
-  // Do not expose private modules before the active membership query finishes.
-  if (loading || (user && membershipsLoading)) {
+  const [checkedUserId, setCheckedUserId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!user) {
+      setCheckedUserId(null);
+      return;
+    }
+    if (!membershipsLoading) setCheckedUserId(user.id);
+  }, [user?.id, membershipsLoading]);
+  // Avoid flashing "no membership" before the first database check finishes,
+  // but keep the access screen mounted when its owner asks to re-check access.
+  if (loading || (user && checkedUserId !== user.id)) {
     return <OperationalWorkspace authLoading={true} hasMembership={false}/>;
   }
   if (user && memberships.length > 0) return <AppShell/>;
