@@ -7,7 +7,7 @@ import {
   Warehouse, X, CircleHelp,
 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { SimorghLogo } from './SimorghLogo';
+import { MedarLogo } from './MedarLogo';
 
 type ModuleKey = 'command'|'orders'|'farms'|'production'|'tasks'|'inventory'|'shipments'|'map'|'finance'|'partners'|'quality'|'intelligence'|'goals'|'audit'|'settings';
 type IconType = typeof Home;
@@ -107,13 +107,13 @@ export default function OperationalWorkspace({authLoading=false,hasMembership=fa
  const statusText=authLoading?'در حال بررسی وضعیت اتصال':hasMembership?'حساب سازمانی فعال':'داده‌های شرکت در انتظار فعال‌سازی حساب مالک';
  return <main className="ops-live-app" dir="rtl">
   <header className="ops-live-header">
-    <div className="ops-live-brand"><SimorghLogo/><span>مرکز مدیریت عملیات، منابع و رشد سازمان</span></div>
+    <div className="ops-live-brand"><MedarLogo/><span>مرکز مدیریت عملیات، منابع و رشد سازمان</span></div>
     <div className="ops-live-header-meta"><TehranClock/><button type="button" className="ops-live-theme" aria-label={theme==='dark'?'فعال‌کردن حالت روشن':'فعال‌کردن حالت تاریک'} onClick={()=>setTheme(v=>v==='dark'?'light':'dark')}>{theme==='dark'?<Sun size={17}/>:<Moon size={17}/>}<span>{theme==='dark'?'حالت روشن':'حالت تاریک'}</span></button></div>
   </header>
   <div className="ops-live-shell">
    {drawerOpen&&<button className="ops-live-scrim" type="button" aria-label="بستن منو" onClick={()=>setDrawerOpen(false)}/>}
    <aside className={'ops-live-sidebar '+(drawerOpen?'open':'')}>
-    <div className="ops-live-side-brand"><SimorghLogo compact/><div><b>محیط عملیاتی</b><small>مدیریت مجموعه</small></div><button type="button" aria-label="بستن منو" className="ops-live-close" onClick={()=>setDrawerOpen(false)}><X size={17}/></button></div>
+    <div className="ops-live-side-brand"><MedarLogo compact/><div><b>محیط عملیاتی</b><small>مدیریت مجموعه</small></div><button type="button" aria-label="بستن منو" className="ops-live-close" onClick={()=>setDrawerOpen(false)}><X size={17}/></button></div>
     <label className="ops-live-search"><Search size={15}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="جست‌وجوی بخش‌ها…"/></label>
     <nav className="ops-live-nav" aria-label="ماژول‌های سامانه">{['مدیریت','شبکه','تولید','عملیات','مالی','کنترل'].map(group=><div className="ops-live-nav-group" key={group}><small>{group}</small>{filtered.filter(m=>m.group===group).map(m=>{const Icon=m.icon;return <button key={m.key} type="button" className={page===m.key?'active':''} onClick={()=>go(m.key)}><Icon size={16}/><span>{m.label}</span>{page===m.key&&<i/>}</button>})}</div>)}</nav>
     <div className="ops-live-sidebar-status"><span className={hasMembership?'healthy':''}/><div><b>{hasMembership?'دسترسی سازمانی فعال':'کنترل دسترسی فعال است'}</b><small>{hasMembership?'ماژول‌ها با نقش واقعی محدود شده‌اند':'داده‌ی خصوصی بدون عضویت نمایش داده نمی‌شود'}</small></div><ShieldCheck size={16}/></div>
