@@ -690,6 +690,58 @@ function buildDataWhere(table:string,columns:Set<string>,filters:DataFilter[],co
   }
   return {params,where:where.join(' AND ')};
 }
+app.post('/api/data/:table/query', async c => {
+  let user:AuthUser|null;
+  try{user=await currentUser(c);}catch{return jsonError(c,'پایگاه داده پیکربندی نشده است.',503);}
+  if(!user)return jsonError(c,'برای مشاهده داده ابتدا وارد حساب شو.',401);
+  const table=c.req.param('table');
+  const config=dataTableConfigs[table];
+  if(!config)return jsonError(c,'این منبع داده در API مجاز نیست.',404);
+  let body:Record<string,unknown>;
+  try{body=await c.req.json();}catch{return jsonError(c,'درخواست خواندن داده معتبر نیست.',400);}
+  const query=(body.query&&typeof body.query==='object'?body.query:{}) as {select?:string;filters?:DataFilter[];orders?:{column:string;ascending:boolean}[];limit?:number|null;offset?:number;count?:string|null;head?:boolean};
+  const filters=Array.isArray(query.filters)?query.filters:[];
+  const companyFilter=filters.find(filter=>filter.column==='company_id'&&filter.op==='eq')?.value;
+  let companyId=typeof companyFilter==='string'?companyFilter:typeof body.companyId==='string'?body.companyId:'';
+  try{
+    const sql=sqlFor(c);
+    if(!validUuid(companyId)){
+      const first=await sql`SELECT company_id FROM public.memberships WHERE user_id=${user.id}::uuid AND active=true ORDER BY CASE role::text WHEN 'owner' THEN 0 WHEN 'admin' THEN 1 WHEN 'staff' THEN 2 WHEN 'supplier' THEN 3 ELSE 4 END,created_at LIMIT 1`;
+      companyId=first[0]?String((first[0] as {company_id:string}).company_id):'';
+    }
+    if(!validUuid(companyId))return jsonError(c,'برای مشاهده داده، عضویت فعال در یک مجموعه لازم است.',403);
+    const membership=await operationMembership(sql,user.id,companyId);
+    if(!membership||!config.readRoles.includes(membership.role))return jsonError(c,'برای مشاهده این داده مجوز نداری.',403);
+    const columns=await dataColumns(sql,table);
+    if(!columns.has('company_id'))return jsonError(c,'منبع داده فاقد مرز مجموعه است و از API عمومی قابل خواندن نیست.',403);
+    const selection=parseSelect(typeof query.select==='string'?query.select:'*');
+    const virtualFields=table==='access_requests'?new Set(['username','display_name','phone']):new Set<string>();
+    for(const field of selection.fields){
+      if(field==='*'||field==='count(*)')continue;
+      if(!columns.has(field)&&!virtualFields.has(field))return jsonError(c,'فیلد انتخاب‌شده مجاز نیست: '+field,400);
+    }
+    for(const relation of selection.relations)if(!dataRelations[table]?.[relation.name])return jsonError(c,'رابطه انتخاب‌شده مجاز نیست: '+relation.name,400);
+    const built=buildDataWhere(table,columns,filters,companyId,membership,user.id);
+    let count:number|null=null;
+    if(query.count==='exact'||query.head){
+      const countRows=await queryRows(sql,`SELECT count(*)::int AS count FROM public.${table} t WHERE ${built.where}`,built.params);
+      count=Number((countRows[0] as {count:number}).count);
+    }
+    if(query.head)return c.json({data:null,count});
+    const orders=Array.isArray(query.orders)?query.orders:[];
+    const orderSql=orders.map(order=>{
+      if(!/^[a-z_][a-z0-9_]*$/i.test(order.column)||!columns.has(order.column))throw new Error('فیلد مرتب‌سازی مجاز نیست: '+order.column);
+      return `t.${order.column} ${order.ascending===false?'DESC':'ASC'}`;
+    }).join(',');
+    const limit=Math.min(1000,Math.max(0,Number.isFinite(Number(query.limit))?Number(query.limit):500));
+    const offset=Math.max(0,Number.isFinite(Number(query.offset))?Number(query.offset):0);
+    const params=[...built.params,limit,offset];
+    const rows=await queryRows(sql,`SELECT t.* FROM public.${table} t WHERE ${built.where}${orderSql?' ORDER BY '+orderSql:''} LIMIT $${params.length-1} OFFSET $${params.length}`,params);
+    await hydrateDataRows(sql,table,rows,selection.relations,companyId,membership,user.id);
+    const data=rows.map(row=>projectDataRow(row,selection.fields,selection.relations));
+    return c.json({data,count});
+  }catch(error){const message=error instanceof Error?error.message:'';return jsonError(c,message||'خواندن داده انجام نشد.',400);}
+});
 const allowedUploadTypes=new Set(['application/pdf','image/jpeg','image/png','image/webp']);
 function safeUploadName(value:string){return value.replace(/[^a-zA-Z0-9._-]/g,'_').slice(-120)||'upload';}
 function evidenceFileHeaders(contentType:string,filename:string){
