@@ -106,7 +106,6 @@ test('manager forms support generic farm types, species, production and daily re
   const farmType = page.locator('#ops-farm_type');
   await expect(farmType).toBeVisible();
   for (const kind of ['crop', 'livestock', 'poultry', 'dairy', 'aquaculture', 'greenhouse', 'orchard', 'apiary', 'other']) {
-    await expect(farmType.locator('option').filter({ has: page.locator('option') }).first()).toBeAttached();
     await expect(farmType.locator('option[value="' + kind + '"]')).toHaveCount(1);
   }
   await expect(page.locator('#ops-province')).toBeVisible();
