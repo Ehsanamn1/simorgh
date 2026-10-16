@@ -325,13 +325,14 @@ function productKindLabel(kind: unknown) {
   const labels: Record<string,string> = {
     farm_product:'محصول مزرعه', crop:'محصول زراعی', livestock:'دام و فرآورده دامی',
     poultry:'طیور', aquaculture:'آبزی‌پروری', dairy:'لبنیات', eggs:'تخم‌مرغ', meat:'گوشت',
+    honey:'عسل', forestry:'محصول جنگلی', greenhouse:'محصول گلخانه‌ای', orchard:'محصول باغی',
     input:'نهاده و مواد اولیه', feed:'خوراک', equipment:'تجهیزات', processed:'محصول فرآوری‌شده',
     service:'خدمات', other:'سایر',
   };
   return labels[String(kind??'')] ?? 'سایر';
 }
 function ProductsPage({membership,search}:{membership:Membership;search:string}) {
- return <><EntityPage membership={membership} table="products" title="کاتالوگ و مشخصات محصول" description="محصول، واحد فروش و اطلاعات بسته‌بندی. قیمت اختصاصی هر مشتری در توافق قیمت تعریف می‌شود." fields={[{name:'sku',label:'کد محصول',required:true},{name:'name',label:'نام محصول',required:true},{name:'kind',label:'نوع محصول',type:'select',required:true,options:[{value:'farm_product',label:'محصول مزرعه'},{value:'crop',label:'محصول زراعی'},{value:'livestock',label:'دام و فرآورده دامی'},{value:'poultry',label:'طیور'},{value:'aquaculture',label:'آبزی‌پروری'},{value:'dairy',label:'لبنیات'},{value:'input',label:'نهاده و مواد اولیه'},{value:'feed',label:'خوراک'},{value:'equipment',label:'تجهیزات'},{value:'processed',label:'محصول فرآوری‌شده'},{value:'service',label:'خدمات'},{value:'other',label:'سایر'}]},{name:'unit',label:'واحد فروش',required:true},{name:'pack_size',label:'اندازه بسته (اختیاری)',type:'number'},{name:'shelf_life_days',label:'ماندگاری (روز)',type:'number'},{name:'storage_note',label:'شرایط نگهداری',type:'textarea'}]} columns={[{key:'sku',label:'کد'},{key:'name',label:'محصول'},{key:'kind',label:'گروه',render:r=>productKindLabel(r.kind)},{key:'unit',label:'واحد'},{key:'pack_size',label:'اندازه بسته'},{key:'active',label:'وضعیت'},{key:'created_at',label:'تاریخ ثبت'}]} search={search}/><PriceAgreements membership={membership} search={search}/></>;
+ return <><EntityPage membership={membership} table="products" title="کاتالوگ و مشخصات محصول" description="محصول، واحد فروش و اطلاعات بسته‌بندی. قیمت اختصاصی هر مشتری در توافق قیمت تعریف می‌شود." fields={[{name:'sku',label:'کد محصول',required:true},{name:'name',label:'نام محصول',required:true},{name:'kind',label:'نوع محصول',type:'select',required:true,options:[{value:'farm_product',label:'محصول مزرعه'},{value:'crop',label:'محصول زراعی'},{value:'livestock',label:'دام و فرآورده دامی'},{value:'poultry',label:'طیور'},{value:'aquaculture',label:'آبزی‌پروری'},{value:'dairy',label:'لبنیات'},{value:'eggs',label:'تخم‌مرغ'},{value:'meat',label:'گوشت'},{value:'honey',label:'عسل'},{value:'forestry',label:'محصول جنگلی'},{value:'greenhouse',label:'محصول گلخانه‌ای'},{value:'orchard',label:'محصول باغی'},{value:'input',label:'نهاده و مواد اولیه'},{value:'feed',label:'خوراک'},{value:'equipment',label:'تجهیزات'},{value:'processed',label:'محصول فرآوری‌شده'},{value:'service',label:'خدمات'},{value:'other',label:'سایر'}]},{name:'unit',label:'واحد فروش',required:true},{name:'pack_size',label:'اندازه بسته (اختیاری)',type:'number'},{name:'shelf_life_days',label:'ماندگاری (روز)',type:'number'},{name:'storage_note',label:'شرایط نگهداری',type:'textarea'}]} columns={[{key:'sku',label:'کد'},{key:'name',label:'محصول'},{key:'kind',label:'گروه',render:r=>productKindLabel(r.kind)},{key:'unit',label:'واحد'},{key:'pack_size',label:'اندازه بسته'},{key:'active',label:'وضعیت'},{key:'created_at',label:'تاریخ ثبت'}]} search={search}/><PriceAgreements membership={membership} search={search}/></>;
 }
 function PriceAgreements({membership,search}:{membership:Membership;search:string}) {
  const [rows,setRows]=useState<Row[]>([]);const [customers,setCustomers]=useState<Row[]>([]);const [products,setProducts]=useState<Row[]>([]);const [loading,setLoading]=useState(true);const [error,setError]=useState('');const [open,setOpen]=useState(false);const [busy,setBusy]=useState(false);const [form,setForm]=useState({customer_id:'',product_id:'',unit_price:'',min_qty:'1',valid_from:new Date().toISOString().slice(0,10),valid_to:''});
@@ -733,12 +734,26 @@ function SupplierCapacityPage({membership,search}:{membership:Membership;search:
 function SupplierSettlementPage({membership,search}:{membership:Membership;search:string}) {const {rows,loading,error,refresh}=useDbRows('settlements',membership,{order:'created_at'});const shown=rows.filter(r=>(!membership.supplier_id||r.supplier_id===membership.supplier_id)&&(!search||`${r.invoice_ref??''} ${r.status}`.toLowerCase().includes(search.toLowerCase())));return <><PageHeading eyebrow="SUPPLIER / SETTLEMENT" title="تسویه‌های من" description="مبالغ و وضعیت تسویه را بر اساس رکوردهای داخلی ببین؛ وضعیت «پرداخت‌شده» باید پس از تطبیق واقعی ثبت شود." action={<Button variant="soft" onClick={()=>void refresh()}>تازه‌سازی</Button>}/>{error&&<InlineError error={error} retry={()=>void refresh()}/>}<section className="panel entity-panel">{loading?<div className="panel-loading"><span className="spinner small"/></div>:shown.length?<DataTable rows={shown} columns={[{key:'invoice_ref',label:'مرجع سند'},{key:'amount',label:'مبلغ',render:r=>moneyFa(String(r.amount))},{key:'due_date',label:'سررسید'},{key:'status',label:'وضعیت',render:r=><Badge value={r.status}/>},{key:'note',label:'یادداشت'}]}/>:<EmptyState title="تسویه‌ای برای نمایش وجود ندارد" description="سوابق تسویه پس از ثبت توسط تیم مالی مجموعه اینجا قرار می‌گیرند." icon={CreditCard}/>}</section></>}
 
 function WorkspaceGate() {
-  const { user, loading } = useAuth();
-  // Authenticated sessions enter the role-filtered app, including the access-request
-  // flow for users without a membership. Guests see the secure sign-in layer.
+  const { user, loading, membershipsLoading } = useAuth();
+  const [resolvedUserId, setResolvedUserId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!user) {
+      setResolvedUserId(null);
+      return;
+    }
+    if (!membershipsLoading) setResolvedUserId(user.id);
+  }, [user?.id, membershipsLoading]);
+
+  // Resolve the first membership lookup before mounting the access-request screen.
+  // Once resolved, a manual retry keeps WaitingAccess mounted instead of flashing
+  // back to the guest/loading shell while the query is in flight.
+  if (loading || (user && resolvedUserId !== user.id)) {
+    return <OperationalWorkspace authLoading={true} hasMembership={false}/>;
+  }
   return user
     ? <AppShell/>
-    : <OperationalWorkspace authLoading={loading} hasMembership={false}/>;
+    : <OperationalWorkspace authLoading={false} hasMembership={false}/>;
 }
 
 export default function App() {

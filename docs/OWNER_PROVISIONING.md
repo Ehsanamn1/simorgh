@@ -1,12 +1,12 @@
 # مدار — راه‌اندازی امن حساب مالک
 
-پروژه‌ی مدار یک رکورد سازمانی با نام «شبکه سیمرغ» دارد، اما ممکن است هنوز حساب احراز هویت یا عضویت فعالی نداشته باشد. ورود امن فعال است و ثبت‌نام عمومی باز نیست؛ نخستین حساب مالک باید از داشبورد Supabase به‌صورت کنترل‌شده ایجاد شود.
+بررسی دیتابیس متصل در ۱۶ اکتبر ۲۰۲۶ نشان داد یک رکورد شرکت با نام «شبکه سیمرغ» موجود است، اما هیچ کاربر Supabase Auth، هیچ عضویت فعالی و هیچ رکورد عملیاتی در جدول‌های نمونه‌برداری‌شده وجود ندارد. ورود امن فعال است و ثبت‌نام عمومی باز نیست؛ نخستین حساب مالک باید از داشبورد Supabase به‌صورت کنترل‌شده ایجاد شود.
 
 ## ایجاد حساب امن مالک
 
-1. Open the Supabase dashboard for project `aoxerjimfiwusidaparx`, then go to **Authentication → Users → Add user**.
-2. Create the first user with an email address you personally control. Confirm/verify the email only after checking it carefully. Generate a strong, unique password and keep it in a password manager; do not send it in chat or commit it.
-3. In the project dashboard, open **SQL Editor**. Replace `OWNER_EMAIL_HERE` below with the exact email entered in Auth and run this guarded SQL after verifying the account.
+۱. داشبورد پروژه‌ی Supabase با شناسه‌ی `aoxerjimfiwusidaparx` را باز کن و به مسیر **Authentication → Users → Add user** برو.
+۲. نخستین کاربر را با ایمیلی که شخصاً کنترل می‌کنی بساز. ایمیل را با دقت بررسی کن؛ گذرواژه‌ای قوی و یکتا بساز و در password manager نگه دار. گذرواژه را در گفتگو نفرست و وارد مخزن نکن.
+۳. در داشبورد پروژه، **SQL Editor** را باز کن. پس از بررسی حساب، مقدار `OWNER_EMAIL_HERE` در SQL زیر را با همان ایمیل دقیق جایگزین و سپس دستور محافظت‌شده را اجرا کن.
 
 ```sql
 do $$

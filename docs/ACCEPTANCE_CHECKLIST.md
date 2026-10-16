@@ -1,32 +1,26 @@
-# Simorgh — Acceptance Checklist
+# مدار — چک‌لیست پذیرش
 
-**Checked:** 2026-10-15
-**Release commit:** c5c971011b2ba6132527f34519d9b7e5405de22e
-**Latest successful CI:** [Run 38757452211](https://github.com/Ehsanamn1/simorgh/actions/runs/38757452211)
-**Latest successful deployment:** [Run 38757731921](https://github.com/Ehsanamn1/simorgh/actions/runs/38757731921)
-**Live site:** https://ehsanamn1.github.io/simorgh/
+**بازبینی:** ۱۶ اکتبر ۲۰۲۶  
+**تغییرات در حال بررسی:** [PR #12 — تکمیل مدل عمومی مزرعه و پایداری ورود](https://github.com/Ehsanamn1/simorgh/pull/12)  
+**نسخه‌ی منتشرشده‌ی پایه:** [بررسی استقرار قبلی در GitHub Pages](https://ehsanamn1.github.io/simorgh/)  
+**وضعیت انتشار این تغییرات:** منتظر CI و استقرار پس از ادغام
 
-This checklist follows the Simorgh master product/architecture prompt. It distinguishes a deployed, verified public role-screening UI from unfinished operational workflows. Passing these checks does not imply operational readiness or a full security audit.
+این چک‌لیست بین وجود کد، قبولی تست، استقرار و آمادگی عملیات واقعی تفاوت می‌گذارد. عبور از CI به‌تنهایی به معنی تکمیل ممیزی امنیتی یا آماده‌بودن برای عملیات تجاری نیست.
 
-## A. Passed — public role-screening release
+## A. موارد پیاده‌سازی‌شده در نسخه‌ی جاری
 
-- [x] Preserve existing React + TypeScript + Vite, React Router and Supabase architecture.
-- [x] Public root opens a Persian RTL role-selection experience.
-- [x] Login, sign-up and password-reset forms are absent from the public root, as requested.
-- [x] /auth redirects to the public root.
-- [x] Distinct manager/owner, farm/supplier partner, driver/transport contractor and customer role cards are visible.
-- [x] Each role can open a structural navigation/capability preview.
-- [x] Role selection does not grant a role, create a session, write data or fetch private business records.
-- [x] Motion design includes animated supply-chain nodes, orbit/flow motion, section reveals and hover/focus feedback.
-- [x] Reduced-motion preference is respected in CSS.
-- [x] Playwright passed in desktop 1365×900, mobile 390×844 and compact mobile 360×800.
-- [x] Responsive checks found no horizontal overflow in the tested flows.
-- [x] Vitest: 4/4 passed.
-- [x] Playwright: 18/18 passed.
-- [x] TypeScript typecheck and ESLint passed.
-- [x] Production dependency audit reported zero vulnerabilities.
-- [x] Production build for GitHub Pages base path /simorgh/ passed.
-- [x] Latest deployment action completed successfully.
+- [x] حفظ معماری React + TypeScript + Vite، React Router و Supabase؛ بدون افزودن سرویس میزبانی جدید.
+- [x] هویت بصری «مدار» و رابط راست‌چین فارسی، سازگار با موبایل و حالت روشن/تاریک حفظ شده است.
+- [x] ورود امن برای حساب‌های ایجادشده فعال است؛ ثبت‌نام عمومی و انتخاب خودسرانه‌ی نقش باز نیست.
+- [x] بررسی عضویت از بررسی نشست جدا شده است تا صفحه‌ی درخواست دسترسی پیش از اتمام اولین خواندن عضویت ظاهر نشود.
+- [x] مدل سایت، چرخه، بچ و ثبت روزانه برای بخش‌های مختلف کشاورزی عمومی شده است؛ گزینه‌های لبنیات، زنبورداری، محصولات جنگلی و گلخانه‌ای/باغی در رابط در دسترس هستند.
+- [x] مهاجرت `generalize_farm_operations` که در Supabase اعمال شده بود به مخزن اضافه شده تا تاریخچه‌ی schema با دیتابیس مستقر همگام باشد.
+- [x] ثبت روزانه‌ی مقدار مصرف، خروجی، مردودی و اتلاف را پشتیبانی می‌کند؛ مقدار مردودی باید صفر یا کمتر/برابر خروجی باشد.
+- [x] سایت تنها با مختصات جغرافیایی معتبر و جفت‌شده روی نقشه قرار می‌گیرد؛ مختصات ساختگی تولید نمی‌شود.
+- [x] تست‌های مرورگر برای گزینه‌های عمومی مزرعه، محدوده مختصات و اعتبارسنجی مردودی اضافه شده‌اند.
+- [ ] CI نهایی PR #12 باید موفق شود و سپس استقرار جدید GitHub Pages تأیید شود.
+
+**وضعیت دیتابیس زنده (۱۶ اکتبر ۲۰۲۶):** یک رکورد شرکت وجود دارد؛ تعداد کاربران Supabase Auth برابر صفر، عضویت‌های فعال برابر صفر و جدول‌های عملیاتی نمونه‌برداری‌شده خالی هستند. بنابراین هنوز نمی‌توان جریان‌های تجاری را با حساب واقعی تأیید کرد.
 
 ## B. Required before real operational use
 
