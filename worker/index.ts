@@ -196,7 +196,7 @@ app.post('/api/access-requests', async c => {
   const role = typeof data.role === 'string' ? data.role : '';
   const organization = typeof data.organizationName === 'string' ? data.organizationName.trim().slice(0,160) : null;
   if (!['customer','supplier','driver','staff'].includes(role)) return jsonError(c, 'نقش انتخابی معتبر نیست.', 400);
-  if (['customer','supplier'].includes(role) && (!organization || organization.length < 2)) return jsonError(c, 'برای این نقش نام شرکت یا مزرعه ضروری است.', 400);
+  if (!organization || organization.length < 2) return jsonError(c, 'برای این نقش نام شرکت یا مزرعه ضروری است.', 400);
   try {
     const sql = sqlFor(c);
     const rows = await sql`INSERT INTO public.medar_access_requests(user_id,requested_role,organization_name)
