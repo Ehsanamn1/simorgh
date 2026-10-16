@@ -1,32 +1,27 @@
 # Simorgh — Acceptance Checklist
 
-**Checked:** 2026-10-16
-**Release commit:** c5c971011b2ba6132527f34519d9b7e5405de22e
-**Latest successful CI:** [Run 38757452211](https://github.com/Ehsanamn1/simorgh/actions/runs/38757452211)
-**Latest successful deployment:** [Run 38757731921](https://github.com/Ehsanamn1/simorgh/actions/runs/38757731921)
+**Checked:** 2026-10-16  
+**Active implementation:** [PR #10 — Manager control tower, generic farm schema and secure access](https://github.com/Ehsanamn1/simorgh/pull/10)  
+**Baseline successful deployment:** [Run 38757731921](https://github.com/Ehsanamn1/simorgh/actions/runs/38757731921)  
 **Live site:** https://ehsanamn1.github.io/simorgh/
 
-This checklist follows the Simorgh master product/architecture prompt. It distinguishes a deployed, verified public role-screening UI from unfinished operational workflows. Passing these checks does not imply operational readiness or a full security audit.
+This checklist reflects the current repository and the connected Supabase project. The baseline deployment predates PR #10; the current branch must pass CI and deploy before its UI changes are considered live.
 
-## A. Passed — public role-screening release
+## A. Implemented in the current product iteration
 
-- [x] Preserve existing React + TypeScript + Vite, React Router and Supabase architecture.
-- [x] Public root opens a Persian RTL role-selection experience.
-- [x] Login, sign-up and password-reset forms are absent from the public root, as requested.
-- [x] /auth redirects to the public root.
-- [x] Distinct manager/owner, farm/supplier partner, driver/transport contractor and customer role cards are visible.
-- [x] Each role can open a structural navigation/capability preview.
-- [x] Role selection does not grant a role, create a session, write data or fetch private business records.
-- [x] Motion design includes animated supply-chain nodes, orbit/flow motion, section reveals and hover/focus feedback.
-- [x] Reduced-motion preference is respected in CSS.
-- [x] Playwright passed in desktop 1365×900, mobile 390×844 and compact mobile 360×800.
-- [x] Responsive checks found no horizontal overflow in the tested flows.
-- [x] Vitest: 4/4 passed.
-- [x] Playwright: 18/18 passed.
-- [x] TypeScript typecheck and ESLint passed.
-- [x] Production dependency audit reported zero vulnerabilities.
-- [x] Production build for GitHub Pages base path /simorgh/ passed.
-- [x] Latest deployment action completed successfully.
+- [x] Keep the React + TypeScript + Vite, React Router and Supabase architecture.
+- [x] The public route opens a Persian RTL operational shell; it does not present a fake role selector or auto-open sign-in.
+- [x] Add an explicit sign-in/password-recovery entry for previously provisioned accounts; public self-registration and self-assigned roles remain disabled.
+- [x] Authenticated members enter the real role-filtered workspace, with responsive mobile navigation based on their actual membership role.
+- [x] The manager workspace contains the real order, goal, partner, inventory, capacity, quality, logistics, finance, farm, production, task, incident and audit modules.
+- [x] Add a manager-map panel that reads active farm sites from Supabase and only places markers for saved latitude/longitude pairs.
+- [x] Generalize site type, production-cycle type, batch kinds, universal daily inputs/outputs/losses and measurement units beyond quail/poultry; retain legacy columns for compatibility.
+- [x] Track the existing general_farm_management migration and the follow-up generalize_farm_operations migration in Git; apply the follow-up to the connected Supabase project.
+- [x] Keep the Persian RTL UI, Vazirmatn typography, accessible focus states, dark/light theme and compact mobile navigation.
+- [x] Add Playwright coverage for the secure sign-in entry, generic farm forms, mobile layout and the absence of invented farm-map markers.
+- [ ] Pass the latest CI for PR #10 and verify the post-merge GitHub Pages deployment before calling this iteration released.
+
+**Live database check (2026-10-16):** one company record exists, but there are zero Supabase Auth users, zero active memberships and no operational records in the sampled core tables. Thus the authenticated owner dashboard and real company data cannot be exercised until the first trusted owner is provisioned.
 
 ## B. Required before real operational use
 
