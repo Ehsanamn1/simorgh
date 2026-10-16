@@ -312,7 +312,7 @@ app.post('/api/workspace/members', async c => {
   if (!['admin','staff','customer','supplier','driver'].includes(role)) return jsonError(c, 'نقش قابل تخصیص نیست.', 400);
   try {
     const sql = sqlFor(c);
-    const actor = await sql`SELECT role::text AS role FROM public.memberships WHERE company_id=${companyId}::uuid AND user_id=${user.id}::uuid AND active=true AND role::text IN ('owner','admin') LIMIT 1`;
+    const actor = await sql`SELECT role::text AS role FROM public.memberships WHERE company_id=${companyId}::uuid AND user_id=${user.id}::uuid AND active=true AND role::text IN ('owner','admin') ORDER BY CASE WHEN role::text='owner' THEN 0 ELSE 1 END LIMIT 1`;
     if (!actor.length) return jsonError(c, 'برای افزودن عضو به این مجموعه مجوز نداری.', 403);
     if (role === 'admin' && String((actor[0] as {role:string}).role) !== 'owner') return jsonError(c, 'فقط مالک مجموعه می‌تواند مدیر جدید تعیین کند.', 403);
     const users = await sql`SELECT id,username FROM public.medar_users WHERE username_normalized=${username} AND account_status='active' LIMIT 1`;
@@ -356,7 +356,7 @@ app.post('/api/workspace/members/:id/deactivate', async c => {
         AND actor.user_id=${user.id}::uuid AND actor.active=true AND actor.role::text IN ('owner','admin') LIMIT 1`;
     if (!rows[0]) return jsonError(c, 'عضویت پیدا نشد یا اجازه تغییر آن را نداری.', 404);
     const target = rows[0] as {id:string;user_id:string;role:string};
-    const actorRows = await sql`SELECT role::text AS role FROM public.memberships WHERE company_id=${companyId}::uuid AND user_id=${user.id}::uuid AND active=true LIMIT 1`;
+    const actorRows = await sql`SELECT role::text AS role FROM public.memberships WHERE company_id=${companyId}::uuid AND user_id=${user.id}::uuid AND active=true AND role::text IN ('owner','admin') ORDER BY CASE WHEN role::text='owner' THEN 0 ELSE 1 END LIMIT 1`;
     const actorRole = String((actorRows[0] as {role:string}).role);
     if (target.role === 'owner') return jsonError(c, 'مالک مجموعه را نمی‌توان غیرفعال کرد؛ ابتدا مالکیت را منتقل کن.', 400);
     if (target.role === 'admin' && actorRole !== 'owner') return jsonError(c, 'فقط مالک مجموعه می‌تواند مدیر را غیرفعال کند.', 403);
