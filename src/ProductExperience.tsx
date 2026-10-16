@@ -221,7 +221,7 @@ export default function ProductExperience() {
       </nav>, appMain)}
     {authUiEnabled && user && waitingScreen && memberships.length === 0 && createPortal(
       <section className="access-request-card" dir="rtl" aria-labelledby="access-request-title">
-        <div className="access-request-heading"><span className="access-request-icon"><UserPlus size={20}/></span><div><span className="obsidian-eyebrow">ROLE REQUEST</span><h2 id="access-request-title">درخواست فضای کاری</h2><p>نقش را مشخص کن؛ مدیر پس از بررسی آن را تأیید یا رد می‌کند.</p></div></div>
+        <div className="access-request-heading"><span className="access-request-icon"><UserPlus size={20}/></span><div><span className="obsidian-eyebrow">درخواست دسترسی</span><h2 id="access-request-title">درخواست فضای کاری</h2><p>نقش را مشخص کن؛ مدیر پس از بررسی آن را تأیید یا رد می‌کند.</p></div></div>
         <form className="access-request-form" onSubmit={submitRoleRequest}>
           <label>نام و نام خانوادگی<input required minLength={2} maxLength={160} autoComplete="name" value={fullName} onChange={e => setFullName(e.target.value)} placeholder="نام کامل"/></label>
           <label>نوع دسترسی<select value={requestedRole} onChange={e => { setRequestedRole(e.target.value as PublicRequestedRole); setRequestId(''); }}><option value="customer">خریدار عمده</option><option value="supplier">شریک مزرعه</option><option value="driver">راننده / پیمانکار حمل</option><option value="staff">عضو تیم داخلی</option></select></label>
@@ -236,15 +236,15 @@ export default function ProductExperience() {
     {signInOpen && (!user || mode === 'recovery') && (!loading || mode === 'recovery') && (
       <section className="simorgh-signin-layer" role="dialog" aria-modal="true" aria-labelledby="simorgh-signin-title" aria-label="ورود امن سیمرغ">
         <div className="simorgh-signin-brand">
-          <div className="simorgh-signin-brand-top"><span className="simorgh-signin-mark"><ShieldCheck size={26}/></span><span><strong>سیمرغ</strong><small>OBSIDIAN INTELLIGENCE</small></span></div>
-          <div className="simorgh-signin-story"><span className="signin-overline">SIMORGH / SECURE WORKSPACE</span><h1>یک شبکه.<br/><em>کنترل دقیق.</em></h1><p>عملیات تولید، سفارش، کیفیت، حمل و تسویه؛ در یک فضای کاری نقش‌محور و قابل پیگیری.</p><div className="signin-assurance"><ShieldCheck size={17}/><span>نقش‌های داخلی و مدیریتی فقط با دعوت یا تأیید مالک فعال می‌شوند.</span></div></div>
-          <div className="signin-brand-foot"><span>NETWORK OPERATIONS</span><span>AUTHENTICATED ACCESS</span></div>
+          <div className="simorgh-signin-brand-top"><span className="simorgh-signin-mark"><ShieldCheck size={26}/></span><span><strong>سیمرغ</strong><small>هوشمندی عملیات و مدیریت مزرعه</small></span></div>
+          <div className="simorgh-signin-story"><span className="signin-overline">فضای عملیاتی امن</span><h1>یک شبکه.<br/><em>کنترل دقیق.</em></h1><p>عملیات تولید، سفارش، کیفیت، حمل و تسویه؛ در یک فضای کاری نقش‌محور و قابل پیگیری.</p><div className="signin-assurance"><ShieldCheck size={17}/><span>نقش‌های داخلی و مدیریتی فقط با دعوت یا تأیید مالک فعال می‌شوند.</span></div></div>
+          <div className="signin-brand-foot"><span>مدیریت عملیات</span><span>دسترسی تأییدشده</span></div>
         </div>
         <div className="simorgh-signin-form-area">
           {mode !== 'recovery' && <button type="button" className="signin-close" onClick={closeSignIn} aria-label="بستن ورود"><X size={20}/></button>}
           <div className="simorgh-signin-form-card" dir="rtl">
             <span className="signin-form-icon">{mode === 'reset' || mode === 'recovery' ? <KeyRound size={21}/> : <LogIn size={21}/>}</span>
-            <span className="signin-overline">{mode === 'reset' ? 'PASSWORD RECOVERY' : mode === 'recovery' ? 'SET A NEW PASSWORD' : 'SECURE SIGN IN'}</span>
+            <span className="signin-overline">{mode === 'reset' ? 'بازیابی گذرواژه' : mode === 'recovery' ? 'تنظیم گذرواژه جدید' : 'ورود امن'}</span>
             <h2 id="simorgh-signin-title">{mode === 'reset' ? 'بازیابی گذرواژه' : mode === 'recovery' ? 'گذرواژه جدید' : 'ورود به سیمرغ'}</h2>
             <p>{mode === 'reset' ? 'ایمیل حساب را وارد کن تا در صورت وجود حساب، لینک بازیابی ارسال شود.' : mode === 'recovery' ? 'یک گذرواژه جدید و قوی برای حساب انتخاب کن.' : 'برای ورود از حسابی استفاده کن که مالک شرکت ساخته یا دعوت آن را صادر کرده است.'}</p>
             <form className="simorgh-signin-form" onSubmit={event => void submitAuth(event)}>
