@@ -76,10 +76,10 @@ test('manager workspace retains operations and captures a real rendered control-
   await page.screenshot({ path: testInfo.outputPath('manager-control-tower.png'), fullPage: true });
 
   const paths = [
-    ['farm-sites', 'سایت‌های مزرعه'],
-    ['flock-cycles', 'چرخه‌های گله'],
-    ['production-batches', 'بچ‌های تولید'],
-    ['daily-production', 'ثبت روزانه تولید'],
+    ['farm-sites', 'مزارع و واحدها'],
+    ['flock-cycles', 'چرخه‌های پرورش'],
+    ['production-batches', 'دوره‌ها و بچ‌های تولید'],
+    ['daily-production', 'گزارش روزانه'],
     ['task-templates', 'دستورالعمل‌های کاری'],
     ['operational-tasks', 'وظایف عملیاتی'],
     ['incidents', 'رخدادها و مغایرت‌ها'],
@@ -95,6 +95,51 @@ test('manager workspace retains operations and captures a real rendered control-
   expect(dimensions.document).toBeLessThanOrEqual(dimensions.viewport);
   expect(dimensions.body).toBeLessThanOrEqual(dimensions.viewport);
   expect(errors).toEqual([]);
+});
+
+test('manager forms support generic farm types, species, production and daily records', async ({ page }) => {
+  await installIsolatedSession(page, 'owner');
+
+  await page.goto('/simorgh/app/farm-sites', { waitUntil: 'domcontentloaded' });
+  await expect(page.getByRole('heading', { name: 'مزارع و واحدها' })).toBeVisible();
+  await page.getByRole('button', { name: 'ثبت رکورد', exact: true }).click();
+  const farmType = page.locator('#ops-farm_type');
+  await expect(farmType).toBeVisible();
+  for (const kind of ['crop', 'livestock', 'poultry', 'dairy', 'aquaculture', 'greenhouse', 'orchard', 'apiary', 'other']) {
+    await expect(farmType.locator('option').filter({ has: page.locator('option') }).first()).toBeAttached();
+    await expect(farmType.locator('option[value="' + kind + '"]')).toHaveCount(1);
+  }
+  await expect(page.locator('#ops-province')).toBeVisible();
+  await page.getByRole('button', { name: 'بستن' }).click();
+
+  await page.goto('/simorgh/app/flock-cycles', { waitUntil: 'domcontentloaded' });
+  await expect(page.getByRole('heading', { name: 'چرخه‌های پرورش' })).toBeVisible();
+  await page.getByRole('button', { name: 'ثبت رکورد', exact: true }).click();
+  await expect(page.locator('#ops-species')).toHaveValue('عمومی');
+  await expect(page.locator('#ops-initial_count')).toBeVisible();
+  await expect(page.locator('#ops-initial_bird_count')).toHaveCount(0);
+  await page.getByRole('button', { name: 'بستن' }).click();
+
+  await page.goto('/simorgh/app/production-batches', { waitUntil: 'domcontentloaded' });
+  await expect(page.getByRole('heading', { name: 'دوره‌ها و بچ‌های تولید' })).toBeVisible();
+  await page.getByRole('button', { name: 'ثبت رکورد', exact: true }).click();
+  const productionKind = page.locator('#ops-production_kind');
+  for (const kind of ['crop', 'livestock', 'poultry', 'dairy', 'aquaculture', 'honey', 'forestry', 'greenhouse', 'orchard', 'other']) {
+    await expect(productionKind.locator('option[value="' + kind + '"]')).toHaveCount(1);
+  }
+  await page.getByRole('button', { name: 'بستن' }).click();
+
+  await page.goto('/simorgh/app/daily-production', { waitUntil: 'domcontentloaded' });
+  await expect(page.getByRole('heading', { name: 'گزارش روزانه' })).toBeVisible();
+  await page.getByRole('button', { name: 'ثبت رکورد', exact: true }).click();
+  await expect(page.locator('#ops-input_name')).toBeVisible();
+  await expect(page.locator('#ops-input_quantity')).toBeVisible();
+  await expect(page.locator('#ops-input_unit')).toHaveValue('کیلوگرم');
+  await expect(page.locator('#ops-loss_count')).toBeVisible();
+  await expect(page.locator('#ops-produced_quantity')).toBeVisible();
+  await expect(page.locator('#ops-rejected_quantity')).toBeVisible();
+  await expect(page.locator('#ops-eggs_collected')).toHaveCount(0);
+  await expect(page.locator('#ops-mortality_count')).toHaveCount(0);
 });
 
 test('supplier workspace keeps manager-only routes out of the allowed menu', async ({ page }, testInfo) => {
