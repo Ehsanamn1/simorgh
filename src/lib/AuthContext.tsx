@@ -4,7 +4,7 @@ import { neonAuth } from './neonAuth';
 import { api } from './apiClient';
 import type { Membership } from './types';
 
-type UserShape = { id: string; email?: string; user_metadata?: Record<string, unknown> };
+type UserShape = { id: string; email?: string; user_metadata?: Record<string, string | undefined> };
 type SessionShape = { user: UserShape };
 type AuthValue = { session: SessionShape | null; user: UserShape | null; memberships: Membership[]; loading: boolean; membershipsLoading: boolean; error: string | null; refreshMemberships: () => Promise<void>; signOut: () => Promise<void> };
 const AuthContext = createContext<AuthValue | null>(null);
