@@ -33,6 +33,34 @@ describe('Medar username authentication primitives', () => {
     expect(response.status).toBe(401);
   });
 
+  it('does not expose operational records without a session', async () => {
+    const response = await app.request('/api/operations/farm-sites?companyId=00000000-0000-4000-8000-000000000001');
+    expect(response.status).toBe(401);
+  });
+
+  it('does not create operational records without a session', async () => {
+    const response = await app.request('/api/operations/farm-sites', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ company_id: '00000000-0000-4000-8000-000000000001', name: 'Test site' }),
+    });
+    expect(response.status).toBe(401);
+  });
+
+  it('does not create settlement periods without a session', async () => {
+    const response = await app.request('/api/operations/settlements', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ companyId: '00000000-0000-4000-8000-000000000001', agreementId: '00000000-0000-4000-8000-000000000002', periodStart: '2026-10-01', periodEnd: '2026-10-15' }),
+    });
+    expect(response.status).toBe(401);
+  });
+
+  it('does not expose task evidence without a session', async () => {
+    const response = await app.request('/api/operations/operational-tasks/00000000-0000-4000-8000-000000000001/evidence?companyId=00000000-0000-4000-8000-000000000002');
+    expect(response.status).toBe(401);
+  });
+
   it('does not expose member lists without a session', async () => {
     const response = await app.request('/api/workspace/members?companyId=00000000-0000-4000-8000-000000000001');
     expect(response.status).toBe(401);
