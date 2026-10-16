@@ -1,7 +1,8 @@
-import { useEffect, useState, type LucideIcon } from 'react';
+import { useEffect, useState } from 'react';
 import {
-  Activity, ArrowUpLeft, Boxes, Clock3, CreditCard, Factory, LogIn, Moon,
+  Activity, Boxes, Clock3, CreditCard, Factory, LogIn, Moon,
   Package, ShieldCheck, Sun, Target, Truck, Warehouse,
+  type LucideIcon,
 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { SimorghLogo } from './SimorghLogo';
