@@ -4,7 +4,8 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Activity, ArrowLeft, Boxes, Building2, Check, ClipboardCheck, CreditCard, Factory, FileText, Home, LayoutDashboard, ListTodo, MapPin, Menu, Package, ShieldCheck, Target, Truck, Warehouse, X, UserPlus, Eye, EyeOff, KeyRound, RotateCcw } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useAuth } from './lib/AuthContext';
-import { isSupabaseConfigured, supabase } from './lib/supabase';
+import { neonAuth } from './lib/neonAuth';
+import { api } from './lib/apiClient';
 import { MedarLogo } from './MedarLogo';
 import type { AppRole } from './lib/types';
 
@@ -109,7 +110,7 @@ export default function ProductExperience() {
 
   useEffect(() => {
     if (!supabase) return;
-    const { data: listener } = supabase.auth.onAuthStateChange(event => {
+    const { data: listener } = neonAuth.onAuthStateChange(event => {
       if (event === 'PASSWORD_RECOVERY') {
         setMode('recovery'); setError(''); setNotice('گذرواژه جدید را وارد کن تا بازیابی حساب تکمیل شود.');
         navigate({ pathname: location.pathname, search: location.search, hash: '#signin' }, { replace: true });
@@ -146,7 +147,7 @@ export default function ProductExperience() {
         setWorkspaceProvisioning(false);
         return;
       }
-      await supabase.auth.updateUser({ data: { signup_workspace_pending: false } });
+      await neonAuth!.auth.updateUser({ data: { signup_workspace_pending: false } });
       await refreshMemberships();
       setWorkspaceProvisioning(false);
       setWorkspaceProvisionError('');
@@ -202,7 +203,7 @@ export default function ProductExperience() {
 
   async function submitAuth(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!supabase || !isSupabaseConfigured) { setError('اتصال احراز هویت در این نسخه پیکربندی نشده است. ورود آنلاین در دسترس نیست.'); return; }
+    if (!neonAuth) { setError('اتصال احراز هویت در این نسخه پیکربندی نشده است. ورود آنلاین در دسترس نیست.'); return; }
     if (mode === 'signup') {
       if (fullName.trim().length < 2 || fullName.trim().length > 160) { setError('نام کامل باید بین ۲ تا ۱۶۰ نویسه باشد.'); return; }
       if (organizationName.trim().length < 2 || organizationName.trim().length > 160) { setError('نام مجموعه باید بین ۲ تا ۱۶۰ نویسه باشد.'); return; }
@@ -213,12 +214,12 @@ export default function ProductExperience() {
     try {
       if (mode === 'reset') {
         const redirectUrl = new URL((import.meta.env.BASE_URL || '/') + '#signin', window.location.origin).toString();
-        const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo: redirectUrl });
+        const { error: resetError } = await neonAuth!.auth.resetPasswordForEmail(email.trim(), { redirectTo: redirectUrl });
         if (resetError) { setError('ارسال ایمیل بازیابی انجام نشد. ایمیل و تنظیمات Auth را بررسی کن.'); return; }
         setNotice('اگر این ایمیل حساب فعالی داشته باشد، لینک بازیابی برای آن ارسال می‌شود.');
       } else if (mode === 'signup') {
         const emailRedirectTo = new URL(basePath + '/#signin', window.location.origin).toString();
-        const { data, error: signUpError } = await supabase.auth.signUp({
+        const { data, error: signUpError } = await neonAuth!.auth.signUp({
           email: email.trim(),
           password,
           options: {
@@ -251,12 +252,12 @@ export default function ProductExperience() {
       } else if (mode === 'recovery') {
         if (password.length < 8) { setError('گذرواژه جدید باید حداقل ۸ نویسه باشد.'); return; }
         if (password !== confirmPassword) { setError('تکرار گذرواژه یکسان نیست.'); return; }
-        const { error: updateError } = await supabase.auth.updateUser({ password });
+        const { error: updateError } = await neonAuth!.auth.updateUser({ password });
         if (updateError) { setError('تغییر گذرواژه انجام نشد. لینک بازیابی ممکن است منقضی شده باشد.'); return; }
-        await supabase.auth.signOut();
+        await neonAuth!.auth.signOut();
         setPassword(''); setConfirmPassword(''); setMode('signin'); setNotice('گذرواژه تغییر کرد. حالا با گذرواژه جدید وارد شو.');
       } else {
-        const { error: authError } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+        const { error: authError } = await neonAuth!.auth.signInWithPassword({ email: email.trim(), password });
         if (authError) { setError('ورود انجام نشد. ایمیل و گذرواژه را بررسی کن یا ایمیل حساب را تأیید و دوباره تلاش کن.'); return; }
         setPassword(''); navigate(protectedDestination, { replace: true });
       }
@@ -267,7 +268,7 @@ export default function ProductExperience() {
 
   async function submitRoleRequest(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!supabase || !user) { setError('برای ثبت درخواست ابتدا وارد حساب شو.'); return; }
+    if (!neonAuth || !user) { setError('برای ثبت درخواست ابتدا وارد حساب شو.'); return; }
     if (['customer', 'supplier'].includes(requestedRole) && organizationName.trim().length < 2) { setError('نام شرکت یا مزرعه برای این نقش ضروری است.'); return; }
     setBusy(true); setError(''); setNotice('');
     const { data, error: requestError } = await supabase.rpc('submit_access_request', {
