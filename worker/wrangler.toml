@@ -6,8 +6,3 @@ compatibility_date = "2026-10-16"
 directory = "../dist"
 binding = "ASSETS"
 not_found_handling = "single-page-application"
-
-
-[[r2_buckets]]
-binding = "EVIDENCE_BUCKET"
-bucket_name = "medar-evidence"
