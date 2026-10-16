@@ -48,6 +48,11 @@ async function installIsolatedSession(page: Page, role: 'owner' | 'supplier' | '
       body: JSON.stringify({ data: body?.query?.head ? null : [], count: body?.query?.count === 'exact' || body?.query?.head ? 0 : null }),
     });
   });
+  await page.route('**/api/operations/**', route => route.fulfill({
+    status: 200,
+    headers: { 'content-type': 'application/json', 'cache-control': 'no-store' },
+    body: JSON.stringify({ rows: [], refs: { suppliers: [], sites: [], batches: [], templates: [], agreements: [], financeEntries: [], products: [] } }),
+  }));
 }
 
 test('manager workspace retains operations and captures a real rendered control-tower screen', async ({ page }, testInfo) => {
@@ -183,7 +188,7 @@ test('generic farm types and daily rejected quantities are validated before writ
   }
   await page.locator('.ops-modal').getByRole('button', { name: 'بستن' }).click();
 
-  await page.route('**/api/data/production_batches/query', async route => {
+  await page.route('**/api/operations/daily-production*', async route => {
     const headers = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': 'GET,HEAD,OPTIONS,POST,PATCH,DELETE,PUT', 'content-type': 'application/json', 'cache-control': 'no-store' };
     if (route.request().method() === 'OPTIONS') {
       await route.fulfill({ status: 204, headers, body: '' });
@@ -196,12 +201,14 @@ test('generic farm types and daily rejected quantities are validated before writ
     await route.fulfill({
       status: 200,
       headers: { ...headers, 'content-range': '0-0/1' },
-      body: JSON.stringify({ data: [{
-        id: '00000000-0000-4000-8000-000000000066', company_id: companyId,
-        batch_code: 'TEST-BATCH', status: 'planned', production_kind: 'crop', unit: 'کیلوگرم',
-        farm_site_id: null, supplier_id: null, planned_quantity: 10, produced_quantity: 0,
-        rejected_quantity: 0, quality_status: 'not_inspected',
-      }], count: 1 }),
+      body: JSON.stringify({ rows: [], refs: {
+        suppliers: [], sites: [], batches: [{
+          id: '00000000-0000-4000-8000-000000000066', company_id: companyId,
+          batch_code: 'TEST-BATCH', status: 'planned', production_kind: 'crop', unit: 'کیلوگرم',
+          farm_site_id: null, supplier_id: null, planned_quantity: 10, produced_quantity: 0,
+          rejected_quantity: 0, quality_status: 'not_inspected',
+        }], templates: [], agreements: [], financeEntries: [], products: [],
+      } }),
     });
   });
   await page.goto('/simorgh/app/daily-production', { waitUntil: 'domcontentloaded' });
