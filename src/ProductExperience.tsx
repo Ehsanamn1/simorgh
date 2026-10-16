@@ -13,7 +13,9 @@ type NavigationEntry = { key: string; label: string };
 type PublicRequestedRole = 'staff' | 'supplier' | 'driver' | 'customer';
 type AuthMode = 'signin' | 'signup' | 'reset' | 'recovery';
 function normalizeIranPhone(value: string): string {
-  const digits = value.trim().replaceAll(' ', '').replaceAll('-', '').replaceAll('(', '').replaceAll(')', '');
+  const digits = value.trim().replaceAll(' ', '').replaceAll('-', '').replaceAll('(', '').replaceAll(')', '')
+    .replace(/[۰-۹]/g, char => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(char)))
+    .replace(/[٠-٩]/g, char => String('٠١٢٣٤٥٦٧٨٩'.indexOf(char)));
   if (digits.startsWith('09') && digits.length === 11 && /^[0-9]+$/.test(digits)) return '+98' + digits.slice(1);
   if (digits.startsWith('9') && digits.length === 10 && /^[0-9]+$/.test(digits)) return '+98' + digits;
   if (digits.startsWith('+989') && digits.length === 13 && /^[+0-9]+$/.test(digits)) return digits;
@@ -328,11 +330,10 @@ export default function ProductExperience() {
             {mode === 'signin' || mode === 'signup' ? <MedarLogo compact className="signin-form-logo"/> : <span className="signin-form-icon"><KeyRound size={21}/></span>}
             <span className="signin-overline">{mode === 'signup' ? 'ثبت‌نام مجموعه' : mode === 'reset' ? 'بازیابی گذرواژه' : mode === 'recovery' ? 'تنظیم گذرواژه تازه' : 'ورود امن'}</span>
             <h2 id="simorgh-signin-title">{mode === 'signup' ? 'ساخت حساب و فضای کاری' : mode === 'reset' ? 'بازیابی گذرواژه' : mode === 'recovery' ? 'گذرواژه جدید' : 'ورود به مدار'}</h2>
-            <p>{mode === 'signup' ? 'حساب بساز؛ فقط نام کاربری، شماره موبایل و رمز عبور لازم است. نقش انتخابی ابتدا به‌صورت درخواست ثبت می‌شود.' : mode === 'reset' ? 'نام کاربری حساب را وارد کن تا در صورت وجود حساب، لینک بازیابی ارسال شود.' : mode === 'recovery' ? 'یک گذرواژه جدید و قوی برای حساب انتخاب کن.' : 'با نام کاربری و گذرواژه وارد فضای کاری‌ات شو. شماره موبایل برای بازیابی و ارتباط عملیاتی حساب ثبت می‌شود.'}</p>
+            <p>{mode === 'signup' ? 'حساب بساز؛ نام کاربری، شماره موبایل، رمز عبور و نقش مورد درخواست کافی است. نام و اطلاعات مجموعه را بعداً تکمیل می‌کنی.' : mode === 'reset' ? 'نام کاربری حساب را وارد کن تا در صورت وجود حساب، لینک بازیابی ارسال شود.' : mode === 'recovery' ? 'یک گذرواژه جدید و قوی برای حساب انتخاب کن.' : 'با نام کاربری و گذرواژه وارد فضای کاری‌ات شو. شماره موبایل برای بازیابی و ارتباط عملیاتی حساب ثبت می‌شود.'}</p>
              <form className="simorgh-signin-form" onSubmit={event => void submitAuth(event)}>
                {mode === 'signup' && <>
-                 <label htmlFor="simorgh-signin-full-name">نام و نام خانوادگی</label><input id="simorgh-signin-full-name" className="auth-input" type="text" autoComplete="name" required minLength={2} maxLength={160} value={fullName} onChange={e => setFullName(e.target.value)} placeholder="نام کامل"/>
-                 <label htmlFor="simorgh-signin-phone">شماره موبایل</label><input id="simorgh-signin-phone" className="auth-input" type="tel" autoComplete="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="09121234567" pattern="(?:09[0-9]{9}|9[0-9]{9}|[+]989[0-9]{9})" required dir="ltr"/>
+                 <label htmlFor="simorgh-signin-phone">شماره موبایل</label><input id="simorgh-signin-phone" className="auth-input" type="tel" autoComplete="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="09121234567" required dir="ltr"/>
                </>}
                {mode === 'signup' && <><label htmlFor="simorgh-signin-role">نقش مورد درخواست</label><select id="simorgh-signin-role" className="auth-input" value={requestedRole} onChange={e => setRequestedRole(e.target.value as PublicRequestedRole)}><option value="customer">خریدار عمده</option><option value="supplier">تأمین‌کننده / شریک مزرعه</option><option value="driver">راننده / حمل‌ونقل</option><option value="staff">عضو تیم (نیازمند تأیید)</option></select></>}
                <label htmlFor="simorgh-signin-username">نام کاربری</label><input id="simorgh-signin-username" className="auth-input" type="text" autoComplete="username" inputMode="text" required={mode !== 'recovery'} value={email} onChange={e => setEmail(e.target.value)} placeholder="username" dir="ltr"/>
@@ -342,7 +343,7 @@ export default function ProductExperience() {
                  {(mode === 'recovery' || mode === 'signup') && <><label htmlFor="simorgh-confirm-password">تکرار گذرواژه</label><input id="simorgh-confirm-password" className="auth-input" type="password" autoComplete="new-password" required minLength={10} value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="گذرواژه را دوباره وارد کن" dir="ltr"/></>}
                </>}
                {error && <div className="auth-feedback error" role="alert">{error}</div>}{notice && <div className="auth-feedback success" role="status">{notice}</div>}
-               <button className="signin-submit" type="submit" disabled={busy || (mode !== 'recovery' && !email.trim()) || (mode !== 'reset' && !password) || (mode === 'signup' && (!fullName.trim() || !phone.trim() || !confirmPassword))}>
+               <button className="signin-submit" type="submit" disabled={busy || (mode !== 'recovery' && !email.trim()) || (mode !== 'reset' && !password) || (mode === 'signup' && (!phone.trim() || !confirmPassword))}>
                  {busy ? <><span className="signin-spinner" aria-hidden="true"/> در حال پردازش…</> : mode === 'reset' ? <>ارسال لینک بازیابی <RotateCcw size={16}/></> : mode === 'recovery' ? <>ذخیره گذرواژه جدید <Check size={17}/></> : mode === 'signup' ? <>ساخت حساب و فضای کاری <ArrowLeft size={17}/></> : <>ورود به فضای کار <ArrowLeft size={17}/></>}
                </button>
              </form>
