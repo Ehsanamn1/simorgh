@@ -172,6 +172,12 @@ export default function ProductExperience() {
   async function submitAuth(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!supabase || !isSupabaseConfigured) { setError('اتصال احراز هویت در این نسخه پیکربندی نشده است. ورود آنلاین در دسترس نیست.'); return; }
+    if (mode === 'signup') {
+      if (fullName.trim().length < 2 || fullName.trim().length > 160) { setError('نام کامل باید بین ۲ تا ۱۶۰ نویسه باشد.'); return; }
+      if (organizationName.trim().length < 2 || organizationName.trim().length > 160) { setError('نام مجموعه باید بین ۲ تا ۱۶۰ نویسه باشد.'); return; }
+      if (password.length < 8) { setError('گذرواژه باید حداقل ۸ نویسه باشد.'); return; }
+      if (password !== confirmPassword) { setError('تکرار گذرواژه یکسان نیست.'); return; }
+    }
     setBusy(true); setError(''); setNotice('');
     try {
       if (mode === 'reset') {
@@ -179,6 +185,38 @@ export default function ProductExperience() {
         const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo: redirectUrl });
         if (resetError) { setError('ارسال ایمیل بازیابی انجام نشد. ایمیل و تنظیمات Auth را بررسی کن.'); return; }
         setNotice('اگر این ایمیل حساب فعالی داشته باشد، لینک بازیابی برای آن ارسال می‌شود.');
+      } else if (mode === 'signup') {
+        const emailRedirectTo = new URL(basePath + '/app/command', window.location.origin).toString();
+        const { data, error: signUpError } = await supabase.auth.signUp({
+          email: email.trim(),
+          password,
+          options: {
+            emailRedirectTo,
+            data: {
+              full_name: fullName.trim(),
+              organization_name: organizationName.trim(),
+              phone: phone.trim() || null,
+              signup_workspace_pending: true,
+            },
+          },
+        });
+        if (signUpError) {
+          const message = signUpError.message.toLowerCase();
+          setError(message.includes('signup is disabled') || message.includes('signups not allowed')
+            ? 'ثبت‌نام در تنظیمات Auth پروژه غیرفعال است؛ باید ثبت‌نام ایمیلی در Supabase فعال شود.'
+            : 'ساخت حساب انجام نشد. ایمیل را بررسی کن و اگر قبلاً حسابی با آن ساخته‌ای، وارد شو.');
+          return;
+        }
+        if (!data.user) { setError('پاسخ سرویس ثبت‌نام معتبر نبود. دوباره تلاش کن.'); return; }
+        setPassword(''); setConfirmPassword('');
+        if (data.session) {
+          setNotice('حساب ساخته شد؛ فضای کاری اختصاصی در حال آماده‌سازی است.');
+          navigate(protectedDestination, { replace: true });
+        } else {
+          setMode('signin');
+          navigate({ pathname: location.pathname, search: location.search, hash: '#signin' }, { replace: true });
+          setNotice('اگر این ایمیل قابل ثبت‌نام باشد، لینک تأیید برای آن ارسال می‌شود. ایمیل را تأیید کن؛ سپس فضای کاری اختصاصی ساخته می‌شود.');
+        }
       } else if (mode === 'recovery') {
         if (password.length < 8) { setError('گذرواژه جدید باید حداقل ۸ نویسه باشد.'); return; }
         if (password !== confirmPassword) { setError('تکرار گذرواژه یکسان نیست.'); return; }
