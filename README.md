@@ -23,3 +23,8 @@ CI بررسی‌های TypeScript، Lint، تست واحد، مسیر فایل�
 - حساب مالک و عضویت اولیه باید از مسیر امن Supabase ساخته شوند؛ هیچ گذرواژه‌ی پیش‌فرضی در پروژه قرار ندارد.
 - صف نوشتن آفلاین و حل تعارض، اعلان‌های زمان‌بندی‌شده و همه‌ی اتوماسیون‌های هوش مصنوعی هنوز تکمیل نشده‌اند.
 - نقشه‌ی سایت‌ها مختصات واقعی ذخیره‌شده را نمایش می‌دهد؛ مسیرها و نشانگرهای محموله همچنان به داده‌ی مکانی معتبر و دسترسی مجاز نیاز دارند.
+
+
+### Runtime migration
+
+The active migration branch is `migration/cloudflare-neon-foundation`. The target runtime is Cloudflare Workers + Neon PostgreSQL with Managed Neon Auth. Supabase remains temporarily present only for the legacy operational data layer until that layer is migrated and verified.
