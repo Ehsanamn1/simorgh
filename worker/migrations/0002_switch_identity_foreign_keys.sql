@@ -11,3 +11,7 @@ ALTER TABLE public.memberships ADD CONSTRAINT memberships_user_id_fkey
 ALTER TABLE public.memberships DROP CONSTRAINT IF EXISTS memberships_created_by_fkey;
 ALTER TABLE public.memberships ADD CONSTRAINT memberships_created_by_fkey
   FOREIGN KEY (created_by) REFERENCES public.medar_users(id) ON DELETE SET NULL;
+
+ALTER TABLE public.medar_users DROP CONSTRAINT IF EXISTS medar_users_requested_role_check;
+ALTER TABLE public.medar_users ADD CONSTRAINT medar_users_requested_role_check
+  CHECK (requested_role IN ('owner','customer','supplier','driver','staff'));
