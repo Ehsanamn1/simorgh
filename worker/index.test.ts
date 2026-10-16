@@ -33,6 +33,43 @@ describe('Medar username authentication primitives', () => {
     expect(response.status).toBe(401);
   });
 
+  it('does not expose the generic data API without a session', async () => {
+    const response = await app.request('/api/data/orders/query', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ operation: 'select', query: { select: '*', filters: [] } }),
+    });
+    expect(response.status).toBe(401);
+  });
+
+  it('does not mutate generic business data without a session', async () => {
+    const response = await app.request('/api/data/orders', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ operation: 'insert', values: { reference: 'TEST' }, query: { filters: [] } }),
+    });
+    expect(response.status).toBe(401);
+  });
+
+  it('does not execute legacy RPC replacements without a session', async () => {
+    const response = await app.request('/api/rpc/company_members', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ _company: '00000000-0000-4000-8000-000000000001' }),
+    });
+    expect(response.status).toBe(401);
+  });
+
+  it('does not upload delivery evidence without a session', async () => {
+    const form = new FormData();
+    form.set('file', new File(['test'], 'test.pdf', { type: 'application/pdf' }));
+    const response = await app.request('/api/storage/delivery-evidence/upload?path=00000000-0000-4000-8000-000000000001/00000000-0000-4000-8000-000000000002/test.pdf', {
+      method: 'POST',
+      body: form,
+    });
+    expect(response.status).toBe(401);
+  });
+
   it('does not expose operational records without a session', async () => {
     const response = await app.request('/api/operations/farm-sites?companyId=00000000-0000-4000-8000-000000000001');
     expect(response.status).toBe(401);
