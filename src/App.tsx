@@ -14,8 +14,7 @@ import { supabase, isSupabaseConfigured } from './lib/supabase';
 import { pageSectionLabel } from './lib/pageSections';
 import { goalProgressPercent, isGoalOverdue } from './lib/goals';
 import { OperationsWorkspacePage } from './OperationsPages';
-import OperationalWorkspace from './OperationalWorkspace';
-import { SimorghLogo as Logo } from './SimorghLogo';
+import { MedarLogo as Logo } from './MedarLogo';
 import type { AppRole, Membership, PageKey, Row } from './lib/types';
 import { dateFa, dateTimeFa, moneyFa, numberFa, orderLabel, roleLabel, statusLabel, statusTone } from './lib/format';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
@@ -745,15 +744,11 @@ function WorkspaceGate() {
     if (!membershipsLoading) setResolvedUserId(user.id);
   }, [user?.id, membershipsLoading]);
 
-  // Resolve the first membership lookup before mounting the access-request screen.
-  // Once resolved, a manual retry keeps WaitingAccess mounted instead of flashing
-  // back to the guest/loading shell while the query is in flight.
-  if (loading || (user && resolvedUserId !== user.id)) {
-    return <OperationalWorkspace authLoading={true} hasMembership={false}/>;
-  }
-  return user
-    ? <AppShell/>
-    : <OperationalWorkspace authLoading={false} hasMembership={false}/>;
+  // Restore authentication and resolve the first membership before entering the
+  // protected workspace. Guests never receive an operational preview shell.
+  if (!user && loading) return <LoadingScreen label="در حال بررسی نشست امن…"/>;
+  if (user && resolvedUserId !== user.id) return <LoadingScreen label="در حال بررسی سطح دسترسی…"/>;
+  return user ? <AppShell/> : null;
 }
 
 export default function App() {
