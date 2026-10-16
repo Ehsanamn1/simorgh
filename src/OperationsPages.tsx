@@ -303,7 +303,6 @@ export function OperationsWorkspacePage({kind,membership,search}:{kind:Operation
 
   const submitCreate=async(event:FormEvent<HTMLFormElement>)=>{
     event.preventDefault();
-    if(!supabase)return;
     setBusy(true);setError('');setNotice('');
     const str=(k:string)=>draft[k]===undefined||draft[k]===null?'':String(draft[k]).trim();
     const num=(k:string)=>draft[k]===''||draft[k]===undefined||draft[k]===null?null:Number(draft[k]);
@@ -404,10 +403,12 @@ export function OperationsWorkspacePage({kind,membership,search}:{kind:Operation
         recognized_on:str('recognized_on'),external_reference:str('external_reference')||null,linked_entry_id:collection?str('linked_entry_id')||null:null,
         notes:str('notes')||null,created_by:membership.user_id};
     }
-    const result=await supabase.from(cfg.table).insert(payload);
-    setBusy(false);
-    if(result.error){setError(result.error.message);return;}
-    closeForm();setNotice('رکورد با موفقیت ثبت شد.');await load();
+    try {
+      await api.post(`/api/operations/${kind}`,payload);
+      closeForm();setNotice('رکورد با موفقیت ثبت شد.');await load();
+    } catch(caught) {
+      setError(caught instanceof Error?caught.message:'ثبت رکورد انجام نشد.');
+    } finally {setBusy(false);}
   };
 
   const action=async(run:()=>PromiseLike<{error:{message:string}|null}>,success:string)=>{
