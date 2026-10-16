@@ -37,7 +37,8 @@ const statusFa: Record<string,string> = {
   approved:'تأییدشده', rejected:'ردشده', completed:'تکمیل‌شده', on_hold:'متوقف', cancelled:'لغوشده',
   eggs:'تخم‌مرغ', meat:'گوشت', crop:'کشت و محصولات زراعی', livestock:'دام و فرآورده دامی',
   poultry:'طیور', aquaculture:'آبزی‌پروری', dairy:'لبنیات', greenhouse:'گلخانه', orchard:'باغ',
-  mixed:'چندمنظوره', processing:'فرآوری', warehouse:'انبار', distribution:'توزیع',
+  apiary:'زنبورستان', honey:'عسل', forestry:'جنگل‌داری', mixed:'چندمنظوره',
+  processing:'فرآوری', warehouse:'انبار', distribution:'توزیع',
   farm_product:'محصول مزرعه', input:'نهاده و مواد اولیه', feed:'خوراک', equipment:'تجهیزات',
   processed:'محصول فرآوری‌شده', service:'خدمات', other:'سایر', unit:'واحد',
   not_inspected:'بازرسی‌نشده', passed:'قبول',
@@ -117,21 +118,32 @@ const configs: Record<OperationsKind, Config> = {
     {key:'settled_amount',label:'پرداخت ثبت‌شده',value:r=>moneyFa(numeric(r.settled_amount))},{key:'status',label:'وضعیت',value:r=>fa(r.status)}]},
 };
 const types: Option[] = [
-  {value:'crop',label:'محصول زراعی'},{value:'livestock',label:'دام و فرآورده دامی'},
-  {value:'poultry',label:'طیور'},{value:'aquaculture',label:'آبزی‌پروری'},
+  {value:'farm_product',label:'محصول مزرعه'},{value:'crop',label:'محصول زراعی'},
+  {value:'livestock',label:'دام و فرآورده دامی'},{value:'poultry',label:'طیور'},
   {value:'dairy',label:'لبنیات'},{value:'eggs',label:'تخم‌مرغ'},{value:'meat',label:'گوشت'},
-  {value:'processed',label:'محصول فرآوری‌شده'},{value:'feed',label:'خوراک و نهاده'},
+  {value:'aquaculture',label:'محصول آبزی‌پروری'},{value:'honey',label:'عسل'},
+  {value:'forestry',label:'محصول جنگلی'},{value:'greenhouse',label:'محصول گلخانه‌ای'},
+  {value:'orchard',label:'محصول باغی'},{value:'input',label:'نهاده و مواد اولیه'},
+  {value:'feed',label:'خوراک و نهاده'},{value:'equipment',label:'تجهیزات'},
+  {value:'processed',label:'محصول فرآوری‌شده'},{value:'service',label:'خدمت'},
   {value:'other',label:'سایر محصول'},
 ];
 const siteTypes: Option[] = [
   {value:'crop',label:'کشت زراعی'},{value:'livestock',label:'دامداری'},
-  {value:'poultry',label:'پرورش طیور'},{value:'aquaculture',label:'آبزی‌پروری'},
-  {value:'greenhouse',label:'گلخانه'},{value:'orchard',label:'باغ'},
+  {value:'poultry',label:'پرورش طیور'},{value:'dairy',label:'واحد لبنی'},
+  {value:'aquaculture',label:'آبزی‌پروری'},{value:'greenhouse',label:'گلخانه'},
+  {value:'orchard',label:'باغ'},{value:'apiary',label:'زنبورستان'},
   {value:'processing',label:'فرآوری'},{value:'warehouse',label:'انبار'},
   {value:'distribution',label:'مرکز توزیع'},{value:'mixed',label:'چندمنظوره'},
   {value:'other',label:'سایر'},
 ];
-const cycleTypes: Option[] = siteTypes.filter(option => ['crop','livestock','poultry','aquaculture','greenhouse','orchard','mixed','other'].includes(option.value));
+const cycleTypes: Option[] = [
+  {value:'crop',label:'کشت'},{value:'livestock',label:'دام'},
+  {value:'poultry',label:'پرورش طیور'},{value:'dairy',label:'لبنیات'},
+  {value:'aquaculture',label:'آبزی‌پروری'},{value:'greenhouse',label:'گلخانه'},
+  {value:'orchard',label:'باغ'},{value:'apiary',label:'زنبورداری'},
+  {value:'mixed',label:'چندمنظوره'},{value:'other',label:'سایر'},
+];
 const quantityUnits: Option[] = [
   {value:'عدد',label:'عدد'},{value:'کیلوگرم',label:'کیلوگرم'},{value:'تن',label:'تن'},
   {value:'لیتر',label:'لیتر'},{value:'هکتار',label:'هکتار'},{value:'مترمربع',label:'مترمربع'},
