@@ -98,7 +98,7 @@ export default function OperationalWorkspace({authLoading=false,hasMembership=fa
   document.documentElement.dataset.theme=theme;
   document.documentElement.style.colorScheme=theme;
   const meta=document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
-  if(meta)meta.content=theme==='dark'?'#0B1012':'#F4F7F7';
+  if(meta)meta.content=theme==='dark'?'#101719':'#F4F7F7';
   try{localStorage.setItem('simorgh-theme',theme)}catch{/* storage may be blocked */}
  },[theme]);
  const active=modules.find(m=>m.key===page)??modules[0];
