@@ -132,8 +132,17 @@ test('manager forms support generic farm types, species, production and daily re
     await expect(farmType.locator('option[value="' + kind + '"]')).toHaveCount(1);
   }
   await expect(page.locator('#ops-province')).toBeVisible();
-  await expect(page.locator('#ops-latitude')).toBeVisible();
-  await expect(page.locator('#ops-longitude')).toBeVisible();
+  const latitude = page.locator('#ops-latitude');
+  const longitude = page.locator('#ops-longitude');
+  await expect(latitude).toBeVisible();
+  await expect(longitude).toBeVisible();
+  await latitude.fill('-33.8688');
+  await longitude.fill('151.2093');
+  await expect(latitude).toHaveValue('-33.8688');
+  await expect(longitude).toHaveValue('151.2093');
+  expect(await latitude.evaluate((input: HTMLInputElement) => input.checkValidity())).toBe(true);
+  await latitude.fill('91');
+  expect(await latitude.evaluate((input: HTMLInputElement) => input.checkValidity())).toBe(false);
   await page.getByRole('button', { name: 'بستن' }).click();
 
   await page.goto('/simorgh/app/flock-cycles', { waitUntil: 'domcontentloaded' });
