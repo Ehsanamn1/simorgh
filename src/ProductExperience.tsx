@@ -216,7 +216,6 @@ export default function ProductExperience() {
     if (!neonAuth) { setError('اتصال احراز هویت در این نسخه پیکربندی نشده است. ورود آنلاین در دسترس نیست.'); return; }
     const normalizedPhone = mode === 'signup' ? normalizeIranPhone(phone) : '';
     if (mode === 'signup') {
-      if (fullName.trim().length < 2 || fullName.trim().length > 120) { setError('نام کامل باید بین ۲ تا ۱۶۰ نویسه باشد.'); return; }
       if (password.length < 10) { setError('رمز عبور باید حداقل ۱۰ نویسه باشد.'); return; }
       if (!normalizedPhone) { setError('شماره موبایل ایران معتبر وارد کن؛ مثال: 09121234567'); return; }
       if (password !== confirmPassword) { setError('تکرار گذرواژه یکسان نیست.'); return; }
@@ -247,19 +246,19 @@ export default function ProductExperience() {
         if (signUpError) {
           const message = signUpError.message.toLowerCase();
           setError(message.includes('signup is disabled') || message.includes('signups not allowed')
-            ? 'ثبت‌نام در تنظیمات Auth پروژه غیرفعال است؛ باید ثبت‌نام نام کاربریی در Neon Auth فعال شود.'
+            ? 'ثبت‌نام در تنظیمات Auth پروژه غیرفعال است؛ باید ثبت‌نام در سرویس احراز هویت فعال شود.'
             : 'ساخت حساب انجام نشد. نام کاربری را بررسی کن و اگر قبلاً حسابی با آن ساخته‌ای، وارد شو.');
           return;
         }
         if (!data.user) { setError('پاسخ سرویس ثبت‌نام معتبر نبود. دوباره تلاش کن.'); return; }
         setPassword(''); setConfirmPassword('');
         if (data.session) {
-          setNotice('حساب ساخته شد؛ فضای کاری اختصاصی در حال آماده‌سازی است.');
+          setNotice('حساب ساخته شد؛ در حال ورود به مدار…');
           navigate(protectedDestination, { replace: true });
         } else {
           setMode('signin');
           navigate({ pathname: location.pathname, search: location.search, hash: '#signin' }, { replace: true });
-          setNotice('اگر این نام کاربری قابل ثبت‌نام باشد، لینک تأیید برای آن ارسال می‌شود. نام کاربری را تأیید کن؛ سپس فضای کاری اختصاصی ساخته می‌شود.');
+          setError('حساب ساخته شد اما نشست ورود ایجاد نشد. با نام کاربری و رمز عبور وارد شو.');
         }
       } else if (mode === 'recovery') {
         if (password.length < 8) { setError('گذرواژه جدید باید حداقل ۸ نویسه باشد.'); return; }
