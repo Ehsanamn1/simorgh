@@ -270,6 +270,104 @@ app.get('/api/workspace/memberships', async c => {
   } catch { return jsonError(c, 'خواندن فضای کاری انجام نشد. اجرای مهاجرت دیتابیس را بررسی کنید.', 500); }
 });
 
+app.get('/api/workspace/members', async c => {
+  let user: AuthUser | null;
+  try { user = await currentUser(c); } catch { return jsonError(c, 'پایگاه داده پیکربندی نشده است.', 503); }
+  if (!user) return jsonError(c, 'برای مدیریت اعضا ابتدا وارد حساب شو.', 401);
+  const companyId = c.req.query('companyId') || '';
+  if (!/^[0-9a-f-]{36}$/i.test(companyId)) return jsonError(c, 'شناسه مجموعه معتبر نیست.', 400);
+  try {
+    const sql = sqlFor(c);
+    const access = await sql`SELECT role::text AS role FROM public.memberships
+      WHERE company_id=${companyId}::uuid AND user_id=${user.id}::uuid AND active=true AND role::text IN ('owner','admin') LIMIT 1`;
+    if (!access.length) return jsonError(c, 'برای مدیریت اعضای این مجموعه مجوز نداری.', 403);
+    const [members, customers, suppliers, requests] = await Promise.all([
+      sql`SELECT m.id AS membership_id,m.id,m.company_id,m.user_id,m.role::text AS role,m.active,m.created_at,
+        u.username,u.display_name AS full_name,u.phone
+        FROM public.memberships m JOIN public.medar_users u ON u.id=m.user_id
+        WHERE m.company_id=${companyId}::uuid ORDER BY m.created_at DESC`,
+      sql`SELECT id,name FROM public.customers WHERE company_id=${companyId}::uuid ORDER BY name`,
+      sql`SELECT id,name FROM public.suppliers WHERE company_id=${companyId}::uuid ORDER BY name`,
+      sql`SELECT ar.id,ar.user_id,ar.company_id,ar.requested_role::text AS requested_role,ar.full_name,ar.phone,
+        ar.organization_name,ar.notes,ar.status,ar.created_at,u.username
+        FROM public.access_requests ar JOIN public.medar_users u ON u.id=ar.user_id
+        WHERE ar.company_id=${companyId}::uuid AND ar.status='pending' ORDER BY ar.created_at ASC`,
+    ]);
+    return c.json({ members, customers, suppliers, requests });
+  } catch { return jsonError(c, 'خواندن اعضای مجموعه انجام نشد. مهاجرت دیتابیس را بررسی کن.', 500); }
+});
+
+app.post('/api/workspace/members', async c => {
+  let user: AuthUser | null;
+  try { user = await currentUser(c); } catch { return jsonError(c, 'پایگاه داده پیکربندی نشده است.', 503); }
+  if (!user) return jsonError(c, 'برای افزودن عضو ابتدا وارد حساب شو.', 401);
+  let data: Record<string, unknown>;
+  try { data = await c.req.json(); } catch { return jsonError(c, 'بدنه درخواست معتبر نیست.', 400); }
+  const companyId = typeof data.companyId === 'string' ? data.companyId : '';
+  const username = typeof data.username === 'string' ? data.username.trim().toLowerCase() : '';
+  const role = typeof data.role === 'string' ? data.role : '';
+  const customerId = typeof data.customerId === 'string' && data.customerId ? data.customerId : null;
+  const supplierId = typeof data.supplierId === 'string' && data.supplierId ? data.supplierId : null;
+  if (!/^[0-9a-f-]{36}$/i.test(companyId) || !/^[a-zA-Z0-9_.-]{3,32}$/.test(username)) return jsonError(c, 'شناسه مجموعه یا نام کاربری معتبر نیست.', 400);
+  if (!['admin','staff','customer','supplier','driver'].includes(role)) return jsonError(c, 'نقش قابل تخصیص نیست.', 400);
+  try {
+    const sql = sqlFor(c);
+    const actor = await sql`SELECT role::text AS role FROM public.memberships WHERE company_id=${companyId}::uuid AND user_id=${user.id}::uuid AND active=true AND role::text IN ('owner','admin') LIMIT 1`;
+    if (!actor.length) return jsonError(c, 'برای افزودن عضو به این مجموعه مجوز نداری.', 403);
+    if (role === 'admin' && String((actor[0] as {role:string}).role) !== 'owner') return jsonError(c, 'فقط مالک مجموعه می‌تواند مدیر جدید تعیین کند.', 403);
+    const users = await sql`SELECT id,username FROM public.medar_users WHERE username_normalized=${username} AND account_status='active' LIMIT 1`;
+    if (!users[0]) return jsonError(c, 'این نام کاربری هنوز در مدار ثبت‌نام نکرده است.', 404);
+    const targetUserId = String((users[0] as {id:string}).id);
+    if (role === 'customer') {
+      const valid = customerId ? await sql`SELECT id FROM public.customers WHERE id=${customerId}::uuid AND company_id=${companyId}::uuid LIMIT 1` : [];
+      if (!valid.length) return jsonError(c, 'برای نقش مشتری، حساب مشتری همین مجموعه را انتخاب کن.', 400);
+    }
+    if (role === 'supplier') {
+      const valid = supplierId ? await sql`SELECT id FROM public.suppliers WHERE id=${supplierId}::uuid AND company_id=${companyId}::uuid LIMIT 1` : [];
+      if (!valid.length) return jsonError(c, 'برای نقش تأمین‌کننده، حساب تأمین‌کننده همین مجموعه را انتخاب کن.', 400);
+    }
+    const rows = await sql`INSERT INTO public.memberships(company_id,user_id,role,active,created_by,customer_id,supplier_id)
+      VALUES(${companyId}::uuid,${targetUserId}::uuid,${role}::public.app_role,true,${user.id}::uuid,${customerId}::uuid,${supplierId}::uuid)
+      ON CONFLICT(company_id,user_id,role) DO UPDATE SET active=true,created_by=EXCLUDED.created_by,customer_id=EXCLUDED.customer_id,supplier_id=EXCLUDED.supplier_id
+      RETURNING id,company_id,user_id,role::text AS role,active,created_at`;
+    await sql`INSERT INTO public.medar_audit_log(actor_user_id,action,entity_type,entity_id,metadata)
+      VALUES(${user.id}::uuid,'membership.granted','membership',${String((rows[0] as {id:string}).id)},jsonb_build_object('company_id',${companyId},'role',${role},'target_username',${username}))`;
+    return c.json({ membership:rows[0] },201);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '';
+    if (message.includes('duplicate key') || message.includes('unique constraint')) return jsonError(c, 'این عضویت از قبل ثبت شده است.', 409);
+    return jsonError(c, 'افزودن عضو انجام نشد. مهاجرت دیتابیس را بررسی کن.', 500);
+  }
+});
+
+app.post('/api/workspace/members/:id/deactivate', async c => {
+  let user: AuthUser | null;
+  try { user = await currentUser(c); } catch { return jsonError(c, 'پایگاه داده پیکربندی نشده است.', 503); }
+  if (!user) return jsonError(c, 'برای تغییر دسترسی ابتدا وارد حساب شو.', 401);
+  let data: Record<string, unknown>;
+  try { data = await c.req.json(); } catch { return jsonError(c, 'بدنه درخواست معتبر نیست.', 400); }
+  const companyId = typeof data.companyId === 'string' ? data.companyId : '';
+  if (!/^[0-9a-f-]{36}$/i.test(companyId)) return jsonError(c, 'شناسه مجموعه معتبر نیست.', 400);
+  try {
+    const sql = sqlFor(c);
+    const rows = await sql`SELECT m.id,m.user_id,m.role::text AS role FROM public.memberships m
+      JOIN public.memberships actor ON actor.company_id=m.company_id
+      WHERE m.id=${c.req.param('id')}::uuid AND m.company_id=${companyId}::uuid
+        AND actor.user_id=${user.id}::uuid AND actor.active=true AND actor.role::text IN ('owner','admin') LIMIT 1`;
+    if (!rows[0]) return jsonError(c, 'عضویت پیدا نشد یا اجازه تغییر آن را نداری.', 404);
+    const target = rows[0] as {id:string;user_id:string;role:string};
+    const actorRows = await sql`SELECT role::text AS role FROM public.memberships WHERE company_id=${companyId}::uuid AND user_id=${user.id}::uuid AND active=true LIMIT 1`;
+    const actorRole = String((actorRows[0] as {role:string}).role);
+    if (target.role === 'owner') return jsonError(c, 'مالک مجموعه را نمی‌توان غیرفعال کرد؛ ابتدا مالکیت را منتقل کن.', 400);
+    if (target.role === 'admin' && actorRole !== 'owner') return jsonError(c, 'فقط مالک مجموعه می‌تواند مدیر را غیرفعال کند.', 403);
+    if (target.user_id === user.id) return jsonError(c, 'برای جلوگیری از قفل‌شدن دسترسی، نمی‌توانی عضویت خودت را از اینجا غیرفعال کنی.', 400);
+    await sql`UPDATE public.memberships SET active=false WHERE id=${target.id}::uuid AND company_id=${companyId}::uuid`;
+    await sql`INSERT INTO public.medar_audit_log(actor_user_id,action,entity_type,entity_id,metadata)
+      VALUES(${user.id}::uuid,'membership.deactivated','membership',${target.id},jsonb_build_object('company_id',${companyId}))`;
+    return c.json({ ok:true });
+  } catch { return jsonError(c, 'غیرفعال‌سازی دسترسی انجام نشد.', 500); }
+});
+
 app.get('/api/admin/access-requests', async c => {
   let user: AuthUser | null;
   try { user = await currentUser(c); } catch { return jsonError(c, 'پایگاه داده پیکربندی نشده است.', 503); }
