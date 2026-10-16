@@ -608,7 +608,7 @@ export function OperationsWorkspacePage({kind,membership,search}:{kind:Operation
           {evidenceRows.length?evidenceRows.map(item=><div className="evidence-history-row" key={String(item.id)}>
             <span><strong>{fa(item.evidence_type)}</strong><small>{dateTimeFa(String(item.created_at??''))}</small></span>
             <span>{String(item.note??'')}{item.measurement_value!==null&&item.measurement_value!==undefined?' · '+String(item.measurement_value)+' '+String(item.measurement_unit??''):''}</span>
-            {item.storage_path&&<a href={`/api/evidence/${encodeURIComponent(String(item.id))}/download`} target="_blank" rel="noreferrer">دریافت فایل</a>}
+            {Boolean(item.storage_path)&&<a href={`/api/evidence/${encodeURIComponent(String(item.id))}/download`} target="_blank" rel="noreferrer">دریافت فایل</a>}
           </div>):<small>هنوز مدرکی برای این وظیفه ثبت نشده است.</small>}
         </div>
         <form className="ops-form" onSubmit={addEvidence}>
