@@ -717,7 +717,7 @@ html[data-theme="light"] .sim-preview-quick-card:hover{background:#EEF5F3}
 .ops-live-map-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 12px 11px;color:var(--ol-subtle);font-size:8px}
 .ops-live-map-foot button{display:inline-flex;align-items:center;gap:5px;border:0;background:transparent;color:var(--ol-accent);font-size:9px;font-weight:800;cursor:pointer}
 .ops-live-quick{margin-bottom:13px;border:1px solid var(--ol-border);border-radius:13px;background:linear-gradient(140deg,var(--ol-surface),color-mix(in srgb,var(--ol-surface) 74%,var(--ol-raised)));box-shadow:var(--obs-shadow);overflow:hidden}
-.ops-live-quick-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;padding:11px}
+.ops-live-quick-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:9px;padding:11px}
 .ops-live-quick-card{display:flex;align-items:center;gap:9px;min-width:0;min-height:66px;padding:9px;border:1px solid var(--ol-border);border-radius:10px;background:var(--ol-bg);color:var(--ol-text);text-align:right;cursor:pointer;transition:transform .15s ease,border-color .15s ease,background .15s ease}
 .ops-live-quick-card:hover{transform:translateY(-2px);border-color:var(--ol-accent-2);background:var(--ol-surface2)}
 .ops-live-quick-card>span{display:grid;place-items:center;flex:none;width:35px;height:35px;border:1px solid var(--ol-border);border-radius:10px;background:var(--ol-raised);color:var(--ol-accent)}
