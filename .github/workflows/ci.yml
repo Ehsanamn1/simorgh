@@ -55,3 +55,13 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Desktop, mobile, and role-based browser checks
         run: npm run test:e2e
+      - name: Upload browser report and failure traces
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: medar-playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 14
