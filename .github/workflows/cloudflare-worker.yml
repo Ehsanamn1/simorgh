@@ -35,6 +35,15 @@ jobs:
           test -n "$CLOUDFLARE_API_TOKEN" || { echo "CLOUDFLARE_API_TOKEN is missing"; exit 1; }
           test -n "$CLOUDFLARE_ACCOUNT_ID" || { echo "CLOUDFLARE_ACCOUNT_ID is missing"; exit 1; }
           test -n "$MEDAR_DATABASE_URL" || { echo "MEDAR_DATABASE_URL is missing"; exit 1; }
+      - name: Verify deployment targets the isolated Medar migration branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          db_host="$(node -e "process.stdout.write(new URL(process.env.MEDAR_DATABASE_URL).hostname)")"
+          case "$db_host" in
+            ep-wild-mountain-baaweix2* ) echo "Verified isolated Neon migration endpoint: $db_host" ;;
+            * ) echo "Refusing to migrate or deploy: MEDAR_DATABASE_URL must target the isolated medar-migration branch endpoint (ep-wild-mountain-baaweix2*)." >&2; exit 1 ;;
+          esac
       - name: Install PostgreSQL client
         run: sudo apt-get update && sudo apt-get install -y postgresql-client
       - name: Apply additive Neon migrations in order
