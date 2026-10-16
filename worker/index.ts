@@ -1572,5 +1572,39 @@ app.post('/api/operations/:kind/:id/update', async c => {
     return c.json({row:result[0]});
   }catch{return jsonError(c,'ویرایش عملیات انجام نشد.',400);}
 });
+
+app.post('/api/auth/change-password', async c => {
+  if (!c.env.DATABASE_URL) return jsonError(c, 'پایگاه داده پیکربندی نشده است.', 503);
+  let user: AuthUser | null;
+  try { user = await currentUser(c); } catch { return jsonError(c, 'خواندن نشست کاربری انجام نشد.', 500); }
+  if (!user) return jsonError(c, 'برای تغییر رمز عبور ابتدا وارد حساب شو.', 401);
+  let data: Record<string, unknown>;
+  try { data = await c.req.json(); } catch { return jsonError(c, 'بدنه درخواست معتبر نیست.', 400); }
+  const currentPassword = typeof data.currentPassword === 'string' ? data.currentPassword : '';
+  const newPassword = typeof data.newPassword === 'string' ? data.newPassword : '';
+  if (!currentPassword || currentPassword.length > 128) return jsonError(c, 'رمز عبور فعلی را وارد کن.', 400);
+  if (newPassword.length < 10 || newPassword.length > 128) return jsonError(c, 'رمز عبور جدید باید حداقل ۱۰ و حداکثر ۱۲۸ نویسه داشته باشد.', 400);
+  if (currentPassword === newPassword) return jsonError(c, 'رمز عبور جدید باید با رمز فعلی متفاوت باشد.', 400);
+  try {
+    const sql = sqlFor(c);
+    if (await rateLimit(sql, 'password-change:' + user.id, 5, 60)) return jsonError(c, 'تعداد درخواست‌های تغییر رمز زیاد است. یک ساعت دیگر دوباره تلاش کن.', 429);
+    const rows = await sql`SELECT password_hash FROM public.medar_users WHERE id=${user.id}::uuid AND account_status='active' LIMIT 1`;
+    const stored = (rows[0] as {password_hash:string}|undefined)?.password_hash;
+    if (!stored || !await verifyPassword(currentPassword, stored)) return jsonError(c, 'رمز عبور فعلی درست نیست.', 403);
+    const nextHash = await passwordHash(newPassword);
+    await sql`UPDATE public.medar_users SET password_hash=${nextHash},updated_at=now() WHERE id=${user.id}::uuid AND account_status='active'`;
+    const token = getCookie(c.req.raw);
+    if (token) {
+      const currentHash = await sha256(token);
+      await sql`UPDATE public.medar_sessions SET revoked_at=now() WHERE user_id=${user.id}::uuid AND revoked_at IS NULL AND token_hash<>${currentHash}`;
+    } else {
+      await sql`UPDATE public.medar_sessions SET revoked_at=now() WHERE user_id=${user.id}::uuid AND revoked_at IS NULL`;
+    }
+    await sql`INSERT INTO public.medar_audit_log(actor_user_id,action,entity_type,entity_id)
+      VALUES(${user.id}::uuid,'auth.password_changed','user',${user.id})`;
+    return c.json({ok:true,message:'رمز عبور تغییر کرد. نشست‌های دیگر از حساب خارج شدند.'});
+  } catch { return jsonError(c, 'تغییر رمز عبور انجام نشد.', 500); }
+});
+
 app.notFound(c => c.env.ASSETS ? c.env.ASSETS.fetch(c.req.raw) : c.json({ message:'مسیر پیدا نشد.' },404));
 export default app;
