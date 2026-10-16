@@ -79,32 +79,32 @@ const configs: Record<OperationsKind, Config> = {
   'daily-production': {title:'گزارش روزانه',eyebrow:'ثبت و پایش روزانه',description:'ورودی مصرفی، خروجی، ضایعات و واحد اندازه‌گیری را برای هر بچ ثبت و مقایسه کنید.',table:'daily_production_records',icon:Activity,columns:[
     {key:'record_date',label:'تاریخ',value:r=>dateValue(r.record_date)},{key:'batch_id',label:'بچ تولید',value:(r,refs)=>refName(refs.batches,r.batch_id,'batch_code')},
     {key:'input_name',label:'ورودی / مصرف'},{key:'input_quantity',label:'مقدار ورودی',value:r=>r.input_quantity==null?'—':numberFa(numeric(r.input_quantity))+' '+text(r.input_unit)},
-    {key:'produced_quantity',label:'خروجی',value:r=>r.produced_quantity==null?'—':numberFa(numeric(r.produced_quantity))},
+    {key:'produced_quantity',label:'خروجی',value:(r,refs)=>{const b=refs.batches.find(x=>String(x.id)===String(r.batch_id));return r.produced_quantity==null?'—':numberFa(numeric(r.produced_quantity))+' '+text(b?.unit)}},
     {key:'rejected_quantity',label:'مردودی',value:r=>numberFa(numeric(r.rejected_quantity))},{key:'loss_count',label:'تعداد اتلاف',value:r=>numberFa(numeric(r.loss_count))}]},
-  'task-templates': {title:'دستورالعمل‌های کاری',eyebrow:'OPERATIONS / SOP LIBRARY',description:'دستورالعمل را پیش‌نویس کنید؛ تأیید مدیر نسخه را برای استفاده در وظایف قفل می‌کند.',table:'task_templates',icon:FileCheck2,columns:[
+  'task-templates': {title:'دستورالعمل‌های کاری',eyebrow:'کتابخانه دستورالعمل‌ها',description:'دستورالعمل را پیش‌نویس کنید؛ تأیید مدیر نسخه را برای استفاده در وظایف قفل می‌کند.',table:'task_templates',icon:FileCheck2,columns:[
     {key:'template_code',label:'کد دستورالعمل'},{key:'title',label:'عنوان'},{key:'category',label:'گروه'},
     {key:'priority',label:'اولویت',value:r=>fa(r.priority)},{key:'evidence_required',label:'مدرک لازم',value:r=>r.evidence_required?'بله':'خیر'},
     {key:'status',label:'وضعیت',value:r=>fa(r.status)}]},
-  'operational-tasks': {title:'وظایف عملیاتی',eyebrow:'OPERATIONS / TASK CONTROL',description:'مسئول، موعد، مدرک اجباری و نتیجه بازبینی را ثبت و پیگیری کنید.',table:'operational_tasks',icon:ClipboardCheck,columns:[
+  'operational-tasks': {title:'وظایف عملیاتی',eyebrow:'کنترل وظایف عملیاتی',description:'مسئول، موعد، مدرک اجباری و نتیجه بازبینی را ثبت و پیگیری کنید.',table:'operational_tasks',icon:ClipboardCheck,columns:[
     {key:'title',label:'وظیفه'},{key:'assignee_supplier_id',label:'مسئول',value:(r,refs)=>refName(refs.suppliers,r.assignee_supplier_id,'name')},
     {key:'due_at',label:'موعد',value:r=>typeof r.due_at==='string'?dateTimeFa(r.due_at):'—'},
     {key:'priority',label:'اولویت',value:r=>fa(r.priority)},{key:'evidence_required',label:'مدرک لازم',value:r=>r.evidence_required?'بله':'خیر'},
     {key:'status',label:'وضعیت',value:r=>fa(r.status)}]},
-  incidents: {title:'رخدادها و مغایرت‌ها',eyebrow:'OPERATIONS / INCIDENTS',description:'رخدادهای تولید، کیفیت، حمل یا ایمنی را ثبت و اقدام اصلاحی را پیگیری کنید.',table:'operational_incidents',icon:Activity,columns:[
+  incidents: {title:'رخدادها و مغایرت‌ها',eyebrow:'رخدادها و مغایرت‌ها',description:'رخدادهای تولید، کیفیت، حمل یا ایمنی را ثبت و اقدام اصلاحی را پیگیری کنید.',table:'operational_incidents',icon:Activity,columns:[
     {key:'title',label:'رخداد'},{key:'category',label:'گروه',value:r=>fa(r.category)},{key:'severity',label:'شدت',value:r=>fa(r.severity)},
     {key:'farm_site_id',label:'سایت',value:(r,refs)=>refName(refs.sites,r.farm_site_id,'name')},
     {key:'status',label:'وضعیت',value:r=>fa(r.status)},{key:'created_at',label:'ثبت',value:r=>typeof r.created_at==='string'?dateTimeFa(r.created_at):'—'}]},
-  'partnership-agreements': {title:'قراردادهای مشارکت',eyebrow:'PARTNERSHIPS / AGREEMENTS',description:'نسخه قرارداد، نسبت تقسیم و دسته‌های هزینه را ثبت کنید. فعال‌سازی نیازمند فایل امضاست.',table:'partnership_agreements',icon:FileText,columns:[
+  'partnership-agreements': {title:'قراردادهای مشارکت',eyebrow:'قراردادهای مشارکت',description:'نسخه قرارداد، نسبت تقسیم و دسته‌های هزینه را ثبت کنید. فعال‌سازی نیازمند فایل امضاست.',table:'partnership_agreements',icon:FileText,columns:[
     {key:'agreement_code',label:'کد قرارداد'},{key:'version',label:'نسخه'},{key:'supplier_id',label:'شریک',value:(r,refs)=>refName(refs.suppliers,r.supplier_id,'name')},
     {key:'company_profit_share_pct',label:'سهم شرکت',value:r=>numberFa(numeric(r.company_profit_share_pct))+'٪'},
     {key:'partner_profit_share_pct',label:'سهم شریک',value:r=>numberFa(numeric(r.partner_profit_share_pct))+'٪'},
     {key:'effective_from',label:'شروع',value:r=>dateValue(r.effective_from)},{key:'status',label:'وضعیت',value:r=>fa(r.status)}]},
-  'partner-finance': {title:'دفتر مالی شریک',eyebrow:'FINANCE / PARTNER LEDGER',description:'فاکتور، دریافت، هزینه و پیش‌پرداخت را با مرجع مشخص ثبت کنید؛ سامانه انتقال بانکی انجام نمی‌دهد.',table:'partner_financial_entries',icon:CreditCard,columns:[
+  'partner-finance': {title:'دفتر مالی شریک',eyebrow:'دفتر مالی شریک',description:'فاکتور، دریافت، هزینه و پیش‌پرداخت را با مرجع مشخص ثبت کنید؛ سامانه انتقال بانکی انجام نمی‌دهد.',table:'partner_financial_entries',icon:CreditCard,columns:[
     {key:'recognized_on',label:'تاریخ',value:r=>dateValue(r.recognized_on)},{key:'entry_type',label:'نوع سند',value:r=>fa(r.entry_type)},
     {key:'supplier_id',label:'شریک',value:(r,refs)=>refName(refs.suppliers,r.supplier_id,'name')},
     {key:'amount',label:'مبلغ',value:r=>moneyFa(numeric(r.amount))},{key:'paid_amount',label:'پرداخت ثبت‌شده',value:r=>moneyFa(numeric(r.paid_amount))},
     {key:'external_reference',label:'مرجع'},{key:'status',label:'وضعیت',value:r=>fa(r.status)}]},
-  'partner-settlements': {title:'دوره‌ها و تسویه شریک',eyebrow:'FINANCE / PARTNER RECONCILIATION',description:'دوره را از دفتر مالی محاسبه کنید. پرداخت فقط با مرجع واقعی و کنترل وجه ثبت‌شده قابل ثبت است.',table:'partner_settlement_periods',icon:CreditCard,columns:[
+  'partner-settlements': {title:'دوره‌ها و تسویه شریک',eyebrow:'تسویه و تطبیق مالی',description:'دوره را از دفتر مالی محاسبه کنید. پرداخت فقط با مرجع واقعی و کنترل وجه ثبت‌شده قابل ثبت است.',table:'partner_settlement_periods',icon:CreditCard,columns:[
     {key:'period_start',label:'شروع دوره',value:r=>dateValue(r.period_start)},{key:'period_end',label:'پایان دوره',value:r=>dateValue(r.period_end)},
     {key:'supplier_id',label:'شریک',value:(r,refs)=>refName(refs.suppliers,r.supplier_id,'name')},
     {key:'collected_revenue',label:'وصول‌شده',value:r=>moneyFa(numeric(r.collected_revenue))},
