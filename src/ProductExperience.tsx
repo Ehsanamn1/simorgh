@@ -71,8 +71,8 @@ export default function ProductExperience() {
   const protectedRoute = location.pathname.includes('/app');
   // Keep the real auth implementation intact, but make the public auth UI a final-phase feature.
   // Set VITE_ENABLE_AUTH_UI=true only when the owner-provisioning flow is ready to be launched.
-  const authUiEnabled = import.meta.env.VITE_ENABLE_AUTH_UI === 'true';
-  const signInOpen = authUiEnabled && (mode === 'recovery' || (location.hash === '#signin' && !user) || (protectedRoute && !user && !loading));
+  const authUiEnabled = import.meta.env.VITE_ENABLE_AUTH_UI !== 'false';
+  const signInOpen = authUiEnabled && (mode === 'recovery' || (location.hash === '#signin' && !user));
   const normalizedPath = location.pathname.startsWith(basePath) ? location.pathname.slice(basePath.length) || '/' : location.pathname;
   const protectedDestination = normalizedPath.startsWith('/app') ? normalizedPath : '/app';
 
