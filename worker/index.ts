@@ -11,7 +11,7 @@ const encoder = new TextEncoder();
 
 function normalizePhone(input: unknown): string | null {
   if (typeof input !== 'string') return null;
-  const digits = input.trim().replace(/[\s()\-]/g, '').replace(/[۰-۹]/g, char => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(char))).replace(/[٠-٩]/g, char => String('٠١٢٣٤٥٦٧٨٩'.indexOf(char)));
+  const digits = input.trim().replaceAll(' ', '').replaceAll('-', '').replaceAll('(', '').replaceAll(')', '').replace(/[۰-۹]/g, char => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(char))).replace(/[٠-٩]/g, char => String('٠١٢٣٤٥٦٧٨٩'.indexOf(char)));
   if (/^09\d{9}$/.test(digits)) return '+98' + digits.slice(1);
   if (/^9\d{9}$/.test(digits)) return '+98' + digits;
   if (/^\+989\d{9}$/.test(digits)) return digits;
