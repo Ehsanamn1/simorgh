@@ -464,6 +464,139 @@ async function sameCompanyRow(sql: ReturnType<typeof neon>, table: string, id: u
   const rows=await queryRows(sql,`SELECT id FROM public.${table} WHERE id=$1::uuid AND company_id=$2::uuid LIMIT 1`,[id,companyId]);
   return rows.length>0;
 }
+const allowedUploadTypes=new Set(['application/pdf','image/jpeg','image/png','image/webp']);
+function safeUploadName(value:string){return value.replace(/[^a-zA-Z0-9._-]/g,'_').slice(-120)||'upload';}
+function evidenceFileHeaders(contentType:string,filename:string){
+  return {'content-type':contentType,'content-disposition':`attachment; filename="${safeUploadName(filename)}"`,'x-content-type-options':'nosniff','cache-control':'private, no-store'};
+}
+app.post('/api/operations/operational-tasks/:id/evidence', async c => {
+  let user:AuthUser|null;
+  try{user=await currentUser(c);}catch{return jsonError(c,'پایگاه داده پیکربندی نشده است.',503);}
+  if(!user)return jsonError(c,'برای ثبت مدرک ابتدا وارد حساب شو.',401);
+  const companyId=c.req.query('companyId')||'';
+  if(!validUuid(companyId)||!validUuid(c.req.param('id')))return jsonError(c,'شناسه مجموعه یا وظیفه معتبر نیست.',400);
+  let form:FormData;
+  try{form=await c.req.formData();}catch{return jsonError(c,'فرم مدرک معتبر نیست.',400);}
+  const evidenceType=String(form.get('evidenceType')||'note');
+  const note=String(form.get('note')||'').trim().slice(0,2000);
+  const measurement=String(form.get('measurement')||'').trim();
+  const unit=String(form.get('unit')||'').trim().slice(0,24);
+  const fileValue=form.get('file');
+  const file=fileValue instanceof File&&fileValue.size>0?fileValue:null;
+  if(!['note','measurement','photo','document'].includes(evidenceType))return jsonError(c,'نوع مدرک معتبر نیست.',400);
+  if(evidenceType==='note'&&note.length<2)return jsonError(c,'برای مدرک متنی، یادداشت لازم است.',400);
+  if(evidenceType==='measurement'&&(!Number.isFinite(Number(measurement))||!unit))return jsonError(c,'مقدار و واحد اندازه‌گیری را کامل کن.',400);
+  if(['photo','document'].includes(evidenceType)&&!file)return jsonError(c,'برای عکس یا سند، فایل انتخاب کن.',400);
+  if(file&&(file.size>10*1024*1024||!allowedUploadTypes.has(file.type)))return jsonError(c,'فایل باید PDF یا تصویر JPG/PNG/WebP و حداکثر ۱۰ مگابایت باشد.',413);
+  try{
+    const sql=sqlFor(c),membership=await operationMembership(sql,user.id,companyId);
+    if(!membership||!['owner','admin','staff','supplier'].includes(membership.role))return jsonError(c,'برای ثبت مدرک این وظیفه مجوز نداری.',403);
+    const taskRows=await sql`SELECT id,assignee_supplier_id,assignee_user_id,status FROM public.operational_tasks WHERE id=${c.req.param('id')}::uuid AND company_id=${companyId}::uuid LIMIT 1`;
+    if(!taskRows[0])return jsonError(c,'وظیفه پیدا نشد.',404);
+    const task=taskRows[0] as {id:string;assignee_supplier_id:string|null;assignee_user_id:string|null;status:string};
+    if(membership.role==='supplier'&&task.assignee_supplier_id!==membership.supplier_id)return jsonError(c,'این وظیفه به تأمین‌کننده شما تخصیص داده نشده است.',403);
+    if(membership.role==='staff'&&task.assignee_user_id&&task.assignee_user_id!==user.id)return jsonError(c,'این وظیفه به شما تخصیص داده نشده است.',403);
+    let path:string|null=null;
+    if(file){
+      if(!c.env.EVIDENCE_BUCKET)return jsonError(c,'ذخیره‌سازی فایل R2 پیکربندی نشده است.',503);
+      const filename=safeUploadName(file.name),key=`${companyId}/evidence/${task.id}/${crypto.randomUUID()}-${filename}`;
+      await c.env.EVIDENCE_BUCKET.put(key,await file.arrayBuffer(),{httpMetadata:{contentType:file.type},customMetadata:{companyId,taskId:task.id,uploaderId:user.id,originalName:filename}});
+      path=key;
+    }
+    try{
+      const rows=await sql`INSERT INTO public.task_evidence(company_id,task_id,evidence_type,storage_path,note,measurement_value,measurement_unit,uploaded_by)
+        VALUES(${companyId}::uuid,${task.id}::uuid,${evidenceType},${path},${note||null},${evidenceType==='measurement'?Number(measurement):null},${evidenceType==='measurement'?unit:null},${user.id}::uuid)
+        RETURNING id,company_id,task_id,evidence_type,storage_path,note,measurement_value,measurement_unit,uploaded_by,captured_at,created_at`;
+      await sql`INSERT INTO public.medar_audit_log(actor_user_id,action,entity_type,entity_id,metadata)
+        VALUES(${user.id}::uuid,'task.evidence.added','task_evidence',${String((rows[0] as {id:string}).id)},jsonb_build_object('company_id',${companyId},'task_id',${task.id},'evidence_type',${evidenceType}))`;
+      return c.json({evidence:rows[0]},201);
+    }catch(error){
+      if(path&&c.env.EVIDENCE_BUCKET)await c.env.EVIDENCE_BUCKET.delete(path).catch(()=>undefined);
+      throw error;
+    }
+  }catch{return jsonError(c,'ثبت مدرک انجام نشد. وضعیت وظیفه و مهاجرت دیتابیس را بررسی کن.',500);}
+});
+app.get('/api/operations/operational-tasks/:id/evidence', async c => {
+  let user:AuthUser|null;
+  try{user=await currentUser(c);}catch{return jsonError(c,'پایگاه داده پیکربندی نشده است.',503);}
+  if(!user)return jsonError(c,'ابتدا وارد حساب شو.',401);
+  const companyId=c.req.query('companyId')||'';
+  if(!validUuid(companyId)||!validUuid(c.req.param('id')))return jsonError(c,'شناسه مجموعه یا وظیفه معتبر نیست.',400);
+  try{
+    const sql=sqlFor(c),membership=await operationMembership(sql,user.id,companyId);
+    if(!membership||!['owner','admin','staff','supplier'].includes(membership.role))return jsonError(c,'به مدارک این وظیفه دسترسی نداری.',403);
+    const task=await sql`SELECT id,assignee_supplier_id,assignee_user_id FROM public.operational_tasks WHERE id=${c.req.param('id')}::uuid AND company_id=${companyId}::uuid LIMIT 1`;
+    if(!task[0])return jsonError(c,'وظیفه پیدا نشد.',404);
+    const t=task[0] as {assignee_supplier_id:string|null;assignee_user_id:string|null};
+    if(membership.role==='supplier'&&t.assignee_supplier_id!==membership.supplier_id)return jsonError(c,'به مدارک این وظیفه دسترسی نداری.',403);
+    const rows=await sql`SELECT id,company_id,task_id,evidence_type,storage_path,note,measurement_value,measurement_unit,uploaded_by,captured_at,created_at FROM public.task_evidence WHERE company_id=${companyId}::uuid AND task_id=${c.req.param('id')}::uuid ORDER BY created_at DESC`;
+    return c.json({evidence:rows});
+  }catch{return jsonError(c,'خواندن مدارک انجام نشد.',500);}
+});
+app.get('/api/evidence/:id/download', async c => {
+  let user:AuthUser|null;
+  try{user=await currentUser(c);}catch{return jsonError(c,'پایگاه داده پیکربندی نشده است.',503);}
+  if(!user)return jsonError(c,'ابتدا وارد حساب شو.',401);
+  if(!validUuid(c.req.param('id')))return jsonError(c,'شناسه مدرک معتبر نیست.',400);
+  if(!c.env.EVIDENCE_BUCKET)return jsonError(c,'ذخیره‌سازی فایل R2 پیکربندی نشده است.',503);
+  try{
+    const sql=sqlFor(c);
+    const rows=await sql`SELECT e.storage_path,e.evidence_type,e.company_id,e.task_id,t.assignee_supplier_id
+      FROM public.task_evidence e JOIN public.operational_tasks t ON t.id=e.task_id AND t.company_id=e.company_id
+      WHERE e.id=${c.req.param('id')}::uuid LIMIT 1`;
+    if(!rows[0])return jsonError(c,'فایل پیدا نشد.',404);
+    const item=rows[0] as {storage_path:string|null;evidence_type:string;company_id:string;task_id:string;assignee_supplier_id:string|null};
+    if(!item.storage_path)return jsonError(c,'این مدرک فایل پیوست ندارد.',404);
+    const membership=await operationMembership(sql,user.id,item.company_id);
+    if(!membership||!['owner','admin','staff','supplier'].includes(membership.role))return jsonError(c,'به این فایل دسترسی نداری.',403);
+    if(membership.role==='supplier'&&item.assignee_supplier_id!==membership.supplier_id)return jsonError(c,'به این فایل دسترسی نداری.',403);
+    const object=await c.env.EVIDENCE_BUCKET.get(item.storage_path);
+    if(!object)return jsonError(c,'فایل در ذخیره‌سازی پیدا نشد.',404);
+    const filename=item.storage_path.split('/').pop()||'evidence';
+    return new Response(object.body,{headers:evidenceFileHeaders(object.httpMetadata?.contentType||'application/octet-stream',filename)});
+  }catch{return jsonError(c,'دریافت فایل انجام نشد.',500);}
+});
+app.post('/api/operations/partnership-agreements/:id/document', async c => {
+  let user:AuthUser|null;
+  try{user=await currentUser(c);}catch{return jsonError(c,'پایگاه داده پیکربندی نشده است.',503);}
+  if(!user)return jsonError(c,'ابتدا وارد حساب شو.',401);
+  const companyId=c.req.query('companyId')||'';
+  if(!validUuid(companyId)||!validUuid(c.req.param('id')))return jsonError(c,'شناسه مجموعه یا قرارداد معتبر نیست.',400);
+  if(!c.env.EVIDENCE_BUCKET)return jsonError(c,'ذخیره‌سازی فایل R2 پیکربندی نشده است.',503);
+  let form:FormData;
+  try{form=await c.req.formData();}catch{return jsonError(c,'فایل قرارداد معتبر نیست.',400);}
+  const value=form.get('file'),file=value instanceof File&&value.size>0?value:null;
+  if(!file)return jsonError(c,'فایل قرارداد را انتخاب کن.',400);
+  if(file.size>10*1024*1024||!['application/pdf','image/jpeg','image/png'].includes(file.type))return jsonError(c,'فقط PDF، JPG و PNG تا ۱۰ مگابایت مجاز است.',413);
+  try{
+    const sql=sqlFor(c),membership=await operationMembership(sql,user.id,companyId);
+    if(!membership||!['owner','admin'].includes(membership.role))return jsonError(c,'فقط مالک یا مدیر می‌تواند قرارداد امضاشده را ثبت کند.',403);
+    const rows=await sql`SELECT id,supplier_id,status,supersedes_agreement_id FROM public.partnership_agreements WHERE id=${c.req.param('id')}::uuid AND company_id=${companyId}::uuid LIMIT 1`;
+    if(!rows[0])return jsonError(c,'قرارداد پیدا نشد.',404);
+    const agreement=rows[0] as {id:string;supplier_id:string;status:string;supersedes_agreement_id:string|null};
+    if(agreement.status!=='draft')return jsonError(c,'فقط قرارداد پیش‌نویس را می‌توان فعال کرد.',409);
+    const active=await sql`SELECT id FROM public.partnership_agreements WHERE company_id=${companyId}::uuid AND supplier_id=${agreement.supplier_id}::uuid AND status='active' LIMIT 1`;
+    if(active.length&&active[0].id!==agreement.supersedes_agreement_id)return jsonError(c,'برای این تأمین‌کننده قرارداد فعال دیگری وجود دارد؛ قرارداد قبلی را به‌عنوان جایگزین مشخص کن.',409);
+    const filename=safeUploadName(file.name),key=`${companyId}/contracts/${agreement.supplier_id}/${crypto.randomUUID()}-${filename}`;
+    await c.env.EVIDENCE_BUCKET.put(key,await file.arrayBuffer(),{httpMetadata:{contentType:file.type},customMetadata:{companyId,agreementId:agreement.id,uploaderId:user.id,originalName:filename}});
+    try{
+      const updated=await sql`WITH superseded AS (
+        UPDATE public.partnership_agreements SET status='superseded',updated_at=now()
+        WHERE id=${agreement.supersedes_agreement_id}::uuid AND company_id=${companyId}::uuid AND supplier_id=${agreement.supplier_id}::uuid AND status='active'
+        RETURNING id
+      ), activated AS (
+        UPDATE public.partnership_agreements SET signed_document_path=${key},signed_at=now(),status='active',approved_by=${user.id}::uuid,approved_at=now(),updated_at=now()
+        WHERE id=${agreement.id}::uuid AND company_id=${companyId}::uuid AND status='draft'
+          AND (${agreement.supersedes_agreement_id}::uuid IS NULL OR EXISTS (SELECT 1 FROM superseded))
+        RETURNING id,status,signed_document_path,signed_at
+      ) SELECT * FROM activated`;
+      if(!updated[0]){await c.env.EVIDENCE_BUCKET.delete(key).catch(()=>undefined);return jsonError(c,'فعال‌سازی قرارداد به دلیل وضعیت قرارداد قبلی انجام نشد.',409);}
+      await sql`INSERT INTO public.medar_audit_log(actor_user_id,action,entity_type,entity_id,metadata)
+        VALUES(${user.id}::uuid,'partnership.agreement.activated','partnership_agreement',${agreement.id},jsonb_build_object('company_id',${companyId}))`;
+      return c.json({agreement:updated[0]});
+    }catch(error){await c.env.EVIDENCE_BUCKET.delete(key).catch(()=>undefined);throw error;}
+  }catch{return jsonError(c,'ثبت سند قرارداد انجام نشد.',500);}
+});
 app.get('/api/operations/:kind', async c => {
   let user: AuthUser|null;
   try{user=await currentUser(c);}catch{return jsonError(c,'پایگاه داده پیکربندی نشده است.',503);}
