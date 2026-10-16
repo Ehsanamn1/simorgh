@@ -37,6 +37,14 @@ jobs:
             echo "Applying $migration"
             psql "$MEDAR_DATABASE_URL" -v ON_ERROR_STOP=1 -f "$migration"
           done
+      - name: Ensure R2 evidence bucket exists
+        working-directory: worker
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! npx wrangler@4 r2 bucket list | grep -q 'medar-evidence'; then
+            npx wrangler@4 r2 bucket create medar-evidence --location weur
+          fi
       - name: Configure Neon database secret
         working-directory: worker
         shell: bash
