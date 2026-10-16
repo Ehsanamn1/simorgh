@@ -39,6 +39,7 @@ jobs:
         env:
           VITE_SUPABASE_URL: https://aoxerjimfiwusidaparx.supabase.co
           VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_oTgVCJWw9BfK-kFUxTcaMQ_aeAUWXC5
+          VITE_ENABLE_AUTH_UI: 'true'
       - name: Prepare SPA routing fallback
         run: |
           cp dist/index.html dist/404.html
