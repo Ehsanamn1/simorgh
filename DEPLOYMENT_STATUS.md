@@ -18,3 +18,7 @@ R2 provisioning and the R2 binding have been removed per product decision. The W
 - Require the full Playwright browser suite and production build to pass before Neon migrations.
 - Verify the Worker health endpoint returns `ok: true` and `database: true`.
 - GitHub Pages remains available as fallback until the deployed Worker URL passes live auth and authorization smoke tests.
+
+## Latest deployment repair
+
+The previous release successfully applied Neon migrations `0001` through `0006` and configured the Worker `DATABASE_URL` secret, but the Worker deployment was rejected because `public/_redirects` caused Cloudflare error 100324 (infinite redirect loop). That file has been removed; the Worker assets configuration already enables SPA fallback. Re-run the guarded release to deploy and smoke-test this corrected configuration. This status is not a claim that the Worker is live yet.
