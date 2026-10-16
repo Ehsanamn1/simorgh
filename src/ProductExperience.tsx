@@ -214,7 +214,6 @@ export default function ProductExperience() {
     const normalizedPhone = mode === 'signup' ? normalizeIranPhone(phone) : '';
     if (mode === 'signup') {
       if (fullName.trim().length < 2 || fullName.trim().length > 160) { setError('نام کامل باید بین ۲ تا ۱۶۰ نویسه باشد.'); return; }
-      if (organizationName.trim().length < 2 || organizationName.trim().length > 160) { setError('نام مجموعه باید بین ۲ تا ۱۶۰ نویسه باشد.'); return; }
       if (password.length < 8) { setError('گذرواژه باید حداقل ۸ نویسه باشد.'); return; }
       if (!normalizedPhone) { setError('شماره موبایل ایران معتبر وارد کن؛ مثال: 09121234567'); return; }
       if (password !== confirmPassword) { setError('تکرار گذرواژه یکسان نیست.'); return; }
@@ -336,6 +335,7 @@ export default function ProductExperience() {
                  <label htmlFor="simorgh-signin-organization">نام مزرعه یا مجموعه</label><input id="simorgh-signin-organization" className="auth-input" type="text" required minLength={2} maxLength={160} value={organizationName} onChange={e => setOrganizationName(e.target.value)} placeholder="نام مجموعه"/>
                  <label htmlFor="simorgh-signin-phone">شماره موبایل</label><input id="simorgh-signin-phone" className="auth-input" type="tel" autoComplete="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="09121234567" pattern="(?:09\\d{9}|9\\d{9}|\\+989\\d{9})" required dir="ltr"/>
                </>}
+               {mode === 'signup' && <><label htmlFor="simorgh-signin-role">نقش مورد درخواست</label><select id="simorgh-signin-role" className="auth-input" value={requestedRole} onChange={e => setRequestedRole(e.target.value as PublicRequestedRole)}><option value="customer">خریدار عمده</option><option value="supplier">تأمین‌کننده / شریک مزرعه</option><option value="driver">راننده / حمل‌ونقل</option><option value="staff">عضو تیم (نیازمند تأیید)</option></select></>}
                <label htmlFor="simorgh-signin-username">نام کاربری</label><input id="simorgh-signin-username" className="auth-input" type="text" autoComplete="username" inputMode="text" required={mode !== 'recovery'} value={email} onChange={e => setEmail(e.target.value)} placeholder="username" dir="ltr"/>
                {mode !== 'reset' && <>
                  <label htmlFor="simorgh-signin-password">{mode === 'recovery' ? 'گذرواژه جدید' : 'گذرواژه'}</label>
