@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Activity, ArrowLeft, Boxes, Building2, Check, ClipboardCheck, CreditCard, Factory, FileText, Home, LayoutDashboard, ListTodo, MapPin, Menu, Package, ShieldCheck, Target, Truck, Warehouse, X, UserPlus, Eye, EyeOff, KeyRound, RotateCcw } from 'lucide-react';
@@ -10,7 +10,7 @@ import type { AppRole } from './lib/types';
 
 type NavigationEntry = { key: string; label: string };
 type PublicRequestedRole = 'staff' | 'supplier' | 'driver' | 'customer';
-type AuthMode = 'signin' | 'reset' | 'recovery';
+type AuthMode = 'signin' | 'signup' | 'reset' | 'recovery';
 const requestedRoles: { value: PublicRequestedRole; label: string; Icon: LucideIcon }[] = [
   { value: 'customer', label: 'خریدار عمده', Icon: Boxes },
   { value: 'supplier', label: 'شریک مزرعه', Icon: Factory },
@@ -49,7 +49,7 @@ function readAllowedLinks(): NavigationEntry[] {
 
 /** Private operational app entry. Public self-registration is intentionally disabled. */
 export default function ProductExperience() {
-  const { user, loading, memberships } = useAuth();
+  const { user, loading, memberships, membershipsLoading, refreshMemberships } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [appMain, setAppMain] = useState<HTMLElement | null>(null);
@@ -68,12 +68,16 @@ export default function ProductExperience() {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [requestId, setRequestId] = useState('');
+  const [workspaceProvisionError, setWorkspaceProvisionError] = useState('');
+  const [workspaceProvisioning, setWorkspaceProvisioning] = useState(false);
+  const [workspaceProvisionRetry, setWorkspaceProvisionRetry] = useState(0);
+  const provisionedUserIds = useRef<Set<string>>(new Set());
   const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
   const protectedRoute = location.pathname.includes('/app');
   // Enable secure sign-in by default in web, preview and native builds; only an explicit false disables it.
   // Public self-registration remains disabled independently of this UI flag.
   const authUiEnabled = import.meta.env.VITE_ENABLE_AUTH_UI !== 'false';
-  const signInOpen = authUiEnabled && (mode === 'recovery' || (location.hash === '#signin' && !user && !loading) || (protectedRoute && !user && !loading));
+  const signInOpen = authUiEnabled && (mode === 'recovery' || ((location.hash === '#signin' || location.hash === '#signup') && !user && !loading) || (protectedRoute && !user && !loading));
   const normalizedPath = location.pathname.startsWith(basePath) ? location.pathname.slice(basePath.length) || '/' : location.pathname;
   const protectedDestination = normalizedPath.startsWith('/app') ? normalizedPath : '/app';
 
