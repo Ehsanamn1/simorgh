@@ -279,16 +279,26 @@ export default function ProductExperience() {
 
   async function submitRoleRequest(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!neonAuth || !user) { setError('برای ثبت درخواست ابتدا وارد حساب شو.'); return; }
-    if (['customer', 'supplier'].includes(requestedRole) && organizationName.trim().length < 2) { setError('نام شرکت یا مزرعه برای این نقش ضروری است.'); return; }
+    if (!user) { setError('برای ثبت درخواست ابتدا وارد حساب شو.'); return; }
+    if (['customer', 'supplier'].includes(requestedRole) && organizationName.trim().length < 2) {
+      setError('نام شرکت یا مزرعه برای این نقش ضروری است.');
+      return;
+    }
     setBusy(true); setError(''); setNotice('');
-    const result = await api.post<{ requestId: string }>('/api/access-requests', {
-      role: requestedRole as AppRole, fullName: fullName.trim(), organizationName: organizationName.trim() || null, phone: phone.trim() || null,
-    });
-    const data = result.requestId;
-    setNotice('درخواست دسترسی ثبت شد. پس از بررسی مالک یا مدیر، فضای کاری نقش انتخابی فعال می‌شود.');
-    setError(''); setRequestId(String(data ?? ''));
-    setBusy(false);
+    try {
+      const result = await api.post<{ requestId: string }>('/api/access-requests', {
+        role: requestedRole as AppRole,
+        fullName: fullName.trim(),
+        organizationName: organizationName.trim() || null,
+        phone: phone.trim() || null,
+      });
+      setNotice('درخواست دسترسی ثبت شد. پس از بررسی مالک یا مدیر، فضای کاری نقش انتخابی فعال می‌شود.');
+      setRequestId(String(result.requestId ?? ''));
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'ثبت درخواست دسترسی انجام نشد. دوباره تلاش کن.');
+    } finally {
+      setBusy(false);
+    }
   }
 
   return <>
