@@ -579,6 +579,9 @@ CREATE TABLE IF NOT EXISTS public.company_goals (
 );
 
 -- 3. Add missing compatibility columns to the existing foundation tables.
+ALTER TABLE public.medar_users ALTER COLUMN phone_e164 DROP NOT NULL;
+ALTER TABLE public.medar_users DROP CONSTRAINT IF EXISTS medar_users_active_phone_required;
+ALTER TABLE public.medar_users ADD CONSTRAINT medar_users_active_phone_required CHECK (account_status <> 'active' OR phone_e164 IS NOT NULL);
 -- Keep new foreign-key fields nullable until request review and data reconciliation are complete.
 ALTER TABLE public.companies ADD COLUMN IF NOT EXISTS legal_name text;
 ALTER TABLE public.companies ADD COLUMN IF NOT EXISTS province text DEFAULT 'نامشخص';
