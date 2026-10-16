@@ -556,6 +556,26 @@ app.get('/api/evidence/:id/download', async c => {
     return new Response(object.body,{headers:evidenceFileHeaders(object.httpMetadata?.contentType||'application/octet-stream',filename)});
   }catch{return jsonError(c,'دریافت فایل انجام نشد.',500);}
 });
+app.get('/api/operations/partnership-agreements/:id/document', async c => {
+  let user:AuthUser|null;
+  try{user=await currentUser(c);}catch{return jsonError(c,'پایگاه داده پیکربندی نشده است.',503);}
+  if(!user)return jsonError(c,'ابتدا وارد حساب شو.',401);
+  const companyId=c.req.query('companyId')||'';
+  if(!validUuid(companyId)||!validUuid(c.req.param('id')))return jsonError(c,'شناسه مجموعه یا قرارداد معتبر نیست.',400);
+  if(!c.env.EVIDENCE_BUCKET)return jsonError(c,'ذخیره‌سازی فایل R2 پیکربندی نشده است.',503);
+  try{
+    const sql=sqlFor(c);
+    const rows=await sql`SELECT supplier_id,signed_document_path FROM public.partnership_agreements WHERE id=${c.req.param('id')}::uuid AND company_id=${companyId}::uuid LIMIT 1`;
+    if(!rows[0])return jsonError(c,'قرارداد پیدا نشد.',404);
+    const item=rows[0] as {supplier_id:string;signed_document_path:string|null};
+    if(!item.signed_document_path)return jsonError(c,'برای این قرارداد فایل امضاشده ثبت نشده است.',404);
+    const membership=await operationMembership(sql,user.id,companyId);
+    if(!membership||(!['owner','admin'].includes(membership.role)&&!(membership.role==='supplier'&&membership.supplier_id===item.supplier_id)))return jsonError(c,'به سند این قرارداد دسترسی نداری.',403);
+    const object=await c.env.EVIDENCE_BUCKET.get(item.signed_document_path);
+    if(!object)return jsonError(c,'فایل قرارداد در فضای ذخیره‌سازی پیدا نشد.',404);
+    return new Response(object.body,{headers:evidenceFileHeaders(object.httpMetadata?.contentType||'application/octet-stream',item.signed_document_path.split('/').pop()||'agreement')});
+  }catch{return jsonError(c,'دریافت سند قرارداد انجام نشد.',500);}
+});
 app.post('/api/operations/partnership-agreements/:id/document', async c => {
   let user:AuthUser|null;
   try{user=await currentUser(c);}catch{return jsonError(c,'پایگاه داده پیکربندی نشده است.',503);}
