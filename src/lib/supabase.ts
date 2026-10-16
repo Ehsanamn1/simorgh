@@ -24,7 +24,7 @@ class MedarQueryBuilder implements PromiseLike<ApiResult<unknown[]>> {
   private headValue=false;
   private returning=false;
   private singleMode:'single'|'maybeSingle'|null=null;
-  private cached:Promise<ApiResult<unknown>>|null=null;
+  private cached:Promise<ApiResult<unknown[]>>|null=null;
   constructor(private table:string){}
   select(fields='*',options?:{count?:'exact'|'planned'|'estimated';head?:boolean}):this{
     this.selectFields=fields||'*';this.countValue=options?.count??this.countValue;this.headValue=options?.head??this.headValue;
