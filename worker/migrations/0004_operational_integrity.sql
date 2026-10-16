@@ -1,5 +1,15 @@
 -- Operational integrity constraints and indexes ported from the later Supabase migrations.
 ALTER TABLE public.operational_tasks ADD COLUMN IF NOT EXISTS review_note text;
+ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS payment_reference text;
+ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS paid_at timestamptz;
+ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS paid_by uuid REFERENCES public.medar_users(id) ON DELETE SET NULL;
+ALTER TABLE public.settlements ADD COLUMN IF NOT EXISTS payment_reference text;
+ALTER TABLE public.settlements ADD COLUMN IF NOT EXISTS paid_at timestamptz;
+ALTER TABLE public.settlements ADD COLUMN IF NOT EXISTS paid_by uuid REFERENCES public.medar_users(id) ON DELETE SET NULL;
+ALTER TABLE public.invoices DROP CONSTRAINT IF EXISTS invoices_paid_evidence_check;
+ALTER TABLE public.invoices ADD CONSTRAINT invoices_paid_evidence_check CHECK (status<>'paid' OR (paid_amount>=amount AND nullif(trim(payment_reference),'') IS NOT NULL AND paid_at IS NOT NULL AND paid_by IS NOT NULL));
+ALTER TABLE public.settlements DROP CONSTRAINT IF EXISTS settlements_paid_evidence_check;
+ALTER TABLE public.settlements ADD CONSTRAINT settlements_paid_evidence_check CHECK (status<>'paid' OR (nullif(trim(payment_reference),'') IS NOT NULL AND paid_at IS NOT NULL AND paid_by IS NOT NULL));
 CREATE UNIQUE INDEX IF NOT EXISTS partnership_agreements_one_active_per_supplier_idx ON public.partnership_agreements(company_id,supplier_id) WHERE status='active';
 
 -- RLS policies, triggers and auth.uid()-dependent functions are intentionally excluded; Worker APIs
