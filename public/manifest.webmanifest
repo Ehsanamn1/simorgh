@@ -16,7 +16,7 @@
   "theme_color": "#101719",
   "icons": [
     {
-      "src": "./simorgh-icon.svg",
+      "src": "./medar-icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any maskable"
