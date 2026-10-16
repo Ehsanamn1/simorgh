@@ -113,6 +113,11 @@ test('signed-in users without membership can request access instead of being str
   await expect(page.getByLabel('نام و نام خانوادگی')).toBeVisible();
   await expect(page.getByLabel('نوع دسترسی')).toBeVisible();
   await expect(page.getByRole('button', { name: 'ارسال برای تأیید مدیر' })).toBeVisible();
+
+  await page.getByRole('button', { name: 'بررسی دوباره دسترسی' }).click();
+  await expect(page.locator('.waiting-screen')).toBeVisible();
+  await expect(page.locator('.access-request-card')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'ارسال برای تأیید مدیر' })).toBeVisible();
 });
 
 test('manager forms support generic farm types, species, production and daily records', async ({ page }) => {
