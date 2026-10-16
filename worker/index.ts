@@ -1,7 +1,12 @@
 import { neon } from '@neondatabase/serverless';
 import { Hono } from 'hono';
 
-type Bindings = { DATABASE_URL?: string; MEDAR_SESSION_DAYS?: string; ASSETS?: { fetch(request: Request): Promise<Response> } };
+type EvidenceBucket = {
+  put(key:string,value:ArrayBuffer|ReadableStream|string,options?:{httpMetadata?:{contentType?:string};customMetadata?:Record<string,string>}):Promise<unknown>;
+  get(key:string):Promise<{body:ReadableStream;httpMetadata?:{contentType?:string};customMetadata?:Record<string,string>;size:number}|null>;
+  delete(key:string):Promise<void>;
+};
+type Bindings = { DATABASE_URL?: string; MEDAR_SESSION_DAYS?: string; EVIDENCE_BUCKET?: EvidenceBucket; ASSETS?: { fetch(request: Request): Promise<Response> } };
 type AuthUser = { id: string; username: string; phone_e164: string; display_name: string; requested_role: string; account_status: string };
 type App = { Bindings: Bindings };
 export const app = new Hono<App>();
