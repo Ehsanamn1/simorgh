@@ -48,7 +48,7 @@ test('password recovery is not advertised without a verified recovery channel', 
 test('signup submits only username, Iranian mobile, password and requested role to the Medar API', async ({ page }) => {
   const signupPayloads: Record<string, unknown>[] = [];
   let registered = false;
-  const user = { id: '00000000-0000-4000-8000-000000000901', username: 'owner_test', phone: '+989120000000', displayName: 'owner_test', requestedRole: 'supplier' };
+  const user = { id: '00000000-0000-4000-8000-000000000901', username: 'owner_test', phone: '+989120000000', displayName: 'Ehsan Test', requestedRole: 'supplier' };
 
   await page.route('**/api/auth/me', async route => {
     if (!registered) {
@@ -71,6 +71,8 @@ test('signup submits only username, Iranian mobile, password and requested role 
   await expect(page).toHaveURL(/#signup$/);
   await expect(page.getByRole('heading', { name: 'ساخت حساب و فضای کاری' })).toBeVisible();
   await page.locator('#simorgh-signin-phone').fill('۰۹۱۲۰۰۰۰۰۰۰');
+  await page.locator('#simorgh-signin-fullname').fill('Ehsan Test');
+  await page.locator('#simorgh-signin-organization').fill('مجموعه آزمایشی');
   await page.getByLabel('نام کاربری').fill('owner_test');
   await page.getByLabel('گذرواژه', { exact: true }).fill('Test-password-2026');
   await page.getByLabel('تکرار گذرواژه').fill('Test-password-2026');
@@ -83,6 +85,8 @@ test('signup submits only username, Iranian mobile, password and requested role 
     username: 'owner_test',
     phone: '+989120000000',
     requestedRole: 'supplier',
+    displayName: 'Ehsan Test',
+    organizationName: 'مجموعه آزمایشی',
   });
   expect(signupPayloads[0]).not.toHaveProperty('email');
   expect(signupPayloads[0]).toHaveProperty('password', 'Test-password-2026');
