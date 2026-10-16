@@ -1,9 +1,6 @@
 name: Deploy Simorgh to GitHub Pages
 on:
-  workflow_run:
-    workflows: ["Simorgh CI"]
-    types: [completed]
-    branches: [main]
+  # Legacy GitHub Pages deployment is manual-only until the Worker data API cutover is verified.
   workflow_dispatch:
 
 permissions:
