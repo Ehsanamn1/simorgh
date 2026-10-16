@@ -284,6 +284,11 @@ function FarmSitesMapPanel({sites}:{sites:Row[]}) {
     [bounds.west,bounds.south,bounds.east,bounds.north].map(v=>v.toFixed(5)).join('%2C')+'&layer=mapnik';
   const projectY=(latitude:number)=> (1-Math.log(Math.tan(Math.PI/4+latitude*Math.PI/360))/Math.PI)/2;
   const topY=projectY(bounds.north),bottomY=projectY(bounds.south);
+  const siteTypeLabels:Record<string,string>={
+    crop:'کشت و زراعت',livestock:'دامداری',poultry:'طیور',dairy:'لبنیات',
+    aquaculture:'آبزی‌پروری',greenhouse:'گلخانه',orchard:'باغداری',apiary:'زنبورداری',
+    processing:'فرآوری',warehouse:'انبار',distribution:'توزیع',mixed:'ترکیبی',other:'سایر',
+  };
   return <section className="panel tower-geo-panel">
     <div className="panel-heading"><div><span className="section-number">۰۴</span><div><h3>نقشه‌ی عملیاتی مزارع و واحدها</h3><p>موقعیت‌ها از مختصات ثبت‌شده‌ی هر واحد خوانده می‌شوند؛ نقطه‌ی ساختگی نمایش داده نمی‌شود.</p></div></div><Link className="tower-panel-link" to="/app/farm-sites">مدیریت واحدها <ArrowLeft size={14}/></Link></div>
     <div className="tower-geo-grid">
@@ -304,7 +309,7 @@ function FarmSitesMapPanel({sites}:{sites:Row[]}) {
       </div>
       <aside className="tower-geo-sidebar">
         <div className="tower-geo-counts"><span><small>واحدهای فعال</small><b>{numberFa(sites.length)}</b></span><span><small>موقعیت ثبت‌شده</small><b>{numberFa(points.length)}</b></span></div>
-        {points.length? <div className="tower-geo-site-list">{points.slice(0,8).map(({site,latitude,longitude})=><a key={String(site.id)} href={'https://www.openstreetmap.org/?mlat='+latitude+'&mlon='+longitude+'#map=14/'+latitude+'/'+longitude} target="_blank" rel="noreferrer" className="tower-geo-site"><span><b>{String(site.name??'واحد بدون نام')}</b><small>{[fa(String(site.site_type??'')),site.city,site.province].filter(v=>v&&v!=='—').join(' · ')||'نشانی ثبت نشده'}</small></span><MapPin size={15}/></a>)}</div>:<p className="tower-geo-sidebar-empty">برای ترسیم نقاط دقیق، مختصات را برای هر واحد ثبت کن. آدرس به‌تنهایی به مختصات حدسی تبدیل نمی‌شود.</p>}
+        {points.length? <div className="tower-geo-site-list">{points.slice(0,8).map(({site,latitude,longitude})=><a key={String(site.id)} href={'https://www.openstreetmap.org/?mlat='+latitude+'&mlon='+longitude+'#map=14/'+latitude+'/'+longitude} target="_blank" rel="noreferrer" className="tower-geo-site"><span><b>{String(site.name??'واحد بدون نام')}</b><small>{[siteTypeLabels[String(site.site_type??'')]??String(site.site_type??'نوع ثبت‌نشده'),site.city,site.province].filter(v=>v&&v!=='—').join(' · ')||'نشانی ثبت نشده'}</small></span><MapPin size={15}/></a>)}</div>:<p className="tower-geo-sidebar-empty">برای ترسیم نقاط دقیق، مختصات را برای هر واحد ثبت کن. آدرس به‌تنهایی به مختصات حدسی تبدیل نمی‌شود.</p>}
         {points.length>8&&<small className="tower-geo-more">۸ واحد از {numberFa(points.length)} واحد روی فهرست کناری نمایش داده شده‌اند.</small>}
       </aside>
     </div>
