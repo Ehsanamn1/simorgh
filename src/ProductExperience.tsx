@@ -69,8 +69,8 @@ export default function ProductExperience() {
   const [requestId, setRequestId] = useState('');
   const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
   const protectedRoute = location.pathname.includes('/app');
-  // Keep the real auth implementation intact, but make the public auth UI a final-phase feature.
-  // Set VITE_ENABLE_AUTH_UI=true only when the owner-provisioning flow is ready to be launched.
+  // Existing accounts can sign in and request membership; public self-registration stays disabled.
+  // Set VITE_ENABLE_AUTH_UI=false only to temporarily hide the sign-in interface.
   const authUiEnabled = import.meta.env.VITE_ENABLE_AUTH_UI !== 'false';
   const signInOpen = authUiEnabled && (mode === 'recovery' || (location.hash === '#signin' && !user));
   const normalizedPath = location.pathname.startsWith(basePath) ? location.pathname.slice(basePath.length) || '/' : location.pathname;
