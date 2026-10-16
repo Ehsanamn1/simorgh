@@ -6,11 +6,11 @@ const companyId = '00000000-0000-4000-8000-000000000022';
 const supplierId = '00000000-0000-4000-8000-000000000033';
 const customerId = '00000000-0000-4000-8000-000000000055';
 
-async function installIsolatedSession(page: Page, role: 'owner' | 'supplier' | 'driver' | 'customer') {
+async function installIsolatedSession(page: Page, role: 'owner' | 'supplier' | 'driver' | 'customer' | 'unprovisioned') {
   const now = Math.floor(Date.now() / 1000);
   const expiresAt = now + 60 * 60 * 24 * 365;
   const email = role + '@example.test';
-  const fullName = role === 'owner' ? 'مالک آزمایشی مدار' : role === 'supplier' ? 'تأمین‌کننده آزمایشی مدار' : role === 'driver' ? 'راننده آزمایشی مدار' : 'مشتری آزمایشی مدار';
+  const fullName = role === 'owner' ? 'مالک آزمایشی مدار' : role === 'supplier' ? 'تأمین‌کننده آزمایشی مدار' : role === 'driver' ? 'راننده آزمایشی مدار' : role === 'unprovisioned' ? 'کاربر بدون عضویت مدار' : 'مشتری آزمایشی مدار';
   const encodeBase64Url = (value: Record<string, unknown>) => Buffer.from(JSON.stringify(value)).toString('base64url');
   const accessToken = [
     encodeBase64Url({ alg: 'HS256', typ: 'JWT' }),
@@ -59,15 +59,16 @@ async function installIsolatedSession(page: Page, role: 'owner' | 'supplier' | '
       return;
     }
     if (table === 'memberships') {
+      const rows = role === 'unprovisioned' ? [] : [{
+        id: '00000000-0000-4000-8000-000000000044',
+        company_id: companyId, user_id: userId, role,
+        customer_id: role === 'customer' ? customerId : null, supplier_id: role === 'supplier' ? supplierId : null,
+        active: true, companies: { name: 'شرکت آزمایشی مدار' },
+      }];
       await route.fulfill({
         status: 200,
-        headers: { ...headers, 'content-range': '0-0/1' },
-        body: JSON.stringify([{
-          id: '00000000-0000-4000-8000-000000000044',
-          company_id: companyId, user_id: userId, role,
-          customer_id: role === 'customer' ? customerId : null, supplier_id: role === 'supplier' ? supplierId : null,
-          active: true, companies: { name: 'شرکت آزمایشی مدار' },
-        }]),
+        headers: { ...headers, 'content-range': role === 'unprovisioned' ? '*/0' : '0-0/1' },
+        body: JSON.stringify(rows),
       });
       return;
     }
@@ -109,6 +110,119 @@ test('manager workspace retains operations and captures a real rendered control-
   expect(dimensions.document).toBeLessThanOrEqual(dimensions.viewport);
   expect(dimensions.body).toBeLessThanOrEqual(dimensions.viewport);
   expect(errors).toEqual([]);
+});
+
+test('generic farm types and daily rejected quantities are validated before writes', async ({ page }) => {
+  await installIsolatedSession(page, 'owner');
+
+  await page.goto('/simorgh/app/products', { waitUntil: 'domcontentloaded' });
+  await expect(page.getByRole('heading', { name: 'کاتالوگ و مشخصات محصول' })).toBeVisible();
+  await page.getByRole('button', { name: 'افزودن رکورد', exact: true }).click();
+  const productKind = page.getByLabel('نوع محصول');
+  for (const kind of ['farm_product','crop','livestock','poultry','aquaculture','dairy','eggs','meat','honey','forestry','greenhouse','orchard','input','feed','equipment','processed','service','other']) {
+    await expect(productKind.locator('option[value="' + kind + '"]')).toHaveCount(1);
+  }
+  await page.getByRole('button', { name: 'انصراف' }).click();
+
+  await page.goto('/simorgh/app/farm-sites', { waitUntil: 'domcontentloaded' });
+  await expect(page.getByRole('heading', { name: 'سایت‌های مزرعه' })).toBeVisible();
+  await page.getByRole('button', { name: 'ثبت رکورد', exact: true }).click();
+  const siteType = page.locator('#ops-site_type');
+  for (const kind of ['crop','livestock','poultry','dairy','aquaculture','greenhouse','orchard','apiary','processing','warehouse','distribution','mixed','other']) {
+    await expect(siteType.locator('option[value="' + kind + '"]')).toHaveCount(1);
+  }
+  const latitude = page.locator('#ops-latitude');
+  const longitude = page.locator('#ops-longitude');
+  await latitude.fill('-33.8688');
+  await longitude.fill('151.2093');
+  expect(await latitude.evaluate((input: HTMLInputElement) => input.checkValidity())).toBe(true);
+  expect(await longitude.evaluate((input: HTMLInputElement) => input.checkValidity())).toBe(true);
+  await latitude.fill('91');
+  expect(await latitude.evaluate((input: HTMLInputElement) => input.checkValidity())).toBe(false);
+  await longitude.fill('-181');
+  expect(await longitude.evaluate((input: HTMLInputElement) => input.checkValidity())).toBe(false);
+  await page.locator('.ops-modal').getByRole('button', { name: 'بستن' }).click();
+
+  await page.goto('/simorgh/app/flock-cycles', { waitUntil: 'domcontentloaded' });
+  await expect(page.getByRole('heading', { name: 'چرخه‌های کشت و پرورش' })).toBeVisible();
+  await page.getByRole('button', { name: 'ثبت رکورد', exact: true }).click();
+  const cycleType = page.locator('#ops-cycle_type');
+  await expect(cycleType).toHaveValue('mixed');
+  for (const kind of ['crop','livestock','poultry','dairy','aquaculture','greenhouse','orchard','apiary','mixed','other']) {
+    await expect(cycleType.locator('option[value="' + kind + '"]')).toHaveCount(1);
+  }
+  await page.locator('.ops-modal').getByRole('button', { name: 'بستن' }).click();
+
+  await page.goto('/simorgh/app/production-batches', { waitUntil: 'domcontentloaded' });
+  await page.getByRole('button', { name: 'ثبت رکورد', exact: true }).click();
+  const productionKind = page.locator('#ops-production_kind');
+  for (const kind of ['farm_product','crop','livestock','poultry','dairy','eggs','meat','aquaculture','honey','forestry','greenhouse','orchard','input','feed','equipment','processed','service','other']) {
+    await expect(productionKind.locator('option[value="' + kind + '"]')).toHaveCount(1);
+  }
+  await page.locator('.ops-modal').getByRole('button', { name: 'بستن' }).click();
+
+  await page.route(projectUrl + '/rest/v1/production_batches*', async route => {
+    const headers = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': 'GET,HEAD,OPTIONS,POST,PATCH,DELETE,PUT', 'content-type': 'application/json', 'cache-control': 'no-store' };
+    if (route.request().method() === 'OPTIONS') {
+      await route.fulfill({ status: 204, headers, body: '' });
+      return;
+    }
+    if (route.request().method() === 'HEAD') {
+      await route.fulfill({ status: 200, headers: { ...headers, 'content-range': '*/1' }, body: '' });
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      headers: { ...headers, 'content-range': '0-0/1' },
+      body: JSON.stringify([{
+        id: '00000000-0000-4000-8000-000000000066', company_id: companyId,
+        batch_code: 'TEST-BATCH', status: 'planned', production_kind: 'crop', unit: 'کیلوگرم',
+        farm_site_id: null, supplier_id: null, planned_quantity: 10, produced_quantity: 0,
+        rejected_quantity: 0, quality_status: 'not_inspected',
+      }]),
+    });
+  });
+  await page.goto('/simorgh/app/daily-production', { waitUntil: 'domcontentloaded' });
+  await page.getByRole('button', { name: 'ثبت رکورد', exact: true }).click();
+  await expect(page.locator('#ops-rejected_quantity')).toBeVisible();
+  await page.locator('#ops-batch_id').selectOption('00000000-0000-4000-8000-000000000066');
+  await page.locator('#ops-produced_quantity').fill('10');
+  await page.locator('#ops-rejected_quantity').fill('11');
+  await page.locator('.ops-modal form').getByRole('button', { name: 'ثبت رکورد' }).click();
+  await expect(page.getByText('مقدار مردودی باید صفر باشد یا از مقدار خروجی ثبت‌شده بیشتر نباشد.')).toBeVisible();
+  await expect(page.locator('.ops-modal')).toBeVisible();
+});
+
+test('signed-in accounts without membership wait for lookup and stay on the access screen during retries', async ({ page }) => {
+  await installIsolatedSession(page, 'unprovisioned');
+  let membershipRequests = 0;
+  await page.route(projectUrl + '/rest/v1/memberships*', async route => {
+    const headers = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': 'GET,HEAD,OPTIONS,POST,PATCH,DELETE,PUT', 'content-type': 'application/json', 'cache-control': 'no-store' };
+    if (route.request().method() === 'OPTIONS') {
+      await route.fulfill({ status: 204, headers, body: '' });
+      return;
+    }
+    if (route.request().method() === 'HEAD') {
+      await route.fulfill({ status: 200, headers: { ...headers, 'content-range': '*/0' }, body: '' });
+      return;
+    }
+    membershipRequests += 1;
+    await new Promise(resolve => setTimeout(resolve, 450));
+    await route.fulfill({ status: 200, headers: { ...headers, 'content-range': '*/0' }, body: '[]' });
+  });
+
+  await page.goto('/simorgh/app/command', { waitUntil: 'domcontentloaded' });
+  await page.waitForRequest(request => request.url().includes('/rest/v1/memberships'));
+  await expect(page.locator('.waiting-screen')).toHaveCount(0);
+  await expect(page.locator('.waiting-screen')).toBeVisible({ timeout: 8000 });
+  await expect(page.getByRole('heading', { name: 'حساب شما هنوز به مجموعه‌ای متصل نیست.' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'بررسی دوباره دسترسی' })).toBeVisible();
+
+  const beforeRetry = membershipRequests;
+  await page.getByRole('button', { name: 'بررسی دوباره دسترسی' }).click();
+  await expect.poll(() => membershipRequests).toBeGreaterThan(beforeRetry);
+  await expect(page.locator('.waiting-screen')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'خروج از حساب' })).toBeVisible();
 });
 
 test('supplier workspace keeps manager-only routes out of the allowed menu', async ({ page }, testInfo) => {
