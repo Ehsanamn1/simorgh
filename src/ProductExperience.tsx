@@ -213,8 +213,8 @@ export default function ProductExperience() {
     if (!neonAuth) { setError('اتصال احراز هویت در این نسخه پیکربندی نشده است. ورود آنلاین در دسترس نیست.'); return; }
     const normalizedPhone = mode === 'signup' ? normalizeIranPhone(phone) : '';
     if (mode === 'signup') {
-      if (fullName.trim().length < 2 || fullName.trim().length > 160) { setError('نام کامل باید بین ۲ تا ۱۶۰ نویسه باشد.'); return; }
-      if (password.length < 8) { setError('گذرواژه باید حداقل ۸ نویسه باشد.'); return; }
+      if (fullName.trim().length < 2 || fullName.trim().length > 120) { setError('نام کامل باید بین ۲ تا ۱۶۰ نویسه باشد.'); return; }
+      if (password.length < 10) { setError('رمز عبور باید حداقل ۱۰ نویسه باشد.'); return; }
       if (!normalizedPhone) { setError('شماره موبایل ایران معتبر وارد کن؛ مثال: 09121234567'); return; }
       if (password !== confirmPassword) { setError('تکرار گذرواژه یکسان نیست.'); return; }
     }
@@ -338,7 +338,7 @@ export default function ProductExperience() {
                <label htmlFor="simorgh-signin-username">نام کاربری</label><input id="simorgh-signin-username" className="auth-input" type="text" autoComplete="username" inputMode="text" required={mode !== 'recovery'} value={email} onChange={e => setEmail(e.target.value)} placeholder="username" dir="ltr"/>
                {mode !== 'reset' && <>
                  <label htmlFor="simorgh-signin-password">{mode === 'recovery' ? 'گذرواژه جدید' : 'گذرواژه'}</label>
-                 <div className="auth-password-wrap"><input id="simorgh-signin-password" className="auth-input" type={showPassword ? 'text' : 'password'} minLength={8} autoComplete={mode === 'recovery' || mode === 'signup' ? 'new-password' : 'current-password'} required value={password} onChange={e => setPassword(e.target.value)} placeholder="حداقل ۸ نویسه" dir="ltr"/><button type="button" onClick={() => setShowPassword(value => !value)} aria-label={showPassword ? 'پنهان‌کردن گذرواژه' : 'نمایش گذرواژه'}>{showPassword ? <EyeOff size={16}/> : <Eye size={16}/>}</button></div>
+                 <div className="auth-password-wrap"><input id="simorgh-signin-password" className="auth-input" type={showPassword ? 'text' : 'password'} minLength={10} autoComplete={mode === 'recovery' || mode === 'signup' ? 'new-password' : 'current-password'} required value={password} onChange={e => setPassword(e.target.value)} placeholder="حداقل ۱۰ نویسه" dir="ltr"/><button type="button" onClick={() => setShowPassword(value => !value)} aria-label={showPassword ? 'پنهان‌کردن گذرواژه' : 'نمایش گذرواژه'}>{showPassword ? <EyeOff size={16}/> : <Eye size={16}/>}</button></div>
                  {(mode === 'recovery' || mode === 'signup') && <><label htmlFor="simorgh-confirm-password">تکرار گذرواژه</label><input id="simorgh-confirm-password" className="auth-input" type="password" autoComplete="new-password" required minLength={8} value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="گذرواژه را دوباره وارد کن" dir="ltr"/></>}
                </>}
                {error && <div className="auth-feedback error" role="alert">{error}</div>}{notice && <div className="auth-feedback success" role="status">{notice}</div>}
