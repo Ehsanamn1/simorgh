@@ -91,3 +91,83 @@ jobs:
           signup_status="$(curl --silent --show-error -o "$RUNNER_TEMP/signup-validation.json" -w '%{http_code}' -X POST -H 'content-type: application/json' --data '{}' "$MEDAR_WORKER_URL/api/auth/signup")"
           cat "$RUNNER_TEMP/signup-validation.json"
           test "$signup_status" = "400"
+      - name: Verify real username/password lifecycle and cross-company isolation
+        shell: bash
+        run: |
+          set -euo pipefail
+          tmp="$RUNNER_TEMP/medar-live-auth-smoke"
+          mkdir -p "$tmp"
+          touch "$tmp/a-signup.cookies" "$tmp/a-login.cookies" "$tmp/a-new-password.cookies" "$tmp/b-signup.cookies" "$tmp/b-login.cookies" "$tmp/old-password.cookies"
+          user_a="ci_smoke_\${GITHUB_RUN_ID}"
+          user_b="ci_smoke_b_\${GITHUB_RUN_ID}"
+          phone_a="09$(printf '%09d' "$((GITHUB_RUN_ID % 1000000000))")"
+          phone_b="09$(printf '%09d' "$(((GITHUB_RUN_ID + 1) % 1000000000))")"
+          org_a="CI Smoke A \${GITHUB_RUN_ID}"
+          org_b="CI Smoke B \${GITHUB_RUN_ID}"
+          password_old="MedarCI-\${GITHUB_RUN_ID}-Old!"
+          password_new="MedarCI-\${GITHUB_RUN_ID}-New!"
+          cleanup() {
+            psql "$MEDAR_DATABASE_URL" -v ON_ERROR_STOP=1 -v ua="$user_a" -v ub="$user_b" -v oa="$org_a" -v ob="$org_b" <<'SQL'
+          DELETE FROM public.medar_sessions WHERE user_id IN (SELECT id FROM public.medar_users WHERE username IN (:'ua', :'ub'));
+          DELETE FROM public.medar_audit_log WHERE actor_user_id IN (SELECT id FROM public.medar_users WHERE username IN (:'ua', :'ub'));
+          DELETE FROM public.access_requests WHERE user_id IN (SELECT id FROM public.medar_users WHERE username IN (:'ua', :'ub')) OR company_id IN (SELECT id FROM public.companies WHERE name IN (:'oa', :'ob'));
+          DELETE FROM public.memberships WHERE user_id IN (SELECT id FROM public.medar_users WHERE username IN (:'ua', :'ub')) OR company_id IN (SELECT id FROM public.companies WHERE name IN (:'oa', :'ob'));
+          DELETE FROM public.profiles WHERE id IN (SELECT id FROM public.medar_users WHERE username IN (:'ua', :'ub'));
+          DELETE FROM public.companies WHERE name IN (:'oa', :'ob');
+          DELETE FROM public.medar_users WHERE username IN (:'ua', :'ub');
+          SQL
+          }
+          finish() {
+            original_status=$?
+            trap - EXIT
+            if ! cleanup; then echo "Warning: live smoke account cleanup failed." >&2; exit 1; fi
+            exit "$original_status"
+          }
+          trap finish EXIT
+
+          payload_a="$(jq -n --arg username "$user_a" --arg phone "$phone_a" --arg org "$org_a" --arg password "$password_old" '{username:$username,phone:$phone,displayName:"CI Smoke A",organizationName:$org,requestedRole:"owner",password:$password}')"
+          signup_a_status="$(curl --silent --show-error -o "$tmp/signup-a.json" -w '%{http_code}' -c "$tmp/a-signup.cookies" -H 'content-type: application/json' -X POST --data "$payload_a" "$MEDAR_WORKER_URL/api/auth/signup")"
+          cat "$tmp/signup-a.json"
+          test "$signup_a_status" = "201"
+          jq -e --arg username "$user_a" '.user.username == $username' "$tmp/signup-a.json" >/dev/null
+
+          login_a_status="$(curl --silent --show-error -o "$tmp/login-a.json" -w '%{http_code}' -b "$tmp/a-login.cookies" -c "$tmp/a-login.cookies" -H 'content-type: application/json' -X POST --data "$(jq -n --arg username "$user_a" --arg password "$password_old" '{username:$username,password:$password}')" "$MEDAR_WORKER_URL/api/auth/login")"
+          cat "$tmp/login-a.json"
+          test "$login_a_status" = "200"
+          memberships_a_status="$(curl --silent --show-error -o "$tmp/memberships-a.json" -w '%{http_code}' -b "$tmp/a-login.cookies" "$MEDAR_WORKER_URL/api/workspace/memberships")"
+          test "$memberships_a_status" = "200"
+          company_a="$(jq -r '.memberships[0].company_id // empty' "$tmp/memberships-a.json")"
+          test -n "$company_a"
+          jq -e '.memberships[0].role == "owner"' "$tmp/memberships-a.json" >/dev/null
+
+          payload_b="$(jq -n --arg username "$user_b" --arg phone "$phone_b" --arg org "$org_b" --arg password "$password_old" '{username:$username,phone:$phone,displayName:"CI Smoke B",organizationName:$org,requestedRole:"owner",password:$password}')"
+          signup_b_status="$(curl --silent --show-error -o "$tmp/signup-b.json" -w '%{http_code}' -c "$tmp/b-signup.cookies" -H 'content-type: application/json' -X POST --data "$payload_b" "$MEDAR_WORKER_URL/api/auth/signup")"
+          cat "$tmp/signup-b.json"
+          test "$signup_b_status" = "201"
+          login_b_status="$(curl --silent --show-error -o "$tmp/login-b.json" -w '%{http_code}' -b "$tmp/b-login.cookies" -c "$tmp/b-login.cookies" -H 'content-type: application/json' -X POST --data "$(jq -n --arg username "$user_b" --arg password "$password_old" '{username:$username,password:$password}')" "$MEDAR_WORKER_URL/api/auth/login")"
+          test "$login_b_status" = "200"
+
+          cross_company_status="$(curl --silent --show-error -o "$tmp/cross-company.json" -w '%{http_code}' -b "$tmp/b-login.cookies" -H 'content-type: application/json' -X POST --data "$(jq -n --arg companyId "$company_a" '{companyId:$companyId,query:{select:"id",limit:1}}')" "$MEDAR_WORKER_URL/api/data/orders/query")"
+          cat "$tmp/cross-company.json"
+          test "$cross_company_status" = "403"
+
+          wrong_current_status="$(curl --silent --show-error -o "$tmp/wrong-current.json" -w '%{http_code}' -b "$tmp/a-login.cookies" -H 'content-type: application/json' -X POST --data "$(jq -n --arg currentPassword "wrong-\${GITHUB_RUN_ID}" --arg newPassword "$password_new" '{currentPassword:$currentPassword,newPassword:$newPassword}')" "$MEDAR_WORKER_URL/api/auth/change-password")"
+          test "$wrong_current_status" = "403"
+          change_status="$(curl --silent --show-error -o "$tmp/change-password.json" -w '%{http_code}' -b "$tmp/a-login.cookies" -c "$tmp/a-login.cookies" -H 'content-type: application/json' -X POST --data "$(jq -n --arg currentPassword "$password_old" --arg newPassword "$password_new" '{currentPassword:$currentPassword,newPassword:$newPassword}')" "$MEDAR_WORKER_URL/api/auth/change-password")"
+          cat "$tmp/change-password.json"
+          test "$change_status" = "200"
+          me_after_change="$(curl --silent --show-error -o "$tmp/me-after-change.json" -w '%{http_code}' -b "$tmp/a-login.cookies" "$MEDAR_WORKER_URL/api/auth/me")"
+          test "$me_after_change" = "200"
+          revoked_signup_session="$(curl --silent --show-error -o "$tmp/revoked-session.json" -w '%{http_code}' -b "$tmp/a-signup.cookies" "$MEDAR_WORKER_URL/api/auth/me")"
+          test "$revoked_signup_session" = "401"
+
+          old_login_status="$(curl --silent --show-error -o "$tmp/old-login.json" -w '%{http_code}' -b "$tmp/old-password.cookies" -c "$tmp/old-password.cookies" -H 'content-type: application/json' -X POST --data "$(jq -n --arg username "$user_a" --arg password "$password_old" '{username:$username,password:$password}')" "$MEDAR_WORKER_URL/api/auth/login")"
+          test "$old_login_status" = "401"
+          new_login_status="$(curl --silent --show-error -o "$tmp/new-login.json" -w '%{http_code}' -b "$tmp/a-new-password.cookies" -c "$tmp/a-new-password.cookies" -H 'content-type: application/json' -X POST --data "$(jq -n --arg username "$user_a" --arg password "$password_new" '{username:$username,password:$password}')" "$MEDAR_WORKER_URL/api/auth/login")"
+          cat "$tmp/new-login.json"
+          test "$new_login_status" = "200"
+          logout_status="$(curl --silent --show-error -o "$tmp/logout.json" -w '%{http_code}' -b "$tmp/a-new-password.cookies" -c "$tmp/a-new-password.cookies" -X POST "$MEDAR_WORKER_URL/api/auth/logout")"
+          test "$logout_status" = "200"
+          logout_me_status="$(curl --silent --show-error -o "$tmp/logout-me.json" -w '%{http_code}' -b "$tmp/a-new-password.cookies" "$MEDAR_WORKER_URL/api/auth/me")"
+          test "$logout_me_status" = "401"
+          echo "Real username/password lifecycle, password change, session revocation, logout, and cross-company denial passed."
