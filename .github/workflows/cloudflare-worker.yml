@@ -1,7 +1,5 @@
 name: Deploy Medar to Cloudflare Workers
 on:
-  push:
-    branches: [main, migration/cloudflare-neon-foundation]
   workflow_dispatch:
 permissions:
   contents: read
