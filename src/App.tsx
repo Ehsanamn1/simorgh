@@ -461,6 +461,141 @@ function ShipmentsPage({membership,search,driverMode=false}:{membership:Membersh
  const nextMap:Record<string,string[]>={planned:['loading'],loading:['in_transit'],in_transit:['arrived','failed'],arrived:['delivered','failed','returned']};
  return <><PageHeading eyebrow="LOGISTICS / DELIVERY" title={driverMode?'محموله‌های من':'ارسال و تحویل'} description="مراحل حمل و تحویل با مسئول مشخص و ثبت مدرک دنبال می‌شود. وضعیت یا مدرک ساختگی وجود ندارد." action={!driverMode&&<Button onClick={()=>setOpen(true)}><Plus size={16}/> برنامه‌ریزی ارسال</Button>}/>{error&&<InlineError error={error} retry={()=>void load()}/>}<div className="rule-banner"><Truck size={17}/><p><b>مدرک تحویل و موقعیت GPS</b><span>وضعیت «تحویل‌شده» تنها با تأیید مسئول مجاز تغییر می‌کند. راننده می‌تواند فقط با فشردن «ارسال GPS» و اجازه دستگاه، نقطه فعلی خود را برای محموله تخصیص‌یافته ثبت کند؛ ردیابی پس‌زمینه فعال نیست.</span></p></div>{locationNotice&&<div className="form-success notice-wide"><MapPin size={16}/>{locationNotice}</div>}<section id={driverMode?'driver-shipments':'shipments-admin-list'} className="panel entity-panel"><div className="entity-toolbar"><div><b>{numberFa(visible.length)} محموله قابل مشاهده</b><small>محدودیت نمایش بر اساس عضویت و دسترسی دیتابیس اعمال می‌شود.</small></div><Button variant="soft" onClick={()=>void load()}>تازه‌سازی</Button></div>{loading?<div className="panel-loading"><span className="spinner small"/></div>:visible.length?<DataTable rows={visible} columns={[{key:'id',label:'شناسه',render:r=><code>{String(r.id).slice(0,8).toUpperCase()}</code>},{key:'order_id',label:'سفارش',render:r=>String(orders.find(o=>o.id===r.order_id)?.reference ?? String(r.order_id).slice(0,8))},{key:'vehicle',label:'وسیله/پلاک'},{key:'stage',label:'مرحله',render:r=><Badge value={r.stage}/>},{key:'planned_departure',label:'زمان برنامه‌ریزی',render:r=>dateTimeFa(String(r.planned_departure??''))},{key:'delivered_at',label:'زمان تحویل',render:r=>dateTimeFa(String(r.delivered_at??''))},{key:'location',label:'آخرین GPS',render:r=>{const point=gpsByShipment[String(r.id)];return point?<a className="shipment-location-link" href={`https://maps.google.com/?q=${String(point.latitude)},${String(point.longitude)}`} target="_blank" rel="noreferrer"><MapPin size={13}/> مشاهده نقطه<small>{dateTimeFa(String(point.captured_at))}{point.accuracy_m!=null? ` · دقت ±${numberFa(String(Math.round(Number(point.accuracy_m))))} متر`:''}</small></a>:<span className="helper-note">ثبت نشده</span>;}}]} actions={r=><div className="row-actions wrap">{driverMode&&r.driver_user_id===user?.id&&['planned','loading','in_transit','arrived'].includes(String(r.stage))&&<Button variant="soft" disabled={locationBusy===String(r.id)} onClick={()=>void captureLocation(r)}><MapPin size={14}/>{locationBusy===String(r.id)?'در حال تعیین موقعیت…':'ارسال GPS'}</Button>}{(nextMap[String(r.stage)]??[]).map(next=><Button key={next} variant={next==='failed'?'danger':'soft'} onClick={()=>void update(r,next)}>{statusLabel[next]}</Button>)}<Button variant="ghost" onClick={()=>setEvidenceFor(r)}><Plus size={14}/> مدرک</Button></div>}/>:<EmptyState title="محموله‌ای ثبت نشده" description="برای برنامه‌ریزی ارسال، یک سفارش واقعی باید وجود داشته باشد." icon={Truck}/>}</section>{driverMode&&<section id="driver-map" className="panel entity-panel driver-mobile-panel"><div className="panel-heading"><div><span className="section-number">۰۱</span><div><h3>نقشه‌ی راهنما</h3><p>نقاط واقعی فقط از آخرین GPS محموله‌های واگذارشده</p></div></div><MapPin size={17}/></div><div className="driver-map-frame"><iframe title="نقشه راهنمای راننده" loading="lazy" src="https://www.openstreetmap.org/export/embed.html?bbox=43.2%2C24.5%2C64.8%2C40.8&layer=mapnik"/></div><div className="driver-map-points">{rows.filter(r=>gpsByShipment[String(r.id)]).map(r=>{const point=gpsByShipment[String(r.id)];return <a key={String(r.id)} href={'https://maps.google.com/?q='+String(point.latitude)+','+String(point.longitude)} target="_blank" rel="noreferrer"><MapPin size={14}/><span><b>محموله {String(r.id).slice(0,8).toUpperCase()}</b><small>{dateTimeFa(String(point.captured_at))}</small></span><ArrowUpLeft size={14}/></a>})}{!rows.some(r=>gpsByShipment[String(r.id)])&&<p className="helper-note">هنوز GPS مجازی برای این محموله‌ها ثبت نشده است. موقعیت فقط با اقدام صریح راننده ذخیره می‌شود.</p>}</div></section>}{driverMode&&<section id="driver-proof" className="panel entity-panel driver-mobile-panel"><div className="panel-heading"><div><span className="section-number">۰۲</span><div><h3>ثبت مدرک تحویل</h3><p>مدرک را از روی مأموریت تخصیص‌یافته ثبت کن</p></div></div><FileText size={17}/></div>{rows.length?rows.map(r=><div className="driver-proof-row" key={String(r.id)}><span><b>محموله {String(r.id).slice(0,8).toUpperCase()}</b><small>{statusLabel[String(r.stage)]??String(r.stage)}</small></span><Button variant="soft" onClick={()=>setEvidenceFor(r)}><Plus size={14}/> ثبت مدرک</Button></div>):<EmptyState title="محموله‌ای در دسترس نیست" description="وقتی محموله‌ای به حساب شما تخصیص داده شود، امکان ثبت مدرک آن اینجا نمایش داده می‌شود." icon={FileText}/>}</section>}{open&&<Modal title="برنامه‌ریزی محموله" subtitle="این اقدام فقط پس از ثبت سفارش معتبر انجام می‌شود." onClose={()=>setOpen(false)}><form className="record-form" onSubmit={create}><label className="full-span">سفارش<select value={form.order_id} required onChange={e=>setForm({...form,order_id:e.target.value})}><option value="">انتخاب سفارش…</option>{orders.map(o=><option key={String(o.id)} value={String(o.id)}>{String(o.reference)} · {(o.customers as any)?.name??''}</option>)}</select></label><label className="full-span">راننده (اختیاری)<select value={form.driver_user_id} onChange={e=>setForm({...form,driver_user_id:e.target.value})}><option value="">بدون تخصیص راننده</option>{drivers.map(d=><option key={String(d.user_id)} value={String(d.user_id)}>{String(d.full_name??d.email)}</option>)}</select></label><label>خودرو/پلاک<input value={form.vehicle} onChange={e=>setForm({...form,vehicle:e.target.value})}/></label><label>زمان برنامه‌ریزی<input type="datetime-local" value={form.planned_departure} onChange={e=>setForm({...form,planned_departure:e.target.value})}/></label><div className="modal-actions"><Button variant="soft" onClick={()=>setOpen(false)}>انصراف</Button><Button type="submit" disabled={busy||!orders.length}>{busy?'در حال ثبت…':'ثبت محموله'}</Button></div></form>{!orders.length&&<p className="helper-note">سفارش قابل ارسال در دسترس نیست. ابتدا سفارش واقعی ثبت کن.</p>}</Modal>}{evidenceFor&&<Modal title="ثبت مدرک محموله" subtitle={`محموله ${String(evidenceFor.id).slice(0,8)}`} onClose={()=>setEvidenceFor(null)}><form className="record-form" onSubmit={saveEvidence}><label>نام تحویل‌گیرنده<input value={evidence.recipient_name} onChange={e=>setEvidence({...evidence,recipient_name:e.target.value})}/></label><label>دمای ثبت‌شده (°C)<input type="number" step="0.1" value={evidence.reading_celsius} onChange={e=>setEvidence({...evidence,reading_celsius:e.target.value})} dir="ltr"/></label><label className="full-span">یادداشت / مغایرت<textarea rows={3} value={evidence.note} onChange={e=>setEvidence({...evidence,note:e.target.value})}/></label><label className="full-span">تصویر مدرک (اختیاری)<input type="file" accept="image/png,image/jpeg,image/webp" onChange={e=>setFile(e.target.files?.[0]??null)}/><small className="field-help">حداکثر ۱۰ مگابایت؛ تصاویر در bucket خصوصی ذخیره می‌شوند.</small></label><div className="modal-actions"><Button variant="soft" onClick={()=>setEvidenceFor(null)}>انصراف</Button><Button type="submit" disabled={busy}>{busy?'در حال ثبت…':'ذخیره مدرک'}</Button></div></form></Modal>}</>;
 }
+
+const goalCategoryLabels:Record<string,string>={operations:'عملیات',production:'تولید',sales:'فروش',quality:'کیفیت',logistics:'لجستیک',finance:'مالی',people:'منابع انسانی',growth:'توسعه',other:'سایر'};
+const goalStatusLabels:Record<string,string>={planned:'برنامه‌ریزی‌شده',active:'در حال اجرا',at_risk:'در معرض ریسک',achieved:'محقق‌شده',paused:'متوقف',cancelled:'لغوشده'};
+const goalPriorityLabels:Record<string,string>={low:'کم',normal:'عادی',high:'بالا',critical:'بحرانی'};
+const emptyGoalForm={title:'',description:'',category:'operations',unit:'',baseline_value:'0',target_value:'',current_value:'0',priority:'normal',status:'planned',period_start:'',due_date:'',owner_user_id:''};
+
+function GoalsPage({membership,search}:{membership:Membership;search:string}) {
+ const {user}=useAuth();
+ const [rows,setRows]=useState<Row[]>([]);
+ const [members,setMembers]=useState<Row[]>([]);
+ const [loading,setLoading]=useState(true);
+ const [busy,setBusy]=useState(false);
+ const [error,setError]=useState('');
+ const [notice,setNotice]=useState('');
+ const [open,setOpen]=useState(false);
+ const [editing,setEditing]=useState<string|null>(null);
+ const [form,setForm]=useState({...emptyGoalForm});
+ const canManage=membership.role==='owner'||membership.role==='admin';
+
+ const load=async()=>{
+  if(!supabase){setError('اتصال پایگاه داده پیکربندی نشده است.');setLoading(false);return;}
+  setLoading(true);setError('');
+  const [g,m]=await Promise.all([
+   supabase.from('company_goals').select('*').eq('company_id',membership.company_id).order('created_at',{ascending:false}).limit(300),
+   supabase.rpc('company_members',{_company:membership.company_id}),
+  ]);
+  const e=g.error??m.error;
+  if(e)setError(e.message);
+  setRows((g.data??[]) as Row[]);
+  setMembers((m.data??[]) as Row[]);
+  setLoading(false);
+ };
+ useEffect(()=>{
+  void load();
+  const timer=window.setInterval(()=>void load(),60_000);
+  const onFocus=()=>void load();
+  window.addEventListener('focus',onFocus);
+  return()=>{window.clearInterval(timer);window.removeEventListener('focus',onFocus);};
+ },[membership.company_id]);
+
+ const openNew=()=>{setEditing(null);setForm({...emptyGoalForm});setError('');setNotice('');setOpen(true);};
+ const openEdit=(r:Row)=>{setEditing(String(r.id));setForm({
+  title:String(r.title??''),description:String(r.description??''),category:String(r.category??'operations'),
+  unit:String(r.unit??''),baseline_value:String(r.baseline_value??0),target_value:String(r.target_value??''),
+  current_value:String(r.current_value??0),priority:String(r.priority??'normal'),status:String(r.status??'planned'),
+  period_start:String(r.period_start??''),due_date:String(r.due_date??''),owner_user_id:String(r.owner_user_id??''),
+ });setError('');setNotice('');setOpen(true);};
+ const submit=async(event:React.FormEvent<HTMLFormElement>)=>{
+  event.preventDefault();if(!supabase||!user)return;
+  const target=Number(form.target_value),baseline=Number(form.baseline_value),current=Number(form.current_value);
+  if(!Number.isFinite(target)||target<=baseline){setError('مقدار هدف باید از مقدار مبنا بیشتر باشد.');return;}
+  if(!Number.isFinite(current)||current<0||baseline<0){setError('مقدار فعلی و مبنا باید عدد معتبر و غیرمنفی باشند.');return;}
+  if(form.period_start&&form.due_date&&form.due_date<form.period_start){setError('موعد پایان نمی‌تواند قبل از شروع باشد.');return;}
+  setBusy(true);setError('');setNotice('');
+  const values={
+   company_id:membership.company_id,title:form.title.trim(),description:form.description.trim(),
+   category:form.category,unit:form.unit.trim(),baseline_value:baseline,target_value:target,current_value:current,
+   priority:form.priority,status:form.status,period_start:form.period_start||null,due_date:form.due_date||null,
+   owner_user_id:form.owner_user_id||null,created_by:user.id,updated_by:user.id,
+  };
+  try{
+   const result=editing
+    ? await supabase.from('company_goals').update({...values,created_by:undefined}).eq('company_id',membership.company_id).eq('id',editing)
+    : await supabase.from('company_goals').insert(values);
+   if(result.error)throw new Error(result.error.message);
+   setNotice(editing?'هدف ویرایش شد و تغییرات در تاریخچه ثبت شد.':'هدف جدید ثبت شد و در تاریخچه تغییرات ثبت شد.');
+   setOpen(false);setEditing(null);setForm({...emptyGoalForm});
+   await load();
+  }catch(err){setError(err instanceof Error?err.message:'ذخیره هدف انجام نشد.');}
+  finally{setBusy(false);}
+ };
+ const remove=async(r:Row)=>{
+  if(!supabase||!canManage)return;
+  if(!window.confirm('این هدف حذف شود؟ حذف در تاریخچه تغییرات ثبت خواهد شد.'))return;
+  setError('');setNotice('');
+  const result=await supabase.from('company_goals').delete().eq('company_id',membership.company_id).eq('id',String(r.id));
+  if(result.error)setError(result.error.message);else{setNotice('هدف حذف شد و ردپای تغییر ثبت شد.');await load();}
+ };
+ const shown=rows.filter(r=>!search||`${r.title??''} ${r.description??''} ${goalCategoryLabels[String(r.category)]??r.category??''} ${goalStatusLabels[String(r.status)]??r.status??''}`.toLowerCase().includes(search.toLowerCase()));
+ const today=todayForDisplay();
+ const activeCount=rows.filter(r=>['active','at_risk'].includes(String(r.status))).length;
+ const overdueCount=rows.filter(r=>r.due_date&&String(r.due_date)<today&&!['achieved','cancelled','paused'].includes(String(r.status))).length;
+ const achievedCount=rows.filter(r=>r.status==='achieved').length;
+
+ return <>
+  <PageHeading eyebrow="مدیریت / اهداف" title="اهداف و برنامه" description="هدف قابل‌اندازه‌گیری، مقدار مبنا، شاخص فعلی، مسئول، موعد و گام بعدی؛ با ردپای تغییرات." action={<Button onClick={openNew} disabled={!canManage}><Plus size={16}/> ثبت هدف</Button>}/>
+  {error&&<InlineError error={error} retry={()=>void load()}/>}
+  {notice&&<div className="form-success notice-wide"><CheckCircle2 size={16}/>{notice}</div>}
+  {!canManage&&<div className="rule-banner"><ShieldCheck size={17}/><p><b>دسترسی مشاهده</b><span>ثبت، ویرایش و حذف اهداف فقط برای مالک یا مدیر مجموعه فعال است.</span></p></div>}
+  <section className="stats-grid tower-stats goal-stats">
+   <article className="stat-card"><div className="stat-card-top"><span>کل اهداف</span><span className="stat-icon"><Target size={17}/></span></div><b>{loading?'—':numberFa(String(rows.length))}</b><small>اهداف ثبت‌شده در این مجموعه</small></article>
+   <article className="stat-card"><div className="stat-card-top"><span>در حال اجرا</span><span className="stat-icon"><Activity size={17}/></span></div><b>{loading?'—':numberFa(String(activeCount))}</b><small>فعال یا در معرض ریسک</small></article>
+   <article className="stat-card"><div className="stat-card-top"><span>عقب‌مانده از موعد</span><span className="stat-icon"><AlertTriangle size={17}/></span></div><b>{loading?'—':numberFa(String(overdueCount))}</b><small>نیازمند بازبینی برنامه</small></article>
+   <article className="stat-card"><div className="stat-card-top"><span>محقق‌شده</span><span className="stat-icon"><CheckCircle2 size={17}/></span></div><b>{loading?'—':numberFa(String(achievedCount))}</b><small>با وضعیت ثبت‌شده‌ی محقق‌شده</small></article>
+  </section>
+  <section className="panel goal-workspace-panel">
+   <div className="panel-heading"><div><span className="section-number">۰۱</span><div><h3>برنامه و شاخص‌ها</h3><p>اطلاعات از پایگاه داده و به‌صورت خودکار هر ۶۰ ثانیه تازه می‌شود.</p></div></div><Button variant="soft" onClick={()=>void load()} disabled={loading}><RefreshCw size={14}/> تازه‌سازی</Button></div>
+   {loading?<div className="panel-loading"><span className="spinner small"/></div>:shown.length?<div className="goal-card-grid">{shown.map(r=>{
+    const baseline=Number(r.baseline_value??0),target=Number(r.target_value??0),current=Number(r.current_value??0);
+    const progress=target>baseline?Math.max(0,Math.min(100,((current-baseline)/(target-baseline))*100)):null;
+    const overdue=Boolean(r.due_date&&String(r.due_date)<today&&!['achieved','cancelled','paused'].includes(String(r.status)));
+    const owner=members.find(m=>String(m.user_id)===String(r.owner_user_id));
+    return <article className={`goal-card ${overdue?'overdue':''}`} key={String(r.id)}>
+     <header className="goal-card-head"><span className="goal-category">{goalCategoryLabels[String(r.category)]??'سایر'}</span><Badge value={goalStatusLabels[String(r.status)]??r.status}/></header>
+     <h3>{String(r.title??'هدف بدون عنوان')}</h3>
+     {r.description&&<p className="goal-description">{String(r.description)}</p>}
+     <div className="goal-progress-meta"><span>پیشرفت ثبت‌شده</span><b>{progress===null?'—':numberFa(String(Math.round(progress)))+'٪'}</b></div>
+     <div className="goal-progress-track"><span style={{width:(progress??0)+'%'}}/></div>
+     <div className="goal-value-row"><span>مقدار فعلی <b>{numberFa(String(current))}{r.unit?' '+String(r.unit):''}</b></span><span>هدف <b>{numberFa(String(target))}{r.unit?' '+String(r.unit):''}</b></span></div>
+     <div className="goal-meta-row"><span><CalendarDays size={13}/> {r.due_date?dateFa(String(r.due_date)):'بدون موعد'}</span><span><Users size={13}/> {String(owner?.full_name??owner?.email??'مسئول تعیین نشده')}</span></div>
+     {overdue&&<div className="goal-overdue-note"><AlertTriangle size={13}/> موعد هدف گذشته است</div>}
+     {canManage&&<div className="goal-actions"><Button variant="soft" onClick={()=>openEdit(r)}>ویرایش هدف</Button><Button variant="ghost" onClick={()=>void remove(r)}>حذف</Button></div>}
+    </article>;
+   })}</div>:<EmptyState title="هنوز هدفی ثبت نشده" description={canManage?'هدف‌های مجموعه را با شاخص، مقدار مبنا، موعد و مسئول ثبت کن؛ پیشرفت فقط از مقدارهای ثبت‌شده محاسبه می‌شود.':'بعد از ثبت هدف توسط مالک یا مدیر، شاخص و موعد در این بخش دیده می‌شود.'} icon={Target}/>}
+  </section>
+  {open&&<Modal title={editing?'ویرایش هدف':'ثبت هدف جدید'} subtitle="مقادیر در دیتابیس ذخیره می‌شوند و تغییرات در تاریخچه ممیزی ثبت خواهد شد." onClose={()=>setOpen(false)}>
+   <form className="record-form" onSubmit={submit}>
+    <label className="full-span">عنوان هدف<input required minLength={3} maxLength={160} value={form.title} onChange={e=>setForm({...form,title:e.target.value})} placeholder="مثلاً کاهش تأخیر تحویل یا افزایش ظرفیت تأییدشده"/></label>
+    <label>حوزه<select required value={form.category} onChange={e=>setForm({...form,category:e.target.value})}>{Object.entries(goalCategoryLabels).map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></label>
+    <label>وضعیت<select required value={form.status} onChange={e=>setForm({...form,status:e.target.value})}>{Object.entries(goalStatusLabels).map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></label>
+    <label>اولویت<select required value={form.priority} onChange={e=>setForm({...form,priority:e.target.value})}>{Object.entries(goalPriorityLabels).map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></label>
+    <label>واحد شاخص<input maxLength={40} value={form.unit} onChange={e=>setForm({...form,unit:e.target.value})} placeholder="٪، عدد، تومان، روز…"/></label>
+    <label>مقدار مبنا<input type="number" min="0" step="0.001" required value={form.baseline_value} onChange={e=>setForm({...form,baseline_value:e.target.value})}/></label>
+    <label>مقدار هدف<input type="number" min="0.001" step="0.001" required value={form.target_value} onChange={e=>setForm({...form,target_value:e.target.value})}/></label>
+    <label>مقدار فعلی ثبت‌شده<input type="number" min="0" step="0.001" required value={form.current_value} onChange={e=>setForm({...form,current_value:e.target.value})}/></label>
+    <label>شروع بازه<input type="date" value={form.period_start} onChange={e=>setForm({...form,period_start:e.target.value})}/></label>
+    <label>موعد هدف<input type="date" value={form.due_date} onChange={e=>setForm({...form,due_date:e.target.value})}/></label>
+    <label className="full-span">مسئول<select value={form.owner_user_id} onChange={e=>setForm({...form,owner_user_id:e.target.value})}><option value="">تعیین‌نشده</option>{members.map(m=><option key={String(m.user_id)} value={String(m.user_id)}>{String(m.full_name??m.email??m.user_id)} · {roleLabel[String(m.role)]??String(m.role)}</option>)}</select></label>
+    <label className="full-span">توضیحات<textarea rows={3} maxLength={3000} value={form.description} onChange={e=>setForm({...form,description:e.target.value})} placeholder="محدوده، پیش‌نیاز، معیار تأیید و گام بعدی…"/></label>
+    <div className="modal-actions"><Button variant="soft" onClick={()=>setOpen(false)}>انصراف</Button><Button type="submit" disabled={busy}>{busy?'در حال ذخیره…':'ذخیره هدف'}</Button></div>
+   </form>
+  </Modal>}
+ </>;
+}
+
 function FinancePage({membership,search}:{membership:Membership;search:string}) {
  const [invoices,setInvoices]=useState<Row[]>([]);const [settlements,setSettlements]=useState<Row[]>([]);const [orders,setOrders]=useState<Row[]>([]);const [suppliers,setSuppliers]=useState<Row[]>([]);const [loading,setLoading]=useState(true);const [error,setError]=useState('');const [mode,setMode]=useState<'invoice'|'settlement'>('invoice');const [open,setOpen]=useState(false);const [busy,setBusy]=useState(false);const [form,setForm]=useState({order_id:'',customer_id:'',supplier_id:'',reference:'',amount:'',due_date:'',invoice_ref:'',note:''});const internal=['owner','admin','staff'].includes(membership.role);
  const load=async()=>{if(!supabase)return;setLoading(true);const [i,s,o,v]=await Promise.all([supabase.from('invoices').select('*,customers(name),orders(reference)').eq('company_id',membership.company_id).order('created_at',{ascending:false}).limit(300),supabase.from('settlements').select('*,suppliers(name)').eq('company_id',membership.company_id).order('created_at',{ascending:false}).limit(300),internal?supabase.from('orders').select('id,reference,customer_id,customers(name)').eq('company_id',membership.company_id).order('created_at',{ascending:false}).limit(300):Promise.resolve({data:[],error:null}),internal?supabase.from('suppliers').select('id,name').eq('company_id',membership.company_id).order('name'):Promise.resolve({data:[],error:null})]);const err=i.error??s.error??o.error??v.error;if(err)setError(err.message);setInvoices((i.data??[]) as Row[]);setSettlements((s.data??[]) as Row[]);setOrders((o.data??[]) as Row[]);setSuppliers((v.data??[]) as Row[]);setLoading(false);};useEffect(()=>{void load()},[membership.company_id,internal]);
