@@ -15,7 +15,7 @@ export default defineConfig({
             id.includes('/node_modules/react-dom/') ||
             id.includes('/node_modules/scheduler/')
           ) return 'vendor-react';
-          if (id.includes('/node_modules/@supabase/')) return 'vendor-supabase';
+          if (id.includes('/node_modules/@neondatabase/')) return 'vendor-neon';
           if (
             id.includes('/node_modules/recharts/') ||
             id.includes('/node_modules/d3-')
