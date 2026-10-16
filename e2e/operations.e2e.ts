@@ -242,7 +242,7 @@ test('signed-in accounts without membership wait for lookup and stay on the acce
 
   await page.goto('/simorgh/app/command', { waitUntil: 'domcontentloaded' });
   await page.waitForRequest(request => request.url().includes('/api/workspace/memberships'));
-  await expect(page.locator('.waiting-screen')).toHaveCount(0);
+  // The new API intentionally keeps the access/loading screen visible while membership lookup resolves.
   await expect(page.locator('.waiting-screen')).toBeVisible({ timeout: 8000 });
   await expect(page.getByRole('heading', { name: 'حساب شما هنوز به مجموعه‌ای متصل نیست.' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'بررسی دوباره دسترسی' })).toBeVisible();
