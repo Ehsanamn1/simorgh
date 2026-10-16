@@ -83,3 +83,25 @@ BEGIN
   VALUES(_company,_actor,'inventory_movements',new_id,'inventory.movement.created',jsonb_build_object('product_id',_product,'movement_type',_movement_type,'quantity',_quantity),now());
   RETURN new_id;
 END $$;
+
+CREATE OR REPLACE FUNCTION public.medar_record_quality_review(_actor uuid,_company uuid,_lot uuid,_result text,_notes text,_checklist jsonb DEFAULT '{}'::jsonb)
+RETURNS uuid LANGUAGE plpgsql SECURITY INVOKER SET search_path='' AS $$
+DECLARE role_name text; lot_state public.lot_status; review_id uuid;
+BEGIN
+  SELECT m.role::text INTO role_name FROM public.memberships m
+  WHERE m.company_id=_company AND m.user_id=_actor AND m.active=true
+  ORDER BY CASE m.role::text WHEN 'owner' THEN 0 WHEN 'admin' THEN 1 WHEN 'staff' THEN 2 ELSE 3 END LIMIT 1;
+  IF role_name IS NULL OR role_name NOT IN ('owner','admin','staff') THEN RAISE EXCEPTION 'ثبت بازبینی کیفیت برای این نقش مجاز نیست'; END IF;
+  IF _result NOT IN ('pass','fail','conditional') THEN RAISE EXCEPTION 'نتیجه بازبینی کیفیت معتبر نیست'; END IF;
+  SELECT status INTO lot_state FROM public.lots WHERE id=_lot AND company_id=_company FOR UPDATE;
+  IF lot_state IS NULL THEN RAISE EXCEPTION 'سری محصول متعلق به این مجموعه نیست'; END IF;
+  IF lot_state<>'pending_review' THEN RAISE EXCEPTION 'فقط سری در انتظار بازبینی قابل بررسی است'; END IF;
+  INSERT INTO public.quality_reviews(company_id,lot_id,result,notes,checklist,reviewer_id,reviewed_at)
+  VALUES(_company,_lot,_result,NULLIF(trim(_notes),''),COALESCE(_checklist,'{}'::jsonb),_actor,now())
+  RETURNING id INTO review_id;
+  UPDATE public.lots SET status=CASE WHEN _result='pass' THEN 'released'::public.lot_status WHEN _result='fail' THEN 'rejected'::public.lot_status ELSE 'pending_review'::public.lot_status END
+  WHERE id=_lot AND company_id=_company;
+  INSERT INTO public.audit_events(company_id,actor_id,table_name,record_id,action,changes,occurred_at)
+  VALUES(_company,_actor,'quality_reviews',review_id,'quality.review.recorded',jsonb_build_object('lot_id',_lot,'result',_result),now());
+  RETURN review_id;
+END $$;
