@@ -1,8 +1,8 @@
-# Simorgh — first owner provisioning
+# مدار — راه‌اندازی امن حساب مالک
 
-The production project has one company record for «شبکه سیمرغ», but may have no Supabase Auth users and no active memberships. The app intentionally has no public self-registration; the first trusted owner must be provisioned explicitly from the Supabase dashboard.
+پروژه‌ی مدار یک رکورد سازمانی با نام «شبکه سیمرغ» دارد، اما ممکن است هنوز حساب احراز هویت یا عضویت فعالی نداشته باشد. ورود امن فعال است و ثبت‌نام عمومی باز نیست؛ نخستین حساب مالک باید از داشبورد Supabase به‌صورت کنترل‌شده ایجاد شود.
 
-## Create the trusted owner account
+## ایجاد حساب امن مالک
 
 1. Open the Supabase dashboard for project `aoxerjimfiwusidaparx`, then go to **Authentication → Users → Add user**.
 2. Create the first user with an email address you personally control. Confirm/verify the email only after checking it carefully. Generate a strong, unique password and keep it in a password manager; do not send it in chat or commit it.
@@ -30,7 +30,14 @@ $$;
 5. Sign out and sign in again so the browser reads the new owner membership.
 6. Open **دسترسی کاربران** to review access requests from existing accounts. Until a dedicated invite workflow is implemented, create or invite additional Auth users through the Supabase dashboard; do not re-enable public signup as a shortcut.
 
-## Credential rules
+## وضعیت نسخه‌ی فعلی و پایگاه داده
+
+- نام محصول در رابط کاربری «مدار» است؛ نام رکورد سازمانی فعلی («شبکه سیمرغ») عمداً خودکار تغییر داده نشده تا نام واقعی مجموعه با برند نرم‌افزار اشتباه نشود.
+- مهاجرت `20261016123004_general_farm_management.sql` روی پروژه‌ی Supabase اعمال و ستون‌های جدیدِ دسته‌بندی سایت، مختصات GPS، چرخه‌های عمومی و ثبت روزانه تأیید شده‌اند.
+- برای ظاهرشدن سایت‌ها روی نقشه‌ی مدیریتی، عرض و طول جغرافیایی واقعی را در ماژول «سایت‌های مزرعه» ثبت کن؛ نشانگر ساختگی تولید نمی‌شود.
+- مسیر استقرار Pages و Cloudflare مقدار `VITE_ENABLE_AUTH_UI=true` را در زمان ساخت تنظیم می‌کند. ورود با ایمیل و گذرواژه و بازیابی گذرواژه در دسترس است، اما تا زمانی که حساب مالک ساخته و عضویت معتبر ثبت نشود، هیچ داده‌ی محرمانه‌ای نمایش داده نمی‌شود.
+
+## قواعد اعتبارنامه
 
 - The username is the email created in Supabase Auth; the password is the unique password set for that account.
 - No default password or hidden super-admin credential is shipped in frontend code, GitHub, migrations, or logs.
