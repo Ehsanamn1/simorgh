@@ -431,7 +431,7 @@ const operationConfigs: Record<OperationKind,OperationConfig> = {
   'flock-cycles': {table:'flock_cycles',fields:['farm_site_id','cycle_code','species','arrived_on','planned_end_on','ended_on','initial_bird_count','status','source_reference','notes','cycle_type','initial_quantity','quantity_unit']},
   'production-batches': {table:'production_batches',fields:['farm_site_id','supplier_id','agreement_id','flock_cycle_id','product_id','lot_id','batch_code','production_kind','status','unit','planned_quantity','produced_quantity','rejected_quantity','started_on','expected_on','completed_on','quality_status','manager_notes']},
   'daily-production': {table:'daily_production_records',fields:['batch_id','record_date','shift_label','feed_consumed_kg','mortality_count','eggs_collected','eggs_rejected','produced_quantity','average_weight_grams','note','resource_name','input_quantity','input_unit','loss_quantity','loss_unit','rejected_quantity']},
-  'task-templates': {table:'task_templates',fields:['template_code','version','title','instructions','category','priority','evidence_required','expected_evidence_types','status']},
+  'task-templates': {table:'task_templates',fields:['template_code','version','title','instructions','category','priority','evidence_required','expected_evidence_types','status'],managerOnly:true},
   'operational-tasks': {table:'operational_tasks',fields:['farm_site_id','batch_id','template_id','assignee_user_id','assignee_supplier_id','title','instructions_snapshot','category','priority','status','due_at','evidence_required','completion_note']},
   incidents: {table:'operational_incidents',fields:['farm_site_id','batch_id','task_id','reported_supplier_id','severity','category','title','description','status','resolution_note']},
   'partnership-agreements': {table:'partnership_agreements',fields:['supplier_id','agreement_code','version','status','effective_from','effective_to','company_profit_share_pct','partner_profit_share_pct','shared_expense_categories','settlement_basis','settlement_due_days','terms','signed_document_path','signed_at','supersedes_agreement_id'],managerOnly:true},
@@ -610,6 +610,9 @@ app.get('/api/operations/:kind', async c => {
     const sql=sqlFor(c);
     const membership=await operationMembership(sql,user.id,companyId);
     if(!membership||!['owner','admin','staff','supplier'].includes(membership.role))return jsonError(c,'به این بخش عملیاتی دسترسی نداری.',403);
+    const manager=['owner','admin'].includes(membership.role);
+    if(config.managerOnly&&!manager&&membership.role!=='supplier')return jsonError(c,'این بخش فقط برای مالک، مدیر یا شریک تأمین‌کننده مجاز است.',403);
+    if(kind==='task-templates'&&!manager)return jsonError(c,'مدیریت دستورالعمل‌ها فقط برای مالک یا مدیر مجاز است.',403);
     const params:unknown[]=[companyId];
     let where='company_id=$1';
     if(membership.role==='supplier'){
