@@ -141,6 +141,6 @@ describe('Medar username authentication primitives', () => {
   });
 
   it('does not expose the company alert inbox without a session', async () => {
-    const response = await app.request('/api/operations/alerts?companyId=00000000-0000-4000-8000-000000000001');
+    const response = await app.request('/api/alerts?companyId=00000000-0000-4000-8000-000000000001');
     expect(response.status).toBe(401);
   });
