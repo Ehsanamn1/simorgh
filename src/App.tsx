@@ -129,8 +129,44 @@ function useDbRows(table: string, membership: Membership, options?: { select?: s
   }, [table,membership.company_id, options?.enabled, options?.order]);
   return {rows,loading,error,refresh,setRows};
 }
+const farmSiteTypeLabels: Record<string,string> = {
+  crop:'کشت زراعی', livestock:'دامداری', poultry:'پرورش طیور', aquaculture:'آبزی‌پروری',
+  greenhouse:'گلخانه', orchard:'باغ', processing:'فرآوری', warehouse:'انبار',
+  distribution:'توزیع', mixed:'چندمنظوره', other:'سایر',
+};
+
+function FarmMapPanel({sites,schemaWarning}:{sites:Row[];schemaWarning:string}) {
+  const mapped = useMemo(() => sites.filter(site => {
+    const lat = site.latitude, lon = site.longitude;
+    return lat !== null && lat !== undefined && lat !== '' && lon !== null && lon !== undefined && lon !== ''
+      && Number.isFinite(Number(lat)) && Number.isFinite(Number(lon))
+      && Number(lat) >= -90 && Number(lat) <= 90 && Number(lon) >= -180 && Number(lon) <= 180;
+  }), [sites]);
+  const [selectedId, setSelectedId] = useState('');
+  useEffect(() => {
+    setSelectedId(old => mapped.some(site => String(site.id) === old) ? old : String(mapped[0]?.id ?? ''));
+  }, [mapped]);
+  const selected = mapped.find(site => String(site.id) === selectedId);
+  const lat = selected ? Number(selected.latitude) : 0;
+  const lon = selected ? Number(selected.longitude) : 0;
+  const bbox = [Math.max(-180,lon-0.25),Math.max(-90,lat-0.18),Math.min(180,lon+0.25),Math.min(90,lat+0.18)].map(value=>value.toFixed(6)).join('%2C');
+  const mapUrl = selected ? `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${lat.toFixed(6)}%2C${lon.toFixed(6)}` : '';
+  return <section className="panel farm-map-panel">
+    <div className="panel-heading"><div><span className="section-number">۰۳</span><div><h3>نقشه‌ی سایت‌های مجموعه</h3><p>نقشه و نشانگر فقط از مختصات واقعی ثبت‌شده خوانده می‌شود.</p></div></div><span className="status-badge neutral">{numberFa(mapped.length)} موقعیت</span></div>
+    {schemaWarning ? <div className="farm-map-warning"><MapPin size={18}/><div><b>به‌روزرسانی ساختار نقشه لازم است</b><p>{schemaWarning}</p><small>پس از اجرای مهاجرت، طول و عرض جغرافیایی هر سایت را از بخش «سایت‌های مزرعه» وارد کن.</small></div></div>
+    : selected ? <div className="farm-map-layout">
+      <iframe key={String(selected.id)} title={`نقشه‌ی موقعیت ${String(selected.name ?? 'سایت')}`} src={mapUrl} loading="lazy" referrerPolicy="no-referrer-when-downgrade"/>
+      <div className="farm-map-sites" aria-label="فهرست موقعیت‌های ثبت‌شده">{mapped.map(site=><button type="button" key={String(site.id)} className={'farm-map-site'+(String(site.id)===selectedId?' active':'')} aria-pressed={String(site.id)===selectedId} onClick={()=>setSelectedId(String(site.id))}><span className="farm-map-pin"><MapPin size={16}/></span><span><b>{String(site.name ?? 'سایت بدون نام')}</b><small>{[site.city,site.province].filter(Boolean).map(String).join(' · ') || 'نشانی ثبت نشده'}</small><small>{farmSiteTypeLabels[String(site.site_type ?? 'mixed')] ?? 'سایر'}</small></span></button>)}</div>
+    </div>
+    : <EmptyState title="مختصات جغرافیایی ثبت نشده" description="از بخش سایت‌های مزرعه، مختصات واقعی GPS را ذخیره کن تا نقشه‌ی مدیریتی فعال شود. نقطه‌ی آزمایشی یا ساختگی نمایش داده نمی‌شود." icon={MapPin}/>}
+    <div className="farm-map-footer"><span>نقشه‌ی پایه: OpenStreetMap</span><Link to="/app/farm-sites">مدیریت سایت‌ها <ArrowLeft size={14}/></Link></div>
+  </section>;
+}
+
 function Dashboard({ membership }: { membership: Membership }) {
   const [orders, setOrders] = useState<Row[]>([]);
+  const [mapSites, setMapSites] = useState<Row[]>([]);
+  const [mapError, setMapError] = useState('');
   const [counts, setCounts] = useState({ orders: 0, customers: 0, suppliers: 0, shipments: 0, capacity: 0, lateOrders: 0, overdueTasks: 0, reviewTasks: 0, incidents: 0, invoices: 0, failedShipments: 0, expiringLicenses: 0, pendingRequests: 0, goals: 0 });
   const [signals, setSignals] = useState({ lateOrders: [] as Row[], overdueTasks: [] as Row[], reviewTasks: [] as Row[], incidents: [] as Row[], invoices: [] as Row[], failedShipments: [] as Row[], expiringLicenses: [] as Row[], pendingRequests: [] as Row[], audit: [] as Row[], goals: [] as Row[] });
   const [loading, setLoading] = useState(true);
@@ -148,7 +184,7 @@ function Dashboard({ membership }: { membership: Membership }) {
     const horizon = `${horizonParts.year}-${horizonParts.month}-${horizonParts.day}`;
     const now = new Date().toISOString();
     const company = membership.company_id;
-    const [o, c, s, sh, cap, late, due, review, incidents, invoices, failed, licenses, requests, audit, goals] = await Promise.all([
+    const [o, c, s, sh, cap, late, due, review, incidents, invoices, failed, licenses, requests, audit, goals, map] = await Promise.all([
       supabase.from('orders').select('id,reference,status,requested_delivery,created_at,customers(name)', { count: 'exact' }).eq('company_id', company).order('created_at', { ascending: false }).limit(8),
       supabase.from('customers').select('id', { count: 'exact', head: true }).eq('company_id', company),
       supabase.from('suppliers').select('id', { count: 'exact', head: true }).eq('company_id', company),
@@ -164,11 +200,14 @@ function Dashboard({ membership }: { membership: Membership }) {
       supabase.from('access_requests').select('id,email,full_name,requested_role,organization_name,created_at', { count: 'exact' }).eq('company_id', company).eq('status', 'pending').order('created_at', { ascending: true }).limit(3),
       supabase.from('audit_events').select('id,table_name,action,record_id,occurred_at', { count: 'exact' }).eq('company_id', company).order('occurred_at', { ascending: false }).limit(5),
       supabase.from('company_goals').select('id,title,description,category,status,baseline_value,target_value,current_value,unit,due_date,priority,created_at', { count: 'exact' }).eq('company_id', company).not('status', 'in', '(achieved,cancelled)').order('created_at', { ascending: false }).limit(4),
+      supabase.from('farm_sites').select('id,name,site_type,city,province,latitude,longitude', { count: 'exact' }).eq('company_id', company).eq('active', true).not('latitude', 'is', null).not('longitude', 'is', null).order('name').limit(30),
     ]);
     const dbError = o.error ?? c.error ?? s.error ?? sh.error ?? cap.error ?? late.error ?? due.error ?? review.error ?? incidents.error ?? invoices.error ?? failed.error ?? licenses.error ?? requests.error ?? audit.error ?? goals.error;
     if (dbError) setError(dbError.message);
+    setMapError(map.error ? 'برای فعال‌سازی نقشه، مهاجرت «مدیریت عمومی مزرعه» را روی پایگاه داده اجرا کن.' : '');
     const rowCount = (result: { count: number | null; data: unknown[] | null }) => result.count ?? result.data?.length ?? 0;
     setOrders((o.data ?? []) as Row[]);
+    setMapSites((map.data ?? []) as Row[]);
     setCounts({
       orders: rowCount(o), customers: rowCount(c), suppliers: rowCount(s), shipments: rowCount(sh), capacity: rowCount(cap),
       lateOrders: rowCount(late), overdueTasks: rowCount(due), reviewTasks: canManage ? rowCount(review) : 0,
@@ -245,6 +284,7 @@ function Dashboard({ membership }: { membership: Membership }) {
         </Link>;
       })}</div> : <EmptyState title="هدف قابل‌پیگیری ثبت نشده" description="در بخش اهداف و برنامه، مقدار مبنا، هدف، موعد و مسئول را ثبت کن تا مسیر اجرا در مرکز فرمان نمایش داده شود." icon={Target}/>}
     </section>
+    <div className="dashboard-grid tower-map-grid"><FarmMapPanel sites={mapSites} schemaWarning={mapError}/></div>
     <div className="dashboard-grid tower-main-grid">
       <section className="panel chart-panel"><div className="panel-heading"><div><span className="section-number">۰۱</span><div><h3>وضعیت سفارش‌های اخیر</h3><p>توزیع رکوردهای واقعی، بدون پیش‌بینی</p></div></div><Badge value={loading ? 'در حال دریافت' : numberFa(orders.length) + ' رکورد'}/></div>
         {loading ? <div className="panel-loading"><span className="spinner small"/></div> : chart.length ? <div className="chart-wrap"><ResponsiveContainer width="100%" height={270}><BarChart data={chart} margin={{top:8,right:8,left:-14,bottom:8}}><CartesianGrid stroke="#29373B" strokeDasharray="4 4" vertical={false}/><XAxis dataKey="name" tick={{fill:'#A0B0B2',fontSize:11}} axisLine={{stroke:'#29373B'}} tickLine={{stroke:'#29373B'}}/><YAxis allowDecimals={false} tick={{fill:'#77898C',fontSize:10}} axisLine={false} tickLine={false}/><Tooltip contentStyle={{backgroundColor:'#11191C',border:'1px solid #29373B',borderRadius:12,color:'#EAF0F0'}} labelStyle={{color:'#EAF0F0'}} cursor={{fill:'#1D292D'}}/><Bar dataKey="count" name="تعداد سفارش" fill="#6EB9AC" radius={[6,6,0,0]} maxBarSize={54}/></BarChart></ResponsiveContainer></div> : <EmptyState title="هنوز سفارش ثبت نشده" description="با ثبت سفارش واقعی، نمودار وضعیت‌ها اینجا ظاهر می‌شود." icon={FileText}/>}
@@ -281,9 +321,17 @@ function EntityPage({membership,table,title,description,fields,columns,search}:{
 }
 type FieldDef={name:string;label:string;type?:string;required?:boolean;options?:{value:string;label:string}[]};
 function Modal({title,subtitle,children,onClose}:{title:string;subtitle?:string;children:React.ReactNode;onClose:()=>void}) { return <div className="modal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)onClose()}}><section className="modal-card" role="dialog" aria-modal="true"><header className="modal-heading"><div><h2>{title}</h2>{subtitle&&<p>{subtitle}</p>}</div><button onClick={onClose}><X size={18}/></button></header>{children}</section></div>; }
-function productKindLabel(kind: unknown) { const value=String(kind??''); if(['farm_product','eggs','meat'].includes(value)) return 'محصول مزرعه'; if(value==='input') return 'خوراک و نهاده'; if(value==='processed') return 'محصول فرآوری‌شده'; if(value==='service') return 'خدمات'; return 'سایر'; }
+function productKindLabel(kind: unknown) {
+  const labels: Record<string,string> = {
+    farm_product:'محصول مزرعه', crop:'محصول زراعی', livestock:'دام و فرآورده دامی',
+    poultry:'طیور', aquaculture:'آبزی‌پروری', dairy:'لبنیات', eggs:'تخم‌مرغ', meat:'گوشت',
+    input:'نهاده و مواد اولیه', feed:'خوراک', equipment:'تجهیزات', processed:'محصول فرآوری‌شده',
+    service:'خدمات', other:'سایر',
+  };
+  return labels[String(kind??'')] ?? 'سایر';
+}
 function ProductsPage({membership,search}:{membership:Membership;search:string}) {
- return <><EntityPage membership={membership} table="products" title="کاتالوگ و مشخصات محصول" description="محصول، واحد فروش و اطلاعات بسته‌بندی. قیمت اختصاصی هر مشتری در توافق قیمت تعریف می‌شود." fields={[{name:'sku',label:'کد محصول',required:true},{name:'name',label:'نام محصول',required:true},{name:'kind',label:'نوع محصول',type:'select',required:true,options:[{value:'farm_product',label:'محصول مزرعه'},{value:'input',label:'خوراک و نهاده'},{value:'processed',label:'محصول فرآوری‌شده'},{value:'service',label:'خدمات'},{value:'other',label:'سایر'}]},{name:'unit',label:'واحد فروش',required:true},{name:'pack_size',label:'اندازه بسته (اختیاری)',type:'number'},{name:'shelf_life_days',label:'ماندگاری (روز)',type:'number'},{name:'storage_note',label:'شرایط نگهداری',type:'textarea'}]} columns={[{key:'sku',label:'کد'},{key:'name',label:'محصول'},{key:'kind',label:'گروه',render:r=>productKindLabel(r.kind)},{key:'unit',label:'واحد'},{key:'pack_size',label:'اندازه بسته'},{key:'active',label:'وضعیت'},{key:'created_at',label:'تاریخ ثبت'}]} search={search}/><PriceAgreements membership={membership} search={search}/></>;
+ return <><EntityPage membership={membership} table="products" title="کاتالوگ و مشخصات محصول" description="محصول، واحد فروش و اطلاعات بسته‌بندی. قیمت اختصاصی هر مشتری در توافق قیمت تعریف می‌شود." fields={[{name:'sku',label:'کد محصول',required:true},{name:'name',label:'نام محصول',required:true},{name:'kind',label:'نوع محصول',type:'select',required:true,options:[{value:'farm_product',label:'محصول مزرعه'},{value:'crop',label:'محصول زراعی'},{value:'livestock',label:'دام و فرآورده دامی'},{value:'poultry',label:'طیور'},{value:'aquaculture',label:'آبزی‌پروری'},{value:'dairy',label:'لبنیات'},{value:'input',label:'نهاده و مواد اولیه'},{value:'feed',label:'خوراک'},{value:'equipment',label:'تجهیزات'},{value:'processed',label:'محصول فرآوری‌شده'},{value:'service',label:'خدمات'},{value:'other',label:'سایر'}]},{name:'unit',label:'واحد فروش',required:true},{name:'pack_size',label:'اندازه بسته (اختیاری)',type:'number'},{name:'shelf_life_days',label:'ماندگاری (روز)',type:'number'},{name:'storage_note',label:'شرایط نگهداری',type:'textarea'}]} columns={[{key:'sku',label:'کد'},{key:'name',label:'محصول'},{key:'kind',label:'گروه',render:r=>productKindLabel(r.kind)},{key:'unit',label:'واحد'},{key:'pack_size',label:'اندازه بسته'},{key:'active',label:'وضعیت'},{key:'created_at',label:'تاریخ ثبت'}]} search={search}/><PriceAgreements membership={membership} search={search}/></>;
 }
 function PriceAgreements({membership,search}:{membership:Membership;search:string}) {
  const [rows,setRows]=useState<Row[]>([]);const [customers,setCustomers]=useState<Row[]>([]);const [products,setProducts]=useState<Row[]>([]);const [loading,setLoading]=useState(true);const [error,setError]=useState('');const [open,setOpen]=useState(false);const [busy,setBusy]=useState(false);const [form,setForm]=useState({customer_id:'',product_id:'',unit_price:'',min_qty:'1',valid_from:new Date().toISOString().slice(0,10),valid_to:''});
