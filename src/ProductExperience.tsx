@@ -69,8 +69,9 @@ export default function ProductExperience() {
   const [requestId, setRequestId] = useState('');
   const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
   const protectedRoute = location.pathname.includes('/app');
-  // The production build enables this secure auth layer. Public self-registration stays disabled.
-  const authUiEnabled = import.meta.env.VITE_ENABLE_AUTH_UI === 'true';
+  // Enable secure sign-in by default in web, preview and native builds; only an explicit false disables it.
+  // Public self-registration remains disabled independently of this UI flag.
+  const authUiEnabled = import.meta.env.VITE_ENABLE_AUTH_UI !== 'false';
   const signInOpen = authUiEnabled && (mode === 'recovery' || (location.hash === '#signin' && !user) || (protectedRoute && !user && !loading));
   const normalizedPath = location.pathname.startsWith(basePath) ? location.pathname.slice(basePath.length) || '/' : location.pathname;
   const protectedDestination = normalizedPath.startsWith('/app') ? normalizedPath : '/app';
