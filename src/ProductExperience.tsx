@@ -151,7 +151,7 @@ export default function ProductExperience() {
       });
       if (!result?.companyId) {
         provisionedUserIds.current.delete(user.id);
-        setWorkspaceProvisionError('ساخت فضای کاری انجام نشد. تأیید ایمیل، اتصال و نسخه پایگاه داده را بررسی کن و دوباره تلاش کن.');
+        setWorkspaceProvisionError('ساخت فضای کاری انجام نشد. تأیید نام کاربری، اتصال و نسخه پایگاه داده را بررسی کن و دوباره تلاش کن.');
         setWorkspaceProvisioning(false);
         return;
       }
@@ -224,8 +224,8 @@ export default function ProductExperience() {
       if (mode === 'reset') {
         const redirectUrl = new URL((import.meta.env.BASE_URL || '/') + '#signin', window.location.origin).toString();
         const { error: resetError } = await neonAuth.resetPasswordForEmail(email.trim(), { redirectTo: redirectUrl });
-        if (resetError) { setError('ارسال ایمیل بازیابی انجام نشد. ایمیل و تنظیمات Auth را بررسی کن.'); return; }
-        setNotice('اگر این ایمیل حساب فعالی داشته باشد، لینک بازیابی برای آن ارسال می‌شود.');
+        if (resetError) { setError('ارسال نام کاربری بازیابی انجام نشد. نام کاربری و تنظیمات Auth را بررسی کن.'); return; }
+        setNotice('اگر این نام کاربری حساب فعالی داشته باشد، لینک بازیابی برای آن ارسال می‌شود.');
       } else if (mode === 'signup') {
         const emailRedirectTo = new URL(basePath + '/#signin', window.location.origin).toString();
         const { data, error: signUpError } = await neonAuth.signUp({
@@ -237,6 +237,7 @@ export default function ProductExperience() {
               full_name: fullName.trim(),
               organization_name: organizationName.trim(),
               phone: normalizedPhone,
+              requested_role: requestedRole,
               signup_workspace_pending: true,
             },
           },
@@ -244,8 +245,8 @@ export default function ProductExperience() {
         if (signUpError) {
           const message = signUpError.message.toLowerCase();
           setError(message.includes('signup is disabled') || message.includes('signups not allowed')
-            ? 'ثبت‌نام در تنظیمات Auth پروژه غیرفعال است؛ باید ثبت‌نام ایمیلی در Neon Auth فعال شود.'
-            : 'ساخت حساب انجام نشد. ایمیل را بررسی کن و اگر قبلاً حسابی با آن ساخته‌ای، وارد شو.');
+            ? 'ثبت‌نام در تنظیمات Auth پروژه غیرفعال است؛ باید ثبت‌نام نام کاربریی در Neon Auth فعال شود.'
+            : 'ساخت حساب انجام نشد. نام کاربری را بررسی کن و اگر قبلاً حسابی با آن ساخته‌ای، وارد شو.');
           return;
         }
         if (!data.user) { setError('پاسخ سرویس ثبت‌نام معتبر نبود. دوباره تلاش کن.'); return; }
@@ -256,7 +257,7 @@ export default function ProductExperience() {
         } else {
           setMode('signin');
           navigate({ pathname: location.pathname, search: location.search, hash: '#signin' }, { replace: true });
-          setNotice('اگر این ایمیل قابل ثبت‌نام باشد، لینک تأیید برای آن ارسال می‌شود. ایمیل را تأیید کن؛ سپس فضای کاری اختصاصی ساخته می‌شود.');
+          setNotice('اگر این نام کاربری قابل ثبت‌نام باشد، لینک تأیید برای آن ارسال می‌شود. نام کاربری را تأیید کن؛ سپس فضای کاری اختصاصی ساخته می‌شود.');
         }
       } else if (mode === 'recovery') {
         if (password.length < 8) { setError('گذرواژه جدید باید حداقل ۸ نویسه باشد.'); return; }
@@ -267,7 +268,7 @@ export default function ProductExperience() {
         setPassword(''); setConfirmPassword(''); setMode('signin'); setNotice('گذرواژه تغییر کرد. حالا با گذرواژه جدید وارد شو.');
       } else {
         const { error: authError } = await neonAuth.signInWithPassword({ email: email.trim(), password });
-        if (authError) { setError('ورود انجام نشد. ایمیل و گذرواژه را بررسی کن یا ایمیل حساب را تأیید و دوباره تلاش کن.'); return; }
+        if (authError) { setError('ورود انجام نشد. نام کاربری و گذرواژه را بررسی کن یا نام کاربری حساب را تأیید و دوباره تلاش کن.'); return; }
         setPassword(''); navigate(protectedDestination, { replace: true });
       }
     } catch {
@@ -301,7 +302,7 @@ export default function ProductExperience() {
       </nav>, appMain)}
     {authUiEnabled && user && waitingScreen && memberships.length === 0 && createPortal(
       <section className="access-request-card" dir="rtl" aria-labelledby="access-request-title">
-        <div className="access-request-heading"><span className="access-request-icon"><UserPlus size={20}/></span><div><span className="obsidian-eyebrow">فضای کاری مدار</span><h2 id="access-request-title">{user.user_metadata?.signup_workspace_pending === true ? 'آماده‌سازی فضای کاری' : 'درخواست فضای کاری'}</h2><p>{user.user_metadata?.signup_workspace_pending === true ? 'پس از تأیید ایمیل، فضای کاری خصوصی مجموعه‌ات ساخته می‌شود.' : 'نقش را مشخص کن؛ مدیر پس از بررسی آن را تأیید یا رد می‌کند.'}</p></div></div>
+        <div className="access-request-heading"><span className="access-request-icon"><UserPlus size={20}/></span><div><span className="obsidian-eyebrow">فضای کاری مدار</span><h2 id="access-request-title">{user.user_metadata?.signup_workspace_pending === true ? 'آماده‌سازی فضای کاری' : 'درخواست فضای کاری'}</h2><p>{user.user_metadata?.signup_workspace_pending === true ? 'پس از تأیید نام کاربری، فضای کاری خصوصی مجموعه‌ات ساخته می‌شود.' : 'نقش را مشخص کن؛ مدیر پس از بررسی آن را تأیید یا رد می‌کند.'}</p></div></div>
         {workspaceProvisioning && <div className="auth-feedback success" role="status">در حال ساخت فضای کاری اختصاصی…</div>}
         {workspaceProvisionError && <div className="auth-feedback error workspace-provision-error" role="alert"><span>{workspaceProvisionError}</span><button type="button" onClick={() => setWorkspaceProvisionRetry(value => value + 1)}>تلاش دوباره</button></div>}
         {user.user_metadata?.signup_workspace_pending !== true && <form className="access-request-form" onSubmit={submitRoleRequest}>
@@ -328,21 +329,21 @@ export default function ProductExperience() {
             {mode === 'signin' || mode === 'signup' ? <MedarLogo compact className="signin-form-logo"/> : <span className="signin-form-icon"><KeyRound size={21}/></span>}
             <span className="signin-overline">{mode === 'signup' ? 'ثبت‌نام مجموعه' : mode === 'reset' ? 'بازیابی گذرواژه' : mode === 'recovery' ? 'تنظیم گذرواژه تازه' : 'ورود امن'}</span>
             <h2 id="simorgh-signin-title">{mode === 'signup' ? 'ساخت حساب و فضای کاری' : mode === 'reset' ? 'بازیابی گذرواژه' : mode === 'recovery' ? 'گذرواژه جدید' : 'ورود به مدار'}</h2>
-            <p>{mode === 'signup' ? 'حساب بساز، شماره موبایل ایرانی‌ات را ثبت کن و فضای کاری خصوصی مجموعه‌ات را ایجاد کن. داده‌های شرکت‌های دیگر از این حساب جدا می‌ماند.' : mode === 'reset' ? 'ایمیل حساب را وارد کن تا در صورت وجود حساب، لینک بازیابی ارسال شود.' : mode === 'recovery' ? 'یک گذرواژه جدید و قوی برای حساب انتخاب کن.' : 'با ایمیل و گذرواژه وارد فضای کاری‌ات شو. شماره موبایل برای بازیابی و ارتباط عملیاتی حساب ثبت می‌شود.'}</p>
+            <p>{mode === 'signup' ? 'حساب بساز، شماره موبایل ایرانی‌ات را ثبت کن و فضای کاری خصوصی مجموعه‌ات را ایجاد کن. داده‌های شرکت‌های دیگر از این حساب جدا می‌ماند.' : mode === 'reset' ? 'نام کاربری حساب را وارد کن تا در صورت وجود حساب، لینک بازیابی ارسال شود.' : mode === 'recovery' ? 'یک گذرواژه جدید و قوی برای حساب انتخاب کن.' : 'با نام کاربری و گذرواژه وارد فضای کاری‌ات شو. شماره موبایل برای بازیابی و ارتباط عملیاتی حساب ثبت می‌شود.'}</p>
              <form className="simorgh-signin-form" onSubmit={event => void submitAuth(event)}>
                {mode === 'signup' && <>
                  <label htmlFor="simorgh-signin-full-name">نام و نام خانوادگی</label><input id="simorgh-signin-full-name" className="auth-input" type="text" autoComplete="name" required minLength={2} maxLength={160} value={fullName} onChange={e => setFullName(e.target.value)} placeholder="نام کامل"/>
                  <label htmlFor="simorgh-signin-organization">نام مزرعه یا مجموعه</label><input id="simorgh-signin-organization" className="auth-input" type="text" required minLength={2} maxLength={160} value={organizationName} onChange={e => setOrganizationName(e.target.value)} placeholder="نام مجموعه"/>
                  <label htmlFor="simorgh-signin-phone">شماره موبایل</label><input id="simorgh-signin-phone" className="auth-input" type="tel" autoComplete="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="09121234567" pattern="(?:09\\d{9}|9\\d{9}|\\+989\\d{9})" required dir="ltr"/>
                </>}
-               <label htmlFor="simorgh-signin-email">ایمیل</label><input id="simorgh-signin-email" className="auth-input" type="email" autoComplete="username" inputMode="email" required={mode !== 'recovery'} value={email} onChange={e => setEmail(e.target.value)} placeholder="name@company.com" dir="ltr"/>
+               <label htmlFor="simorgh-signin-username">نام کاربری</label><input id="simorgh-signin-username" className="auth-input" type="text" autoComplete="username" inputMode="text" required={mode !== 'recovery'} value={email} onChange={e => setEmail(e.target.value)} placeholder="username" dir="ltr"/>
                {mode !== 'reset' && <>
                  <label htmlFor="simorgh-signin-password">{mode === 'recovery' ? 'گذرواژه جدید' : 'گذرواژه'}</label>
                  <div className="auth-password-wrap"><input id="simorgh-signin-password" className="auth-input" type={showPassword ? 'text' : 'password'} minLength={8} autoComplete={mode === 'recovery' || mode === 'signup' ? 'new-password' : 'current-password'} required value={password} onChange={e => setPassword(e.target.value)} placeholder="حداقل ۸ نویسه" dir="ltr"/><button type="button" onClick={() => setShowPassword(value => !value)} aria-label={showPassword ? 'پنهان‌کردن گذرواژه' : 'نمایش گذرواژه'}>{showPassword ? <EyeOff size={16}/> : <Eye size={16}/>}</button></div>
                  {(mode === 'recovery' || mode === 'signup') && <><label htmlFor="simorgh-confirm-password">تکرار گذرواژه</label><input id="simorgh-confirm-password" className="auth-input" type="password" autoComplete="new-password" required minLength={8} value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="گذرواژه را دوباره وارد کن" dir="ltr"/></>}
                </>}
                {error && <div className="auth-feedback error" role="alert">{error}</div>}{notice && <div className="auth-feedback success" role="status">{notice}</div>}
-               <button className="signin-submit" type="submit" disabled={busy || (mode !== 'recovery' && !email.trim()) || (mode !== 'reset' && !password) || (mode === 'signup' && (!fullName.trim() || !organizationName.trim() || !confirmPassword))}>
+               <button className="signin-submit" type="submit" disabled={busy || (mode !== 'recovery' && !email.trim()) || (mode !== 'reset' && !password) || (mode === 'signup' && (!fullName.trim() || !phone.trim() || !confirmPassword))}>
                  {busy ? <><span className="signin-spinner" aria-hidden="true"/> در حال پردازش…</> : mode === 'reset' ? <>ارسال لینک بازیابی <RotateCcw size={16}/></> : mode === 'recovery' ? <>ذخیره گذرواژه جدید <Check size={17}/></> : mode === 'signup' ? <>ساخت حساب و فضای کاری <ArrowLeft size={17}/></> : <>ورود به فضای کار <ArrowLeft size={17}/></>}
                </button>
              </form>
