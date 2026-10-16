@@ -72,7 +72,7 @@ export default function ProductExperience() {
   // Enable secure sign-in by default in web, preview and native builds; only an explicit false disables it.
   // Public self-registration remains disabled independently of this UI flag.
   const authUiEnabled = import.meta.env.VITE_ENABLE_AUTH_UI !== 'false';
-  const signInOpen = authUiEnabled && (mode === 'recovery' || (location.hash === '#signin' && !user) || (protectedRoute && !user && !loading));
+  const signInOpen = authUiEnabled && (mode === 'recovery' || (location.hash === '#signin' && !user) || (protectedRoute && !user));
   const normalizedPath = location.pathname.startsWith(basePath) ? location.pathname.slice(basePath.length) || '/' : location.pathname;
   const protectedDestination = normalizedPath.startsWith('/app') ? normalizedPath : '/app';
 
@@ -233,7 +233,7 @@ export default function ProductExperience() {
         </form>
         <p className="access-request-foot"><ShieldCheck size={15}/> انتخاب نقش به‌تنهایی دسترسی نمی‌دهد. مدیر باید درخواست را در پنل کاربران بررسی کند.</p>
       </section>, waitingScreen)}
-    {signInOpen && (!user || mode === 'recovery') && (!loading || mode === 'recovery') && (
+    {signInOpen && (!user || mode === 'recovery') && (
       <section className="simorgh-signin-layer" role="dialog" aria-modal="true" aria-labelledby="simorgh-signin-title" aria-label="ورود امن مدار">
         <div className="simorgh-signin-brand">
           <div className="simorgh-signin-brand-top"><span className="simorgh-signin-mark"><ShieldCheck size={26}/></span><span><strong>مدار</strong><small>مدیریت یکپارچه عملیات</small></span></div>
