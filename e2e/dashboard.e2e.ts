@@ -9,7 +9,7 @@ test('the default route is a secure Persian entry, not a clickable dashboard pre
   await expect(page).toHaveURL(/\/simorgh\/app\/command$/);
   await expect(page.locator('.simorgh-signin-layer')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'ورود به مدار' })).toBeVisible();
-  await expect(page.getByText(/نقش‌های داخلی و مدیریتی فقط با دعوت یا تأیید مالک فعال می‌شوند/)).toBeVisible();
+  await expect(page.getByText(/ثبت‌نام عمومی غیرفعال است/)).toBeVisible();
   await expect(page.locator('.portal-preview')).toHaveCount(0);
   await expect(page.locator('.sim-preview-palette')).toHaveCount(0);
   await expect(page.locator('.simorgh-signin-layer')).toBeVisible();
