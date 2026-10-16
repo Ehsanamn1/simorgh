@@ -67,7 +67,7 @@ ALTER TYPE public.evidence_kind ADD VALUE IF NOT EXISTS 'note';
 ALTER TYPE public.evidence_kind ADD VALUE IF NOT EXISTS 'temperature_reading';
 
 -- 2. Create operational tables in source migration order.
-CREATE TABLE IF NOT EXISTS if not exists public.customers (
+CREATE TABLE IF NOT EXISTS public.customers (
   id uuid primary key default gen_random_uuid(), company_id uuid not null references public.companies(id) on delete cascade,
   name text not null check(length(trim(name)) between 2 and 160), segment text, city text, phone text, address text,
   credit_limit numeric(16,0) check(credit_limit is null or credit_limit >= 0), active boolean not null default true,
@@ -75,14 +75,14 @@ CREATE TABLE IF NOT EXISTS if not exists public.customers (
   unique(company_id,id), unique(company_id,name)
 );
 
-CREATE TABLE IF NOT EXISTS if not exists public.suppliers (
+CREATE TABLE IF NOT EXISTS public.suppliers (
   id uuid primary key default gen_random_uuid(), company_id uuid not null references public.companies(id) on delete cascade,
   name text not null check(length(trim(name)) between 2 and 160), city text, phone text, farm_registration text,
   active boolean not null default true, created_at timestamptz not null default now(), updated_at timestamptz not null default now(),
   unique(company_id,id), unique(company_id,name)
 );
 
-CREATE TABLE IF NOT EXISTS if not exists public.products (
+CREATE TABLE IF NOT EXISTS public.products (
   id uuid primary key default gen_random_uuid(), company_id uuid not null references public.companies(id) on delete cascade,
   sku text not null, name text not null check(length(trim(name)) between 2 and 160), kind public.product_kind not null,
   unit text not null default 'کیلوگرم', pack_size integer check(pack_size is null or pack_size>0),
@@ -91,7 +91,7 @@ CREATE TABLE IF NOT EXISTS if not exists public.products (
   unique(company_id,id), unique(company_id,sku)
 );
 
-CREATE TABLE IF NOT EXISTS if not exists public.price_agreements (
+CREATE TABLE IF NOT EXISTS public.price_agreements (
   id uuid primary key default gen_random_uuid(), company_id uuid not null references public.companies(id) on delete cascade,
   customer_id uuid not null, product_id uuid not null, unit_price numeric(16,0) not null check(unit_price>0),
   min_qty integer not null default 1 check(min_qty>0), valid_from date not null default current_date, valid_to date,
@@ -101,7 +101,7 @@ CREATE TABLE IF NOT EXISTS if not exists public.price_agreements (
   check(valid_to is null or valid_to>=valid_from)
 );
 
-CREATE TABLE IF NOT EXISTS if not exists public.orders (
+CREATE TABLE IF NOT EXISTS public.orders (
   id uuid primary key default gen_random_uuid(), company_id uuid not null references public.companies(id) on delete cascade,
   customer_id uuid not null, reference text not null default ('SO-'||to_char(now(),'YYMMDD')||'-'||upper(substr(gen_random_uuid()::text,1,6))),
   status public.order_status not null default 'draft', requested_delivery date, delivery_address text, notes text,
@@ -110,7 +110,7 @@ CREATE TABLE IF NOT EXISTS if not exists public.orders (
   unique(company_id,id), unique(company_id,reference)
 );
 
-CREATE TABLE IF NOT EXISTS if not exists public.order_items (
+CREATE TABLE IF NOT EXISTS public.order_items (
   id uuid primary key default gen_random_uuid(), company_id uuid not null references public.companies(id) on delete cascade,
   order_id uuid not null, product_id uuid not null, quantity numeric(14,3) not null check(quantity>0),
   unit_price numeric(16,0) not null default 0 check(unit_price>=0), supplier_id uuid, lot_id uuid,
@@ -121,7 +121,7 @@ CREATE TABLE IF NOT EXISTS if not exists public.order_items (
   unique(company_id,id)
 );
 
-CREATE TABLE IF NOT EXISTS if not exists public.capacity_commitments (
+CREATE TABLE IF NOT EXISTS public.capacity_commitments (
   id uuid primary key default gen_random_uuid(), company_id uuid not null references public.companies(id) on delete cascade,
   supplier_id uuid not null, product_id uuid not null, period_start date not null, period_end date not null,
   declared_qty numeric(14,3) not null check(declared_qty>=0), confirmed_qty numeric(14,3) check(confirmed_qty is null or confirmed_qty>=0),
@@ -134,7 +134,7 @@ CREATE TABLE IF NOT EXISTS if not exists public.capacity_commitments (
   check(committed_qty is null or confirmed_qty is null or committed_qty<=confirmed_qty)
 );
 
-CREATE TABLE IF NOT EXISTS if not exists public.lots (
+CREATE TABLE IF NOT EXISTS public.lots (
   id uuid primary key default gen_random_uuid(), company_id uuid not null references public.companies(id) on delete cascade,
   supplier_id uuid not null, product_id uuid not null, code text not null, produced_on date not null, best_before date,
   quantity numeric(14,3) not null check(quantity>0), status public.lot_status not null default 'pending_review',
@@ -144,14 +144,14 @@ CREATE TABLE IF NOT EXISTS if not exists public.lots (
   unique(company_id,id), unique(company_id,code), check(best_before is null or best_before>=produced_on)
 );
 
-CREATE TABLE IF NOT EXISTS if not exists public.quality_reviews (
+CREATE TABLE IF NOT EXISTS public.quality_reviews (
   id uuid primary key default gen_random_uuid(), company_id uuid not null references public.companies(id) on delete cascade,
   lot_id uuid not null, result public.review_result not null, checklist jsonb not null default '{}'::jsonb, notes text,
   reviewer_id uuid REFERENCES public.medar_users(id), reviewed_at timestamptz not null default now(),
   foreign key(company_id,lot_id) references public.lots(company_id,id) on delete cascade
 );
 
-CREATE TABLE IF NOT EXISTS if not exists public.shipments (
+CREATE TABLE IF NOT EXISTS public.shipments (
   id uuid primary key default gen_random_uuid(), company_id uuid not null references public.companies(id) on delete cascade,
   order_id uuid not null, driver_user_id uuid REFERENCES public.medar_users(id) on delete set null, vehicle text,
   stage public.shipment_stage not null default 'planned', planned_departure timestamptz, departed_at timestamptz, delivered_at timestamptz,
@@ -159,7 +159,7 @@ CREATE TABLE IF NOT EXISTS if not exists public.shipments (
   foreign key(company_id,order_id) references public.orders(company_id,id) on delete restrict, unique(company_id,id)
 );
 
-CREATE TABLE IF NOT EXISTS if not exists public.delivery_evidence (
+CREATE TABLE IF NOT EXISTS public.delivery_evidence (
   id uuid primary key default gen_random_uuid(), company_id uuid not null references public.companies(id) on delete cascade,
   shipment_id uuid not null, kind public.evidence_kind not null, storage_path text, recipient_name text, note text,
   reading_celsius numeric(5,2), captured_by uuid REFERENCES public.medar_users(id), captured_at timestamptz not null default now(),
@@ -167,7 +167,7 @@ CREATE TABLE IF NOT EXISTS if not exists public.delivery_evidence (
   check(kind<>'temperature_reading' or reading_celsius is not null)
 );
 
-CREATE TABLE IF NOT EXISTS if not exists public.invoices (
+CREATE TABLE IF NOT EXISTS public.invoices (
   id uuid primary key default gen_random_uuid(), company_id uuid not null references public.companies(id) on delete cascade,
   order_id uuid not null, customer_id uuid not null, reference text not null, amount numeric(16,0) not null check(amount>=0),
   paid_amount numeric(16,0) not null default 0 check(paid_amount>=0 and paid_amount<=amount), due_date date,
@@ -177,20 +177,20 @@ CREATE TABLE IF NOT EXISTS if not exists public.invoices (
   unique(company_id,reference)
 );
 
-CREATE TABLE IF NOT EXISTS if not exists public.settlements (
+CREATE TABLE IF NOT EXISTS public.settlements (
   id uuid primary key default gen_random_uuid(), company_id uuid not null references public.companies(id) on delete cascade,
   supplier_id uuid not null, invoice_ref text, amount numeric(16,0) not null check(amount>=0), due_date date,
   status public.settlement_status not null default 'pending', note text, created_at timestamptz not null default now(), updated_at timestamptz not null default now(),
   foreign key(company_id,supplier_id) references public.suppliers(company_id,id) on delete restrict
 );
 
-CREATE TABLE IF NOT EXISTS if not exists public.notifications (
+CREATE TABLE IF NOT EXISTS public.notifications (
   id uuid primary key default gen_random_uuid(), company_id uuid not null references public.companies(id) on delete cascade,
   user_id uuid not null REFERENCES public.medar_users(id) on delete cascade, title text not null, body text, href text,
   read_at timestamptz, created_at timestamptz not null default now()
 );
 
-CREATE TABLE IF NOT EXISTS if not exists public.audit_events (
+CREATE TABLE IF NOT EXISTS public.audit_events (
   id uuid primary key default gen_random_uuid(), company_id uuid not null references public.companies(id) on delete cascade,
   actor_id uuid REFERENCES public.medar_users(id) on delete set null, table_name text not null, record_id uuid, action text not null,
   changes jsonb, occurred_at timestamptz not null default now()
@@ -578,39 +578,23 @@ CREATE TABLE IF NOT EXISTS public.company_goals (
   check (target_value >= 0)
 );
 
--- 3. Add source-schema columns to the already-created foundation tables without overwriting existing data.
-ALTER TABLE public.companies ADD COLUMN IF NOT EXISTS id uuid primary key default gen_random_uuid();
-ALTER TABLE public.companies ADD COLUMN IF NOT EXISTS name text not null check (length(trim(name)) between 2 and 160);
+-- 3. Add missing compatibility columns to the existing foundation tables.
+-- Keep new foreign-key fields nullable until request review and data reconciliation are complete.
 ALTER TABLE public.companies ADD COLUMN IF NOT EXISTS legal_name text;
-ALTER TABLE public.companies ADD COLUMN IF NOT EXISTS province text not null default 'گلستان';
-ALTER TABLE public.companies ADD COLUMN IF NOT EXISTS timezone text not null default 'Asia/Tehran';
-ALTER TABLE public.companies ADD COLUMN IF NOT EXISTS created_at timestamptz not null default now();
-ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS id uuid primary key REFERENCES public.medar_users(id) on delete cascade;
+ALTER TABLE public.companies ADD COLUMN IF NOT EXISTS province text DEFAULT 'نامشخص';
+ALTER TABLE public.companies ADD COLUMN IF NOT EXISTS timezone text DEFAULT 'Asia/Tehran';
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS full_name text;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS phone text;
-ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS created_at timestamptz not null default now();
-ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS updated_at timestamptz not null default now();
-ALTER TABLE public.memberships ADD COLUMN IF NOT EXISTS id uuid primary key default gen_random_uuid();
-ALTER TABLE public.memberships ADD COLUMN IF NOT EXISTS company_id uuid not null references public.companies(id) on delete cascade;
-ALTER TABLE public.memberships ADD COLUMN IF NOT EXISTS user_id uuid not null REFERENCES public.medar_users(id) on delete cascade;
-ALTER TABLE public.memberships ADD COLUMN IF NOT EXISTS role public.app_role not null;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT now();
 ALTER TABLE public.memberships ADD COLUMN IF NOT EXISTS customer_id uuid;
 ALTER TABLE public.memberships ADD COLUMN IF NOT EXISTS supplier_id uuid;
-ALTER TABLE public.memberships ADD COLUMN IF NOT EXISTS active boolean not null default true;
-ALTER TABLE public.memberships ADD COLUMN IF NOT EXISTS created_at timestamptz not null default now();
-ALTER TABLE public.memberships ADD COLUMN IF NOT EXISTS created_by uuid REFERENCES public.medar_users(id);
-ALTER TABLE public.access_requests ADD COLUMN IF NOT EXISTS id uuid primary key default gen_random_uuid();
-ALTER TABLE public.access_requests ADD COLUMN IF NOT EXISTS company_id uuid not null references public.companies(id) on delete cascade;
-ALTER TABLE public.access_requests ADD COLUMN IF NOT EXISTS user_id uuid not null REFERENCES public.medar_users(id) on delete cascade;
-ALTER TABLE public.access_requests ADD COLUMN IF NOT EXISTS requested_role public.app_role not null check(requested_role in ('customer','supplier','driver'));
-ALTER TABLE public.access_requests ADD COLUMN IF NOT EXISTS full_name text not null check(length(trim(full_name)) between 2 and 160);
+ALTER TABLE public.access_requests ADD COLUMN IF NOT EXISTS company_id uuid REFERENCES public.companies(id) ON DELETE CASCADE;
 ALTER TABLE public.access_requests ADD COLUMN IF NOT EXISTS organization_name text;
-ALTER TABLE public.access_requests ADD COLUMN IF NOT EXISTS phone text;
 ALTER TABLE public.access_requests ADD COLUMN IF NOT EXISTS notes text;
-ALTER TABLE public.access_requests ADD COLUMN IF NOT EXISTS status text not null default 'pending' check(status in ('pending','approved','rejected'));
-ALTER TABLE public.access_requests ADD COLUMN IF NOT EXISTS reviewed_by uuid REFERENCES public.medar_users(id);
+ALTER TABLE public.access_requests ADD COLUMN IF NOT EXISTS email text;
+ALTER TABLE public.access_requests ADD COLUMN IF NOT EXISTS reviewed_by uuid REFERENCES public.medar_users(id) ON DELETE SET NULL;
 ALTER TABLE public.access_requests ADD COLUMN IF NOT EXISTS reviewed_at timestamptz;
-ALTER TABLE public.access_requests ADD COLUMN IF NOT EXISTS created_at timestamptz not null default now();
+UPDATE public.access_requests SET organization_name = company_name WHERE organization_name IS NULL AND company_name IS NOT NULL;
 
 -- 4. Add later schema columns (idempotent).
 ALTER TABLE public.order_items add column if not exists capacity_commitment_id uuid;
@@ -645,14 +629,14 @@ UPDATE public.access_requests SET organization_name = company_name WHERE organiz
 CREATE UNIQUE INDEX IF NOT EXISTS access_requests_one_pending_per_role ON public.access_requests(user_id, requested_role) WHERE status='pending';
 
 -- 6. Query indexes.
-CREATE INDEX IF NOT EXISTS if not exists memberships_user_idx on public.memberships(user_id,active);
-CREATE INDEX IF NOT EXISTS if not exists price_agreements_lookup_idx on public.price_agreements(company_id,customer_id,product_id,valid_from);
-CREATE INDEX IF NOT EXISTS if not exists orders_company_status_idx on public.orders(company_id,status,created_at desc);
-CREATE INDEX IF NOT EXISTS if not exists orders_customer_idx on public.orders(customer_id,created_at desc);
-CREATE INDEX IF NOT EXISTS if not exists order_items_order_idx on public.order_items(order_id);
-CREATE INDEX IF NOT EXISTS if not exists order_items_supplier_idx on public.order_items(supplier_id);
-CREATE INDEX IF NOT EXISTS if not exists shipment_driver_idx on public.shipments(driver_user_id,stage);
-CREATE INDEX IF NOT EXISTS if not exists audit_company_date_idx on public.audit_events(company_id,occurred_at desc);
+CREATE INDEX IF NOT EXISTS memberships_user_idx on public.memberships(user_id,active);
+CREATE INDEX IF NOT EXISTS price_agreements_lookup_idx on public.price_agreements(company_id,customer_id,product_id,valid_from);
+CREATE INDEX IF NOT EXISTS orders_company_status_idx on public.orders(company_id,status,created_at desc);
+CREATE INDEX IF NOT EXISTS orders_customer_idx on public.orders(customer_id,created_at desc);
+CREATE INDEX IF NOT EXISTS order_items_order_idx on public.order_items(order_id);
+CREATE INDEX IF NOT EXISTS order_items_supplier_idx on public.order_items(supplier_id);
+CREATE INDEX IF NOT EXISTS shipment_driver_idx on public.shipments(driver_user_id,stage);
+CREATE INDEX IF NOT EXISTS audit_company_date_idx on public.audit_events(company_id,occurred_at desc);
 CREATE INDEX IF NOT EXISTS partnership_agreement_supplier_status_idx on public.partnership_agreements(company_id,supplier_id,status,effective_from desc);
 CREATE INDEX IF NOT EXISTS flock_cycles_site_status_idx on public.flock_cycles(company_id,farm_site_id,status);
 CREATE INDEX IF NOT EXISTS production_batches_site_status_idx on public.production_batches(company_id,farm_site_id,status,expected_on);
@@ -666,8 +650,8 @@ CREATE INDEX IF NOT EXISTS partner_financial_supplier_date_idx on public.partner
 CREATE INDEX IF NOT EXISTS partner_financial_agreement_date_idx on public.partner_financial_entries(company_id,agreement_id,recognized_on,status,entry_type);
 CREATE INDEX IF NOT EXISTS partner_financial_source_idx on public.partner_financial_entries(company_id,source_table,source_record_id);
 CREATE INDEX IF NOT EXISTS partner_settlement_supplier_idx on public.partner_settlement_periods(company_id,supplier_id,period_end desc,status);
-CREATE INDEX IF NOT EXISTS if not exists access_requests_company_status_created_idx on public.access_requests(company_id,status,created_at desc);
-CREATE UNIQUE INDEX IF NOT EXISTS if not exists access_requests_one_pending_per_user_company_idx on public.access_requests(company_id,user_id) where status='pending';
+CREATE INDEX IF NOT EXISTS access_requests_company_status_created_idx on public.access_requests(company_id,status,created_at desc);
+CREATE UNIQUE INDEX IF NOT EXISTS access_requests_one_pending_per_user_company_idx on public.access_requests(company_id,user_id) where status='pending';
 CREATE INDEX IF NOT EXISTS shipment_locations_company_captured_idx
   on public.shipment_locations(company_id, captured_at desc);
 CREATE INDEX IF NOT EXISTS shipment_locations_shipment_captured_idx
