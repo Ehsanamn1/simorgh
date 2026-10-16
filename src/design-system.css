@@ -551,3 +551,19 @@ html[data-theme="light"] .farm-map-marker.active .farm-map-marker-label { border
 .simorgh-signin-form-card .signin-form-logo .brand-symbol svg{width:32px;height:32px}
 .simorgh-signin-form-card .signin-form-logo .brand-symbol svg circle{fill:var(--obs-accent)!important}
 html[data-theme="light"] .simorgh-signin-form-card .signin-form-logo .brand-symbol{background:#E6F0ED;border-color:#C8DDD7;color:var(--obs-accent)}
+
+
+/* Public company signup and secure tenant provisioning states */
+.signin-registration-cta{display:grid;justify-items:center;gap:8px;margin-top:18px;padding-top:16px;border-top:1px solid var(--obs-border);color:var(--obs-muted);font-size:11px;text-align:center}
+.signin-registration-cta button{display:flex;align-items:center;justify-content:center;gap:7px;width:100%;min-height:42px;padding:10px 14px;border:1px solid #42665f;border-radius:12px;background:#203735;color:#DDEBE5;font:800 12px/1.5 Vazirmatn,Tahoma,sans-serif;cursor:pointer;transition:background var(--sim-motion-fast),border-color var(--sim-motion-fast)}
+.signin-registration-cta button:hover{border-color:var(--obs-accent);background:#294743}
+.signin-optional{color:var(--obs-subtle);font-size:10px;font-weight:500}
+.workspace-provision-error{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.workspace-provision-error button{flex:none;padding:7px 10px;border:1px solid currentColor;border-radius:8px;background:transparent;color:inherit;font:700 10px Vazirmatn,Tahoma,sans-serif;cursor:pointer}
+html[data-theme="light"] .signin-registration-cta{border-color:#D5E0DD;color:var(--obs-muted)}
+html[data-theme="light"] .signin-registration-cta button{border-color:#C6DBD4;background:#EAF3F0;color:#1A5147}
+html[data-theme="light"] .signin-registration-cta button:hover{border-color:#287E70;background:#DFEEE8}
+@media(max-width:560px){
+  .signin-registration-cta{margin-top:14px;padding-top:13px}
+  .workspace-provision-error{align-items:stretch;flex-direction:column}
+}
