@@ -130,8 +130,8 @@ function useDbRows(table: string, membership: Membership, options?: { select?: s
 }
 function Dashboard({ membership }: { membership: Membership }) {
   const [orders, setOrders] = useState<Row[]>([]);
-  const [counts, setCounts] = useState({ orders: 0, customers: 0, suppliers: 0, shipments: 0, capacity: 0, lateOrders: 0, overdueTasks: 0, reviewTasks: 0, incidents: 0, invoices: 0, failedShipments: 0, expiringLicenses: 0, pendingRequests: 0 });
-  const [signals, setSignals] = useState({ lateOrders: [] as Row[], overdueTasks: [] as Row[], reviewTasks: [] as Row[], incidents: [] as Row[], invoices: [] as Row[], failedShipments: [] as Row[], expiringLicenses: [] as Row[], pendingRequests: [] as Row[], audit: [] as Row[] });
+  const [counts, setCounts] = useState({ orders: 0, customers: 0, suppliers: 0, shipments: 0, capacity: 0, lateOrders: 0, overdueTasks: 0, reviewTasks: 0, incidents: 0, invoices: 0, failedShipments: 0, expiringLicenses: 0, pendingRequests: 0, goals: 0 });
+  const [signals, setSignals] = useState({ lateOrders: [] as Row[], overdueTasks: [] as Row[], reviewTasks: [] as Row[], incidents: [] as Row[], invoices: [] as Row[], failedShipments: [] as Row[], expiringLicenses: [] as Row[], pendingRequests: [] as Row[], audit: [] as Row[], goals: [] as Row[] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [lastUpdated, setLastUpdated] = useState('');
@@ -147,7 +147,7 @@ function Dashboard({ membership }: { membership: Membership }) {
     const horizon = `${horizonParts.year}-${horizonParts.month}-${horizonParts.day}`;
     const now = new Date().toISOString();
     const company = membership.company_id;
-    const [o, c, s, sh, cap, late, due, review, incidents, invoices, failed, licenses, requests, audit] = await Promise.all([
+    const [o, c, s, sh, cap, late, due, review, incidents, invoices, failed, licenses, requests, audit, goals] = await Promise.all([
       supabase.from('orders').select('id,reference,status,requested_delivery,created_at,customers(name)', { count: 'exact' }).eq('company_id', company).order('created_at', { ascending: false }).limit(8),
       supabase.from('customers').select('id', { count: 'exact', head: true }).eq('company_id', company),
       supabase.from('suppliers').select('id', { count: 'exact', head: true }).eq('company_id', company),
@@ -162,8 +162,9 @@ function Dashboard({ membership }: { membership: Membership }) {
       supabase.from('farm_sites').select('id,name,license_expires_on', { count: 'exact' }).eq('company_id', company).eq('active', true).not('license_expires_on', 'is', null).lte('license_expires_on', horizon).order('license_expires_on', { ascending: true }).limit(3),
       supabase.from('access_requests').select('id,email,full_name,requested_role,organization_name,created_at', { count: 'exact' }).eq('company_id', company).eq('status', 'pending').order('created_at', { ascending: true }).limit(3),
       supabase.from('audit_events').select('id,table_name,action,record_id,occurred_at', { count: 'exact' }).eq('company_id', company).order('occurred_at', { ascending: false }).limit(5),
+      supabase.from('company_goals').select('id,title,description,category,status,baseline_value,target_value,current_value,unit,due_date,priority,created_at', { count: 'exact' }).eq('company_id', company).not('status', 'in', '(achieved,cancelled)').order('created_at', { ascending: false }).limit(4),
     ]);
-    const dbError = o.error ?? c.error ?? s.error ?? sh.error ?? cap.error ?? late.error ?? due.error ?? review.error ?? incidents.error ?? invoices.error ?? failed.error ?? licenses.error ?? requests.error ?? audit.error;
+    const dbError = o.error ?? c.error ?? s.error ?? sh.error ?? cap.error ?? late.error ?? due.error ?? review.error ?? incidents.error ?? invoices.error ?? failed.error ?? licenses.error ?? requests.error ?? audit.error ?? goals.error;
     if (dbError) setError(dbError.message);
     const rowCount = (result: { count: number | null; data: unknown[] | null }) => result.count ?? result.data?.length ?? 0;
     setOrders((o.data ?? []) as Row[]);
@@ -171,14 +172,14 @@ function Dashboard({ membership }: { membership: Membership }) {
       orders: rowCount(o), customers: rowCount(c), suppliers: rowCount(s), shipments: rowCount(sh), capacity: rowCount(cap),
       lateOrders: rowCount(late), overdueTasks: rowCount(due), reviewTasks: canManage ? rowCount(review) : 0,
       incidents: rowCount(incidents), invoices: rowCount(invoices), failedShipments: rowCount(failed),
-      expiringLicenses: rowCount(licenses), pendingRequests: canManage ? rowCount(requests) : 0,
+      expiringLicenses: rowCount(licenses), pendingRequests: canManage ? rowCount(requests) : 0, goals: rowCount(goals),
     });
     setSignals({
       lateOrders: (late.data ?? []) as Row[], overdueTasks: (due.data ?? []) as Row[],
       reviewTasks: (review.data ?? []) as Row[], incidents: (incidents.data ?? []) as Row[],
       invoices: (invoices.data ?? []) as Row[], failedShipments: (failed.data ?? []) as Row[],
       expiringLicenses: (licenses.data ?? []) as Row[], pendingRequests: (requests.data ?? []) as Row[],
-      audit: (audit.data ?? []) as Row[],
+      audit: (audit.data ?? []) as Row[], goals: (goals.data ?? []) as Row[],
     });
     setLastUpdated(new Date().toISOString());
     setLoading(false);
@@ -231,6 +232,18 @@ function Dashboard({ membership }: { membership: Membership }) {
       </div>
     </section>
     {counts.orders === 0 && counts.customers === 0 && counts.suppliers === 0 && <div className="tower-onboarding"><ShieldCheck size={18}/><div><b>داده‌ی عملیاتی هنوز ثبت نشده</b><p>برای شروع، محصولات، تأمین‌کنندگان و مشتریان واقعی را ثبت کن. سامانه تا آن زمان عدد ساختگی نمایش نمی‌دهد.</p></div><div className="tower-onboarding-links"><Link to="/app/products">تعریف محصول</Link><Link to="/app/suppliers">ثبت تأمین‌کننده</Link><Link to="/app/customers">ثبت مشتری</Link></div></div>}
+    <section className="panel tower-goals-summary">
+      <div className="panel-heading"><div><span className="section-number">۰۲</span><div><h3>اهداف و مسیر اجرا</h3><p>شاخص فعلی، مقدار هدف، موعد و مسئولیت؛ از دفتر اهداف مجموعه</p></div></div><Link className="tower-panel-link" to="/app/goals">مدیریت اهداف <ArrowLeft size={14}/></Link></div>
+      {loading ? <div className="panel-loading"><span className="spinner small"/></div> : signals.goals.length ? <div className="tower-goal-list">{signals.goals.map(goal => {
+        const baseline = Number(goal.baseline_value ?? 0), target = Number(goal.target_value ?? 0), current = Number(goal.current_value ?? 0);
+        const progress = target > baseline ? Math.max(0, Math.min(100, ((current - baseline) / (target - baseline)) * 100)) : null;
+        const isOverdue = Boolean(goal.due_date && String(goal.due_date) < todayForDisplay() && !['achieved','cancelled','paused'].includes(String(goal.status)));
+        return <Link className={'tower-goal-row' + (isOverdue ? ' overdue' : '')} to="/app/goals" key={String(goal.id)}>
+          <span className="tower-goal-dot"><Target size={16}/></span><span className="tower-goal-main"><b>{String(goal.title ?? 'هدف بدون عنوان')}</b><small>{String(goal.due_date ? 'موعد ' + dateFa(String(goal.due_date)) : 'بدون موعد')} · {String(goal.unit ?? '')}</small></span>
+          <span className="tower-goal-progress"><i><span style={{width:(progress ?? 0)+'%'}}/></i><b>{progress === null ? '—' : numberFa(String(Math.round(progress)))+'٪'}</b></span>
+        </Link>;
+      })}</div> : <EmptyState title="هدف قابل‌پیگیری ثبت نشده" description="در بخش اهداف و برنامه، مقدار مبنا، هدف، موعد و مسئول را ثبت کن تا مسیر اجرا در مرکز فرمان نمایش داده شود." icon={Target}/>}
+    </section>
     <div className="dashboard-grid tower-main-grid">
       <section className="panel chart-panel"><div className="panel-heading"><div><span className="section-number">۰۱</span><div><h3>وضعیت سفارش‌های اخیر</h3><p>توزیع رکوردهای واقعی، بدون پیش‌بینی</p></div></div><Badge value={loading ? 'در حال دریافت' : numberFa(orders.length) + ' رکورد'}/></div>
         {loading ? <div className="panel-loading"><span className="spinner small"/></div> : chart.length ? <div className="chart-wrap"><ResponsiveContainer width="100%" height={270}><BarChart data={chart} margin={{top:8,right:8,left:-14,bottom:8}}><CartesianGrid stroke="#29373B" strokeDasharray="4 4" vertical={false}/><XAxis dataKey="name" tick={{fill:'#A0B0B2',fontSize:11}} axisLine={{stroke:'#29373B'}} tickLine={{stroke:'#29373B'}}/><YAxis allowDecimals={false} tick={{fill:'#77898C',fontSize:10}} axisLine={false} tickLine={false}/><Tooltip contentStyle={{backgroundColor:'#11191C',border:'1px solid #29373B',borderRadius:12,color:'#EAF0F0'}} labelStyle={{color:'#EAF0F0'}} cursor={{fill:'#1D292D'}}/><Bar dataKey="count" name="تعداد سفارش" fill="#6EB9AC" radius={[6,6,0,0]} maxBarSize={54}/></BarChart></ResponsiveContainer></div> : <EmptyState title="هنوز سفارش ثبت نشده" description="با ثبت سفارش واقعی، نمودار وضعیت‌ها اینجا ظاهر می‌شود." icon={FileText}/>}
