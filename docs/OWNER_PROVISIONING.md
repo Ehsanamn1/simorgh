@@ -1,6 +1,6 @@
 # Simorgh — first owner provisioning
 
-The production project has one company record for «شبکه سیمرغ», but may have no Supabase Auth users and no active memberships. The app intentionally has no public self-registration; the first trusted owner must be provisioned explicitly from the Supabase dashboard.
+The connected production project was checked on 2026-10-16: it has one company record for «شبکه سیمرغ», zero Supabase Auth users, zero active memberships, and no operational records yet. The app intentionally has no public self-registration; the first trusted owner must be provisioned explicitly from the Supabase dashboard before the authenticated manager workspace can open.
 
 ## Create the trusted owner account
 
