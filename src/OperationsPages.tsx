@@ -173,6 +173,7 @@ export function OperationsWorkspacePage({kind,membership,search}:{kind:Operation
   const [openForm,setOpenForm]=useState(false);
   const [draft,setDraft]=useState<Record<string,unknown>>({});
   const [evidenceTask,setEvidenceTask]=useState('');
+  const [evidenceRows,setEvidenceRows]=useState<Row[]>([]);
   const [evidenceType,setEvidenceType]=useState('note');
   const [evidenceNote,setEvidenceNote]=useState('');
   const [measurement,setMeasurement]=useState('');
@@ -198,6 +199,14 @@ export function OperationsWorkspacePage({kind,membership,search}:{kind:Operation
     } finally {setLoading(false);}
   };
   useEffect(()=>{void load();},[kind,membership.company_id,membership.role]);
+  useEffect(()=>{
+    if(!evidenceTask){setEvidenceRows([]);return;}
+    let current=true;
+    api.get<{evidence:Row[]}>(`/api/operations/operational-tasks/${encodeURIComponent(evidenceTask)}/evidence?companyId=${encodeURIComponent(membership.company_id)}`)
+      .then(data=>{if(current)setEvidenceRows(data.evidence??[]);})
+      .catch(caught=>{if(current)setError(caught instanceof Error?caught.message:'خواندن مدارک وظیفه انجام نشد.');});
+    return ()=>{current=false;};
+  },[evidenceTask,membership.company_id]);
 
   const fields: Field[]=useMemo(()=>{
     const suppliers=refs.suppliers.map(supplierOpt);
@@ -594,6 +603,14 @@ export function OperationsWorkspacePage({kind,membership,search}:{kind:Operation
     {evidenceTask&&<div className="ops-modal-backdrop" role="presentation" onMouseDown={e=>{if(e.target===e.currentTarget)setEvidenceTask('');}}>
       <div className="ops-modal compact" role="dialog" aria-modal="true" aria-label="ثبت مدرک وظیفه">
         <header><div><span className="ops-eyebrow">مستندات انجام کار</span><h2>ثبت مدرک انجام کار</h2><p>فایل‌ها در فضای خصوصی و با مسیر محدود به همان شرکت و وظیفه ذخیره می‌شوند.</p></div><button className="ops-refresh" onClick={()=>setEvidenceTask('')} aria-label="بستن"><X size={18}/></button></header>
+        <div className="evidence-history" aria-live="polite">
+          <b>مدارک ثبت‌شده ({numberFa(evidenceRows.length)})</b>
+          {evidenceRows.length?evidenceRows.map(item=><div className="evidence-history-row" key={String(item.id)}>
+            <span><strong>{fa(item.evidence_type)}</strong><small>{dateTimeFa(String(item.created_at??''))}</small></span>
+            <span>{String(item.note??'')}{item.measurement_value!==null&&item.measurement_value!==undefined?' · '+String(item.measurement_value)+' '+String(item.measurement_unit??''):''}</span>
+            {item.storage_path&&<a href={`/api/evidence/${encodeURIComponent(String(item.id))}/download`} target="_blank" rel="noreferrer">دریافت فایل</a>}
+          </div>):<small>هنوز مدرکی برای این وظیفه ثبت نشده است.</small>}
+        </div>
         <form className="ops-form" onSubmit={addEvidence}>
           <label className="ops-field"><span>نوع مدرک</span><select value={evidenceType} onChange={e=>setEvidenceType(e.target.value)}>{evidenceTypes.map(t=><option key={t.value} value={t.value}>{t.label}</option>)}</select></label>
           {(evidenceType==='photo'||evidenceType==='document')&&<label className="ops-field full"><span>فایل</span><input type="file" accept={evidenceType==='photo'?'image/*':'.pdf,.jpg,.jpeg,.png'} required onChange={e=>setEvidenceFile(e.target.files?.[0]??null)}/></label>}
