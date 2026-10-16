@@ -426,11 +426,6 @@ export function OperationsWorkspacePage({kind,membership,search}:{kind:Operation
     catch(caught) { setError(caught instanceof Error?caught.message:'عملیات انجام نشد.'); }
     finally { setBusy(false); }
   };
-  const updateRow=(table:string,id:unknown,patch:Record<string,unknown>)=>{
-    const match=Object.entries(configs).find(([,config])=>config.table===table);
-    if(!match)return Promise.reject(new Error('جدول عملیاتی پشتیبانی نمی‌شود.'));
-    return api.post(`/api/operations/${match[0]}/${encodeURIComponent(String(id))}/update`,{...patch,companyId:membership.company_id});
-  };
   const assigned=(row:Row)=>membership.role==='supplier'
     ? String(row.assignee_supplier_id)===String(membership.supplier_id)
     : String(row.assignee_user_id)===String(membership.user_id)||manager;
