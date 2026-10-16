@@ -410,14 +410,26 @@ app.post('/api/admin/access-requests/:id/review', async c => {
         AND m.user_id=${user.id}::uuid AND m.active=true AND m.role::text IN ('owner','admin') LIMIT 1`;
     if (!rows[0]) return jsonError(c, 'درخواست پیدا نشد یا اجازه بررسی آن را نداری.', 404);
     const item = rows[0] as {id:string;company_id:string;user_id:string;role:string};
+    let customerId:string|null=null,supplierId:string|null=null;
     if (decision === 'approve') {
       if (!['customer','supplier','driver','staff'].includes(item.role)) return jsonError(c, 'نقش درخواستی قابل تأیید نیست.', 400);
-      await sql`INSERT INTO public.memberships(company_id,user_id,role,active,created_by)
-        VALUES(${item.company_id}::uuid,${item.user_id}::uuid,${item.role}::public.app_role,true,${user.id}::uuid)
-        ON CONFLICT(company_id,user_id,role) DO UPDATE SET active=true`;
+      if(item.role==='customer'){
+        customerId=typeof data.customerId==='string'?data.customerId:'';
+        if(!validUuid(customerId))return jsonError(c,'برای تأیید مشتری باید حساب مشتری همین مجموعه انتخاب شود.',400);
+        const linked=await sql`SELECT id FROM public.customers WHERE id=${customerId}::uuid AND company_id=${item.company_id}::uuid LIMIT 1`;
+        if(!linked.length)return jsonError(c,'حساب مشتری متعلق به این مجموعه نیست.',400);
+      }else if(item.role==='supplier'){
+        supplierId=typeof data.supplierId==='string'?data.supplierId:'';
+        if(!validUuid(supplierId))return jsonError(c,'برای تأیید تأمین‌کننده باید حساب تأمین‌کننده همین مجموعه انتخاب شود.',400);
+        const linked=await sql`SELECT id FROM public.suppliers WHERE id=${supplierId}::uuid AND company_id=${item.company_id}::uuid LIMIT 1`;
+        if(!linked.length)return jsonError(c,'حساب تأمین‌کننده متعلق به این مجموعه نیست.',400);
+      }
+      await sql`INSERT INTO public.memberships(company_id,user_id,role,active,created_by,customer_id,supplier_id)
+        VALUES(${item.company_id}::uuid,${item.user_id}::uuid,${item.role}::public.app_role,true,${user.id}::uuid,${customerId}::uuid,${supplierId}::uuid)
+        ON CONFLICT(company_id,user_id,role) DO UPDATE SET active=true,created_by=EXCLUDED.created_by,customer_id=EXCLUDED.customer_id,supplier_id=EXCLUDED.supplier_id`;
     }
     const status = decision === 'approve' ? 'approved' : 'rejected';
-    await sql`UPDATE public.access_requests SET status=${status},reviewed_by=${user.id}::uuid,reviewed_at=now(),updated_at=now()
+    await sql`UPDATE public.access_requests SET status=${status},customer_id=${customerId}::uuid,supplier_id=${supplierId}::uuid,reviewed_by=${user.id}::uuid,reviewed_at=now(),updated_at=now()
       WHERE id=${item.id}::uuid`;
     await sql`INSERT INTO public.medar_audit_log(actor_user_id,action,entity_type,entity_id,metadata)
       VALUES(${user.id}::uuid,${decision === 'approve' ? 'access.approved' : 'access.rejected'},'access_request',${item.id},jsonb_build_object('company_id',${item.company_id},'role',${item.role}))`;
