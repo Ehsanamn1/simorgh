@@ -4,12 +4,12 @@ import { Hono } from 'hono';
 type Bindings = { DATABASE_URL?: string; MEDAR_SESSION_DAYS?: string; ASSETS?: { fetch(request: Request): Promise<Response> } };
 type AuthUser = { id: string; username: string; phone_e164: string; display_name: string; requested_role: string; account_status: string };
 type App = { Bindings: Bindings };
-const app = new Hono<App>();
+export const app = new Hono<App>();
 const COOKIE = 'medar_session';
 const ITERATIONS = 210_000;
 const encoder = new TextEncoder();
 
-function normalizePhone(input: unknown): string | null {
+export function normalizePhone(input: unknown): string | null {
   if (typeof input !== 'string') return null;
   const digits = input.trim().replaceAll(' ', '').replaceAll('-', '').replaceAll('(', '').replaceAll(')', '').replace(/[۰-۹]/g, char => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(char))).replace(/[٠-٩]/g, char => String('٠١٢٣٤٥٦٧٨٩'.indexOf(char)));
   if (/^09\d{9}$/.test(digits)) return '+98' + digits.slice(1);
@@ -36,13 +36,13 @@ async function sha256(value: string) {
   const digest = await crypto.subtle.digest('SHA-256', encoder.encode(value));
   return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
 }
-async function passwordHash(password: string) {
+export async function passwordHash(password: string) {
   const salt = randomToken(16);
   const key = await crypto.subtle.importKey('raw', encoder.encode(password), 'PBKDF2', false, ['deriveBits']);
   const bits = await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: fromBase64url(salt), iterations: ITERATIONS }, key, 256);
   return `pbkdf2$${ITERATIONS}$${salt}$${base64url(new Uint8Array(bits))}`;
 }
-async function verifyPassword(password: string, stored: string) {
+export async function verifyPassword(password: string, stored: string) {
   const [algorithm, rounds, salt, expected] = stored.split('$');
   if (algorithm !== 'pbkdf2' || !Number.isInteger(Number(rounds)) || Number(rounds) < 100_000 || !salt || !expected) return false;
   const key = await crypto.subtle.importKey('raw', encoder.encode(password), 'PBKDF2', false, ['deriveBits']);
