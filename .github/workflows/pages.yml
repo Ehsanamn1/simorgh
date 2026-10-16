@@ -98,9 +98,10 @@ jobs:
           curl --fail --silent --show-error --location --retry 5 --retry-all-errors --retry-delay 2 "$(asset_url "$css_path")" -o "$css_file"
           test -s "$js_file"
           test -s "$css_file"
-          grep -q 'مرکز فرمان شبکه' "$js_file"
-          grep -q 'ops-live-app' "$css_file"
-          echo "Published app entry, JavaScript bundle, and CSS bundle are reachable."
+          grep -q 'ورود به مدار' "$js_file"
+          grep -q 'simorgh-signin-layer' "$js_file"
+          grep -q 'simorgh-signin-form-card' "$css_file"
+          echo "Published secure sign-in entry, JavaScript bundle, and CSS bundle are reachable."
 
       - name: Checkout source for the browser runtime smoke test
         uses: actions/checkout@v7
