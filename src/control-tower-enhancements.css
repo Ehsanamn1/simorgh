@@ -74,3 +74,163 @@ html[data-theme="light"] .ops-live-auth-trigger {
   letter-spacing: 0;
   text-transform: none;
 }
+
+
+/* Manager map: data-backed locations, no invented pins. */
+.tower-geo-panel {
+  margin: 0 0 24px;
+  overflow: hidden;
+}
+.tower-geo-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 264px;
+  gap: 16px;
+  min-width: 0;
+}
+.tower-geo-map {
+  position: relative;
+  isolation: isolate;
+  min-width: 0;
+  min-height: 330px;
+  height: clamp(285px, 31vw, 390px);
+  overflow: hidden;
+  border: 1px solid #29373B;
+  border-radius: 13px;
+  background: #11191C;
+}
+.tower-geo-map iframe {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #11191C;
+}
+.tower-geo-pin {
+  position: absolute;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: min(190px, 42%);
+  min-height: 30px;
+  padding: 5px 8px;
+  border: 1px solid rgba(110,185,172,.6);
+  border-radius: 999px;
+  background: rgba(11,16,18,.94);
+  color: #EAF0F0;
+  box-shadow: 0 5px 18px rgba(0,0,0,.28);
+  font: 750 10px/1.5 Vazirmatn,Tahoma,sans-serif;
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transform: translate(-50%, -50%);
+  transition: border-color .15s ease, background .15s ease, box-shadow .15s ease;
+}
+.tower-geo-pin svg { flex: none; color: #6EB9AC; }
+.tower-geo-pin span { overflow: hidden; text-overflow: ellipsis; }
+.tower-geo-pin:hover,
+.tower-geo-pin:focus-visible {
+  z-index: 5;
+  border-color: #6EB9AC;
+  background: #203536;
+  box-shadow: 0 8px 24px rgba(0,0,0,.4);
+}
+.tower-geo-pin:focus-visible { outline: 3px solid rgba(110,185,172,.35); outline-offset: 2px; }
+.tower-geo-no-pins {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  flex-direction: column;
+  padding: 24px;
+  background: rgba(11,16,18,.78);
+  color: #EAF0F0;
+  text-align: center;
+}
+.tower-geo-no-pins > svg { color: #6EB9AC; }
+.tower-geo-no-pins b { font-size: 12px; font-weight: 850; }
+.tower-geo-no-pins span { max-width: 330px; color: #A0B0B2; font-size: 10px; line-height: 1.9; }
+.tower-geo-no-pins a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid #365050;
+  border-radius: 9px;
+  color: #B4DDE0;
+  font-size: 10px;
+  font-weight: 800;
+  text-decoration: none;
+}
+.tower-geo-sidebar { display: flex; min-width: 0; flex-direction: column; gap: 12px; }
+.tower-geo-counts { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; }
+.tower-geo-counts > span {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 5px;
+  padding: 12px;
+  border: 1px solid #29373B;
+  border-radius: 11px;
+  background: #11191C;
+}
+.tower-geo-counts small { color: #A0B0B2; font-size: 9px; }
+.tower-geo-counts b { color: #EAF0F0; font-size: 21px; font-weight: 900; font-variant-numeric: tabular-nums; }
+.tower-geo-site-list { display: flex; flex-direction: column; max-height: 258px; overflow: auto; border: 1px solid #29373B; border-radius: 11px; }
+.tower-geo-site {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+  padding: 10px 11px;
+  border-bottom: 1px solid #29373B;
+  color: #EAF0F0;
+  text-decoration: none;
+  transition: background .15s ease;
+}
+.tower-geo-site:last-child { border-bottom: 0; }
+.tower-geo-site:hover { background: #1A282B; }
+.tower-geo-site > span { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 3px; }
+.tower-geo-site b { overflow: hidden; font-size: 10px; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
+.tower-geo-site small { overflow: hidden; color: #A0B0B2; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.tower-geo-site > svg { flex: none; color: #6EB9AC; }
+.tower-geo-sidebar-empty { margin: 0; padding: 14px; border: 1px dashed #365050; border-radius: 11px; color: #A0B0B2; font-size: 10px; line-height: 2; }
+.tower-geo-more { color: #A0B0B2; font-size: 9px; }
+.tower-geo-foot { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; padding-top: 12px; color: #A0B0B2; font-size: 9px; line-height: 1.8; }
+.tower-geo-foot span, .tower-geo-foot a { display: inline-flex; align-items: center; gap: 6px; }
+.tower-geo-foot svg { flex: none; color: #6EB9AC; }
+.tower-geo-foot a { color: #B4DDE0; text-decoration: none; }
+html[data-theme="light"] .tower-geo-map { border-color: #D2DEDD; background: #E8F0EF; }
+html[data-theme="light"] .tower-geo-pin { border-color: #A2C9C1; background: rgba(255,255,255,.96); color: #172729; box-shadow: 0 4px 14px rgba(16,36,36,.14); }
+html[data-theme="light"] .tower-geo-no-pins { background: rgba(244,247,247,.89); color: #172729; }
+html[data-theme="light"] .tower-geo-no-pins span,
+html[data-theme="light"] .tower-geo-counts small,
+html[data-theme="light"] .tower-geo-site small,
+html[data-theme="light"] .tower-geo-sidebar-empty,
+html[data-theme="light"] .tower-geo-foot { color: #52686A; }
+html[data-theme="light"] .tower-geo-counts > span,
+html[data-theme="light"] .tower-geo-site-list { border-color: #D2DEDD; background: #FFFFFF; }
+html[data-theme="light"] .tower-geo-counts b,
+html[data-theme="light"] .tower-geo-site { color: #172729; }
+html[data-theme="light"] .tower-geo-site { border-bottom-color: #E1E9E8; }
+html[data-theme="light"] .tower-geo-site:hover { background: #EDF4F3; }
+html[data-theme="light"] .tower-geo-foot a,
+html[data-theme="light"] .tower-geo-no-pins a { color: #285B54; }
+@media (max-width: 800px) {
+  .tower-geo-grid { grid-template-columns: minmax(0,1fr); }
+  .tower-geo-map { height: 310px; min-height: 250px; }
+  .tower-geo-site-list { max-height: 210px; }
+}
+@media (max-width: 480px) {
+  .tower-geo-map { height: 270px; min-height: 230px; }
+  .tower-geo-pin { max-width: 145px; min-height: 27px; padding: 4px 7px; font-size: 9px; }
+  .tower-geo-foot { align-items: flex-start; flex-direction: column; }
+}
