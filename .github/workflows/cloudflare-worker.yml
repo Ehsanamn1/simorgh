@@ -1,7 +1,6 @@
 name: Deploy Medar to Cloudflare Workers
 on:
-  push:
-    branches: [main]
+  # Manual until operational tables and production data migration pass end-to-end verification.
   workflow_dispatch:
 permissions:
   contents: read
