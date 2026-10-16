@@ -952,6 +952,7 @@ app.post('/api/data/:table', async c => {
           if(path&&(!path.startsWith(companyId+'/'+String(row.shipment_id)+'/')||path.split('/').length!==3))return jsonError(c,'مسیر فایل مدرک با محموله مطابقت ندارد.',400);
         }
         await validateDataReferences(sql,table,row,companyId,user.id,membership);
+        if(table==='delivery_evidence'&&typeof row.storage_path==='string'&&row.storage_path){if(!c.env.EVIDENCE_BUCKET)return jsonError(c,'ذخیره‌سازی R2 پیکربندی نشده است.',503);const object=await c.env.EVIDENCE_BUCKET.head(row.storage_path);if(!object)return jsonError(c,'فایل مدرک در فضای ذخیره‌سازی پیدا نشد.',400);}
         const fields=Object.keys(row).filter(field=>columns.has(field)&&/^[a-z_][a-z0-9_]*$/i.test(field));
         if(!fields.length)return jsonError(c,'هیچ فیلد قابل ثبت ارسال نشده است.',400);
         const params=fields.map(field=>row[field]),placeholders=params.map((_,i)=>'$'+(i+1));
@@ -1063,6 +1064,35 @@ app.post('/api/data/:table', async c => {
   }catch(error){const message=error instanceof Error?error.message:'';return jsonError(c,message||'ذخیره تغییرات انجام نشد.',400);}
 });
 const allowedUploadTypes=new Set(['application/pdf','image/jpeg','image/png','image/webp']);
+app.post('/api/storage/:bucket/upload', async c => {
+  let user:AuthUser|null;
+  try{user=await currentUser(c);}catch{return jsonError(c,'پایگاه داده پیکربندی نشده است.',503);}
+  if(!user)return jsonError(c,'برای بارگذاری فایل ابتدا وارد حساب شو.',401);
+  if(c.req.param('bucket')!=='delivery-evidence')return jsonError(c,'این فضای فایل مجاز نیست.',404);
+  if(!c.env.EVIDENCE_BUCKET)return jsonError(c,'ذخیره‌سازی R2 پیکربندی نشده است.',503);
+  const requestedPath=c.req.query('path')||'';
+  const parts=requestedPath.split('/');
+  const companyId=parts[0]||'',shipmentId=parts[1]||'',rawName=parts[2]||'';
+  if(!validUuid(companyId)||!validUuid(shipmentId)||parts.length!==3||!rawName||rawName.includes('..')||rawName.includes('\\'))return jsonError(c,'مسیر فایل معتبر نیست.',400);
+  try{
+    const sql=sqlFor(c),membership=await operationMembership(sql,user.id,companyId);
+    if(!membership||!['owner','admin','staff','driver'].includes(membership.role))return jsonError(c,'برای بارگذاری مدرک مجوز نداری.',403);
+    const shipmentRows=await sql`SELECT id,driver_user_id FROM public.shipments WHERE id=${shipmentId}::uuid AND company_id=${companyId}::uuid LIMIT 1`;
+    if(!shipmentRows[0])return jsonError(c,'محموله متعلق به این مجموعه نیست.',404);
+    if(membership.role==='driver'&&String((shipmentRows[0] as {driver_user_id:string|null}).driver_user_id)!==user.id)return jsonError(c,'این محموله به راننده فعلی تخصیص داده نشده است.',403);
+    const form=await c.req.formData(),file=form.get('file');
+    if(!(file instanceof File))return jsonError(c,'فایل بارگذاری نشده است.',400);
+    if(file.size<=0||file.size>10*1024*1024)return jsonError(c,'حجم فایل باید بین ۱ بایت و ۱۰ مگابایت باشد.',413);
+    if(!allowedUploadTypes.has(file.type))return jsonError(c,'فقط PDF، JPEG، PNG و WebP مجاز هستند.',415);
+    const safeName=rawName.replace(/[^a-zA-Z0-9._-]/g,'_').slice(0,150);
+    const key=companyId+'/'+shipmentId+'/'+safeName;
+    const existing=await c.env.EVIDENCE_BUCKET.head(key);
+    if(existing&&form.get('upsert')!=='true')return jsonError(c,'فایلی با همین نام وجود دارد.',409);
+    await c.env.EVIDENCE_BUCKET.put(key,file.stream(),{httpMetadata:{contentType:file.type},customMetadata:{companyId,shipmentId,uploadedBy:user.id}});
+    return c.json({data:{path:key},count:null},201);
+  }catch{return jsonError(c,'بارگذاری فایل در فضای ذخیره‌سازی انجام نشد.',500);}
+});
+
 function safeUploadName(value:string){return value.replace(/[^a-zA-Z0-9._-]/g,'_').slice(-120)||'upload';}
 function evidenceFileHeaders(contentType:string,filename:string){
   return {'content-type':contentType,'content-disposition':`attachment; filename="${safeUploadName(filename)}"`,'x-content-type-options':'nosniff','cache-control':'private, no-store'};
