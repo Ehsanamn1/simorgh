@@ -1,11 +1,15 @@
 name: Deploy Medar to Cloudflare Workers
 on:
-  # Manual until operational tables and production data migration pass end-to-end verification.
+  # Manual deployment remains available. A marked commit on the migration branch can
+  # request a rollout after CI is green; unmarked pushes never deploy production.
   workflow_dispatch:
+  push:
+    branches: [feature/medar-auth-and-operations-cutover]
 permissions:
   contents: read
 jobs:
   deploy:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[deploy-medar]')
     runs-on: ubuntu-latest
     env:
       MEDAR_DATABASE_URL: ${{ secrets.MEDAR_DATABASE_URL }}
@@ -20,6 +24,10 @@ jobs:
       - run: npm run typecheck
       - run: npm run lint
       - run: npm run test
+      - name: Install Chromium for end-to-end release gate
+        run: npx playwright install --with-deps chromium
+      - name: Run complete browser acceptance suite before touching Neon
+        run: npm run test:e2e
       - run: npm run build
       - name: Validate deployment credentials
         shell: bash
