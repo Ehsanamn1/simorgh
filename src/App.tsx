@@ -14,7 +14,7 @@ import { supabase, isSupabaseConfigured } from './lib/supabase';
 import { pageSectionLabel } from './lib/pageSections';
 import { goalProgressPercent, isGoalOverdue } from './lib/goals';
 import { OperationsWorkspacePage } from './OperationsPages';
-import { SimorghLogo as Logo } from './SimorghLogo';
+import { MedarLogo as Logo } from './MedarLogo';
 import type { AppRole, Membership, PageKey, Row } from './lib/types';
 import { dateFa, dateTimeFa, moneyFa, numberFa, orderLabel, roleLabel, statusLabel, statusTone } from './lib/format';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
