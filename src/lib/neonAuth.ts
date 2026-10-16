@@ -49,7 +49,7 @@ export const neonAuth = {
     if (user) notify('SIGNED_IN', { user });
     return { data: { user, session: user ? { user } : null }, error: result.error };
   },
-  async signUp(input: { email: string; password: string; options?: { data?: Record<string, unknown> } }): Promise<AuthResult> {
+  async signUp(input: { email: string; password: string; options?: { data?: Record<string, unknown>; emailRedirectTo?: string } }): Promise<AuthResult> {
     const metadata = input.options?.data ?? {};
     const result = await request<{ user: SessionUser }>('/api/auth/signup', {
       username: input.email.trim(),
@@ -67,10 +67,10 @@ export const neonAuth = {
     notify('SIGNED_OUT', null);
     return { error: result.error };
   },
-  async resetPasswordForEmail() {
+  async resetPasswordForEmail(_username?: string, _options?: { redirectTo?: string }) {
     return { error: { name: 'AuthError', message: 'بازیابی رمز عبور در نسخه بدون ایمیل فعال نیست.' } as AuthError };
   },
-  async updateUser() {
+  async updateUser(_data?: { password?: string }) {
     return { error: { name: 'AuthError', message: 'تغییر رمز عبور در این نسخه هنوز پیاده‌سازی نشده است.' } as AuthError };
   },
 };
