@@ -72,6 +72,10 @@ test('manager workspace retains operations and captures a real rendered control-
   await page.goto('/simorgh/app', { waitUntil: 'domcontentloaded' });
   await expect(page.getByRole('heading', { name: /مرکز فرمان شبکه/ })).toBeVisible();
   await expect(page.locator('.side-nav').getByRole('link', { name: /سفارش‌ها/ })).toBeVisible();
+  await expect(page.locator('.tower-geo-panel')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'نقشه‌ی عملیاتی مزارع و واحدها' })).toBeVisible();
+  await expect(page.getByText('هنوز موقعیت جغرافیایی ثبت نشده')).toBeVisible();
+  await expect(page.locator('.tower-geo-pin')).toHaveCount(0);
   await page.screenshot({ path: testInfo.outputPath('manager-control-tower-viewport.png') });
   await page.screenshot({ path: testInfo.outputPath('manager-control-tower.png'), fullPage: true });
 
