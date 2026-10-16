@@ -115,6 +115,15 @@ test('manager workspace retains operations and captures a real rendered control-
 test('generic farm types and daily rejected quantities are validated before writes', async ({ page }) => {
   await installIsolatedSession(page, 'owner');
 
+  await page.goto('/simorgh/app/products', { waitUntil: 'domcontentloaded' });
+  await expect(page.getByRole('heading', { name: 'کاتالوگ و مشخصات محصول' })).toBeVisible();
+  await page.getByRole('button', { name: 'افزودن رکورد', exact: true }).click();
+  const productKind = page.getByLabel('نوع محصول');
+  for (const kind of ['farm_product','crop','livestock','poultry','aquaculture','dairy','eggs','meat','honey','forestry','greenhouse','orchard','input','feed','equipment','processed','service','other']) {
+    await expect(productKind.locator('option[value="' + kind + '"]')).toHaveCount(1);
+  }
+  await page.getByRole('button', { name: 'انصراف' }).click();
+
   await page.goto('/simorgh/app/farm-sites', { waitUntil: 'domcontentloaded' });
   await expect(page.getByRole('heading', { name: 'سایت‌های مزرعه' })).toBeVisible();
   await page.getByRole('button', { name: 'ثبت رکورد', exact: true }).click();
