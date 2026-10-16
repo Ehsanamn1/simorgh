@@ -411,16 +411,16 @@ export function OperationsWorkspacePage({kind,membership,search}:{kind:Operation
     } finally {setBusy(false);}
   };
 
-  const action=async(run:()=>PromiseLike<{error:{message:string}|null}>,success:string)=>{
+  const action=async(run:()=>Promise<unknown>,success:string)=>{
     setBusy(true);setError('');setNotice('');
-    const result=await run();
-    setBusy(false);
-    if(result.error){setError(result.error.message);return;}
-    setNotice(success);await load();
+    try { await run(); setNotice(success); await load(); }
+    catch(caught) { setError(caught instanceof Error?caught.message:'عملیات انجام نشد.'); }
+    finally { setBusy(false); }
   };
   const updateRow=(table:string,id:unknown,patch:Record<string,unknown>)=>{
-    if(!supabase)return Promise.resolve({error:{message:'Supabase تنظیم نشده است.'}});
-    return supabase.from(table).update(patch).eq('company_id',membership.company_id).eq('id',String(id));
+    const match=Object.entries(configs).find(([,config])=>config.table===table);
+    if(!match)return Promise.reject(new Error('جدول عملیاتی پشتیبانی نمی‌شود.'));
+    return api.post(`/api/operations/${match[0]}/${encodeURIComponent(String(id))}/update`,{...patch,companyId:membership.company_id});
   };
   const assigned=(row:Row)=>membership.role==='supplier'
     ? String(row.assignee_supplier_id)===String(membership.supplier_id)
