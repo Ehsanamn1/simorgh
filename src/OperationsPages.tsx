@@ -228,7 +228,7 @@ export function OperationsWorkspacePage({kind,membership,search}:{kind:Operation
       ],
       'flock-cycles':[
         {name:'farm_site_id',label:'سایت مزرعه',type:'select',required:true,options:sites},{name:'cycle_code',label:'کد چرخه',required:true},
-        {name:'cycle_type',label:'نوع چرخه',type:'select',required:true,options:cycleTypes,defaultValue:'poultry'},
+        {name:'cycle_type',label:'نوع چرخه',type:'select',required:true,options:cycleTypes,defaultValue:'mixed'},
         {name:'species',label:'گونه یا محصول',required:true,helper:'برای مثال: گندم، گوجه، مرغ، گوسفند یا ماهی'},
         {name:'arrived_on',label:'تاریخ شروع',type:'date'},{name:'planned_end_on',label:'پایان برنامه‌ای',type:'date'},
         {name:'initial_quantity',label:'مقدار اولیه',type:'number',min:'0',step:'0.001'},
@@ -346,7 +346,7 @@ export function OperationsWorkspacePage({kind,membership,search}:{kind:Operation
         license_expires_on:date('license_expires_on'),created_by:membership.user_id,active:true};
     }else if(kind==='flock-cycles'){
       payload={...base,farm_site_id:str('farm_site_id'),cycle_code:str('cycle_code'),arrived_on:date('arrived_on'),planned_end_on:date('planned_end_on'),
-        cycle_type:str('cycle_type')||'poultry',species:str('species'),initial_quantity:num('initial_quantity'),
+        cycle_type:str('cycle_type')||'mixed',species:str('species'),initial_quantity:num('initial_quantity'),
         quantity_unit:str('quantity_unit')||'عدد',initial_bird_count:str('cycle_type')==='poultry'?num('initial_quantity'):null,
         notes:str('notes')||null,status:'planned',created_by:membership.user_id};
     }else if(kind==='production-batches'){
