@@ -1,5 +1,6 @@
 -- Generalize farm records beyond one animal species or a small product set.
 -- Existing records are preserved; legacy columns remain available while the UI moves to generic fields.
+-- Apply this migration to the configured Supabase project before using the new form fields.
 begin;
 
 alter table public.farm_sites
