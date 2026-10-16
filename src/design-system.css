@@ -941,3 +941,71 @@ html[data-theme="light"] .ops-live-flow-icon,html[data-theme="light"] .ops-live-
   .farm-map-footer{padding:10px 12px}
   .farm-map-warning{padding:14px}
 }
+
+
+/* مدار — light theme parity for the new identity and secure entry */
+:root[data-theme="light"]{
+  --portal-ink:#17211F;
+  --role-accent:#287E70;
+  --obs-accent:#287E70;
+  --obs-accent-2:#557B7A;
+  --obs-highlight:#294F48;
+  --sim-emerald-700:#287E70;
+  --sim-lime:#294F48;
+  --sim-chart-1:#287E70;
+  --sim-chart-2:#557B7A;
+  --forest:#287E70;
+  --forest-2:#557B7A;
+  --lime:#294F48;
+  --sim-focus-ring:3px solid rgb(40 126 112 / 38%);
+}
+html[data-theme="light"] .simorgh-signin-brand{
+  background:radial-gradient(ellipse at 10% 80%,rgb(40 126 112 / 8%),transparent 36%),linear-gradient(155deg,#F7FAF9,#EAF1EF 75%);
+}
+html[data-theme="light"] .simorgh-signin-form-area{background:#EFF4F2}
+html[data-theme="light"] .simorgh-signin-form-card{
+  border-color:#D5E0DD;
+  background:linear-gradient(145deg,#FFFFFF,#F8FBFA 65%);
+  box-shadow:0 24px 70px rgb(20 55 47 / 9%);
+}
+html[data-theme="light"] .simorgh-signin-mark,
+html[data-theme="light"] .signin-form-icon,
+html[data-theme="light"] .access-request-icon{
+  border-color:#C8DDD7;background:#E6F0ED;color:var(--obs-accent);
+}
+html[data-theme="light"] .auth-input,
+html[data-theme="light"] .simorgh-signin-form input,
+html[data-theme="light"] .simorgh-signin-form select,
+html[data-theme="light"] .access-request-form input,
+html[data-theme="light"] .access-request-form select{
+  color:var(--obs-text);background:#FFFFFF;border-color:#D5E0DD;
+}
+html[data-theme="light"] .auth-input::placeholder,
+html[data-theme="light"] .simorgh-signin-form input::placeholder,
+html[data-theme="light"] .access-request-form input::placeholder{color:#758784}
+html[data-theme="light"] .signin-assurance,
+html[data-theme="light"] .signin-no-signup{
+  border-color:#D5E0DD;background:#F5F8F7;color:var(--obs-muted);
+}
+html[data-theme="light"] .auth-feedback.error{color:#8F2F2C;background:#FFF0EF;border-color:#EBC9C7}
+html[data-theme="light"] .auth-feedback.success{color:#24684F;background:#E8F5EE;border-color:#C6E4D4}
+html[data-theme="light"] .signin-close{border-color:#D5E0DD;background:#FFFFFF;color:var(--obs-muted)}
+html[data-theme="light"] .signin-close:hover{background:#F2F6F5;color:var(--obs-text)}
+html[data-theme="light"] .mobile-workspace-nav{
+  border-color:#D6E2DE;background:rgb(255 255 255 / 96%);box-shadow:0 10px 30px rgb(20 44 40 / 12%);
+}
+html[data-theme="light"] .mobile-workspace-nav a.is-active{background:#E5F1ED;color:#1A5147}
+html[data-theme="light"] .farm-map-site.active{border-color:#A8CCC1;background:#EAF3F0}
+html[data-theme="light"] .farm-map-site{background:#F6F9F8;color:var(--obs-text);border-color:#D5E0DD}
+html[data-theme="light"] .farm-map-site:hover{border-color:#8EB6AA}
+html[data-theme="light"] .farm-map-pin{background:#E2EEEA;color:var(--obs-accent)}
+html[data-theme="light"] .farm-map-footer{border-color:var(--obs-border)}
+html[data-theme="light"] .tower-alert-row:hover{background:#F1F6F4}
+html[data-theme="light"] .tower-alert-mark{background:#F3F7F6}
+html[data-theme="light"] .tower-alert-row.critical .tower-alert-mark{border-color:#EBC9C7;background:#FFF0EF}
+html[data-theme="light"] .tower-alert-row.warning .tower-alert-mark{border-color:#E6D8B7;background:#FFF7E7}
+html[data-theme="light"] .tower-alert-row.info .tower-alert-mark{border-color:#C5E1D9;background:#EAF5F1}
+html[data-theme="light"] .tower-onboarding{border-color:#D4E1DD;background:linear-gradient(120deg,#F8FBFA,#EEF4F2)}
+html[data-theme="light"] .tower-onboarding-links a{border-color:#C4DAD3;background:#EAF3F0}
+html[data-theme="light"] .tower-onboarding-links a:hover{background:#DFEEE8;border-color:var(--obs-accent)}
+html[data-theme="light"] .ops-live-app{background:#F4F7F7;color:#172326}
