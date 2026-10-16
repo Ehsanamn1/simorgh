@@ -1,6 +1,6 @@
 {
-  "name": "سیمرغ | مدیریت یکپارچه عملیات",
-  "short_name": "سیمرغ",
+  "name": "مدار | مدیریت یکپارچه مزرعه و عملیات",
+  "short_name": "مدار",
   "description": "سامانه‌ی یکپارچه‌ی مدیریت مزرعه، عملیات، سفارش، کیفیت، ارسال و امور مالی",
   "lang": "fa",
   "dir": "rtl",
@@ -12,8 +12,8 @@
     "minimal-ui"
   ],
   "orientation": "any",
-  "background_color": "#0B1012",
-  "theme_color": "#0B1012",
+  "background_color": "#101719",
+  "theme_color": "#101719",
   "icons": [
     {
       "src": "./simorgh-icon.svg",
