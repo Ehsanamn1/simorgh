@@ -31,9 +31,9 @@ R2 provisioning and the R2 binding have been removed per product decision. File/
 
 ## Current deployment and next candidate
 
-- **Live release:** [run 38981667956](https://github.com/Ehsanamn1/simorgh/actions/runs/38981667956) succeeded. Its pre-release typecheck, lint, unit tests, full browser acceptance suite, Worker build, migrations, deploy, and health/database/auth guard smoke checks all passed.
-- That release includes the username-auth hardening, password-change API, Medar data adapter rename, and removal of unused Supabase/Neon Auth SDK dependencies.
-- The current branch adds the self-service password-change dialog to the signed-in app. It is not live until the next tagged deployment completes.
+- **Latest live release:** [run 38982056018](https://github.com/Ehsanamn1/simorgh/actions/runs/38982056018) succeeded on commit `c186a8b7a0476261484d89ce91bf562b5d084219`.
+- Pre-release typecheck, lint, unit tests, full browser acceptance suite, Worker build, Neon migrations, deploy, and health/database/auth guard smoke checks all passed.
+- The live release includes the username-auth hardening, password-change API and signed-in self-service password-change dialog, Medar data adapter rename, and removal of unused Supabase/Neon Auth SDK dependencies.
 - `docs/MEDAR_7_PRIORITY_ACCEPTANCE.md` tracks all seven priorities and distinguishes implemented source from production acceptance gates.
 
 The password-change API requires the current password, limits attempts, hashes the replacement, revokes other sessions and records an audit event. The UI requires matching new-password entries and displays server errors.
