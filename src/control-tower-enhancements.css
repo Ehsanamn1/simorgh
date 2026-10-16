@@ -46,3 +46,23 @@ html[data-theme="light"] .ops-live-auth-trigger {
   }
   .ops-live-auth-trigger span { display: none; }
 }
+
+/* Persian is the product UI language; retain LTR only for identifiers and email inputs. */
+.obsidian-eyebrow,
+.signin-overline,
+.signin-brand-foot {
+  font-family: Vazirmatn, Tahoma, sans-serif;
+  direction: rtl;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.simorgh-signin-brand-top small {
+  direction: rtl;
+  letter-spacing: 0;
+  font-family: Vazirmatn, Tahoma, sans-serif;
+}
+.signin-brand-foot {
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
