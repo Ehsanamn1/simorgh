@@ -12,6 +12,7 @@ import {
 import { useAuth } from './lib/AuthContext';
 import { supabase, isSupabaseConfigured } from './lib/supabase';
 import { pageSectionLabel } from './lib/pageSections';
+import { goalProgressPercent, isGoalOverdue } from './lib/goals';
 import { OperationsWorkspacePage } from './OperationsPages';
 import OperationalWorkspace from './OperationalWorkspace';
 import { SimorghLogo as Logo } from './SimorghLogo';
@@ -236,8 +237,8 @@ function Dashboard({ membership }: { membership: Membership }) {
       <div className="panel-heading"><div><span className="section-number">۰۲</span><div><h3>اهداف و مسیر اجرا</h3><p>شاخص فعلی، مقدار هدف، موعد و مسئولیت؛ از دفتر اهداف مجموعه</p></div></div><Link className="tower-panel-link" to="/app/goals">مدیریت اهداف <ArrowLeft size={14}/></Link></div>
       {loading ? <div className="panel-loading"><span className="spinner small"/></div> : signals.goals.length ? <div className="tower-goal-list">{signals.goals.map(goal => {
         const baseline = Number(goal.baseline_value ?? 0), target = Number(goal.target_value ?? 0), current = Number(goal.current_value ?? 0);
-        const progress = target > baseline ? Math.max(0, Math.min(100, ((current - baseline) / (target - baseline)) * 100)) : null;
-        const isOverdue = Boolean(goal.due_date && String(goal.due_date) < todayForDisplay() && !['achieved','cancelled','paused'].includes(String(goal.status)));
+        const progress = goalProgressPercent(baseline, target, current);
+        const isOverdue = isGoalOverdue(goal.due_date ? String(goal.due_date) : null, todayForDisplay(), String(goal.status));
         return <Link className={'tower-goal-row' + (isOverdue ? ' overdue' : '')} to="/app/goals" key={String(goal.id)}>
           <span className="tower-goal-dot"><Target size={16}/></span><span className="tower-goal-main"><b>{String(goal.title ?? 'هدف بدون عنوان')}</b><small>{String(goal.due_date ? 'موعد ' + dateFa(String(goal.due_date)) : 'بدون موعد')} · {String(goal.unit ?? '')}</small></span>
           <span className="tower-goal-progress"><i><span style={{width:(progress ?? 0)+'%'}}/></i><b>{progress === null ? '—' : numberFa(String(Math.round(progress)))+'٪'}</b></span>
@@ -580,8 +581,8 @@ function GoalsPage({membership,search}:{membership:Membership;search:string}) {
    <div className="panel-heading"><div><span className="section-number">۰۱</span><div><h3>برنامه و شاخص‌ها</h3><p>اطلاعات از پایگاه داده و به‌صورت خودکار هر ۶۰ ثانیه تازه می‌شود.</p></div></div><Button variant="soft" onClick={()=>void load()} disabled={loading}><RefreshCw size={14}/> تازه‌سازی</Button></div>
    {loading?<div className="panel-loading"><span className="spinner small"/></div>:shown.length?<div className="goal-card-grid">{shown.map(r=>{
     const baseline=Number(r.baseline_value??0),target=Number(r.target_value??0),current=Number(r.current_value??0);
-    const progress=target>baseline?Math.max(0,Math.min(100,((current-baseline)/(target-baseline))*100)):null;
-    const overdue=Boolean(r.due_date&&String(r.due_date)<today&&!['achieved','cancelled','paused'].includes(String(r.status)));
+    const progress=goalProgressPercent(baseline,target,current);
+    const overdue=isGoalOverdue(r.due_date?String(r.due_date):null,today,String(r.status));
     const owner=members.find(m=>String(m.user_id)===String(r.owner_user_id));
     return <article className={`goal-card ${overdue?'overdue':''}`} key={String(r.id)}>
      <header className="goal-card-head"><span className="goal-category">{goalCategoryLabels[String(r.category)]??'سایر'}</span><Badge value={goalStatusLabels[String(r.status)]??r.status}/></header>
