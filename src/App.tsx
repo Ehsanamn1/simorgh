@@ -42,7 +42,7 @@ const navDefinitions: { key: PageKey; label: string; group: string; icon: typeof
   { key: 'supplier-settlement', label: 'تسویه‌های من', group: 'تأمین', icon: CreditCard, roles: ['supplier'] },
   { key: 'driver-work', label: 'محموله‌های من', group: 'ارسال', icon: Truck, roles: ['driver'] },
   { key: 'farm-sites', label: 'سایت‌های مزرعه', group: 'تولید مزرعه', icon: Warehouse, roles: ['owner', 'admin', 'staff', 'supplier'] },
-  { key: 'flock-cycles', label: 'چرخه‌های گله', group: 'تولید مزرعه', icon: Factory, roles: ['owner', 'admin', 'staff', 'supplier'] },
+  { key: 'flock-cycles', label: 'چرخه‌های کشت و پرورش', group: 'تولید مزرعه', icon: Factory, roles: ['owner', 'admin', 'staff', 'supplier'] },
   { key: 'production-batches', label: 'بچ‌های تولید', group: 'تولید مزرعه', icon: Package, roles: ['owner', 'admin', 'staff', 'supplier'] },
   { key: 'daily-production', label: 'ثبت روزانه تولید', group: 'تولید مزرعه', icon: Activity, roles: ['owner', 'admin', 'staff', 'supplier'] },
   { key: 'task-templates', label: 'دستورالعمل‌های کاری', group: 'وظایف و رخدادها', icon: ClipboardCheck, roles: ['owner', 'admin'] },
@@ -64,7 +64,7 @@ function WaitingAccess({ membershipsError }: { membershipsError: string | null }
 function MobileAccessScreen() {
   return <main className="mobile-access-screen" dir="rtl">
     <div className="mobile-access-mark"><Logo/></div>
-    <span className="obsidian-eyebrow">SIMORGH · PRIVATE WORKSPACE</span>
+    <span className="obsidian-eyebrow">مدار · فضای کاری خصوصی</span>
     <h1>مدار</h1>
     <p>مرکز عملیات شبکه‌ی تأمین</p>
     <div className="mobile-access-rule"><ShieldCheck size={17}/><span>اطلاعات عملیاتی فقط پس از تأیید هویت بارگذاری می‌شوند.</span></div>
