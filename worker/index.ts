@@ -749,18 +749,22 @@ app.post('/api/operations/:kind/:id/action', async c => {
       }
     }else if(kind==='partner-finance'&&action==='finance-transition'){
       const next=typeof data.nextStatus==='string'?data.nextStatus:'';
+      if(!manager)return jsonError(c,'تغییر وضعیت سند مالی فقط برای مالک یا مدیر مجاز است.',403);
+      const current=String(row.status);
       if(next==='submitted'){
-        if(!['owner','admin','staff'].includes(membership.role))return jsonError(c,'ارسال سند برای این نقش مجاز نیست.',403);
-        if(String(row.status)!=='draft')return jsonError(c,'فقط سند پیش‌نویس قابل ارسال است.',409);
+        if(current!=='draft')return jsonError(c,'فقط سند پیش‌نویس قابل ارسال است.',409);
         await sql`UPDATE public.partner_financial_entries SET status='submitted',submitted_by=${user.id}::uuid,submitted_at=now(),updated_at=now() WHERE id=${id}::uuid AND company_id=${companyId}::uuid`;
-      }else if(next==='approved'||next==='rejected'){
-        if(!manager)return jsonError(c,'تأیید یا رد سند فقط برای مالک یا مدیر مجاز است.',403);
-        if(String(row.status)!=='submitted')return jsonError(c,'فقط سند ارسال‌شده قابل بررسی است.',409);
-        if(next==='approved')await sql`UPDATE public.partner_financial_entries SET status='approved',approved_by=${user.id}::uuid,approved_at=now(),updated_at=now() WHERE id=${id}::uuid AND company_id=${companyId}::uuid`;
-        else await sql`UPDATE public.partner_financial_entries SET status='rejected',updated_at=now() WHERE id=${id}::uuid AND company_id=${companyId}::uuid`;
+      }else if(next==='approved'){
+        if(current!=='submitted')return jsonError(c,'فقط سند ارسال‌شده قابل تأیید است.',409);
+        await sql`UPDATE public.partner_financial_entries SET status='approved',approved_by=${user.id}::uuid,approved_at=now(),updated_at=now() WHERE id=${id}::uuid AND company_id=${companyId}::uuid`;
+      }else if(next==='rejected'){
+        if(!['draft','submitted','approved'].includes(current))return jsonError(c,'این سند در وضعیت فعلی قابل رد نیست.',409);
+        await sql`UPDATE public.partner_financial_entries SET status='rejected',updated_at=now() WHERE id=${id}::uuid AND company_id=${companyId}::uuid`;
+      }else if(next==='draft'){
+        if(current!=='rejected')return jsonError(c,'فقط سند ردشده را می‌توان به پیش‌نویس برگرداند.',409);
+        await sql`UPDATE public.partner_financial_entries SET status='draft',submitted_by=NULL,submitted_at=NULL,approved_by=NULL,approved_at=NULL,posted_by=NULL,posted_at=NULL,updated_at=now() WHERE id=${id}::uuid AND company_id=${companyId}::uuid`;
       }else if(next==='posted'){
-        if(!manager)return jsonError(c,'ثبت نهایی سند فقط برای مالک یا مدیر مجاز است.',403);
-        if(String(row.status)!=='approved')return jsonError(c,'فقط سند تأییدشده قابل ثبت نهایی است.',409);
+        if(current!=='approved')return jsonError(c,'فقط سند تأییدشده قابل ثبت نهایی است.',409);
         if(['sale_collection','partner_advance','settlement_payment'].includes(String(row.entry_type))&&(Number(row.paid_amount)!==Number(row.amount)||String(row.payment_status)!=='paid'||!String(row.external_reference??'').trim()))return jsonError(c,'سند نقدی بدون مبلغ کامل و مرجع پرداخت واقعی ثبت نهایی نمی‌شود.',400);
         await sql`UPDATE public.partner_financial_entries SET status='posted',posted_by=${user.id}::uuid,posted_at=now(),updated_at=now() WHERE id=${id}::uuid AND company_id=${companyId}::uuid`;
       }else return jsonError(c,'گذار وضعیت مالی معتبر نیست.',400);
