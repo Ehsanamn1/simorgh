@@ -1,4 +1,6 @@
 -- Operational integrity constraints and indexes ported from the later Supabase migrations.
+ALTER TABLE public.operational_tasks ADD COLUMN IF NOT EXISTS review_note text;
+
 -- RLS policies, triggers and auth.uid()-dependent functions are intentionally excluded; Worker APIs
 -- must enforce tenant membership and actor permissions explicitly.
 -- This migration is additive and idempotent where possible.
