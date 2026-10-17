@@ -1,9 +1,5 @@
 name: Deploy Simorgh to GitHub Pages
 on:
-  workflow_run:
-    workflows: ["Simorgh CI"]
-    types: [completed]
-    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -15,12 +11,12 @@ concurrency:
 
 jobs:
   build:
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ github.event_name == 'workflow_dispatch' && github.sha || github.event.workflow_run.head_sha }}
+          ref: ${{ github.sha }}
       - uses: actions/setup-node@v7
         with:
           node-version: 22
@@ -37,8 +33,6 @@ jobs:
       - name: Build for GitHub Pages
         run: npm run build:pages
         env:
-          VITE_SUPABASE_URL: https://aoxerjimfiwusidaparx.supabase.co
-          VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_oTgVCJWw9BfK-kFUxTcaMQ_aeAUWXC5
           VITE_ENABLE_AUTH_UI: 'true'
       - name: Prepare SPA routing fallback
         run: |
@@ -107,7 +101,7 @@ jobs:
       - name: Checkout source for the browser runtime smoke test
         uses: actions/checkout@v7
         with:
-          ref: ${{ github.event_name == 'workflow_dispatch' && github.sha || github.event.workflow_run.head_sha }}
+          ref: ${{ github.sha }}
 
       - name: Install Chromium for published application test
         uses: actions/setup-node@v7
@@ -137,7 +131,7 @@ jobs:
             await page.locator('.simorgh-signin-layer').waitFor({ state: 'visible', timeout: 20000 });
             if (await page.locator('.ops-live-app, .ops-live-bottom-nav, .app-frame').count()) throw new Error('Guest operation preview or protected app rendered behind sign-in.');
             await page.getByRole('heading', { name: 'ورود به مدار' }).waitFor({ state: 'visible' });
-            if (await page.locator('#simorgh-signin-email').count() !== 1) throw new Error('The secure sign-in email field did not render.');
+            if (await page.locator('#simorgh-signin-username').count() !== 1) throw new Error('The username sign-in field did not render.');
             if (await page.locator('#simorgh-signin-password').count() !== 1) throw new Error('The secure sign-in password field did not render.');
             if (errors.length) throw new Error('Browser runtime error: ' + errors.join(' | '));
 
@@ -146,7 +140,7 @@ jobs:
             await page.locator('.simorgh-signin-layer').waitFor({ state: 'visible', timeout: 20000 });
             if (await page.locator('.ops-live-app, .ops-live-bottom-nav, .app-frame').count()) throw new Error('The mobile guest preview rendered behind sign-in.');
             if (await page.locator('.simorgh-signin-layer').count() !== 1) throw new Error('The mobile app did not show the secure sign-in gate.');
-            if (await page.locator('#simorgh-signin-email').count() !== 1) throw new Error('The mobile sign-in form is missing.');
+            if (await page.locator('#simorgh-signin-username').count() !== 1) throw new Error('The mobile sign-in form is missing.');
             const widths = await page.evaluate(() => ({ viewport: innerWidth, document: document.documentElement.scrollWidth, body: document.body.scrollWidth }));
             if (widths.document > widths.viewport || widths.body > widths.viewport) throw new Error('Mobile horizontal overflow: ' + JSON.stringify(widths));
             if (errors.length) throw new Error('Browser runtime error after mobile reload: ' + errors.join(' | '));
