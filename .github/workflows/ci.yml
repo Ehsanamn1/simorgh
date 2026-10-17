@@ -45,7 +45,8 @@ jobs:
             worker/migrations/0006_core_data_api.sql \
             worker/migrations/0007_existing_medar_schema_compat.sql \
             worker/migrations/0008_operational_task_actions.sql \
-            worker/migrations/0009_inventory_movement_concurrency_lock.sql; do
+            worker/migrations/0009_inventory_movement_concurrency_lock.sql \
+            worker/migrations/0010_purchase_order_lifecycle.sql; do
             echo "Applying $migration"
             psql -h 127.0.0.1 -U postgres -d medar_test -v ON_ERROR_STOP=1 -1 -f "$migration"
           done
@@ -63,9 +64,14 @@ jobs:
               to_regprocedure('public.medar_allocate_order_item(uuid,uuid,uuid,uuid)') is not null and
               to_regprocedure('public.medar_start_operational_task(uuid,uuid)') is not null and
               to_regprocedure('public.medar_create_partner_settlement_period(uuid,uuid,date,date)') is not null and
-              position('pg_advisory_xact_lock' in pg_get_functiondef(to_regprocedure('public.medar_record_inventory_movement(uuid,uuid,uuid,text,numeric,numeric,uuid,uuid,uuid,text,text)'))) > 0
+              position('pg_advisory_xact_lock' in pg_get_functiondef(to_regprocedure('public.medar_record_inventory_movement(uuid,uuid,uuid,text,numeric,numeric,uuid,uuid,uuid,text,text)'))) > 0 and
+              to_regclass('public.purchase_orders') is not null and
+              to_regclass('public.purchase_order_items') is not null and
+              to_regprocedure('public.medar_create_purchase_order(uuid,uuid,uuid,text,jsonb,date,text)') is not null and
+              to_regprocedure('public.medar_approve_purchase_order(uuid,uuid,uuid)') is not null and
+              to_regprocedure('public.medar_receive_purchase_order(uuid,uuid,uuid,jsonb,text,text)') is not null
             )" | grep -qx t
-      - name: Exercise concurrent inventory deductions on PostgreSQL
+      - name: Exercise concurrent stock deductions and purchase-order receipt lifecycle
         env:
           PGPASSWORD: medar_test_password
         shell: bash
@@ -74,15 +80,18 @@ jobs:
           company_id="00000000-0000-4000-8000-000000000022"
           actor_id="00000000-0000-4000-8000-000000000011"
           product_id="00000000-0000-4000-8000-000000000033"
+          supplier_id="00000000-0000-4000-8000-000000000044"
           psql -h 127.0.0.1 -U postgres -d medar_test -v ON_ERROR_STOP=1 <<'SQL'
           INSERT INTO public.companies (id,name) VALUES
-            ('00000000-0000-4000-8000-000000000022','CI inventory concurrency company');
+            ('00000000-0000-4000-8000-000000000022','CI procurement lifecycle company');
           INSERT INTO public.medar_users (id,username,username_normalized,phone_e164,display_name,password_hash) VALUES
-            ('00000000-0000-4000-8000-000000000011','ci.inventory','ci.inventory','+989190000011','CI inventory owner','not-a-login-hash');
+            ('00000000-0000-4000-8000-000000000011','ci.inventory','ci.inventory','+989190000011','CI procurement owner','not-a-login-hash');
           INSERT INTO public.memberships (company_id,user_id,role,active,created_by) VALUES
             ('00000000-0000-4000-8000-000000000022','00000000-0000-4000-8000-000000000011','owner',true,'00000000-0000-4000-8000-000000000011');
           INSERT INTO public.products (id,company_id,sku,name,kind,unit) VALUES
-            ('00000000-0000-4000-8000-000000000033','00000000-0000-4000-8000-000000000022','CI-STOCK-LOCK','CI stock lock probe','other','unit');
+            ('00000000-0000-4000-8000-000000000033','00000000-0000-4000-8000-000000000022','CI-STOCK-LOCK','CI stock and purchase-order probe','other','unit');
+          INSERT INTO public.suppliers (id,company_id,name) VALUES
+            ('00000000-0000-4000-8000-000000000044','00000000-0000-4000-8000-000000000022','CI Purchase Supplier');
           INSERT INTO public.inventory_movements (company_id,product_id,movement_type,quantity,reference_code,note,recorded_by) VALUES
             ('00000000-0000-4000-8000-000000000022','00000000-0000-4000-8000-000000000033','adjustment_in',10,'ci-seed-stock-lock','CI stock lock seed','00000000-0000-4000-8000-000000000011');
           CREATE FUNCTION public.ci_pause_inventory_race() RETURNS trigger LANGUAGE plpgsql AS $$
@@ -106,26 +115,88 @@ jobs:
           [[ "$second_status" -eq 0 ]] && successes=$((successes+1))
           if [[ "$successes" -ne 1 ]]; then
             cat "$RUNNER_TEMP/stock-race-a.log" "$RUNNER_TEMP/stock-race-b.log"
-            echo "Expected exactly one of two simultaneous quantity-7 deductions against stock 10 to succeed; succeeded: $successes."
+            echo "Expected exactly one simultaneous quantity-7 deduction against stock 10 to succeed; succeeded: $successes."
             exit 1
           fi
           stock_ok="$(psql -h 127.0.0.1 -U postgres -d medar_test -v ON_ERROR_STOP=1 -Atqc "select (quantity_on_hand = 3)::text from public.inventory_balances where company_id='$company_id' and product_id='$product_id'")"
           if [[ "$stock_ok" != "true" ]]; then
-            psql -h 127.0.0.1 -U postgres -d medar_test -c "select movement_type,quantity,reference_code from public.inventory_movements where company_id='$company_id' and product_id='$product_id' order by created_at"
+            cat "$RUNNER_TEMP/stock-race-a.log" "$RUNNER_TEMP/stock-race-b.log"
             echo "Concurrent deduction left an invalid stock balance."
             exit 1
           fi
+
+          psql -h 127.0.0.1 -U postgres -d medar_test -v ON_ERROR_STOP=1 <<'SQL'
+          DO $ci$
+          DECLARE
+            actor_id uuid := '00000000-0000-4000-8000-000000000011';
+            company_id uuid := '00000000-0000-4000-8000-000000000022';
+            product_id uuid := '00000000-0000-4000-8000-000000000033';
+            supplier_id uuid := '00000000-0000-4000-8000-000000000044';
+            po_id uuid;
+            line_id uuid;
+            status_value text;
+            qty_value numeric;
+            item_payload jsonb;
+          BEGIN
+            po_id := public.medar_create_purchase_order(
+              actor_id,company_id,supplier_id,'CI-PO-0001',
+              jsonb_build_array(jsonb_build_object('product_id',product_id::text,'quantity',10,'unit_cost',125)),
+              current_date+7,'CI purchase-order end-to-end test'
+            );
+            PERFORM public.medar_approve_purchase_order(actor_id,company_id,po_id);
+            SELECT id INTO line_id FROM public.purchase_order_items
+              WHERE company_id=company_id AND purchase_order_id=po_id;
+            PERFORM public.medar_receive_purchase_order(
+              actor_id,company_id,po_id,
+              jsonb_build_array(jsonb_build_object('purchase_order_item_id',line_id::text,'quantity_received',4)),
+              'CI-RECEIPT-PARTIAL','CI partial receipt'
+            );
+            SELECT po.status,poi.received_quantity INTO status_value,qty_value
+              FROM public.purchase_orders po JOIN public.purchase_order_items poi ON poi.purchase_order_id=po.id
+              WHERE po.id=po_id;
+            IF status_value<>'partially_received' OR qty_value<>4 THEN
+              RAISE EXCEPTION 'Partial receipt state incorrect: status %, quantity %',status_value,qty_value;
+            END IF;
+            PERFORM public.medar_receive_purchase_order(
+              actor_id,company_id,po_id,
+              jsonb_build_array(jsonb_build_object('purchase_order_item_id',line_id::text,'quantity_received',6)),
+              'CI-RECEIPT-FINAL','CI final receipt'
+            );
+            SELECT po.status,poi.received_quantity INTO status_value,qty_value
+              FROM public.purchase_orders po JOIN public.purchase_order_items poi ON poi.purchase_order_id=po.id
+              WHERE po.id=po_id;
+            IF status_value<>'received' OR qty_value<>10 THEN
+              RAISE EXCEPTION 'Final receipt state incorrect: status %, quantity %',status_value,qty_value;
+            END IF;
+            BEGIN
+              PERFORM public.medar_receive_purchase_order(
+                actor_id,company_id,po_id,
+                jsonb_build_array(jsonb_build_object('purchase_order_item_id',line_id::text,'quantity_received',1)),
+                'CI-RECEIPT-OVERFLOW','This must be rejected'
+              );
+              RAISE EXCEPTION 'Over-receipt was incorrectly accepted';
+            EXCEPTION WHEN OTHERS THEN
+              IF SQLERRM='Over-receipt was incorrectly accepted' THEN RAISE; END IF;
+            END;
+            SELECT quantity_on_hand INTO qty_value FROM public.inventory_balances
+              WHERE company_id=company_id AND product_id=product_id;
+            IF qty_value<>13 THEN RAISE EXCEPTION 'Expected stock 13 after one deduction and ten received units; got %',qty_value; END IF;
+          END $ci$;
+          SQL
+
           psql -h 127.0.0.1 -U postgres -d medar_test -v ON_ERROR_STOP=1 <<'SQL'
           DROP TRIGGER ci_pause_inventory_race ON public.inventory_movements;
           DROP FUNCTION public.ci_pause_inventory_race();
           DELETE FROM public.audit_events WHERE company_id='00000000-0000-4000-8000-000000000022';
+          DELETE FROM public.purchase_orders WHERE company_id='00000000-0000-4000-8000-000000000022';
           DELETE FROM public.inventory_movements WHERE company_id='00000000-0000-4000-8000-000000000022';
           DELETE FROM public.products WHERE id='00000000-0000-4000-8000-000000000033';
+          DELETE FROM public.suppliers WHERE id='00000000-0000-4000-8000-000000000044';
           DELETE FROM public.memberships WHERE company_id='00000000-0000-4000-8000-000000000022';
           DELETE FROM public.medar_users WHERE id='00000000-0000-4000-8000-000000000011';
           DELETE FROM public.companies WHERE id='00000000-0000-4000-8000-000000000022';
           SQL
-          echo "Concurrent stock deductions were serialized; exactly one deduction succeeded and stock remained nonnegative."
+          echo "Concurrent deductions, purchase-order approval, partial/final receipt, stock ledger updates, and over-receipt rejection all passed."
       - name: Summarize all dependency advisories
         shell: bash
         run: |
