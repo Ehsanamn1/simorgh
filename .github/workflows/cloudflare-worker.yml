@@ -22,7 +22,24 @@ jobs:
       - run: npm run typecheck
       - run: npm run lint
       - run: npm run test
-      - run: npm run build
+      - name: Build same-origin Worker app with secure sign-in enabled
+        run: npm run build
+        env:
+          VITE_ENABLE_AUTH_UI: 'true'
+      - name: Verify the Worker bundle includes sign-in and the polished operations UI
+        shell: bash
+        run: |
+          test -f dist/index.html
+          grep -q 'id="root"' dist/index.html
+          js_file="$(find dist/assets -maxdepth 1 -type f -name '*.js' -print -quit)"
+          css_file="$(find dist/assets -maxdepth 1 -type f -name '*.css' -print -quit)"
+          test -n "$js_file" && test -s "$js_file"
+          test -n "$css_file" && test -s "$css_file"
+          grep -q 'ورود به مدار' "$js_file"
+          grep -q 'simorgh-signin-layer' "$js_file"
+          grep -q 'tower-quick-grid' "$css_file"
+          grep -q 'medar-glass' "$css_file"
+          echo "Worker frontend includes secure sign-in and the polished operations styles."
       - name: Validate deployment credentials
         shell: bash
         run: |
@@ -104,6 +121,28 @@ jobs:
           fi
           response="$(curl --fail --silent --show-error --retry 10 --retry-all-errors --retry-delay 3 "$worker_url/api/health")"
           printf '%s' "$response" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const x=JSON.parse(s);if(x.status!=='ok' && x.ok!==true && x.healthy!==true){console.error('Unexpected health response:',s);process.exit(1)}console.log('Live Worker health OK:',s)})"
+          name="$(curl --fail --silent --show-error --retry 5 --retry-all-errors --retry-delay 2 "$worker_url/")"
+          printf '%s' "$name" | grep -q 'id="root"' || { echo "The live Worker root is missing the frontend root element."; exit 1; }
+          asset_results="$(WORKER_URL="$worker_url" node --input-type=module <<'NODE'
+          const base = process.env.WORKER_URL;
+          const htmlResponse = await fetch(base + '/');
+          if (!htmlResponse.ok) throw new Error('Root HTML failed: ' + htmlResponse.status);
+          const html = await htmlResponse.text();
+          const scriptPath = html.match(/src="([^"]+\.js)"/)?.[1];
+          const cssPath = html.match(/href="([^"]+\.css)"/)?.[1];
+          if (!scriptPath || !cssPath) throw new Error('Root HTML is missing JS/CSS assets.');
+          const resolve = path => new URL(path, base + '/').toString();
+          const [jsResponse, cssResponse] = await Promise.all([fetch(resolve(scriptPath)), fetch(resolve(cssPath))]);
+          if (!jsResponse.ok || !cssResponse.ok) throw new Error('Frontend assets failed: JS ' + jsResponse.status + ', CSS ' + cssResponse.status);
+          const [js, css] = await Promise.all([jsResponse.text(), cssResponse.text()]);
+          for (const token of ['ورود به مدار', 'simorgh-signin-layer']) if (!js.includes(token)) throw new Error('Live JS bundle missing required sign-in UI token: ' + token);
+          for (const token of ['tower-quick-grid', 'medar-glass']) if (!css.includes(token)) throw new Error('Live CSS bundle missing required design token: ' + token);
+          const appRoute = await fetch(base + '/app/command');
+          if (!appRoute.ok || !(await appRoute.text()).includes('id="root"')) throw new Error('SPA deep-link fallback failed for /app/command');
+          console.log('Live frontend assets and /app/command deep link OK');
+          NODE
+          )" || { echo "Live frontend smoke test failed."; exit 1; }
+          echo "$asset_results"
           me_response="$(curl --fail --silent --show-error "$worker_url/api/auth/me")"
           printf '%s' "$me_response" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const x=JSON.parse(s);if(x.user!==null||!Array.isArray(x.memberships)){console.error('Unexpected unauthenticated session response:',s);process.exit(1)}console.log('Unauthenticated session shape OK')})"
           membership_status="$(curl --silent --show-error --output "$RUNNER_TEMP/medar-memberships.json" --write-out '%{http_code}' "$worker_url/api/workspace/memberships")"
