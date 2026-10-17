@@ -54,7 +54,35 @@ jobs:
             psql "$MEDAR_DATABASE_URL" -v ON_ERROR_STOP=1 -1 -f "$migration"
             psql "$MEDAR_DATABASE_URL" -v ON_ERROR_STOP=1 -c "insert into public.medar_schema_migrations(version,checksum) values ('$version','$checksum')"
           done
-      - name: Ensure private R2 bucket exists
+            - name: Verify required Medar RPCs and migration ledger
+        shell: bash
+        run: |
+          readiness="$(psql "$MEDAR_DATABASE_URL" -v ON_ERROR_STOP=1 -Atqc "
+            select (
+              to_regclass('public.medar_users') is not null and
+              to_regclass('public.medar_sessions') is not null and
+              to_regclass('public.medar_rate_limits') is not null and
+              to_regclass('public.medar_audit_log') is not null and
+              to_regclass('public.company_invites') is not null and
+              to_regclass('public.medar_files') is not null and
+              to_regprocedure('public.medar_allocate_order_item(uuid,uuid,uuid,uuid)') is not null and
+              to_regprocedure('public.medar_record_inventory_movement(uuid,uuid,uuid,text,numeric,numeric,uuid,uuid,uuid,text,text)') is not null and
+              to_regprocedure('public.medar_record_quality_review(uuid,uuid,uuid,text,text,jsonb)') is not null and
+              to_regprocedure('public.medar_start_operational_task(uuid,uuid)') is not null and
+              to_regprocedure('public.medar_submit_operational_task(uuid,uuid,text)') is not null and
+              to_regprocedure('public.medar_review_operational_task(uuid,uuid,text,text)') is not null and
+              to_regprocedure('public.medar_create_partner_settlement_period(uuid,uuid,date,date)') is not null and
+              to_regprocedure('public.medar_refresh_partner_settlement_period(uuid,uuid)') is not null and
+              to_regprocedure('public.medar_approve_partner_settlement_period(uuid,uuid)') is not null and
+              to_regprocedure('public.medar_record_partner_settlement_payment(uuid,uuid,numeric,text,timestamptz)') is not null and
+              (select count(*) from public.medar_schema_migrations where version in ('0007_existing_medar_schema_compat.sql','0008_operational_task_actions.sql')) = 2
+            )
+          ")"
+          if [[ "$readiness" != "t" ]]; then
+            echo "Neon schema is missing a required table, versioned migration, or Worker RPC. Refusing deployment."
+            exit 1
+          fi
+- name: Ensure private R2 bucket exists
         working-directory: worker
         shell: bash
         run: |
