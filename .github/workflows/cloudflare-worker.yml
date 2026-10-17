@@ -101,4 +101,14 @@ jobs:
         run: printf '%s' "$MEDAR_DATABASE_URL" | npx wrangler@4 secret put DATABASE_URL
       - name: Deploy Worker
         working-directory: worker
-        run: npx wrangler@4 deploy --name medar-api
+        run: npx wrangler@4 deploy --name medar-api 2>&1 | tee /tmp/medar-deploy.log
+      - name: Smoke-test the live Worker
+        shell: bash
+        run: |
+          worker_url="$(grep -Eo 'https://medar-api\.[a-z0-9-]+\.workers\.dev' /tmp/medar-deploy.log 2>/dev/null | tail -n1 || true)"
+          if [[ -z "$worker_url" ]]; then
+            echo "Could not resolve the deployed workers.dev URL from Wrangler output."
+            exit 1
+          fi
+          response="$(curl --fail --silent --show-error --retry 10 --retry-all-errors --retry-delay 3 "$worker_url/api/health")"
+          printf '%s' "$response" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const x=JSON.parse(s);if(x.status!=='ok' && x.ok!==true && x.healthy!==true){console.error('Unexpected health response:',s);process.exit(1)}console.log('Live Worker health OK:',s)})"
