@@ -939,12 +939,13 @@ function WorkspaceGate() {
     if (!membershipsLoading) setResolvedUserId(user.id);
   }, [user?.id, membershipsLoading]);
 
-  // Auth UI is opt-in for this public showcase build. The API still protects every
-  // operational endpoint; guests are sent to an explicitly read-only demo shell.
+  // Public showcase builds must never expose the live workspace, including when an
+  // old browser session exists. Enabling auth UI is explicit and restores the guarded app.
   const authUiEnabled = import.meta.env.VITE_ENABLE_AUTH_UI === 'true';
+  if (!authUiEnabled) return <Navigate to="/demo" replace/>;
   if (!user && loading) return <LoadingScreen label="در حال بررسی نشست امن…"/>;
   if (user && resolvedUserId !== user.id) return <LoadingScreen label="در حال بررسی سطح دسترسی…"/>;
-  return user ? <AppShell/> : authUiEnabled ? null : <Navigate to="/demo" replace/>;
+  return user ? <AppShell/> : null;
 }
 
 export default function App() {
