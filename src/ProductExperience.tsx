@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Activity, ArrowLeft, Boxes, Building2, Check, ClipboardCheck, CreditCard, Factory, FileText, Home, LayoutDashboard, ListTodo, MapPin, Menu, Package, ShieldCheck, Target, Truck, Warehouse, X, UserPlus, Eye, EyeOff } from 'lucide-react';
+import { Activity, ArrowLeft, Boxes, Building2, Check, ClipboardCheck, CreditCard, Factory, FileText, Home, LayoutDashboard, ListTodo, MapPin, Menu, Moon, Package, ShieldCheck, Sun, Target, Truck, Warehouse, X, UserPlus, Eye, EyeOff } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useAuth } from './lib/AuthContext';
+import { useAppTheme } from './lib/ThemeContext';
 import { api } from './lib/apiClient';
 import { normalizeIranPhone } from './lib/phone';
 import { MedarLogo } from './MedarLogo';
@@ -43,6 +44,7 @@ function readAllowedLinks(): NavigationEntry[] {
 /** Secure operational sign-in. Self-registration creates an isolated owner workspace; joining an existing workspace requires an invitation. */
 export default function ProductExperience() {
   const { user, loading, memberships, refreshSession, error: sessionError } = useAuth();
+  const { theme, setTheme } = useAppTheme();
   const location = useLocation();
   const navigate = useNavigate();
   const [appMain, setAppMain] = useState<HTMLElement | null>(null);
@@ -245,10 +247,13 @@ export default function ProductExperience() {
         <div className="simorgh-signin-form-area">
           {!protectedRoute && <button type="button" className="signin-close" onClick={closeSignIn} aria-label="بستن ورود"><X size={20}/></button>}
           <div className="simorgh-signin-form-card" dir="rtl">
-            <MedarLogo compact className="signin-form-logo"/>
+            <div className="signin-form-toolbar">
+              <MedarLogo compact className="signin-form-logo"/>
+              <button type="button" className="signin-theme-toggle" onClick={() => setTheme(current => current === 'dark' ? 'light' : 'dark')} aria-pressed={theme === 'light'} aria-label={theme === 'dark' ? 'فعال‌کردن حالت روشن' : 'فعال‌کردن حالت تاریک'} title={theme === 'dark' ? 'فعال‌کردن حالت روشن' : 'فعال‌کردن حالت تاریک'}>{theme === 'dark' ? <Sun size={17}/> : <Moon size={17}/>}</button>
+            </div>
             <span className="signin-overline">{mode === 'signup' ? 'ثبت‌نام مجموعه' : 'ورود امن'}</span>
             <h2 id="simorgh-signin-title">{mode === 'signup' ? 'ساخت حساب و فضای کاری' : 'ورود به مدار'}</h2>
-            <p>{mode === 'signup' ? 'با نام کاربری، شماره موبایل و گذرواژه ثبت‌نام کن؛ می‌توانی مجموعه جدید بسازی یا با کد دعوت به یک مجموعه بپیوندی.' : 'با نام کاربری و گذرواژه وارد مدار شو. ایمیل و تأیید پیامکی برای ورود لازم نیست.'}</p>
+            <p>{mode === 'signup' ? 'با نام کاربری، شماره موبایل و گذرواژه ثبت‌نام کن؛ می‌توانی مجموعه جدید بسازی یا با کد دعوت به یک مجموعه بپیوندی.' : 'با شماره موبایل ایران یا نام کاربری و گذرواژه وارد مدار شو. ایمیل و تأیید پیامکی برای ورود لازم نیست.'}</p>
             {sessionError && <div className="auth-feedback error session-connection-error" role="status">
               <span>{sessionError}</span>
               <button type="button" className="auth-text-action" onClick={() => void refreshSession()} disabled={loading}>تلاش دوباره برای اتصال</button>
