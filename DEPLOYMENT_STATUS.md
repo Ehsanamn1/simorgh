@@ -1,71 +1,50 @@
-# Simorgh deployment status
+# Deployment status
 
-Checked: 2026-10-15.
+## Live deployment
 
-## Published application
+- **Medar Worker:** https://medar-api.dengxiao445.workers.dev
+- **Health endpoint:** https://medar-api.dengxiao445.workers.dev/api/health
+- **Latest successful release:** [GitHub Actions run 38979401130](https://github.com/Ehsanamn1/simorgh/actions/runs/38979401130)
+- **Verified health response:** `{"ok":true,"service":"medar-api","database":true,"auth":"username-password"}`
+- **Neon migrations:** `worker/migrations/0001` through `0006` completed successfully against the isolated migration branch.
+- **Authentication guard smoke checks:** passed for unauthenticated `/api/auth/me` (401), protected `/api/workspace/memberships` (401), and invalid signup payload validation (400).
+- **CI:** Worker CI, Simorgh CI, Android, and iOS checks on the deployment repair commit passed.
 
-- **Live URL:** https://ehsanamn1.github.io/simorgh/
-- **Latest verified runtime commit:** `bd29c4dc91b0ef600f048d5671843463cce388ec`.
-- **Successful CI:** [Run 38770634676](https://github.com/Ehsanamn1/simorgh/actions/runs/38770634676).
-- **Successful deployment:** [Run 38770881239](https://github.com/Ehsanamn1/simorgh/actions/runs/38770881239).
-- Frontend uses React 19, TypeScript, Vite, React Router and custom responsive CSS. Static hosting is GitHub Pages; Vercel is not used.
-- Supabase project `aoxerjimfiwusidaparx` in `eu-central-1` is connected by its Project URL and a browser-safe publishable key. The core migration created 18 app tables with RLS enabled, and the initial company `شبکه سیمرغ` exists.
-- Creation of the Supabase project was confirmed at $0/month. Free-tier limits and any ancillary services remain subject to their terms/limits.
+The Worker and API are online. GitHub Pages remains available as a fallback while the migration branch is reviewed. This successful health/auth-guard smoke test is not a substitute for a real account signup/login/logout and role-by-role authorization acceptance test.
 
-## Automated verification
+## Cloudflare/Neon migration
 
-On the verified runtime commit, the latest completed CI reported:
+The release workflow targets only the isolated Neon migration endpoint with host prefix `ep-wild-mountain-baaweix2`; it refuses to migrate a different endpoint. Credentials, typecheck, lint, unit tests, browser acceptance tests, and production build run before migrations.
 
-- TypeScript typecheck: **passed**
-- ESLint: **passed**
-- Vitest unit tests: **4 passed**
-- Playwright browser tests: **27 passed** across desktop Chromium (1365×900), mobile Chromium (390×844), and compact mobile Chromium (360×800)
-- Production dependency audit: **0 production vulnerabilities reported**
-- Vite production build for the Pages `/simorgh/` base path: **passed**
-- Deploy build and GitHub Pages deployment: **passed**
+## Storage decision
 
-The browser suite verifies:
-- Public root has no login, signup or password-reset fields/buttons.
-- Manager, supplier/farm, driver/transport and customer role cards exist.
-- Each role opens its own labelled structural preview and expected menu/capability.
-- Direct navigation to an `/app/...` URL without a session returns the public portal, not the operational panel.
-- No horizontal overflow is present at the three tested viewports.
-- Covered flows have no uncaught browser exceptions.
-- Four desktop role-preview screenshots are saved in the CI artifact together with the portal screenshots and Playwright HTML report.
+R2 provisioning and the R2 binding have been removed per product decision. File/evidence upload and retrieval paths that depend on R2 remain unavailable until an alternative storage provider is implemented. No R2 bucket is created by the deployment workflow.
 
-These tests verify the public role-screening interface. They are not a security certification and do not replace role-by-role tests with real Supabase accounts.
+## Remaining production-readiness gates
 
-## Public UI behavior
+- Test a real temporary account through signup, login, session persistence, logout, and negative role/access cases.
+- Verify data mapping and migration plan before moving existing Supabase operational data; existing Supabase data has not been migrated or deleted.
+- Keep file/evidence upload and retrieval disabled until an alternative storage backend is implemented.
+- No SMS OTP, email recovery, bank transfer execution, or external integration is claimed as active.
+- Keep PR #26 in Draft until these remaining acceptance/security gates are reviewed. Do not remove the GitHub Pages fallback until the broader cutover is approved.
 
-- The root page is a Persian RTL, motion-enhanced workspace selector.
-- It has four structural previews: manager/owner Control Tower, supplier/farm partner, driver/transport contractor and organizational customer.
-- Motion includes orbit rings, animated production/order/delivery/settlement nodes, section reveal and hover/focus transitions. CSS honors `prefers-reduced-motion`.
-- Public login, signup and password-reset UI are disabled per the current product decision.
-- Selecting a role only shows a preview; it does not create a session, grant permissions or query private operational records.
-- Existing protected application routes and Supabase session/membership logic remain in source code. A verified user and valid active company membership are required to reach the real operational workspace.
 
-## Required before real operational use
+## Current deployment and next candidate
 
-1. Create/invite the trusted first owner through a controlled Supabase Dashboard procedure. The last database check showed no registered users or owner membership.
-2. When onboarding is ready, deliberately grant that verified user the first `owner` membership. Do not grant roles based on public card selection.
-3. Re-enable an appropriate secure sign-in/onboarding flow before expecting users to reach the existing protected workspaces.
-4. Create separate test accounts for owner/staff/customer/supplier/driver and prove negative access cases: one customer cannot read another customer; a supplier cannot view another partner; a driver cannot view unassigned jobs; IDs and URLs cannot bypass RLS.
-5. Test file upload/read policies, capacity race conditions, order/shipment state transitions, required delivery evidence and adjustment/audit behavior before processing live records.
+- **Latest live release:** [run 38982749400](https://github.com/Ehsanamn1/simorgh/actions/runs/38982749400) succeeded on commit `984439c4334b724b09c10643c296a3c02bfbd9a8`.
+- Pre-release typecheck, lint, unit tests, full browser acceptance suite, Worker build, Neon migrations, deploy, and health/database/auth guard smoke checks all passed.
+- The live release includes the username-auth hardening, password-change API and signed-in self-service password-change dialog, Medar data adapter rename, and removal of unused Supabase/Neon Auth SDK dependencies.
+- The live release also includes the company alert inbox API and RTL UI for overdue orders/tasks/invoices, submitted tasks, failed shipments and expiring farm licenses. Access-request alerts are returned only to owners/admins; the endpoint itself is restricted to owner/admin/staff.
+- `docs/MEDAR_7_PRIORITY_ACCEPTANCE.md` tracks all seven priorities and distinguishes implemented source from production acceptance gates.
 
-## Known product gaps from the master prompt
+The password-change API requires the current password, limits attempts, hashes the replacement, revokes other sessions and records an audit event. The UI requires matching new-password entries and displays server errors.
 
-- Farm sites/facilities, flock cycles, daily production records, feed/mortality/egg grading measurements, task templates, scheduled tasks, task evidence and escalation flows are not fully implemented.
-- No transaction-ledger inventory/procurement lifecycle exists yet.
-- Existing finance tables support internal invoice/settlement state, but the contract-versioned 50/50 partnership reconciliation engine described in the master prompt is not implemented end-to-end. Bank transfers are not performed or verified.
-- Driver tools are currently a partial foundation; actual GPS tracking, stale-position handling, native/background tracking validation, job acceptance, offline synchronization and carrier statements remain incomplete.
-- AI agents, approval inbox, tool allowlists, run audit/history, retryable background jobs and notification delivery integrations are not configured as a complete subsystem.
-- No live camera, external GPS device, SMS, payment gateway or AI provider integration is claimed as active.
-- Supabase security advisors have surfaced guarded SECURITY DEFINER RPC and RLS/index recommendations. Review the function bodies and policy behavior with real roles before scaling. No independent security audit has been performed.
+A subsequent live account-lifecycle smoke attempt ([run 38983200554](https://github.com/Ehsanamn1/simorgh/actions/runs/38983200554)) failed because the workflow script escaped the generated username incorrectly; the initial Worker health/database/auth-guard checks passed. The script was corrected in commit `c9f7772` and its Worker/Simorgh/Android/iOS CI checks are green, but the full live lifecycle test has not yet passed on a rerun.
 
-## Deployment pipeline and safety
+## Remaining production-readiness gates
 
-- `.github/workflows/ci.yml`: typecheck, lint, unit tests, dependency audit, Pages-base build, Chromium install, responsive browser tests and test artifacts.
-- `.github/workflows/pages.yml`: deployment is gated on a successful CI run.
-- Optional Cloudflare Pages workflow is retained in `.github/workflows/deploy.yml`; it requires Cloudflare credentials.
-- Do not put a Supabase secret/service-role key in a browser variable or commit a private key to Git.
-- Do not seed mock operational records into the real production database.
+- Test a real temporary account through signup, login, session persistence, password change and logout, plus positive/negative role access cases.
+- Verify data mapping and migration plan before moving existing Supabase operational data; existing operational data has not been migrated or deleted.
+- R2-backed file/evidence paths remain unavailable until an alternative storage backend is selected and implemented.
+- No SMS OTP, email recovery, bank transfer execution, or external integration is claimed as active.
+- Keep PR #26 in Draft and GitHub Pages as fallback until the remaining acceptance/security/data migration gates pass.

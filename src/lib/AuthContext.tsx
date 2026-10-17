@@ -1,71 +1,76 @@
 import type * as React from 'react';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import type { Session, User } from '@supabase/supabase-js';
+import { api } from './apiClient';
 import type { Membership } from './types';
-import { supabase } from './supabase';
 
+type UserShape = {
+  id: string;
+  username: string;
+  email?: string;
+  phone?: string;
+  display_name?: string;
+  user_metadata?: Record<string, unknown>;
+};
+type SessionShape = { user: UserShape };
 type AuthValue = {
-  session: Session | null; user: User | null; memberships: Membership[]; loading: boolean; membershipsLoading: boolean; error: string | null;
-  refreshMemberships: () => Promise<void>; signOut: () => Promise<void>;
+  session: SessionShape | null; user: UserShape | null; memberships: Membership[];
+  loading: boolean; membershipsLoading: boolean; error: string | null;
+  refreshMemberships: () => Promise<void>; refreshSession: () => Promise<void>; signOut: () => Promise<void>;
 };
 const AuthContext = createContext<AuthValue | null>(null);
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [session, setSession] = useState<Session | null>(null);
+  const [session, setSession] = useState<SessionShape | null>(null);
   const [memberships, setMemberships] = useState<Membership[]>([]);
-  const [loading, setLoading] = useState(Boolean(supabase));
-  const [membershipsLoading, setMembershipsLoading] = useState(Boolean(supabase));
+  const [loading, setLoading] = useState(true);
+  const [membershipsLoading, setMembershipsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const refreshSession = useCallback(async () => {
+    try {
+      const result = await api.get<{ user: null | { id: string; username: string; phone: string; displayName: string; requestedRole: string } }>('/api/auth/me');
+      if (!result.user) { setSession(null); setMemberships([]); return; }
+      const u = result.user;
+      setSession({ user: { id: u.id, username: u.username, email: u.username, phone: u.phone, display_name: u.displayName,
+        user_metadata: { requested_role: u.requestedRole, full_name: u.displayName, phone: u.phone } } });
+      setError(null);
+    } catch (caught) {
+      setSession(null);
+      if (caught instanceof Error && 'status' in caught && (caught as { status?: number }).status !== 401) {
+        setError(caught.message);
+      }
+    } finally { setLoading(false); }
+  }, []);
+
   const refreshMemberships = useCallback(async () => {
-    if (!supabase || !session?.user) {
-      setMemberships([]);
-      setMembershipsLoading(false);
-      return;
-    }
+    if (!session?.user?.id) { setMemberships([]); setMembershipsLoading(false); return; }
     setMembershipsLoading(true);
     try {
-      const { data, error: queryError } = await supabase.from('memberships')
-        .select('id,company_id,user_id,role,customer_id,supplier_id,active,companies(name)')
-        .eq('user_id', session.user.id).eq('active', true);
-      if (queryError) {
-        setError(queryError.message);
-        setMemberships([]);
-        return;
-      }
+      const data = await api.get<{ memberships: Membership[] }>('/api/workspace/memberships');
+      setMemberships(data.memberships ?? []);
       setError(null);
-      setMemberships((data ?? []).map((m: any) => ({ ...m, company: Array.isArray(m.companies) ? m.companies[0] : m.companies })) as Membership[]);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'خواندن سطح دسترسی ناموفق بود.');
       setMemberships([]);
-    } finally {
-      setMembershipsLoading(false);
-    }
+      setError(caught instanceof Error ? caught.message : 'خواندن سطح دسترسی ناموفق بود.');
+    } finally { setMembershipsLoading(false); }
   }, [session?.user?.id]);
+
   useEffect(() => {
-    if (!supabase) { setLoading(false); return; }
-    let alive = true;
-    supabase.auth.getSession().then(({ data, error: sessionError }) => {
-      if (!alive) return;
-      if (sessionError) setError(sessionError.message);
-      setSession(data.session);
-      setLoading(false);
-      setMembershipsLoading(Boolean(data.session));
-    }).catch(caught => {
-      if (!alive) return;
-      setError(caught instanceof Error ? caught.message : 'خواندن نشست کاربری ناموفق بود.');
-      setLoading(false);
-      setMembershipsLoading(false);
-    });
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, newSession) => {
-      if (!alive) return;
-      setSession(newSession);
-      setLoading(false);
-      setMembershipsLoading(Boolean(newSession));
-      if (!newSession) { setMemberships([]); setError(null); }
-    });
-    return () => { alive = false; listener.subscription.unsubscribe(); };
-  }, []);
-  useEffect(() => { void refreshMemberships(); }, [refreshMemberships, session?.user?.id]);
-  const value = useMemo<AuthValue>(() => ({ session, user: session?.user ?? null, memberships, loading, membershipsLoading, error, refreshMemberships, signOut: async () => { if (supabase) await supabase.auth.signOut(); setMemberships([]); setMembershipsLoading(false); } }), [session, memberships, loading, membershipsLoading, error, refreshMemberships]);
+    void refreshSession();
+    const onAuthChange = () => { void refreshSession(); };
+    window.addEventListener('medar-auth-change', onAuthChange);
+    return () => window.removeEventListener('medar-auth-change', onAuthChange);
+  }, [refreshSession]);
+  useEffect(() => { void refreshMemberships(); }, [refreshMemberships]);
+
+  const value = useMemo<AuthValue>(() => ({
+    session, user: session?.user ?? null, memberships, loading, membershipsLoading, error,
+    refreshMemberships, refreshSession,
+    signOut: async () => {
+      try { await api.post('/api/auth/logout', {}); }
+      finally { setSession(null); setMemberships([]); setMembershipsLoading(false); }
+    },
+  }), [session, memberships, loading, membershipsLoading, error, refreshMemberships, refreshSession]);
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 export function useAuth() { const context = useContext(AuthContext); if (!context) throw new Error('AuthProvider missing'); return context; }

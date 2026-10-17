@@ -1,17 +1,28 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Activity, ArrowLeft, Boxes, Building2, Check, ClipboardCheck, CreditCard, Factory, FileText, Home, LayoutDashboard, ListTodo, MapPin, Menu, Package, ShieldCheck, Target, Truck, Warehouse, X, UserPlus, Eye, EyeOff, KeyRound, RotateCcw } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useAuth } from './lib/AuthContext';
-import { isSupabaseConfigured, supabase } from './lib/supabase';
+import { api } from './lib/apiClient';
 import { MedarLogo } from './MedarLogo';
 import type { AppRole } from './lib/types';
 
 type NavigationEntry = { key: string; label: string };
-type PublicRequestedRole = 'staff' | 'supplier' | 'driver' | 'customer';
+type PublicRequestedRole = 'owner' | 'staff' | 'supplier' | 'driver' | 'customer';
 type AuthMode = 'signin' | 'signup' | 'reset' | 'recovery';
+function normalizeIranPhone(value: string): string {
+  const digits = value.trim().replaceAll(' ', '').replaceAll('-', '').replaceAll('(', '').replaceAll(')', '')
+    .replace(/[۰-۹]/g, char => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(char)))
+    .replace(/[٠-٩]/g, char => String('٠١٢٣٤٥٦٧٨٩'.indexOf(char)));
+  if (digits.startsWith('09') && digits.length === 11 && /^[0-9]+$/.test(digits)) return '+98' + digits.slice(1);
+  if (digits.startsWith('9') && digits.length === 10 && /^[0-9]+$/.test(digits)) return '+98' + digits;
+  if (digits.startsWith('+989') && digits.length === 13 && /^[+0-9]+$/.test(digits)) return digits;
+  return '';
+}
+
 const requestedRoles: { value: PublicRequestedRole; label: string; Icon: LucideIcon }[] = [
+  { value: 'owner', label: 'مالک مجموعه جدید', Icon: Building2 },
   { value: 'customer', label: 'خریدار عمده', Icon: Boxes },
   { value: 'supplier', label: 'شریک مزرعه', Icon: Factory },
   { value: 'driver', label: 'راننده / حمل', Icon: Truck },
@@ -47,16 +58,16 @@ function readAllowedLinks(): NavigationEntry[] {
   });
 }
 
-/** Private operational app entry. Public self-registration is intentionally disabled. */
+/** Private operational app entry. Self-registration is available; company membership is separately authorized server-side. */
 export default function ProductExperience() {
-  const { user, loading, memberships, membershipsLoading, refreshMemberships } = useAuth();
+  const { user, loading, memberships, refreshSession } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [appMain, setAppMain] = useState<HTMLElement | null>(null);
   const [waitingScreen, setWaitingScreen] = useState<HTMLElement | null>(null);
   const [allowedLinks, setAllowedLinks] = useState<NavigationEntry[]>([]);
   const [mode, setMode] = useState<AuthMode>('signin');
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [fullName, setFullName] = useState('');
@@ -68,10 +79,6 @@ export default function ProductExperience() {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [requestId, setRequestId] = useState('');
-  const [workspaceProvisionError, setWorkspaceProvisionError] = useState('');
-  const [workspaceProvisioning, setWorkspaceProvisioning] = useState(false);
-  const [workspaceProvisionRetry, setWorkspaceProvisionRetry] = useState(0);
-  const provisionedUserIds = useRef<Set<string>>(new Set());
   const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
   const protectedRoute = location.pathname.includes('/app');
   // Enable secure sign-in by default in web, preview and native builds; only an explicit false disables it.
@@ -108,55 +115,13 @@ export default function ProductExperience() {
   }, [appMain, location.pathname, user?.id, memberships.length, memberships[0]?.role]);
 
   useEffect(() => {
-    if (!supabase) return;
-    const { data: listener } = supabase.auth.onAuthStateChange(event => {
-      if (event === 'PASSWORD_RECOVERY') {
-        setMode('recovery'); setError(''); setNotice('گذرواژه جدید را وارد کن تا بازیابی حساب تکمیل شود.');
-        navigate({ pathname: location.pathname, search: location.search, hash: '#signin' }, { replace: true });
-      }
-    });
-    return () => listener.subscription.unsubscribe();
-  }, [navigate, location.pathname, location.search]);
-
-  useEffect(() => {
     if (!user || memberships.length) return;
-    const metadata = user.user_metadata as Record<string, unknown>;
+    const metadata = user.user_metadata ?? {};
     if (requestedRoles.some(role => role.value === metadata.requested_role)) setRequestedRole(metadata.requested_role as PublicRequestedRole);
     if (typeof metadata.full_name === 'string' && metadata.full_name.trim()) setFullName(metadata.full_name);
     if (typeof metadata.organization_name === 'string') setOrganizationName(metadata.organization_name);
     if (typeof metadata.phone === 'string') setPhone(metadata.phone);
   }, [user?.id, user?.user_metadata, memberships.length]);
-
-  useEffect(() => {
-    if (!supabase || !user || loading || membershipsLoading || memberships.length > 0) return;
-    const metadata = user.user_metadata as Record<string, unknown>;
-    if (metadata.signup_workspace_pending !== true || provisionedUserIds.current.has(user.id)) return;
-    provisionedUserIds.current.add(user.id);
-    void (async () => {
-      setWorkspaceProvisioning(true);
-      setWorkspaceProvisionError('');
-      const { error: createError } = await supabase.rpc('create_company_workspace', {
-        _company_name: typeof metadata.organization_name === 'string' ? metadata.organization_name : '',
-        _full_name: typeof metadata.full_name === 'string' ? metadata.full_name : '',
-        _phone: typeof metadata.phone === 'string' ? metadata.phone : null,
-      });
-      if (createError) {
-        provisionedUserIds.current.delete(user.id);
-        setWorkspaceProvisionError('ساخت فضای کاری انجام نشد. تأیید ایمیل، اتصال و نسخه پایگاه داده را بررسی کن و دوباره تلاش کن.');
-        setWorkspaceProvisioning(false);
-        return;
-      }
-      await supabase.auth.updateUser({ data: { signup_workspace_pending: false } });
-      await refreshMemberships();
-      setWorkspaceProvisioning(false);
-      setWorkspaceProvisionError('');
-      setNotice('فضای کاری اختصاصی آماده شد.');
-    })().catch(() => {
-      provisionedUserIds.current.delete(user.id);
-      setWorkspaceProvisioning(false);
-      setWorkspaceProvisionError('ارتباط برای ساخت فضای کاری قطع شد. دوباره تلاش کن.');
-    });
-  }, [user?.id, user?.user_metadata, loading, membershipsLoading, memberships.length, refreshMemberships, workspaceProvisionRetry]);
 
   useEffect(() => {
     const canCloseWithEscape: boolean = mode !== 'recovery';
@@ -202,85 +167,70 @@ export default function ProductExperience() {
 
   async function submitAuth(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!supabase || !isSupabaseConfigured) { setError('اتصال احراز هویت در این نسخه پیکربندی نشده است. ورود آنلاین در دسترس نیست.'); return; }
+    if (mode === 'reset' || mode === 'recovery') {
+      setError('بازیابی خودکار رمز بدون ایمیل یا پیامک فعال نیست. برای بازنشانی امن رمز، از مالک مجموعه درخواست بازنشانی کن.');
+      return;
+    }
+    const normalizedUsername = username.trim();
+    const normalizedPhone = mode === 'signup' ? normalizeIranPhone(phone) : '';
+    if (!/^[a-zA-Z0-9_.-]{3,32}$/.test(normalizedUsername)) {
+      setError('نام کاربری باید ۳ تا ۳۲ نویسه و شامل حروف انگلیسی، عدد، نقطه، خط تیره یا زیرخط باشد.');
+      return;
+    }
+    if (password.length < 10 || password.length > 128) {
+      setError('رمز عبور باید حداقل ۱۰ نویسه داشته باشد.');
+      return;
+    }
     if (mode === 'signup') {
-      if (fullName.trim().length < 2 || fullName.trim().length > 160) { setError('نام کامل باید بین ۲ تا ۱۶۰ نویسه باشد.'); return; }
+      if (fullName.trim().length < 2 || fullName.trim().length > 120) { setError('نام کامل باید بین ۲ تا ۱۲۰ نویسه باشد.'); return; }
       if (organizationName.trim().length < 2 || organizationName.trim().length > 160) { setError('نام مجموعه باید بین ۲ تا ۱۶۰ نویسه باشد.'); return; }
-      if (password.length < 8) { setError('گذرواژه باید حداقل ۸ نویسه باشد.'); return; }
+      if (!normalizedPhone) { setError('شماره موبایل ایران معتبر وارد کن؛ مثال: 09121234567'); return; }
       if (password !== confirmPassword) { setError('تکرار گذرواژه یکسان نیست.'); return; }
     }
     setBusy(true); setError(''); setNotice('');
     try {
-      if (mode === 'reset') {
-        const redirectUrl = new URL((import.meta.env.BASE_URL || '/') + '#signin', window.location.origin).toString();
-        const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo: redirectUrl });
-        if (resetError) { setError('ارسال ایمیل بازیابی انجام نشد. ایمیل و تنظیمات Auth را بررسی کن.'); return; }
-        setNotice('اگر این ایمیل حساب فعالی داشته باشد، لینک بازیابی برای آن ارسال می‌شود.');
-      } else if (mode === 'signup') {
-        const emailRedirectTo = new URL(basePath + '/#signin', window.location.origin).toString();
-        const { data, error: signUpError } = await supabase.auth.signUp({
-          email: email.trim(),
-          password,
-          options: {
-            emailRedirectTo,
-            data: {
-              full_name: fullName.trim(),
-              organization_name: organizationName.trim(),
-              phone: phone.trim() || null,
-              signup_workspace_pending: true,
-            },
-          },
+      if (mode === 'signup') {
+        await api.post('/api/auth/signup', {
+          username: normalizedUsername, password, displayName: fullName.trim(), organizationName: organizationName.trim(),
+          phone: normalizedPhone, requestedRole,
         });
-        if (signUpError) {
-          const message = signUpError.message.toLowerCase();
-          setError(message.includes('signup is disabled') || message.includes('signups not allowed')
-            ? 'ثبت‌نام در تنظیمات Auth پروژه غیرفعال است؛ باید ثبت‌نام ایمیلی در Supabase فعال شود.'
-            : 'ساخت حساب انجام نشد. ایمیل را بررسی کن و اگر قبلاً حسابی با آن ساخته‌ای، وارد شو.');
-          return;
-        }
-        if (!data.user) { setError('پاسخ سرویس ثبت‌نام معتبر نبود. دوباره تلاش کن.'); return; }
         setPassword(''); setConfirmPassword('');
-        if (data.session) {
-          setNotice('حساب ساخته شد؛ فضای کاری اختصاصی در حال آماده‌سازی است.');
-          navigate(protectedDestination, { replace: true });
-        } else {
-          setMode('signin');
-          navigate({ pathname: location.pathname, search: location.search, hash: '#signin' }, { replace: true });
-          setNotice('اگر این ایمیل قابل ثبت‌نام باشد، لینک تأیید برای آن ارسال می‌شود. ایمیل را تأیید کن؛ سپس فضای کاری اختصاصی ساخته می‌شود.');
-        }
-      } else if (mode === 'recovery') {
-        if (password.length < 8) { setError('گذرواژه جدید باید حداقل ۸ نویسه باشد.'); return; }
-        if (password !== confirmPassword) { setError('تکرار گذرواژه یکسان نیست.'); return; }
-        const { error: updateError } = await supabase.auth.updateUser({ password });
-        if (updateError) { setError('تغییر گذرواژه انجام نشد. لینک بازیابی ممکن است منقضی شده باشد.'); return; }
-        await supabase.auth.signOut();
-        setPassword(''); setConfirmPassword(''); setMode('signin'); setNotice('گذرواژه تغییر کرد. حالا با گذرواژه جدید وارد شو.');
+        setNotice('حساب ساخته شد و نشست امن ایجاد شد؛ در حال ورود به مدار…');
       } else {
-        const { error: authError } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
-        if (authError) { setError('ورود انجام نشد. ایمیل و گذرواژه را بررسی کن یا ایمیل حساب را تأیید و دوباره تلاش کن.'); return; }
-        setPassword(''); navigate(protectedDestination, { replace: true });
+        await api.post('/api/auth/login', { username: normalizedUsername, password });
+        setPassword('');
+        setNotice('ورود موفق بود؛ در حال بارگذاری فضای کاری…');
       }
-    } catch {
-      setError('ارتباط با سرویس احراز هویت برقرار نشد. اتصال اینترنت را بررسی کن و دوباره تلاش کن.');
+      window.dispatchEvent(new Event('medar-auth-change'));
+      await refreshSession();
+      navigate(protectedDestination, { replace: true });
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'احراز هویت انجام نشد. اطلاعات را بررسی و دوباره تلاش کن.');
     } finally { setBusy(false); }
   }
 
   async function submitRoleRequest(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!supabase || !user) { setError('برای ثبت درخواست ابتدا وارد حساب شو.'); return; }
-    if (['customer', 'supplier'].includes(requestedRole) && organizationName.trim().length < 2) { setError('نام شرکت یا مزرعه برای این نقش ضروری است.'); return; }
-    setBusy(true); setError(''); setNotice('');
-    const { data, error: requestError } = await supabase.rpc('submit_access_request', {
-      _role: requestedRole as AppRole, _full_name: fullName.trim(),
-      _organization_name: organizationName.trim() || null, _phone: phone.trim() || null, _notes: '',
-    });
-    if (requestError) {
-      setError(requestError.message.includes('عضویت فعال') ? 'برای این حساب قبلاً عضویت فعال وجود دارد؛ صفحه را تازه‌سازی کن.' : requestError.message);
-    } else {
-      setNotice('درخواست دسترسی ثبت شد. پس از بررسی مالک یا مدیر، فضای کاری نقش انتخابی فعال می‌شود.');
-      setError(''); setRequestId(String(data ?? ''));
+    if (!user) { setError('برای ثبت درخواست ابتدا وارد حساب شو.'); return; }
+    if (organizationName.trim().length < 2) {
+      setError('نام شرکت یا مزرعه برای این نقش ضروری است.');
+      return;
     }
-    setBusy(false);
+    setBusy(true); setError(''); setNotice('');
+    try {
+      const result = await api.post<{ requestId: string }>('/api/access-requests', {
+        role: requestedRole as AppRole,
+        fullName: fullName.trim(),
+        organizationName: organizationName.trim() || null,
+        phone: phone.trim() || null,
+      });
+      setNotice('درخواست دسترسی ثبت شد. پس از بررسی مالک یا مدیر، فضای کاری نقش انتخابی فعال می‌شود.');
+      setRequestId(String(result.requestId ?? ''));
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'ثبت درخواست دسترسی انجام نشد. دوباره تلاش کن.');
+    } finally {
+      setBusy(false);
+    }
   }
 
   return <>
@@ -295,13 +245,11 @@ export default function ProductExperience() {
       </nav>, appMain)}
     {authUiEnabled && user && waitingScreen && memberships.length === 0 && createPortal(
       <section className="access-request-card" dir="rtl" aria-labelledby="access-request-title">
-        <div className="access-request-heading"><span className="access-request-icon"><UserPlus size={20}/></span><div><span className="obsidian-eyebrow">فضای کاری مدار</span><h2 id="access-request-title">{user.user_metadata?.signup_workspace_pending === true ? 'آماده‌سازی فضای کاری' : 'درخواست فضای کاری'}</h2><p>{user.user_metadata?.signup_workspace_pending === true ? 'پس از تأیید ایمیل، فضای کاری خصوصی مجموعه‌ات ساخته می‌شود.' : 'نقش را مشخص کن؛ مدیر پس از بررسی آن را تأیید یا رد می‌کند.'}</p></div></div>
-        {workspaceProvisioning && <div className="auth-feedback success" role="status">در حال ساخت فضای کاری اختصاصی…</div>}
-        {workspaceProvisionError && <div className="auth-feedback error workspace-provision-error" role="alert"><span>{workspaceProvisionError}</span><button type="button" onClick={() => setWorkspaceProvisionRetry(value => value + 1)}>تلاش دوباره</button></div>}
+        <div className="access-request-heading"><span className="access-request-icon"><UserPlus size={20}/></span><div><span className="obsidian-eyebrow">فضای کاری مدار</span><h2 id="access-request-title">{user.user_metadata?.signup_workspace_pending === true ? 'آماده‌سازی فضای کاری' : 'درخواست فضای کاری'}</h2><p>{user.user_metadata?.signup_workspace_pending === true ? 'پس از تأیید نام کاربری، فضای کاری خصوصی مجموعه‌ات ساخته می‌شود.' : 'نقش را مشخص کن؛ مدیر پس از بررسی آن را تأیید یا رد می‌کند.'}</p></div></div>
         {user.user_metadata?.signup_workspace_pending !== true && <form className="access-request-form" onSubmit={submitRoleRequest}>
           <label>نام و نام خانوادگی<input required minLength={2} maxLength={160} autoComplete="name" value={fullName} onChange={e => setFullName(e.target.value)} placeholder="نام کامل"/></label>
           <label>نوع دسترسی<select value={requestedRole} onChange={e => { setRequestedRole(e.target.value as PublicRequestedRole); setRequestId(''); }}><option value="customer">خریدار عمده</option><option value="supplier">شریک مزرعه</option><option value="driver">راننده / پیمانکار حمل</option><option value="staff">عضو تیم داخلی</option></select></label>
-          {['customer', 'supplier'].includes(requestedRole) && <label className="wide">نام شرکت / مزرعه<input required minLength={2} maxLength={160} value={organizationName} onChange={e => setOrganizationName(e.target.value)} placeholder="نام مجموعه"/></label>}
+          <label className="wide">نام شرکت / مجموعه هدف<input required minLength={2} maxLength={160} value={organizationName} onChange={e => setOrganizationName(e.target.value)} placeholder="نام دقیق مجموعه‌ای که می‌خواهی به آن بپیوندی"/></label>
           <label>شماره تماس<input type="tel" autoComplete="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="اختیاری"/></label>
           {error && <div className="auth-feedback error wide" role="alert">{error}</div>}
           {notice && <div className="auth-feedback success wide" role="status">{notice}</div>}
@@ -322,25 +270,28 @@ export default function ProductExperience() {
             {mode === 'signin' || mode === 'signup' ? <MedarLogo compact className="signin-form-logo"/> : <span className="signin-form-icon"><KeyRound size={21}/></span>}
             <span className="signin-overline">{mode === 'signup' ? 'ثبت‌نام مجموعه' : mode === 'reset' ? 'بازیابی گذرواژه' : mode === 'recovery' ? 'تنظیم گذرواژه تازه' : 'ورود امن'}</span>
             <h2 id="simorgh-signin-title">{mode === 'signup' ? 'ساخت حساب و فضای کاری' : mode === 'reset' ? 'بازیابی گذرواژه' : mode === 'recovery' ? 'گذرواژه جدید' : 'ورود به مدار'}</h2>
-            <p>{mode === 'signup' ? 'حساب بساز و فضای کاری خصوصی مجموعه‌ات را ایجاد کن. داده‌های شرکت‌های دیگر از این حساب جدا می‌ماند.' : mode === 'reset' ? 'ایمیل حساب را وارد کن تا در صورت وجود حساب، لینک بازیابی ارسال شود.' : mode === 'recovery' ? 'یک گذرواژه جدید و قوی برای حساب انتخاب کن.' : 'با ایمیل و گذرواژه وارد فضای کاری‌ات شو.'}</p>
+            <p>{mode === 'signup' ? 'حساب بساز؛ نام کاربری، شماره موبایل، رمز عبور و نقش کافی است. انتخاب «مالک مجموعه جدید» فضای کاری جداگانه می‌سازد؛ نقش‌های دیگر با تأیید مجموعه فعال می‌شوند.' : mode === 'reset' ? 'نام کاربری حساب را وارد کن تا در صورت وجود حساب، لینک بازیابی ارسال شود.' : mode === 'recovery' ? 'یک گذرواژه جدید و قوی برای حساب انتخاب کن.' : 'با نام کاربری و گذرواژه وارد فضای کاری‌ات شو. شماره موبایل برای بازیابی و ارتباط عملیاتی حساب ثبت می‌شود.'}</p>
              <form className="simorgh-signin-form" onSubmit={event => void submitAuth(event)}>
                {mode === 'signup' && <>
-                 <label htmlFor="simorgh-signin-full-name">نام و نام خانوادگی</label><input id="simorgh-signin-full-name" className="auth-input" type="text" autoComplete="name" required minLength={2} maxLength={160} value={fullName} onChange={e => setFullName(e.target.value)} placeholder="نام کامل"/>
-                 <label htmlFor="simorgh-signin-organization">نام مزرعه یا مجموعه</label><input id="simorgh-signin-organization" className="auth-input" type="text" required minLength={2} maxLength={160} value={organizationName} onChange={e => setOrganizationName(e.target.value)} placeholder="نام مجموعه"/>
-                 <label htmlFor="simorgh-signin-phone">شماره تماس <span className="signin-optional">اختیاری</span></label><input id="simorgh-signin-phone" className="auth-input" type="tel" autoComplete="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="شماره تماس" dir="ltr"/>
+                 <label htmlFor="simorgh-signin-phone">شماره موبایل</label><input id="simorgh-signin-phone" className="auth-input" type="tel" autoComplete="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="09121234567" required dir="ltr"/>
                </>}
-               <label htmlFor="simorgh-signin-email">ایمیل</label><input id="simorgh-signin-email" className="auth-input" type="email" autoComplete="username" inputMode="email" required={mode !== 'recovery'} value={email} onChange={e => setEmail(e.target.value)} placeholder="name@company.com" dir="ltr"/>
+               {mode === 'signup' && <><label htmlFor="simorgh-signin-role">نقش مورد درخواست</label><select id="simorgh-signin-role" className="auth-input" value={requestedRole} onChange={e => setRequestedRole(e.target.value as PublicRequestedRole)}><option value="owner">مالک مجموعه جدید</option><option value="customer">خریدار عمده</option><option value="supplier">تأمین‌کننده / شریک مزرعه</option><option value="driver">راننده / حمل‌ونقل</option><option value="staff">عضو تیم (نیازمند تأیید)</option></select></>}
+               {mode === 'signup' && <>
+                  <label htmlFor="simorgh-signin-fullname">نام و نام خانوادگی</label><input id="simorgh-signin-fullname" className="auth-input" autoComplete="name" required minLength={2} maxLength={120} value={fullName} onChange={e => setFullName(e.target.value)} placeholder="نام کامل" />
+                  <label htmlFor="simorgh-signin-organization">نام مجموعه / شرکت</label><input id="simorgh-signin-organization" className="auth-input" required minLength={2} maxLength={160} value={organizationName} onChange={e => setOrganizationName(e.target.value)} placeholder="نام واقعی مجموعه" />
+                </>}
+                <label htmlFor="simorgh-signin-username">نام کاربری</label><input id="simorgh-signin-username" className="auth-input" type="text" autoComplete="username" inputMode="text" required={mode !== 'recovery'} value={username} onChange={e => setUsername(e.target.value)} placeholder="username" dir="ltr"/>
                {mode !== 'reset' && <>
                  <label htmlFor="simorgh-signin-password">{mode === 'recovery' ? 'گذرواژه جدید' : 'گذرواژه'}</label>
-                 <div className="auth-password-wrap"><input id="simorgh-signin-password" className="auth-input" type={showPassword ? 'text' : 'password'} minLength={8} autoComplete={mode === 'recovery' || mode === 'signup' ? 'new-password' : 'current-password'} required value={password} onChange={e => setPassword(e.target.value)} placeholder="حداقل ۸ نویسه" dir="ltr"/><button type="button" onClick={() => setShowPassword(value => !value)} aria-label={showPassword ? 'پنهان‌کردن گذرواژه' : 'نمایش گذرواژه'}>{showPassword ? <EyeOff size={16}/> : <Eye size={16}/>}</button></div>
-                 {(mode === 'recovery' || mode === 'signup') && <><label htmlFor="simorgh-confirm-password">تکرار گذرواژه</label><input id="simorgh-confirm-password" className="auth-input" type="password" autoComplete="new-password" required minLength={8} value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="گذرواژه را دوباره وارد کن" dir="ltr"/></>}
+                 <div className="auth-password-wrap"><input id="simorgh-signin-password" className="auth-input" type={showPassword ? 'text' : 'password'} minLength={10} autoComplete={mode === 'recovery' || mode === 'signup' ? 'new-password' : 'current-password'} required value={password} onChange={e => setPassword(e.target.value)} placeholder="حداقل ۱۰ نویسه" dir="ltr"/><button type="button" onClick={() => setShowPassword(value => !value)} aria-label={showPassword ? 'پنهان‌کردن گذرواژه' : 'نمایش گذرواژه'}>{showPassword ? <EyeOff size={16}/> : <Eye size={16}/>}</button></div>
+                 {(mode === 'recovery' || mode === 'signup') && <><label htmlFor="simorgh-confirm-password">تکرار گذرواژه</label><input id="simorgh-confirm-password" className="auth-input" type="password" autoComplete="new-password" required minLength={10} value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="گذرواژه را دوباره وارد کن" dir="ltr"/></>}
                </>}
                {error && <div className="auth-feedback error" role="alert">{error}</div>}{notice && <div className="auth-feedback success" role="status">{notice}</div>}
-               <button className="signin-submit" type="submit" disabled={busy || (mode !== 'recovery' && !email.trim()) || (mode !== 'reset' && !password) || (mode === 'signup' && (!fullName.trim() || !organizationName.trim() || !confirmPassword))}>
+               <button className="signin-submit" type="submit" disabled={busy || !username.trim() || !password || (mode === 'signup' && (!phone.trim() || !confirmPassword || !fullName.trim() || !organizationName.trim()))}>
                  {busy ? <><span className="signin-spinner" aria-hidden="true"/> در حال پردازش…</> : mode === 'reset' ? <>ارسال لینک بازیابی <RotateCcw size={16}/></> : mode === 'recovery' ? <>ذخیره گذرواژه جدید <Check size={17}/></> : mode === 'signup' ? <>ساخت حساب و فضای کاری <ArrowLeft size={17}/></> : <>ورود به فضای کار <ArrowLeft size={17}/></>}
                </button>
              </form>
-             {mode === 'signin' && <><button type="button" className="auth-text-action" onClick={() => {setMode('reset');setError('');setNotice('');}}>گذرواژه‌ات را فراموش کرده‌ای؟</button><div className="signin-registration-cta"><span>برای مجموعه جدید حساب می‌خواهی؟</span><button type="button" onClick={() => {setMode('signup');setError('');setNotice('');navigate({pathname:location.pathname,search:location.search,hash:'#signup'},{replace:true});}}>ساخت حساب و فضای کاری</button></div></>}
+             {mode === 'signin' && <><div className="signin-registration-cta"><span>برای مجموعه جدید حساب می‌خواهی؟</span><button type="button" onClick={() => {setMode('signup');setError('');setNotice('');navigate({pathname:location.pathname,search:location.search,hash:'#signup'},{replace:true});}}>ساخت حساب و فضای کاری</button></div></>}
              {(mode === 'reset' || mode === 'signup') && <button type="button" className="auth-text-action" onClick={() => {setMode('signin');setError('');setNotice('');navigate({pathname:location.pathname,search:location.search,hash:'#signin'},{replace:true});}}>بازگشت به ورود</button>}
              <div className="signin-form-foot"><span><Check size={13}/> کنترل دسترسی سمت سرور</span><span>مدار · فضای امن</span></div>
           </div>

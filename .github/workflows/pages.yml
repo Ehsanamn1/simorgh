@@ -137,7 +137,7 @@ jobs:
             await page.locator('.simorgh-signin-layer').waitFor({ state: 'visible', timeout: 20000 });
             if (await page.locator('.ops-live-app, .ops-live-bottom-nav, .app-frame').count()) throw new Error('Guest operation preview or protected app rendered behind sign-in.');
             await page.getByRole('heading', { name: 'ورود به مدار' }).waitFor({ state: 'visible' });
-            if (await page.locator('#simorgh-signin-email').count() !== 1) throw new Error('The secure sign-in email field did not render.');
+            if (await page.locator('#simorgh-signin-username').count() !== 1) throw new Error('The secure username field did not render.');
             if (await page.locator('#simorgh-signin-password').count() !== 1) throw new Error('The secure sign-in password field did not render.');
             if (errors.length) throw new Error('Browser runtime error: ' + errors.join(' | '));
 
@@ -146,7 +146,7 @@ jobs:
             await page.locator('.simorgh-signin-layer').waitFor({ state: 'visible', timeout: 20000 });
             if (await page.locator('.ops-live-app, .ops-live-bottom-nav, .app-frame').count()) throw new Error('The mobile guest preview rendered behind sign-in.');
             if (await page.locator('.simorgh-signin-layer').count() !== 1) throw new Error('The mobile app did not show the secure sign-in gate.');
-            if (await page.locator('#simorgh-signin-email').count() !== 1) throw new Error('The mobile sign-in form is missing.');
+            if (await page.locator('#simorgh-signin-username').count() !== 1) throw new Error('The mobile username sign-in form is missing.');
             const widths = await page.evaluate(() => ({ viewport: innerWidth, document: document.documentElement.scrollWidth, body: document.body.scrollWidth }));
             if (widths.document > widths.viewport || widths.body > widths.viewport) throw new Error('Mobile horizontal overflow: ' + JSON.stringify(widths));
             if (errors.length) throw new Error('Browser runtime error after mobile reload: ' + errors.join(' | '));

@@ -30,7 +30,7 @@ test('secure entry remains usable on desktop and mobile with no horizontal overf
   await expect(page.locator('.simorgh-signin-layer')).toBeVisible();
   await expect(page.locator('.ops-live-app, .ops-live-bottom-nav, .app-frame')).toHaveCount(0);
   await expect(page.getByRole('heading', { name: 'ورود به مدار' })).toBeVisible();
-  await expect(page.locator('#simorgh-signin-email')).toBeVisible();
+  await expect(page.locator('#simorgh-signin-username')).toBeVisible();
   await expect(page.locator('#simorgh-signin-password')).toBeVisible();
 
   const dimensions = await page.evaluate(() => ({ viewport: innerWidth, document: document.documentElement.scrollWidth, body: document.body.scrollWidth }));

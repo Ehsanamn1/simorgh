@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { ChangeEvent, FormEvent } from 'react';
 import { Activity, AlertTriangle, CheckCircle2, ClipboardCheck, CreditCard, FileCheck2, FileText, Factory, Plus, RefreshCw, ShieldCheck, Warehouse, X } from 'lucide-react';
-import { supabase } from './lib/supabase';
+import { api } from './lib/apiClient';
 import type { Membership, Row } from './lib/types';
 import { dateFa, dateTimeFa, moneyFa, numberFa, statusTone } from './lib/format';
 
@@ -173,6 +173,7 @@ export function OperationsWorkspacePage({kind,membership,search}:{kind:Operation
   const [openForm,setOpenForm]=useState(false);
   const [draft,setDraft]=useState<Record<string,unknown>>({});
   const [evidenceTask,setEvidenceTask]=useState('');
+  const [evidenceRows,setEvidenceRows]=useState<Row[]>([]);
   const [evidenceType,setEvidenceType]=useState('note');
   const [evidenceNote,setEvidenceNote]=useState('');
   const [measurement,setMeasurement]=useState('');
@@ -186,28 +187,26 @@ export function OperationsWorkspacePage({kind,membership,search}:{kind:Operation
   const [periodEnd,setPeriodEnd]=useState('');
 
   const load=async()=>{
-    if(!supabase){setError('اتصال Supabase در این build تنظیم نشده است.');setLoading(false);return;}
     setLoading(true);setError('');
-    const [main,suppliers,sites,batches,templates,agreements,entries,products]=await Promise.all([
-      supabase.from(cfg.table).select('*').eq('company_id',membership.company_id).order('created_at',{ascending:false}).limit(200),
-      supabase.from('suppliers').select('id,name,city,active').eq('company_id',membership.company_id).order('name').limit(300),
-      supabase.from('farm_sites').select('id,site_code,name,supplier_id,active').eq('company_id',membership.company_id).order('name').limit(300),
-      supabase.from('production_batches').select('id,batch_code,farm_site_id,supplier_id,status,production_kind,unit').eq('company_id',membership.company_id).order('created_at',{ascending:false}).limit(300),
-      supabase.from('task_templates').select('id,template_code,version,title,instructions,category,priority,evidence_required,expected_evidence_types,status').eq('company_id',membership.company_id).order('created_at',{ascending:false}).limit(200),
-      supabase.from('partnership_agreements').select('id,supplier_id,agreement_code,version,status,effective_from,effective_to,shared_expense_categories,settlement_basis,company_profit_share_pct,partner_profit_share_pct').eq('company_id',membership.company_id).order('created_at',{ascending:false}).limit(200),
-      supabase.from('partner_financial_entries').select('id,agreement_id,supplier_id,entry_type,status,amount,paid_amount,external_reference,recognized_on').eq('company_id',membership.company_id).order('created_at',{ascending:false}).limit(300),
-      supabase.from('products').select('id,name,sku').eq('company_id',membership.company_id).order('name').limit(300),
-    ]);
-    if(main.error){setError(main.error.message);setRows([]);}else setRows((main.data??[]) as unknown as Row[]);
-    setRefs({
-      suppliers:(suppliers.data??[]) as unknown as Row[],sites:(sites.data??[]) as unknown as Row[],
-      batches:(batches.data??[]) as unknown as Row[],templates:(templates.data??[]) as unknown as Row[],
-      agreements:(agreements.data??[]) as unknown as Row[],financeEntries:(entries.data??[]) as unknown as Row[],
-      products:(products.data??[]) as unknown as Row[],
-    });
-    setLoading(false);
+    try {
+      const data=await api.get<{rows:Row[];refs:RefData}>(`/api/operations/${kind}?companyId=${encodeURIComponent(membership.company_id)}`);
+      setRows((data.rows??[]) as Row[]);
+      setRefs(data.refs??emptyRefs);
+    } catch(caught) {
+      setError(caught instanceof Error?caught.message:'خواندن عملیات انجام نشد.');
+      setRows([]);
+      setRefs(emptyRefs);
+    } finally {setLoading(false);}
   };
   useEffect(()=>{void load();},[kind,membership.company_id,membership.role]);
+  useEffect(()=>{
+    if(!evidenceTask){setEvidenceRows([]);return;}
+    let current=true;
+    api.get<{evidence:Row[]}>(`/api/operations/operational-tasks/${encodeURIComponent(evidenceTask)}/evidence?companyId=${encodeURIComponent(membership.company_id)}`)
+      .then(data=>{if(current)setEvidenceRows(data.evidence??[]);})
+      .catch(caught=>{if(current)setError(caught instanceof Error?caught.message:'خواندن مدارک وظیفه انجام نشد.');});
+    return ()=>{current=false;};
+  },[evidenceTask,membership.company_id]);
 
   const fields: Field[]=useMemo(()=>{
     const suppliers=refs.suppliers.map(supplierOpt);
@@ -313,7 +312,6 @@ export function OperationsWorkspacePage({kind,membership,search}:{kind:Operation
 
   const submitCreate=async(event:FormEvent<HTMLFormElement>)=>{
     event.preventDefault();
-    if(!supabase)return;
     setBusy(true);setError('');setNotice('');
     const str=(k:string)=>draft[k]===undefined||draft[k]===null?'':String(draft[k]).trim();
     const num=(k:string)=>draft[k]===''||draft[k]===undefined||draft[k]===null?null:Number(draft[k]);
@@ -411,109 +409,103 @@ export function OperationsWorkspacePage({kind,membership,search}:{kind:Operation
         direction:collection?'inflow_to_company':advance?'company_to_partner':'not_cash',amount,paid_amount:paidAmount,currency:'TOMAN',
         expense_category:expense?str('expense_category'):null,is_shared_cost:expense&&yes('is_shared_cost'),
         paid_by:collection?'customer':advance?'company':expense?(str('paid_by')||'none'):'none',payment_status:paymentStatus,
-        recognized_on:str('recognized_on'),external_reference:str('external_reference')||null,linked_entry_id:collection?str('linked_entry_id')||null:null,
+        recognized_on:date('recognized_on'),external_reference:str('external_reference')||null,linked_entry_id:collection?str('linked_entry_id')||null:null,
         notes:str('notes')||null,created_by:membership.user_id};
     }
-    const result=await supabase.from(cfg.table).insert(payload);
-    setBusy(false);
-    if(result.error){setError(result.error.message);return;}
-    closeForm();setNotice('رکورد با موفقیت ثبت شد.');await load();
+    try {
+      await api.post(`/api/operations/${kind}`,payload);
+      closeForm();setNotice('رکورد با موفقیت ثبت شد.');await load();
+    } catch(caught) {
+      setError(caught instanceof Error?caught.message:'ثبت رکورد انجام نشد.');
+    } finally {setBusy(false);}
   };
 
-  const action=async(run:()=>PromiseLike<{error:{message:string}|null}>,success:string)=>{
+  const action=async(run:()=>Promise<unknown>,success:string)=>{
     setBusy(true);setError('');setNotice('');
-    const result=await run();
-    setBusy(false);
-    if(result.error){setError(result.error.message);return;}
-    setNotice(success);await load();
-  };
-  const updateRow=(table:string,id:unknown,patch:Record<string,unknown>)=>{
-    if(!supabase)return Promise.resolve({error:{message:'Supabase تنظیم نشده است.'}});
-    return supabase.from(table).update(patch).eq('company_id',membership.company_id).eq('id',String(id));
+    try { await run(); setNotice(success); await load(); }
+    catch(caught) { setError(caught instanceof Error?caught.message:'عملیات انجام نشد.'); }
+    finally { setBusy(false); }
   };
   const assigned=(row:Row)=>membership.role==='supplier'
     ? String(row.assignee_supplier_id)===String(membership.supplier_id)
     : String(row.assignee_user_id)===String(membership.user_id)||manager;
   const startTask=(row:Row)=>action(
-    ()=>supabase?supabase.rpc('start_operational_task',{_task:String(row.id)}):Promise.resolve({error:{message:'Supabase تنظیم نشده است.'}}),
+    ()=>api.post(`/api/operations/operational-tasks/${encodeURIComponent(String(row.id))}/action`,{companyId:membership.company_id,action:'start'}),
     'وظیفه شروع شد.'
   );
   const submitTask=(row:Row)=>{
     const note=window.prompt('یادداشت تکمیل کار (اختیاری):')??'';
-    return action(()=>supabase?supabase.rpc('submit_operational_task',{_task:String(row.id),_completion_note:note}):Promise.resolve({error:{message:'Supabase تنظیم نشده است.'}}),'وظیفه برای بازبینی ارسال شد.');
+    return action(()=>api.post(`/api/operations/operational-tasks/${encodeURIComponent(String(row.id))}/action`,{companyId:membership.company_id,action:'submit',completionNote:note}),'وظیفه برای بازبینی ارسال شد.');
   };
   const reviewTask=(row:Row,decision:'approved'|'rejected')=>{
     const note=window.prompt(decision==='approved'?'یادداشت تأیید (اختیاری):':'علت رد و اقدام اصلاحی:')??'';
     if(decision==='rejected'&&!note.trim()){setError('برای رد وظیفه باید دلیل ثبت شود.');return;}
-    void action(()=>supabase?supabase.rpc('review_operational_task',{_task:String(row.id),_decision:decision,_review_note:note}):Promise.resolve({error:{message:'Supabase تنظیم نشده است.'}}),decision==='approved'?'وظیفه تأیید شد.':'وظیفه رد شد و نیازمند اصلاح است.');
+    void action(()=>api.post(`/api/operations/operational-tasks/${encodeURIComponent(String(row.id))}/action`,{companyId:membership.company_id,action:'review',decision,reviewNote:note}),decision==='approved'?'وظیفه تأیید شد.':'وظیفه رد شد و نیازمند اصلاح است.');
   };
-  const approveTemplate=(row:Row)=>void action(()=>updateRow('task_templates',row.id,{status:'approved'}),'دستورالعمل تأیید و قفل نسخه شد.');
-  const startBatch=(row:Row)=>void action(()=>updateRow('production_batches',row.id,{status:'active',started_on:row.started_on??new Date().toISOString().slice(0,10)}),'بچ تولید آغاز شد.');
+  const approveTemplate=(row:Row)=>void action(()=>api.post(`/api/operations/task-templates/${encodeURIComponent(String(row.id))}/action`,{companyId:membership.company_id,action:'approve-template'}),'دستورالعمل تأیید و قفل نسخه شد.');
+  const startBatch=(row:Row)=>void action(()=>api.post(`/api/operations/production-batches/${encodeURIComponent(String(row.id))}/action`,{companyId:membership.company_id,action:'start-batch'}),'بچ تولید آغاز شد.');
   const resolveIncident=(row:Row)=>{
     const note=window.prompt('اقدام اصلاحی برای رفع رخداد:');
     if(!note?.trim()){setError('برای بستن رخداد، اقدام اصلاحی لازم است.');return;}
-    void action(()=>updateRow('operational_incidents',row.id,{status:'resolved',resolution_note:note.trim(),resolved_by:membership.user_id,resolved_at:new Date().toISOString()}),'اقدام اصلاحی ثبت شد.');
+    void action(()=>api.post(`/api/operations/incidents/${encodeURIComponent(String(row.id))}/action`,{companyId:membership.company_id,action:'resolve-incident',resolutionNote:note.trim()}),'اقدام اصلاحی ثبت شد.');
   };
   const financeTransition=(row:Row,next:string)=>{
     if(next==='posted'&&['sale_collection','partner_advance','settlement_payment'].includes(String(row.entry_type))
       &&(String(row.payment_status)!=='paid'||numeric(row.paid_amount)!==numeric(row.amount)||!String(row.external_reference??'').trim())){
       setError('ثبت نهایی این سند به مبلغ پرداخت‌شده کامل و مرجع رسید واقعی نیاز دارد.');return;
     }
-    void action(()=>updateRow('partner_financial_entries',row.id,{status:next}),'وضعیت سند به «'+fa(next)+'» تغییر کرد.');
+    void action(()=>api.post(`/api/operations/partner-finance/${encodeURIComponent(String(row.id))}/action`,{companyId:membership.company_id,action:'finance-transition',nextStatus:next}),'وضعیت سند به «'+fa(next)+'» تغییر کرد.');
   };
   const createPeriod=async(e:FormEvent<HTMLFormElement>)=>{
     e.preventDefault();
-    if(!supabase||!draft.agreement_id||!periodStart||!periodEnd){setError('قرارداد و بازه تاریخ را کامل کن.');return;}
+    if(!draft.agreement_id||!periodStart||!periodEnd){setError('قرارداد و بازه تاریخ را کامل کن.');return;}
     setBusy(true);setError('');setNotice('');
-    const result=await supabase.rpc('create_partner_settlement_period',{_agreement:String(draft.agreement_id),_period_start:periodStart,_period_end:periodEnd});
-    setBusy(false);if(result.error){setError(result.error.message);return;}
-    setOpenForm(false);setDraft({});setNotice('دوره پیش‌نویس از اسناد واقعی ایجاد شد.');await load();
+    try{
+      await api.post('/api/operations/settlements',{companyId:membership.company_id,agreementId:String(draft.agreement_id),periodStart,periodEnd});
+      setOpenForm(false);setDraft({});setNotice('دوره پیش‌نویس از دفتر مالی واقعی ایجاد شد.');await load();
+    }catch(caught){setError(caught instanceof Error?caught.message:'ایجاد دوره تسویه انجام نشد.');}
+    finally{setBusy(false);}
   };
   const openPeriod=()=>{
     const first=refs.agreements.find(a=>['active','suspended','expired','terminated'].includes(String(a.status)));
     setDraft({agreement_id:first?.id?String(first.id):''});setPeriodStart('');setPeriodEnd('');setError('');setOpenForm(true);
   };
-  const refreshPeriod=(row:Row)=>void action(()=>supabase?supabase.rpc('refresh_partner_settlement_period',{_period:String(row.id)}):Promise.resolve({error:{message:'Supabase تنظیم نشده است.'}}),'محاسبات دوره از دفتر مالی بازخوانی شد.');
-  const approvePeriod=(row:Row)=>void action(()=>supabase?supabase.rpc('approve_partner_settlement_period',{_period:String(row.id)}):Promise.resolve({error:{message:'Supabase تنظیم نشده است.'}}),'دوره تسویه تأیید و قفل شد.');
+  const refreshPeriod=(row:Row)=>void action(()=>api.post(`/api/operations/partner-settlements/${encodeURIComponent(String(row.id))}/action`,{companyId:membership.company_id,action:'refresh'}),'محاسبات دوره از دفتر مالی بازخوانی شد.');
+  const approvePeriod=(row:Row)=>void action(()=>api.post(`/api/operations/partner-settlements/${encodeURIComponent(String(row.id))}/action`,{companyId:membership.company_id,action:'approve'}),'دوره تسویه تأیید و قفل شد.');
   const payPeriod=async(e:FormEvent<HTMLFormElement>)=>{
-    e.preventDefault();if(!supabase||!paymentPeriod)return;
+    e.preventDefault();if(!paymentPeriod)return;
     setBusy(true);setError('');setNotice('');
-    const result=await supabase.rpc('record_partner_settlement_payment',{_period:String(paymentPeriod.id),_amount:Number(paymentAmount),_payment_reference:paymentRef.trim()});
-    setBusy(false);if(result.error){setError(result.error.message);return;}
-    setPaymentPeriod(null);setPaymentAmount('');setPaymentRef('');setNotice('مرجع پرداخت به دفتر داخلی ثبت شد؛ سامانه وجه را منتقل نمی‌کند.');await load();
+    try{
+      await api.post(`/api/operations/partner-settlements/${encodeURIComponent(String(paymentPeriod.id))}/action`,{companyId:membership.company_id,action:'pay',amount:Number(paymentAmount),paymentReference:paymentRef.trim()});
+      setPaymentPeriod(null);setPaymentAmount('');setPaymentRef('');setNotice('مرجع پرداخت در دفتر مالی ثبت شد؛ انتقال بانکی توسط سامانه اجرا نمی‌شود.');await load();
+    }catch(caught){setError(caught instanceof Error?caught.message:'ثبت پرداخت انجام نشد.');}
+    finally{setBusy(false);}
   };
   const addEvidence=async(e:FormEvent<HTMLFormElement>)=>{
-    e.preventDefault();if(!supabase||!evidenceTask)return;
+    e.preventDefault();if(!evidenceTask)return;
     setBusy(true);setError('');setNotice('');
-    let path:string|null=null;
-    if(evidenceType==='photo'||evidenceType==='document'){
-      if(!evidenceFile){setBusy(false);setError('برای عکس یا سند، فایل انتخاب کن.');return;}
-      const filename=evidenceFile.name.replace(/[^\w.-]/g,'_');
-      path=membership.company_id+'/'+evidenceTask+'/'+Date.now()+'-'+filename;
-      const uploaded=await supabase.storage.from('operational-evidence').upload(path,evidenceFile,{upsert:false,contentType:evidenceFile.type});
-      if(uploaded.error){setBusy(false);setError(uploaded.error.message);return;}
-    }
-    const payload:Record<string,unknown>={company_id:membership.company_id,task_id:evidenceTask,evidence_type:evidenceType,
-      storage_path:path,note:evidenceNote.trim()||null,uploaded_by:membership.user_id,
-      measurement_value:evidenceType==='measurement'?Number(measurement):null,measurement_unit:evidenceType==='measurement'?(unit.trim()||null):null};
-    const result=await supabase.from('task_evidence').insert(payload);
-    setBusy(false);if(result.error){if(path){await supabase.storage.from('operational-evidence').remove([path]);}setError(result.error.message);return;}
-    setEvidenceTask('');setEvidenceType('note');setEvidenceNote('');setMeasurement('');setUnit('');setEvidenceFile(null);
-    setNotice('مدرک به وظیفه متصل شد.');await load();
+    try{
+      const form=new FormData();
+      form.set('evidenceType',evidenceType);form.set('note',evidenceNote.trim());form.set('measurement',measurement);form.set('unit',unit.trim());
+      if(evidenceFile)form.set('file',evidenceFile);
+      await api.upload(`/api/operations/operational-tasks/${encodeURIComponent(evidenceTask)}/evidence?companyId=${encodeURIComponent(membership.company_id)}`,form);
+      setEvidenceTask('');setEvidenceType('note');setEvidenceNote('');setMeasurement('');setUnit('');setEvidenceFile(null);
+      setNotice('مدرک به وظیفه متصل شد.');await load();
+    }catch(caught){setError(caught instanceof Error?caught.message:'ثبت مدرک انجام نشد.');}
+    finally{setBusy(false);}
   };
   const uploadAgreement=async(e:ChangeEvent<HTMLInputElement>)=>{
     const file=e.target.files?.[0];e.target.value='';
-    if(!supabase||!file||!uploadAgreementId)return;
+    if(!file||!uploadAgreementId)return;
     const agreement=rows.find(r=>String(r.id)===uploadAgreementId);if(!agreement){setError('قرارداد پیدا نشد.');return;}
     if(!['application/pdf','image/jpeg','image/png'].includes(file.type)){setError('فقط PDF، JPG و PNG مجاز است.');return;}
     setBusy(true);setError('');setNotice('');
-    const filename=file.name.replace(/[^\w.-]/g,'_');
-    const path=membership.company_id+'/'+String(agreement.supplier_id)+'/'+Date.now()+'-'+filename;
-    const up=await supabase.storage.from('contract-documents').upload(path,file,{upsert:false,contentType:file.type});
-    if(up.error){setBusy(false);setError(up.error.message);return;}
-    const result=await updateRow('partnership_agreements',agreement.id,{signed_document_path:path,signed_at:new Date().toISOString(),status:'active'});
-    setBusy(false);if(result.error){await supabase.storage.from('contract-documents').remove([path]);setError(result.error.message);return;}
-    setUploadAgreementId('');setNotice('سند امضاشده بارگذاری شد؛ فعال‌سازی در دیتابیس کنترل شد.');await load();
+    try{
+      const form=new FormData();form.set('file',file);
+      await api.upload(`/api/operations/partnership-agreements/${encodeURIComponent(String(agreement.id))}/document?companyId=${encodeURIComponent(membership.company_id)}`,form);
+      setUploadAgreementId('');setNotice('سند امضاشده در فضای امن R2 ثبت شد و فعال‌سازی قرارداد در سمت سرور بررسی شد.');await load();
+    }catch(caught){setError(caught instanceof Error?caught.message:'بارگذاری قرارداد انجام نشد.');}
+    finally{setBusy(false);}
   };
 
   const canCreate=()=>{
@@ -545,14 +537,15 @@ export function OperationsWorkspacePage({kind,membership,search}:{kind:Operation
     }
     if(kind==='production-batches'&&manager&&row.status==='planned')buttons.push({label:'شروع تولید',fn:()=>startBatch(row)});
     if(kind==='incidents'&&manager&&['open','investigating','action_required'].includes(String(row.status))){
-      if(row.status==='open')buttons.push({label:'شروع بررسی',tone:'soft',fn:()=>void action(()=>updateRow('operational_incidents',row.id,{status:'investigating'}),'رخداد وارد مرحله بررسی شد.')});
+      if(row.status==='open')buttons.push({label:'شروع بررسی',tone:'soft',fn:()=>void action(()=>api.post(`/api/operations/incidents/${encodeURIComponent(String(row.id))}/action`,{companyId:membership.company_id,action:'investigate'}),'رخداد وارد مرحله بررسی شد.')});
       buttons.push({label:'ثبت رفع رخداد',fn:()=>resolveIncident(row)});
     }
+    if(kind==='partnership-agreements'&&row.signed_document_path&&(manager||membership.role==='supplier'))buttons.push({label:'مشاهده سند امضا',tone:'soft',fn:()=>window.open(`/api/operations/partnership-agreements/${encodeURIComponent(String(row.id))}/document?companyId=${encodeURIComponent(membership.company_id)}`,'_blank','noopener,noreferrer')});
     if(kind==='partnership-agreements'&&manager){
-      if(row.status==='draft')buttons.push({label:'ارسال برای امضا',tone:'soft',fn:()=>void action(()=>updateRow('partnership_agreements',row.id,{status:'pending_signature'}),'قرارداد برای امضا آماده شد.')});
+      if(row.status==='draft')buttons.push({label:'ارسال برای امضا',tone:'soft',fn:()=>void action(()=>api.post(`/api/operations/partnership-agreements/${encodeURIComponent(String(row.id))}/action`,{companyId:membership.company_id,action:'submit-for-signature'}),'قرارداد برای امضا آماده شد.')});
       if(row.status==='pending_signature')buttons.push({label:'بارگذاری سند امضا',fn:()=>{setUploadAgreementId(String(row.id));document.getElementById('ops-agreement-file')?.click();}});
-      if(row.status==='active')buttons.push({label:'تعلیق قرارداد',tone:'danger',fn:()=>void action(()=>updateRow('partnership_agreements',row.id,{status:'suspended'}),'قرارداد تعلیق شد.')});
-      if(row.status==='suspended')buttons.push({label:'فعال‌سازی مجدد',fn:()=>void action(()=>updateRow('partnership_agreements',row.id,{status:'active'}),'درخواست فعال‌سازی بررسی شد.')});
+      if(row.status==='active')buttons.push({label:'تعلیق قرارداد',tone:'danger',fn:()=>void action(()=>api.post(`/api/operations/partnership-agreements/${encodeURIComponent(String(row.id))}/action`,{companyId:membership.company_id,action:'suspend-agreement'}),'قرارداد تعلیق شد.')});
+      if(row.status==='suspended')buttons.push({label:'فعال‌سازی مجدد',fn:()=>void action(()=>api.post(`/api/operations/partnership-agreements/${encodeURIComponent(String(row.id))}/action`,{companyId:membership.company_id,action:'reactivate-agreement'}),'قرارداد فعال شد.')});
     }
     if(kind==='partner-finance'&&manager)for(const status of nextFinance[String(row.status)]??[])buttons.push({
       label:status==='submitted'?'ارسال':status==='approved'?'تأیید':status==='posted'?'ثبت نهایی':status==='rejected'?'رد':'بازگردانی پیش‌نویس',
@@ -605,6 +598,14 @@ export function OperationsWorkspacePage({kind,membership,search}:{kind:Operation
     {evidenceTask&&<div className="ops-modal-backdrop" role="presentation" onMouseDown={e=>{if(e.target===e.currentTarget)setEvidenceTask('');}}>
       <div className="ops-modal compact" role="dialog" aria-modal="true" aria-label="ثبت مدرک وظیفه">
         <header><div><span className="ops-eyebrow">مستندات انجام کار</span><h2>ثبت مدرک انجام کار</h2><p>فایل‌ها در فضای خصوصی و با مسیر محدود به همان شرکت و وظیفه ذخیره می‌شوند.</p></div><button className="ops-refresh" onClick={()=>setEvidenceTask('')} aria-label="بستن"><X size={18}/></button></header>
+        <div className="evidence-history" aria-live="polite">
+          <b>مدارک ثبت‌شده ({numberFa(evidenceRows.length)})</b>
+          {evidenceRows.length?evidenceRows.map(item=><div className="evidence-history-row" key={String(item.id)}>
+            <span><strong>{fa(item.evidence_type)}</strong><small>{dateTimeFa(String(item.created_at??''))}</small></span>
+            <span>{String(item.note??'')}{item.measurement_value!==null&&item.measurement_value!==undefined?' · '+String(item.measurement_value)+' '+String(item.measurement_unit??''):''}</span>
+            {Boolean(item.storage_path)&&<a href={`/api/evidence/${encodeURIComponent(String(item.id))}/download`} target="_blank" rel="noreferrer">دریافت فایل</a>}
+          </div>):<small>هنوز مدرکی برای این وظیفه ثبت نشده است.</small>}
+        </div>
         <form className="ops-form" onSubmit={addEvidence}>
           <label className="ops-field"><span>نوع مدرک</span><select value={evidenceType} onChange={e=>setEvidenceType(e.target.value)}>{evidenceTypes.map(t=><option key={t.value} value={t.value}>{t.label}</option>)}</select></label>
           {(evidenceType==='photo'||evidenceType==='document')&&<label className="ops-field full"><span>فایل</span><input type="file" accept={evidenceType==='photo'?'image/*':'.pdf,.jpg,.jpeg,.png'} required onChange={e=>setEvidenceFile(e.target.files?.[0]??null)}/></label>}

@@ -37,8 +37,6 @@ jobs:
       - name: Build the same base path used by GitHub Pages
         run: npm run build:pages
         env:
-          VITE_SUPABASE_URL: https://aoxerjimfiwusidaparx.supabase.co
-          VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_oTgVCJWw9BfK-kFUxTcaMQ_aeAUWXC5
           VITE_ENABLE_AUTH_UI: 'true'
       - name: Verify built assets use the GitHub Pages base path
         shell: bash
@@ -53,16 +51,17 @@ jobs:
             cat dist/index.html
             exit 1
           fi
-      - name: Install Chromium for responsive browser simulation
+      - name: Install Chromium for browser checks
         run: npx playwright install --with-deps chromium
-      - name: Run desktop and mobile browser checks
+      - name: Desktop, mobile, and role-based browser checks
         run: npm run test:e2e
-      - name: Upload browser test report and failure artifacts
+      - name: Upload browser report and failure traces
         if: always()
         uses: actions/upload-artifact@v5
         with:
-          name: simorgh-browser-test-results
+          name: medar-playwright-report
           path: |
             playwright-report/
             test-results/
+          if-no-files-found: ignore
           retention-days: 14
