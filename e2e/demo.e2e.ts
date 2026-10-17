@@ -38,3 +38,37 @@ test('public demo is navigable, searchable and clearly read-only', async ({ page
   expect(errors).toEqual([]);
   await page.screenshot({ path: testInfo.outputPath('medar-public-demo.png'), fullPage: true });
 });
+
+
+test('mobile demo has four bottom navigation items and working quick access shortcuts', async ({ page }) => {
+  page.on('pageerror', error => { throw error; });
+  await page.route('**/api/health', route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ ok: true, database: true, service: 'medar-api' }),
+  }));
+  await page.route('**/api/auth/me', route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ user: null, memberships: [] }),
+  }));
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/simorgh/demo', { waitUntil: 'domcontentloaded' });
+  const bottomNav = page.locator('.demo-mobile-bottom-nav');
+  await expect(bottomNav).toBeVisible();
+  await expect(bottomNav.locator('button')).toHaveCount(4);
+  await expect(page.locator('.demo-quick-access')).toBeVisible();
+  await expect(page.locator('.demo-quick-action')).toHaveCount(4);
+
+  await bottomNav.getByRole('button', { name: 'سفارش‌ها', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'سفارش‌ها', exact: true })).toBeVisible();
+  await bottomNav.getByRole('button', { name: 'نمای کلی', exact: true }).click();
+  await page.locator('.demo-quick-action').filter({ hasText: 'تولید و مزرعه' }).click();
+  await expect(page.getByRole('heading', { name: 'سایت‌های مزرعه', exact: true })).toBeVisible();
+  await bottomNav.getByRole('button', { name: 'ماژول‌ها' }).click();
+  await expect(page.locator('.demo-sidebar')).toHaveClass(/is-open/);
+  await expect(page.locator('.demo-nav')).toContainText('مالی و تسویه');
+  const sizes = await page.evaluate(() => ({ viewport: innerWidth, document: document.documentElement.scrollWidth, body: document.body.scrollWidth }));
+  expect(sizes.document).toBeLessThanOrEqual(sizes.viewport);
+  expect(sizes.body).toBeLessThanOrEqual(sizes.viewport);
+});
