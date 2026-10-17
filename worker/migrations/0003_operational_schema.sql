@@ -600,17 +600,11 @@ ALTER TABLE public.access_requests ADD COLUMN IF NOT EXISTS notes text;
 ALTER TABLE public.access_requests ADD COLUMN IF NOT EXISTS email text;
 ALTER TABLE public.access_requests ADD COLUMN IF NOT EXISTS reviewed_by uuid REFERENCES public.medar_users(id) ON DELETE SET NULL;
 ALTER TABLE public.access_requests ADD COLUMN IF NOT EXISTS reviewed_at timestamptz;
-DO $
-BEGIN
-  IF EXISTS (
-    SELECT 1 FROM information_schema.columns
-    WHERE table_schema = 'public'
-      AND table_name = 'access_requests'
-      AND column_name = 'company_name'
-  ) THEN
-    EXECUTE 'UPDATE public.access_requests SET organization_name = company_name WHERE organization_name IS NULL AND company_name IS NOT NULL';
-  END IF;
-END $;
+-- Keep the legacy column nullable when absent so the backfill is safe on old and clean schemas.
+ALTER TABLE public.access_requests ADD COLUMN IF NOT EXISTS company_name text;
+UPDATE public.access_requests
+SET organization_name = company_name
+WHERE organization_name IS NULL AND company_name IS NOT NULL;
 
 -- 4. Add later schema columns (idempotent).
 ALTER TABLE public.order_items add column if not exists capacity_commitment_id uuid;
