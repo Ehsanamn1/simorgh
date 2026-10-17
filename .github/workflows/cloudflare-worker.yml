@@ -266,10 +266,6 @@ jobs:
         working-directory: worker
         shell: bash
         run: printf '%s' "$MEDAR_DATABASE_URL" | npx wrangler@4 secret put DATABASE_URL --name medar-ops
-      - name: Allow only Capacitor's native WebView origins for credentialed API calls
-        working-directory: worker
-        shell: bash
-        run: printf '%s' 'capacitor://localhost,https://localhost' | npx wrangler@4 secret put ALLOWED_ORIGINS --name medar-ops
       - name: Build the protected operational app with sign-in enabled
         run: npm run build
         env:

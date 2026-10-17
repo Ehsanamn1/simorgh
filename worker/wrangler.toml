@@ -8,4 +8,4 @@ binding = "ASSETS"
 not_found_handling = "single-page-application"
 
 [vars]
-ALLOWED_ORIGINS = "https://ehsanamn1.github.io,capacitor://localhost,ionic://localhost,http://localhost,http://localhost:5173,http://127.0.0.1:5173"
+ALLOWED_ORIGINS = "https://ehsanamn1.github.io,capacitor://localhost,https://localhost,ionic://localhost,http://localhost,http://localhost:5173,http://127.0.0.1:5173"
