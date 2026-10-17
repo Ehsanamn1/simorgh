@@ -27,6 +27,7 @@ test('public demo is navigable, searchable and clearly read-only', async ({ page
   await page.getByRole('button', { name: 'سفارش‌ها', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'سفارش‌ها', exact: true })).toBeVisible();
   await page.locator('.demo-search').click();
+  await page.locator('.demo-search').click();
   await page.getByRole('textbox', { name: 'جست‌وجو در داده‌های نمونه' }).fill('MD-2408');
   await expect(page.locator('.demo-table tbody tr')).toHaveCount(1);
   await expect(page.locator('.demo-table tbody tr')).toContainText('MD-2408');
