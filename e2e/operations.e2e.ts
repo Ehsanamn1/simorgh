@@ -31,41 +31,13 @@ async function installIsolatedSession(page: Page, role: 'owner' | 'supplier' | '
     body: JSON.stringify({ memberships }),
   }));
 
-  // Legacy business-data endpoints remain mocked while their server API migration is in progress.
-  await page.route(projectUrl + '/rest/v1/**', async route => {
-    const request = route.request();
-    const url = new URL(request.url());
-    const table = url.pathname.split('/').pop() || '';
-    const headers: Record<string, string> = {
-      'access-control-allow-origin': '*',
-      'access-control-allow-headers': '*',
-      'access-control-allow-methods': 'GET,HEAD,OPTIONS,POST,PATCH,DELETE,PUT',
-      'content-type': 'application/json',
-      'cache-control': 'no-store',
-    };
-    if (request.method() === 'OPTIONS') {
-      await route.fulfill({ status: 204, headers, body: '' });
-      return;
-    }
-    if (table === 'memberships') {
-      const rows = memberships.map(m => ({
-        id: m.id, company_id: m.company_id, user_id: m.user_id, role: m.role,
-        customer_id: m.customer_id, supplier_id: m.supplier_id, active: m.active,
-        companies: { name: 'شرکت آزمایشی مدار' },
-      }));
-      await route.fulfill({
-        status: 200,
-        headers: { ...headers, 'content-range': rows.length ? '0-0/1' : '*/0' },
-        body: JSON.stringify(rows),
-      });
-      return;
-    }
-    if (request.method() === 'HEAD') {
-      await route.fulfill({ status: 200, headers: { ...headers, 'content-range': '*/0' }, body: '' });
-      return;
-    }
-    await route.fulfill({ status: 200, headers: { ...headers, 'content-range': '*/0' }, body: '[]' });
+  // All business-data reads are isolated at the Worker API boundary; tests never write to a live database.
+  await page.route('**/api/data/**', async route => {
+    const table = new URL(route.request().url()).pathname.split('/').pop() || '';
+    const payload = { data: [], count: 0, error: null, table };
+    await route.fulfill({ status: 200, contentType: 'application/json', headers: { 'cache-control': 'no-store' }, body: JSON.stringify(payload) });
   });
+
 }
 
 test('manager workspace retains operations and captures a real rendered control-tower screen', async ({ page }, testInfo) => {
@@ -116,16 +88,8 @@ test('manager map shows every saved farm coordinate and allows marker selection'
     { id: '00000000-0000-4000-8000-000000000101', name: 'مزرعه تهران', site_type: 'crop', city: 'تهران', province: 'تهران', latitude: 35.6892, longitude: 51.3890, license_expires_on: null, active: true },
     { id: '00000000-0000-4000-8000-000000000102', name: 'واحد کرمان', site_type: 'livestock', city: 'کرمان', province: 'کرمان', latitude: 30.2839, longitude: 57.0834, license_expires_on: null, active: true },
   ];
-  await page.route(projectUrl + '/rest/v1/farm_sites*', async route => {
-    if (route.request().method() === 'OPTIONS') {
-      await route.fulfill({ status: 204, headers, body: '' });
-      return;
-    }
-    if (route.request().method() === 'HEAD') {
-      await route.fulfill({ status: 200, headers: { ...headers, 'content-range': '*/2' }, body: '' });
-      return;
-    }
-    await route.fulfill({ status: 200, headers: { ...headers, 'content-range': '0-1/2' }, body: JSON.stringify(sites) });
+  await page.route('**/api/data/farm_sites', async route => {
+    await route.fulfill({ status: 200, contentType: 'application/json', headers: { 'cache-control': 'no-store' }, body: JSON.stringify({ data: sites, count: sites.length, error: null }) });
   });
 
   await page.goto('/simorgh/app/command', { waitUntil: 'domcontentloaded' });
@@ -201,27 +165,18 @@ test('generic farm types and daily rejected quantities are validated before writ
   }
   await page.locator('.ops-modal').getByRole('button', { name: 'بستن' }).click();
 
-  await page.route(projectUrl + '/rest/v1/production_batches*', async route => {
-    const headers = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': 'GET,HEAD,OPTIONS,POST,PATCH,DELETE,PUT', 'content-type': 'application/json', 'cache-control': 'no-store' };
-    if (route.request().method() === 'OPTIONS') {
-      await route.fulfill({ status: 204, headers, body: '' });
-      return;
-    }
-    if (route.request().method() === 'HEAD') {
-      await route.fulfill({ status: 200, headers: { ...headers, 'content-range': '*/1' }, body: '' });
-      return;
-    }
+  await page.route('**/api/data/production_batches', async route => {
     await route.fulfill({
-      status: 200,
-      headers: { ...headers, 'content-range': '0-0/1' },
-      body: JSON.stringify([{
+      status: 200, contentType: 'application/json', headers: { 'cache-control': 'no-store' },
+      body: JSON.stringify({ data: [{
         id: '00000000-0000-4000-8000-000000000066', company_id: companyId,
         batch_code: 'TEST-BATCH', status: 'planned', production_kind: 'crop', unit: 'کیلوگرم',
         farm_site_id: null, supplier_id: null, planned_quantity: 10, produced_quantity: 0,
         rejected_quantity: 0, quality_status: 'not_inspected',
-      }]),
+      }], count: 1, error: null }),
     });
   });
+
   await page.goto('/simorgh/app/daily-production', { waitUntil: 'domcontentloaded' });
   await page.getByRole('button', { name: 'ثبت رکورد', exact: true }).click();
   await expect(page.locator('#ops-rejected_quantity')).toBeVisible();
