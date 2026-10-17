@@ -85,16 +85,8 @@ jobs:
             echo "Neon schema is missing a required table, versioned migration, or Worker RPC. Refusing deployment."
             exit 1
           fi
-      - name: Ensure private R2 bucket exists
-        working-directory: worker
-        shell: bash
-        run: |
-          if ! npx wrangler@4 r2 bucket create medar-private-files; then
-            npx wrangler@4 r2 bucket list | grep -Fq 'medar-private-files' || {
-              echo "Could not create or verify the private R2 bucket medar-private-files."
-              exit 1
-            }
-          fi
+      - name: Note optional private file storage
+        run: echo "R2 is not enabled for this Cloudflare account yet; file endpoints will return HTTP 503 until R2 is activated and the binding is restored."
       - name: Configure Neon database secret
         working-directory: worker
         shell: bash
