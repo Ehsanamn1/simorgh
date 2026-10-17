@@ -10,7 +10,6 @@ import { MedarLogo } from './MedarLogo';
 import type { AppRole } from './lib/types';
 
 type NavigationEntry = { key: string; label: string };
-type PublicRequestedRole = 'staff' | 'supplier' | 'driver' | 'customer';
 type AuthMode = 'signin' | 'signup';
 const routeIcons: Record<string, LucideIcon> = {
   command: LayoutDashboard, orders: FileText, goals: Target, shipments: Truck, finance: CreditCard, catalog: Boxes,
@@ -59,12 +58,11 @@ export default function ProductExperience() {
   const [workspaceMode, setWorkspaceMode] = useState<'create' | 'join'>('create');
   const [inviteCode, setInviteCode] = useState('');
   const [phone, setPhone] = useState('');
-  const [requestedRole, setRequestedRole] = useState<PublicRequestedRole>('customer');
+  const [joinInviteCode, setJoinInviteCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
-  const [requestId, setRequestId] = useState('');
   const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
   const protectedRoute = location.pathname.includes('/app');
   // Enable secure sign-in by default in web, preview and native builds; only an explicit false disables it.
@@ -196,29 +194,23 @@ export default function ProductExperience() {
     }
   }
 
-  async function submitRoleRequest(event: FormEvent<HTMLFormElement>) {
+  async function submitInviteJoin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!user) { setError('برای ثبت درخواست ابتدا وارد حساب شو.'); return; }
-    if (['customer', 'supplier'].includes(requestedRole) && organizationName.trim().length < 2) {
-      setError('نام شرکت یا مزرعه برای این نقش ضروری است.');
-      return;
-    }
+    const code = joinInviteCode.trim().toLowerCase();
+    if (!/^[a-f0-9]{64}$/.test(code)) { setError('کد دعوت معتبر ۶۴ نویسه‌ای وارد کن.'); return; }
     setBusy(true); setError(''); setNotice('');
     try {
-      const result = await api.post<{ requestId: string }>('/api/access-requests', {
-        role: requestedRole as AppRole,
-        fullName: fullName.trim(),
-        organizationName: organizationName.trim() || null,
-        phone: phone.trim() || null,
-      });
-      setNotice('درخواست دسترسی ثبت شد. پس از بررسی مالک یا مدیر، فضای کاری نقش انتخابی فعال می‌شود.');
-      setRequestId(result.requestId);
+      await api.post('/api/workspace/join', { inviteCode: code });
+      await refreshSession();
+      setJoinInviteCode('');
+      setNotice('عضویت با موفقیت فعال شد؛ در حال بارگذاری فضای کاری.');
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'ثبت درخواست دسترسی ناموفق بود.');
+      setError(caught instanceof Error ? caught.message : 'پیوستن به مجموعه ناموفق بود.');
     } finally {
       setBusy(false);
     }
   }
+
 
   return <>
     {user && appMain && mobileLinks.length > 0 && createPortal(
@@ -232,17 +224,14 @@ export default function ProductExperience() {
       </nav>, appMain)}
     {authUiEnabled && user && waitingScreen && memberships.length === 0 && createPortal(
       <section className="access-request-card" dir="rtl" aria-labelledby="access-request-title">
-        <div className="access-request-heading"><span className="access-request-icon"><UserPlus size={20}/></span><div><span className="obsidian-eyebrow">فضای کاری مدار</span><h2 id="access-request-title">درخواست فضای کاری</h2><p>نقش را مشخص کن؛ مدیر پس از بررسی آن را تأیید یا رد می‌کند.</p></div></div>
-        <form className="access-request-form" onSubmit={submitRoleRequest}>
-          <label>نام و نام خانوادگی<input required minLength={2} maxLength={160} autoComplete="name" value={fullName} onChange={e => setFullName(e.target.value)} placeholder="نام کامل"/></label>
-          <label>نوع دسترسی<select value={requestedRole} onChange={e => { setRequestedRole(e.target.value as PublicRequestedRole); setRequestId(''); }}><option value="customer">خریدار عمده</option><option value="supplier">شریک مزرعه</option><option value="driver">راننده / پیمانکار حمل</option><option value="staff">عضو تیم داخلی</option></select></label>
-          {['customer', 'supplier'].includes(requestedRole) && <label className="wide">نام شرکت / مزرعه<input required minLength={2} maxLength={160} value={organizationName} onChange={e => setOrganizationName(e.target.value)} placeholder="نام مجموعه"/></label>}
-          <label>شماره تماس<input type="tel" autoComplete="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="اختیاری"/></label>
+        <div className="access-request-heading"><span className="access-request-icon"><UserPlus size={20}/></span><div><span className="obsidian-eyebrow">فضای کاری مدار</span><h2 id="access-request-title">پیوستن به مجموعه</h2><p>برای اتصال حساب موجود، کد دعوتی را وارد کن که مالک یا مدیر مجموعه برایت ساخته است. انتخاب نقش به‌تنهایی دسترسی ایجاد نمی‌کند.</p></div></div>
+        <form className="access-request-form" onSubmit={submitInviteJoin}>
+          <label className="wide">کد دعوت<input className="auth-input" required minLength={64} maxLength={64} autoComplete="off" value={joinInviteCode} onChange={e => setJoinInviteCode(e.target.value.toLowerCase())} placeholder="کد دعوت ۶۴ نویسه‌ای" dir="ltr"/></label>
           {error && <div className="auth-feedback error wide" role="alert">{error}</div>}
           {notice && <div className="auth-feedback success wide" role="status">{notice}</div>}
-          <button className="obsidian-primary wide" type="submit" disabled={busy || Boolean(requestId)}>{busy ? 'در حال ارسال…' : requestId ? 'درخواست ثبت شد' : 'ارسال برای تأیید مدیر'} <ArrowLeft size={16}/></button>
+          <button className="obsidian-primary wide" type="submit" disabled={busy || joinInviteCode.trim().length !== 64}>{busy ? 'در حال بررسی دعوت…' : 'پیوستن به مجموعه'} <ArrowLeft size={16}/></button>
         </form>
-        <p className="access-request-foot"><ShieldCheck size={15}/> انتخاب نقش به‌تنهایی دسترسی نمی‌دهد. مدیر باید درخواست را در پنل کاربران بررسی کند.</p>
+        <p className="access-request-foot"><ShieldCheck size={15}/> اگر کد دعوت نداری، از مالک مجموعه بخواه از بخش «دسترسی کاربران» برایت دعوت بسازد.</p>
       </section>, waitingScreen)}
     {signInOpen && !user && (
       <section className="simorgh-signin-layer" role="dialog" aria-modal="true" aria-labelledby="simorgh-signin-title" aria-label="ورود امن مدار">
