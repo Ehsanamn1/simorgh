@@ -254,7 +254,7 @@ app.use('/api/*', async (c, next) => {
       c.header('Access-Control-Allow-Origin', origin);
       c.header('Access-Control-Allow-Credentials', 'true');
       c.header('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
-      c.header('Access-Control-Allow-Headers', 'Content-Type');
+      c.header('Access-Control-Allow-Headers', 'Content-Type, X-Upsert, X-Application-Name');
     } else if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(c.req.method)) {
       return c.json({ message: 'مبدأ درخواست مجاز نیست.' }, 403);
     }
