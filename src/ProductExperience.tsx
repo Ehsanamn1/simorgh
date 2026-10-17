@@ -12,12 +12,6 @@ import type { AppRole } from './lib/types';
 type NavigationEntry = { key: string; label: string };
 type PublicRequestedRole = 'staff' | 'supplier' | 'driver' | 'customer';
 type AuthMode = 'signin' | 'signup';
-const requestedRoles: { value: PublicRequestedRole; label: string; Icon: LucideIcon }[] = [
-  { value: 'customer', label: 'خریدار عمده', Icon: Boxes },
-  { value: 'supplier', label: 'شریک مزرعه', Icon: Factory },
-  { value: 'driver', label: 'راننده / حمل', Icon: Truck },
-  { value: 'staff', label: 'تیم داخلی', Icon: Building2 },
-];
 const routeIcons: Record<string, LucideIcon> = {
   command: LayoutDashboard, orders: FileText, goals: Target, shipments: Truck, finance: CreditCard, catalog: Boxes,
   'my-orders': Package, 'my-account': Building2, 'supplier-work': ClipboardCheck, 'supplier-capacity': Warehouse,
@@ -272,7 +266,7 @@ export default function ProductExperience() {
                  {workspaceMode === 'create'
                    ? <><label htmlFor="simorgh-signin-organization">نام مزرعه یا مجموعه</label><input id="simorgh-signin-organization" className="auth-input" type="text" required minLength={2} maxLength={160} value={organizationName} onChange={e => setOrganizationName(e.target.value)} placeholder="نام مجموعه"/></>
                    : <><label htmlFor="simorgh-signin-invite">کد دعوت</label><input id="simorgh-signin-invite" className="auth-input" type="text" required minLength={64} maxLength={64} value={inviteCode} onChange={e => setInviteCode(e.target.value.toLowerCase())} placeholder="کد دعوت را وارد کن" dir="ltr"/></>}
-                 <label htmlFor="simorgh-signin-phone">شماره موبایل</label><input id="simorgh-signin-phone" className="auth-input" type="tel" autoComplete="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="09121234567" pattern="(?:09\\d{9}|9\\d{9}|\\+989\\d{9})" required dir="ltr"/>
+                 <label htmlFor="simorgh-signin-phone">شماره موبایل</label><input id="simorgh-signin-phone" className="auth-input" type="tel" autoComplete="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="09121234567" required dir="ltr"/>
                </>}
                <label htmlFor="simorgh-signin-username">نام کاربری</label><input id="simorgh-signin-username" className="auth-input" type="text" autoComplete="username" required minLength={3} maxLength={32} value={username} onChange={e => setUsername(e.target.value)} placeholder="نام کاربری" dir="ltr"/>
                <label htmlFor="simorgh-signin-password">گذرواژه</label>
