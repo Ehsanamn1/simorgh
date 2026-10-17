@@ -30,6 +30,9 @@ describe('Simorgh formatting and role labels', () => {
     expect(normalizeIranPhone('9121234567')).toBe('+989121234567');
     expect(normalizeIranPhone('+989121234567')).toBe('+989121234567');
     expect(normalizeIranPhone(' 0912 123 4567 ')).toBe('+989121234567');
+    expect(normalizeIranPhone('۰۹۱۲۱۲۳۴۵۶۷')).toBe('+989121234567');
+    expect(normalizeIranPhone('٠٩١٢١٢٣٤٥٦٧')).toBe('+989121234567');
+    expect(normalizeIranPhone('00989121234567')).toBe('+989121234567');
     expect(normalizeIranPhone('02112345678')).toBe('');
     expect(normalizeIranPhone('0912123456')).toBe('');
     expect(normalizeIranPhone('')).toBe('');
