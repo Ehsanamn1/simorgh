@@ -20,10 +20,11 @@ type CurrentSession = { user: AuthUser; sessionId: string; tokenHash: string };
 const app = new Hono<AppEnv>();
 const SESSION_COOKIE = 'medar_session';
 const SESSION_DAYS = 14;
-const PASSWORD_ITERATIONS = 310_000;
+const PASSWORD_ITERATIONS = 100_000;
+// Cloudflare Workers Web Crypto rejects PBKDF2 counts above 100,000.
 // Used only to keep the PBKDF2 verification path consistent when a username does not exist.
 // It is never accepted as an account credential because the account lookup result is still required.
-export const DUMMY_PASSWORD_HASH = 'pbkdf2_sha256$310000$bWVkYXItZHVtbXktc2FsdCE=$Sk8IhZrR9RSBksUm2skm8Ny+NZcnKLgYPWsTBvfWL44=';
+export const DUMMY_PASSWORD_HASH = 'pbkdf2_sha256$100000$bWVkYXItZHVtbXktc2FsdCE=$PsVhwLctTRvjK7QQMEDf0T5vDyI7Gvwrf99dNxBRF+c=';
 const encoder = new TextEncoder();
 
 function sqlFor(c: Ctx) {
@@ -73,7 +74,7 @@ export async function verifyPassword(password: string, encoded: string): Promise
   const [algorithm, rawIterations, saltText, expectedText] = encoded.split('$');
   if (algorithm !== 'pbkdf2_sha256' || !rawIterations || !saltText || !expectedText) return false;
   const iterations = Number(rawIterations);
-  if (!Number.isInteger(iterations) || iterations < 100_000 || iterations > 600_000) return false;
+  if (!Number.isInteger(iterations) || iterations < 100_000 || iterations > 100_000) return false;
   try {
     const salt = toArrayBuffer(base64ToBytes(saltText));
     const expected = new Uint8Array(base64ToBytes(expectedText));
