@@ -26,26 +26,33 @@ jobs:
           test -n "$CLOUDFLARE_API_TOKEN" || { echo "CLOUDFLARE_API_TOKEN is missing"; exit 1; }
           test -n "$CLOUDFLARE_ACCOUNT_ID" || { echo "CLOUDFLARE_ACCOUNT_ID is missing"; exit 1; }
           test -n "$MEDAR_DATABASE_URL" || { echo "MEDAR_DATABASE_URL is missing"; exit 1; }
-      - name: Apply versioned Medar schema migrations to Neon
+      - name: Verify the established Medar schema before migration
+        shell: bash
+        run: |
+          schema_ready="$(psql "$MEDAR_DATABASE_URL" -v ON_ERROR_STOP=1 -Atqc "select (to_regclass('public.medar_users') is not null and to_regclass('public.medar_sessions') is not null and to_regclass('public.companies') is not null and to_regclass('public.memberships') is not null and to_regclass('public.orders') is not null)")"
+          if [[ "$schema_ready" != "t" ]]; then
+            echo "MEDAR_DATABASE_URL must point to the existing Medar migration branch. Refusing to replay initial schema on a different or empty database."
+            exit 1
+          fi
+      - name: Apply versioned compatibility migrations to Neon
         shell: bash
         run: |
           psql "$MEDAR_DATABASE_URL" -v ON_ERROR_STOP=1 -c "create table if not exists public.medar_schema_migrations (version text primary key, checksum text not null, applied_at timestamptz not null default now())"
-          for migration in worker/migrations/000[1-6]_*.sql; do
-            version="$(basename "$migration")"
-            checksum="$(sha256sum "$migration" | awk '{print $1}')"
-            applied="$(psql "$MEDAR_DATABASE_URL" -v ON_ERROR_STOP=1 -Atqc "select checksum from public.medar_schema_migrations where version = '$version'")"
-            if [ -n "$applied" ]; then
-              if [ "$applied" != "$checksum" ]; then
-                echo "Migration checksum mismatch for $version. Applied migrations must not be edited in place."
-                exit 1
-              fi
-              echo "Skipping already-applied migration $version"
-              continue
+          migration="worker/migrations/0007_existing_medar_schema_compat.sql"
+          version="$(basename "$migration")"
+          checksum="$(sha256sum "$migration" | awk '{print $1}')"
+          applied="$(psql "$MEDAR_DATABASE_URL" -v ON_ERROR_STOP=1 -Atqc "select checksum from public.medar_schema_migrations where version = '$version'")"
+          if [ -n "$applied" ]; then
+            if [ "$applied" != "$checksum" ]; then
+              echo "Migration checksum mismatch for $version. Applied migrations must not be edited in place."
+              exit 1
             fi
+            echo "Skipping already-applied migration $version"
+          else
             echo "Applying $version"
-            psql "$MEDAR_DATABASE_URL" -v ON_ERROR_STOP=1 -f "$migration"
+            psql "$MEDAR_DATABASE_URL" -v ON_ERROR_STOP=1 -1 -f "$migration"
             psql "$MEDAR_DATABASE_URL" -v ON_ERROR_STOP=1 -c "insert into public.medar_schema_migrations(version,checksum) values ('$version','$checksum')"
-          done
+          fi
       - name: Ensure private R2 bucket exists
         working-directory: worker
         shell: bash
