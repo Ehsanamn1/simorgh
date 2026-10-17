@@ -22,23 +22,23 @@ jobs:
       - run: npm run typecheck
       - run: npm run lint
       - run: npm run test
-      - name: Build Worker app with secure same-origin sign-in and self-registration
+      - name: Build Worker app with public read-only demo
         run: npm run build
         env:
-          VITE_ENABLE_AUTH_UI: 'true'
-      - name: Verify the Worker bundle includes secure sign-in, self-registration, and polished UI
+          VITE_ENABLE_AUTH_UI: 'false'
+      - name: Verify the Worker bundle includes the interactive demo and showcase styles
         shell: bash
         run: |
           test -f dist/index.html
           grep -q 'id="root"' dist/index.html
           test -n "$(find dist/assets -maxdepth 1 -type f -name '*.js' -print -quit)"
           test -n "$(find dist/assets -maxdepth 1 -type f -name '*.css' -print -quit)"
-          grep -Rqs --include='*.js' 'simorgh-signin-layer' dist/assets
-          grep -Rqs --include='*.js' 'ورود به مدار' dist/assets
-          grep -Rqs --include='*.js' 'ساخت حساب و فضای کاری' dist/assets
-          grep -Rqs --include='*.css' 'simorgh-signin-layer' dist/assets
-          grep -Rqs --include='*.css' 'medar-glass' dist/assets
-          echo "Worker frontend includes secure sign-in, self-registration, and polished operations styles."
+          grep -Rqs --include='*.js' 'demo-workspace' dist/assets
+          grep -Rqs --include='*.js' 'دموی قابل ارائه' dist/assets
+          grep -Rqs --include='*.js' 'عملیات، در یک نگاه.' dist/assets
+          grep -Rqs --include='*.css' 'demo-workspace' dist/assets
+          grep -Rqs --include='*.css' 'demo-preview-notice' dist/assets
+          echo "Worker frontend includes the interactive, read-only demo and responsive showcase styles."
       - name: Validate deployment credentials
         shell: bash
         run: |
@@ -154,17 +154,19 @@ jobs:
           const [jsFiles, cssFiles] = await Promise.all([fetchTexts(jsPaths), fetchTexts(cssPaths)]);
           const js = jsFiles.join('\n');
           const css = cssFiles.join('\n');
-          for (const token of ['simorgh-signin-layer', 'ورود به مدار', 'ساخت حساب و فضای کاری']) if (!js.includes(token)) throw new Error('Live JS bundles missing sign-in/sign-up token: ' + token);
-          for (const token of ['simorgh-signin-layer', 'medar-glass']) if (!css.includes(token)) throw new Error('Live CSS bundles missing expected auth/design token: ' + token);
-          const appRoute = await fetch(base + '/app/command');
-          if (!appRoute.ok || !(await appRoute.text()).includes('id="root"')) throw new Error('SPA deep-link fallback failed for /app/command');
-          console.log('Live secure sign-in/sign-up assets and /app/command deep link OK');
+          for (const token of ['demo-workspace', 'دموی قابل ارائه', 'عملیات، در یک نگاه.']) if (!js.includes(token)) throw new Error('Live JS bundles missing public demo token: ' + token);
+          for (const token of ['demo-workspace', 'demo-preview-notice']) if (!css.includes(token)) throw new Error('Live CSS bundles missing public demo styles: ' + token);
+          for (const route of ['/demo', '/app/command']) {
+            const appRoute = await fetch(base + route);
+            if (!appRoute.ok || !(await appRoute.text()).includes('id="root"')) throw new Error('SPA deep-link fallback failed for ' + route);
+          }
+          console.log('Live public demo assets and SPA routes are reachable.');
           NODE
           )" || { echo "Live frontend smoke test failed."; exit 1; }
           echo "$asset_results"
-      - name: Install Chromium for live Worker UI verification
+      - name: Install Chromium for live Worker demo verification
         run: npx playwright install --with-deps chromium
-      - name: Verify deployed sign-in, self-registration, and responsive layout in a real browser
+      - name: Verify the live public demo, real health status, navigation, and responsive layout
         shell: bash
         run: |
           worker_url="$(grep -Eo 'https://medar-api\.[a-z0-9-]+\.workers\.dev' /tmp/medar-deploy.log 2>/dev/null | tail -n1 || true)"
@@ -177,40 +179,42 @@ jobs:
           try {
             const page = await browser.newPage({ viewport: { width: 1365, height: 900 } });
             page.on('pageerror', error => errors.push(error.message));
-            const response = await page.goto(base + '/app/command', { waitUntil: 'networkidle', timeout: 60000 });
-            if (!response?.ok()) throw new Error('Operational deep-link did not return a successful app shell.');
-            await page.locator('.simorgh-signin-layer').waitFor({ state: 'visible', timeout: 20000 });
-            await page.getByRole('heading', { name: 'ورود به مدار' }).waitFor({ state: 'visible' });
-            for (const selector of ['#simorgh-signin-username', '#simorgh-signin-password']) {
-              if (await page.locator(selector).count() !== 1) throw new Error('Required sign-in field is missing: ' + selector);
-            }
-            if (await page.locator('input[type="email"]').count()) throw new Error('Sign-in UI must not ask for email.');
-            if (await page.locator('.demo-workspace').count()) throw new Error('The live operational route incorrectly rendered the public demo.');
+            const response = await page.goto(base + '/', { waitUntil: 'networkidle', timeout: 60000 });
+            if (!response?.ok()) throw new Error('Public demo root failed to load.');
+            await page.locator('#app-boot-screen').waitFor({ state: 'detached', timeout: 20000 });
+            await page.locator('.demo-workspace').waitFor({ state: 'visible', timeout: 20000 });
+            await page.getByRole('heading', { name: 'عملیات، در یک نگاه.' }).waitFor({ state: 'visible' });
+            await page.locator('.demo-preview-notice').waitFor({ state: 'visible' });
+            if (await page.locator('.simorgh-signin-layer').count()) throw new Error('Sign-in UI must be hidden in the public demo.');
+            if (await page.locator('.app-frame, .setup-screen').count()) throw new Error('Protected workspace or setup screen rendered instead of the demo.');
+            await page.getByText('سرویس اصلی آنلاین', { exact: true }).waitFor({ state: 'visible', timeout: 20000 });
             const desktop = await page.evaluate(() => ({ viewport: innerWidth, document: document.documentElement.scrollWidth, body: document.body.scrollWidth }));
             if (desktop.document > desktop.viewport || desktop.body > desktop.viewport) throw new Error('Desktop horizontal overflow: ' + JSON.stringify(desktop));
 
-            await page.getByRole('button', { name: 'ساخت حساب و فضای کاری' }).click();
-            await page.getByRole('heading', { name: 'ساخت حساب و فضای کاری' }).waitFor({ state: 'visible' });
-            for (const selector of ['#simorgh-signin-full-name', '#simorgh-workspace-mode', '#simorgh-signin-organization', '#simorgh-signin-phone', '#simorgh-signin-username', '#simorgh-signin-password', '#simorgh-confirm-password']) {
-              await page.locator(selector).waitFor({ state: 'visible', timeout: 10000 });
-            }
-            if (await page.locator('input[type="email"]').count()) throw new Error('Self-registration must not ask for email.');
-            if (await page.locator('#simorgh-workspace-mode').inputValue() !== 'create') throw new Error('New-account registration should default to creating an isolated workspace.');
-            const signUpDesktop = await page.evaluate(() => ({ viewport: innerWidth, document: document.documentElement.scrollWidth, body: document.body.scrollWidth }));
-            if (signUpDesktop.document > signUpDesktop.viewport || signUpDesktop.body > signUpDesktop.viewport) throw new Error('Desktop sign-up horizontal overflow: ' + JSON.stringify(signUpDesktop));
+            await page.locator('.demo-sidebar .demo-nav-item').filter({ hasText: /^سفارش‌ها$/ }).click();
+            await page.locator('.demo-breadcrumb b').filter({ hasText: 'سفارش‌ها' }).waitFor({ state: 'visible' });
+            if (errors.length) throw new Error('Desktop browser runtime error: ' + errors.join(' | '));
+
+            const deepLink = await page.goto(base + '/app/command', { waitUntil: 'networkidle', timeout: 60000 });
+            if (!deepLink?.ok()) throw new Error('App deep link did not return the application shell.');
+            await page.locator('.demo-workspace').waitFor({ state: 'visible', timeout: 20000 });
+            if (await page.locator('.simorgh-signin-layer').count()) throw new Error('The app deep link rendered sign-in UI.');
 
             await page.setViewportSize({ width: 390, height: 844 });
-            await page.goto(base + '/app/command', { waitUntil: 'networkidle', timeout: 60000 });
-            await page.locator('.simorgh-signin-layer').waitFor({ state: 'visible', timeout: 20000 });
-            await page.getByRole('heading', { name: 'ورود به مدار' }).waitFor({ state: 'visible' });
+            await page.goto(base + '/', { waitUntil: 'networkidle', timeout: 60000 });
+            await page.locator('#app-boot-screen').waitFor({ state: 'detached', timeout: 20000 });
+            await page.locator('.demo-workspace').waitFor({ state: 'visible', timeout: 20000 });
+            await page.locator('.demo-preview-notice').waitFor({ state: 'visible' });
+            if (await page.locator('.simorgh-signin-layer').count()) throw new Error('The mobile demo unexpectedly rendered sign-in UI.');
+            const mobileNav = page.locator('.demo-mobile-bottom-nav');
+            await mobileNav.waitFor({ state: 'visible', timeout: 10000 });
+            if (await mobileNav.locator('button').count() !== 4) throw new Error('The mobile bottom navigation is incomplete.');
+            await mobileNav.getByRole('button', { name: /سفارش‌ها/ }).click();
+            await page.locator('.demo-breadcrumb b').filter({ hasText: 'سفارش‌ها' }).waitFor({ state: 'visible' });
             const mobile = await page.evaluate(() => ({ viewport: innerWidth, document: document.documentElement.scrollWidth, body: document.body.scrollWidth }));
-            if (mobile.document > mobile.viewport || mobile.body > mobile.viewport) throw new Error('Mobile sign-in horizontal overflow: ' + JSON.stringify(mobile));
-            await page.getByRole('button', { name: 'ساخت حساب و فضای کاری' }).click();
-            await page.getByRole('heading', { name: 'ساخت حساب و فضای کاری' }).waitFor({ state: 'visible' });
-            const mobileSignup = await page.evaluate(() => ({ viewport: innerWidth, document: document.documentElement.scrollWidth, body: document.body.scrollWidth }));
-            if (mobileSignup.document > mobileSignup.viewport || mobileSignup.body > mobileSignup.viewport) throw new Error('Mobile sign-up horizontal overflow: ' + JSON.stringify(mobileSignup));
-            if (errors.length) throw new Error('Live browser runtime errors: ' + errors.join(' | '));
-            console.log('Live Worker sign-in and owner self-registration UI passed desktop/mobile checks.');
+            if (mobile.document > mobile.viewport || mobile.body > mobile.viewport) throw new Error('Mobile horizontal overflow: ' + JSON.stringify(mobile));
+            if (errors.length) throw new Error('Live browser runtime error: ' + errors.join(' | '));
+            console.log('Live Worker demo passed desktop/mobile, navigation, health, and no-login checks.');
           } finally {
             await browser.close();
           }
