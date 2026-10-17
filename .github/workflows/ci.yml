@@ -232,11 +232,11 @@ jobs:
             playwright-report/
             test-results/
           retention-days: 14
-      - name: Build the same-origin Cloudflare Worker frontend with secure sign-in
+      - name: Build the same-origin Cloudflare Worker frontend with the public demo
         run: npm run build
         env:
-          VITE_ENABLE_AUTH_UI: 'true'
-      - name: Verify Worker build has auth UI and premium operations styles
+          VITE_ENABLE_AUTH_UI: 'false'
+      - name: Verify Worker build has the public demo and premium operations styles
         shell: bash
         run: |
           grep -q 'id="root"' dist/index.html
@@ -247,11 +247,12 @@ jobs:
           fi
           test -n "$(find dist/assets -maxdepth 1 -type f -name '*.js' -print -quit)"
           test -n "$(find dist/assets -maxdepth 1 -type f -name '*.css' -print -quit)"
-          grep -Rqs --include='*.js' 'ورود به مدار' dist/assets
-          grep -Rqs --include='*.js' 'simorgh-signin-layer' dist/assets
-          grep -Rqs --include='*.css' 'tower-quick-grid' dist/assets
-          grep -Rqs --include='*.css' 'medar-glass' dist/assets
-          echo "Worker frontend build includes sign-in, the command-center polish, and root-relative assets."
+          grep -Rqs --include='*.js' 'demo-workspace' dist/assets
+          grep -Rqs --include='*.js' 'دموی قابل ارائه' dist/assets
+          grep -Rqs --include='*.js' 'عملیات، در یک نگاه.' dist/assets
+          grep -Rqs --include='*.css' 'demo-workspace' dist/assets
+          grep -Rqs --include='*.css' 'demo-preview-notice' dist/assets
+          echo "Worker frontend build includes the public read-only demo and root-relative assets."
       - name: Build the Pages production bundle
         run: npm run build:pages
         env:

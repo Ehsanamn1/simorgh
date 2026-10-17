@@ -4,14 +4,14 @@ Checked: 2026-10-17.
 
 ## Live application surfaces
 
-- **Operational app with sign-in and owner self-registration:** https://medar-api.dengxiao445.workers.dev/
+- **Worker demo (interactive, read-only showcase):** https://medar-api.dengxiao445.workers.dev/
 - **Public read-only showcase (not the operational tenant):** https://ehsanamn1.github.io/simorgh/
 - **Worker health endpoint:** https://medar-api.dengxiao445.workers.dev/api/health
 - **Current verified application-code release:** `0dd1fa068f5e08be27194976e498544a7236c81a`.
 
-The Cloudflare Worker serves the operational UI with `VITE_ENABLE_AUTH_UI=true`. Sign-in uses an Iranian mobile number/username identity and password; it does not ask for email or SMS OTP. Public self-registration creates a separate workspace with the registrant as its initial owner. Joining an existing workspace still requires an invitation issued by that workspace's owner/admin. The browser tests verify that sign-in and the registration form render on desktop and mobile, but do not create a real production user account.
+The Cloudflare Worker is configured to serve the interactive, read-only `DemoWorkspace` with `VITE_ENABLE_AUTH_UI=false`, so a company can inspect the product without logging in. All displayed business records and metrics are explicitly marked as sample data; navigation, search, responsive layout and the live health check are interactive. The sign-in and registration code remains in the source, but is not shown in showcase builds. This switch is a UI-only choice: protected API routes still require a valid server session and do not grant demo visitors a real company membership.
 
-GitHub Pages intentionally remains `VITE_ENABLE_AUTH_UI=false` and shows the read-only demo workspace. Its sample data is showcase-only. It does not share the operational workspace or pretend to have real business transactions.
+GitHub Pages and the Android/iOS showcase builds use the same read-only demo mode. Sample records are local display fixtures, not production company data; no order, payment, delete or operational write is enabled from the public demo.
 
 ## Verified automation for the current release
 
@@ -24,7 +24,7 @@ GitHub Pages intentionally remains `VITE_ENABLE_AUTH_UI=false` and shows the rea
 
 The current CI pipeline checks TypeScript, ESLint, unit tests, production dependency audit, the canonical migration chain against clean PostgreSQL 16, the concurrent stock-deduction invariant, purchase-order approval/partial/final receipt and over-receipt rejection, the auth-enabled build, Pages subpath build, and desktop/mobile browser checks.
 
-The Worker deployment flow validates the established Neon schema before applying checksummed compatibility migrations, verifies the required RPC signatures and migration ledger, deploys to Cloudflare, downloads every emitted JS/CSS asset from the live Worker, checks sign-in/signup UI tokens, verifies the `/app/command` deep-link and renders the sign-in/signup screens in Chromium on desktop and mobile. It also checks unauthenticated and invalid-origin API requests. GitHub Pages is published on successful main-branch builds and checks the deployed assets and desktop/mobile rendering.
+The Worker deployment flow validates the established Neon schema before applying checksummed compatibility migrations, verifies required RPC signatures and the migration ledger, deploys to Cloudflare, fetches every emitted JS/CSS asset, verifies the public demo assets and SPA deep links, then renders the dashboard in Chromium on desktop and mobile. The browser smoke test checks navigation, sample-data notice, no sign-in UI, horizontal overflow, live Worker/database health, and client-side runtime errors. Separate API checks continue to verify unauthenticated access denial and the invalid-origin mutation guard. GitHub Pages performs its own asset and desktop/mobile demo checks.
 
 These are source, build, deployment, and smoke-test results. They are not an independent penetration test or proof that all business workflows have been validated end-to-end using a fully onboarded live company.
 
@@ -32,7 +32,7 @@ These are source, build, deployment, and smoke-test results. They are not an ind
 
 A read-only query on the Worker-connected Neon branch after deployment reported **0 active users, 0 active owner memberships, 4/4 compatible migration records (0007–0010), the purchase-order receipt RPC present, and 0 purchase orders**. No owner or test company was seeded by this release. This keeps production data honest and isolated.
 
-To begin using the operational app, visit the Worker URL above and create the first workspace with real organization details, Iranian mobile number, username and password. Use your own account details; this release does not publish, generate, or store a shared default password. After that, invite staff/suppliers/customers/drivers to the correct workspace and test each role with real accounts. A newly created empty workspace is expected to have no inventory/orders until you add them.
+During this presentation phase, the Worker URL opens the public read-only demo and intentionally does not show sign-in or registration. The demo does not create or access a real company workspace. When operational onboarding is ready to resume, build a trusted operational release with `VITE_ENABLE_AUTH_UI=true`; then create the first workspace using the owner's own mobile number, username and password and test each role with real accounts. Never add a shared default password or bypass the server's session checks.
 
 ## Verified procurement slice
 
@@ -46,7 +46,7 @@ This is a verified purchase-order-to-inventory slice; it does not by itself comp
 - Refined dark surfaces, teal accents, borders, shadows, typography hierarchy, search/focus states, buttons, tables, empty states, forms and dialogs.
 - Improved command-center cards, quick-access navigation, freshness indicator, goals/alerts and responsive grids.
 - Added light-theme contrast rules, visible keyboard focus and reduced-motion handling.
-- Added the Persian operational sign-in/signup flow to Worker and mobile builds while keeping Pages demo-only.
+- Made the read-only showcase the visible experience on Worker and mobile builds, while retaining server-enforced authentication and the dormant sign-in/registration UI for a later controlled re-enable.
 
 ## Operational API and database status
 
