@@ -275,11 +275,16 @@ app.post('/api/auth/signup', async (c) => {
   const phone = normalizeIranPhone(body.phone);
   const fullName = typeof body.fullName === 'string' ? body.fullName.trim() : '';
   const companyName = typeof body.companyName === 'string' ? body.companyName.trim() : '';
+  const inviteCode = typeof body.inviteCode === 'string' ? body.inviteCode.trim().toLowerCase() : '';
   const password = typeof body.password === 'string' ? body.password : '';
   if (!username) return c.json({ message: 'نام کاربری باید ۳ تا ۳۲ نویسه و شامل حروف، عدد، نقطه، خط تیره یا زیرخط باشد.' }, 422);
   if (!phone) return c.json({ message: 'شماره موبایل ایران معتبر وارد کن؛ مثال: 09121234567' }, 422);
   if (fullName.length < 2 || fullName.length > 160) return c.json({ message: 'نام و نام خانوادگی باید بین ۲ تا ۱۶۰ نویسه باشد.' }, 422);
-  if (companyName.length < 2 || companyName.length > 160) return c.json({ message: 'نام مجموعه باید بین ۲ تا ۱۶۰ نویسه باشد.' }, 422);
+  if (inviteCode) {
+    if (!/^[a-f0-9]{64}$/.test(inviteCode)) return c.json({ message: 'کد دعوت معتبر نیست.' }, 422);
+  } else if (companyName.length < 2 || companyName.length > 160) {
+    return c.json({ message: 'نام مجموعه باید بین ۲ تا ۱۶۰ نویسه باشد.' }, 422);
+  }
   if (password.length < 8 || password.length > 128) return c.json({ message: 'گذرواژه باید بین ۸ تا ۱۲۸ نویسه باشد.' }, 422);
 
   const sql = sqlFor(c);
@@ -296,27 +301,57 @@ app.post('/api/auth/signup', async (c) => {
       return c.json({ message: 'این شماره موبایل قبلاً برای حسابی ثبت شده است.' }, 409);
     }
     const passwordHash = await hashPassword(password);
-    const rows = await sql`
-      with new_user as (
-        insert into public.app_users(username, phone_e164, full_name, password_hash)
-        values (${username}, ${phone}, ${fullName}, ${passwordHash})
-        returning id, username, phone_e164, full_name
-      ),
-      new_company as (
-        insert into public.companies(name)
-        select ${companyName} from new_user
-        returning id
-      ),
-      new_membership as (
-        insert into public.memberships(company_id, user_id, role, active, created_by)
-        select c.id, u.id, 'owner', true, u.id
-        from new_user u cross join new_company c
-        returning company_id
-      )
-      select u.id, u.username, u.phone_e164 as phone, u.full_name, m.company_id as "companyId"
-      from new_user u cross join new_membership m
-    `;
-    const created = rows[0] as (Record<string, unknown> & { id: string; companyId: string }) | undefined;
+    let created: (Record<string, unknown> & { id: string; companyId: string }) | undefined;
+    if (inviteCode) {
+      const tokenHash = await sha256(inviteCode);
+      const rows = await sql`
+        with valid_invite as (
+          update public.company_invites
+          set uses = uses + 1, updated_at = now()
+          where token_hash = ${tokenHash} and revoked_at is null
+            and expires_at > now() and uses < max_uses
+          returning company_id, role
+        ),
+        new_user as (
+          insert into public.app_users(username, phone_e164, full_name, password_hash)
+          select ${username}, ${phone}, ${fullName}, ${passwordHash}
+          from valid_invite
+          returning id, username, phone_e164, full_name
+        ),
+        new_membership as (
+          insert into public.memberships(company_id, user_id, role, active, created_by)
+          select i.company_id, u.id, i.role, true, u.id
+          from valid_invite i cross join new_user u
+          returning company_id
+        )
+        select u.id, u.username, u.phone_e164 as phone, u.full_name, m.company_id as "companyId"
+        from new_user u cross join new_membership m
+      `;
+      created = rows[0] as (Record<string, unknown> & { id: string; companyId: string }) | undefined;
+      if (!created) return c.json({ message: 'کد دعوت منقضی، لغوشده یا قبلاً مصرف شده است.' }, 422);
+    } else {
+      const rows = await sql`
+        with new_user as (
+          insert into public.app_users(username, phone_e164, full_name, password_hash)
+          values (${username}, ${phone}, ${fullName}, ${passwordHash})
+          returning id, username, phone_e164, full_name
+        ),
+        new_company as (
+          insert into public.companies(name)
+          select ${companyName} from new_user
+          returning id
+        ),
+        new_membership as (
+          insert into public.memberships(company_id, user_id, role, active, created_by)
+          select c.id, u.id, 'owner', true, u.id
+          from new_user u cross join new_company c
+          returning company_id
+        )
+        select u.id, u.username, u.phone_e164 as phone, u.full_name, m.company_id as "companyId"
+        from new_user u cross join new_membership m
+      `;
+      created = rows[0] as (Record<string, unknown> & { id: string; companyId: string }) | undefined;
+    }
     if (!created) return c.json({ message: 'ساخت حساب و فضای کاری انجام نشد. دوباره تلاش کن.' }, 500);
     await createSession(c, created.id);
     return c.json({
