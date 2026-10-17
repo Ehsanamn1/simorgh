@@ -746,7 +746,7 @@ function MembersPage({membership,search}:{membership:Membership;search:string}) 
  const [inviteRole,setInviteRole]=useState<AppRole>('staff');
  const [inviteCode,setInviteCode]=useState('');
  const [customers,setCustomers]=useState<Row[]>([]);const [suppliers,setSuppliers]=useState<Row[]>([]);
- const [inviteCustomerId,setInviteCustomerId]=useState('');const [inviteSupplierId,setInviteSupplierId]=useState('');
+ const [inviteCustomerId,setInviteCustomerId]=useState('');const [inviteSupplierId,setInviteSupplierId]=useState('');const [resetSecret,setResetSecret]=useState('');
  const load=async()=>{
   setLoading(true);setError('');
   try {
@@ -782,6 +782,19 @@ function MembersPage({membership,search}:{membership:Membership;search:string}) 
    setError(caught instanceof Error?caught.message:'ساخت کد دعوت ناموفق بود.');
   } finally {setBusy(false);}
  };
+ const resetMemberPassword=async(row:Row)=>{
+  const name=String(row.username??row.full_name??'این کاربر');
+  if(!window.confirm('گذرواژه حساب «'+name+'» بازنشانی شود؟ نشست‌های قبلی او بسته می‌شوند.'))return;
+  const temporaryPassword='Mdr-'+crypto.randomUUID().replace(/-/g,'').slice(0,16)+'!';
+  setBusy(true);setError('');setNotice('');setResetSecret('');
+  try{
+   await api.post('/api/workspace/members/reset-password',{companyId:membership.company_id,membershipId:String(row.membership_id??row.id),newPassword:temporaryPassword});
+   setResetSecret('@'+String(row.username??'user')+' : '+temporaryPassword);
+   setNotice('گذرواژه موقت ساخته شد. آن را فقط از مسیر امن به صاحب حساب بده؛ نشست‌های قبلی بسته شدند.');
+  }catch(caught){
+   setError(caught instanceof Error?caught.message:'بازنشانی گذرواژه ناموفق بود.');
+  }finally{setBusy(false);}
+ };
  const deactivate=async(row:Row)=>{
   const name=String(row.full_name??row.username??'این کاربر');
   if(!window.confirm('دسترسی «'+name+'» در این مجموعه غیرفعال شود؟'))return;
@@ -800,6 +813,7 @@ function MembersPage({membership,search}:{membership:Membership;search:string}) 
   <PageHeading eyebrow="ACCESS / MEMBERSHIPS" title="دسترسی کاربران" description="عضویت‌ها در سمت سرور و در محدوده همین مجموعه مدیریت می‌شوند. نقش مالک از مسیر دعوت عمومی قابل واگذاری نیست." action={<Button onClick={()=>{setOpen(true);setInviteCode('');setError('');setNotice('');}}><Plus size={16}/> ساخت کد دعوت</Button>}/>
   {error&&<InlineError error={error} retry={()=>void load()}/>}
   {notice&&<div className="form-success notice-wide"><CheckCircle2 size={17}/>{notice}</div>}
+  {resetSecret&&<section className="panel invite-code-panel"><div className="panel-heading"><div><span className="section-number">TEMP PASSWORD</span><div><h3>گذرواژه موقت عضو</h3><p>این گذرواژه فقط یک بار نمایش داده می‌شود؛ آن را امن به صاحب حساب تحویل بده.</p></div></div><Button variant="soft" onClick={()=>void navigator.clipboard?.writeText(resetSecret)}>کپی</Button></div><code className="invite-code-value" dir="ltr">{resetSecret}</code></section>}
   {inviteCode&&<section className="panel invite-code-panel"><div className="panel-heading"><div><span className="section-number">INVITE</span><div><h3>کد دعوت یک‌بارمصرف</h3><p>کد زیر را با عضو جدید به‌صورت امن به اشتراک بگذار.</p></div></div><Button variant="soft" onClick={()=>void navigator.clipboard?.writeText(inviteCode)}>کپی کد</Button></div><code className="invite-code-value" dir="ltr">{inviteCode}</code><small>این کد تا ۷ روز معتبر است و فقط برای نقش انتخاب‌شده مجوز می‌سازد.</small></section>}
   <div className="rule-banner"><ShieldCheck size={18}/><p><b>کنترل دسترسی سمت سرور</b><span>کاربران تنها پس از ثبت‌نام و ارائه کد دعوت معتبر به مجموعه متصل می‌شوند. مدیر نمی‌تواند مالک جدید تعیین کند؛ فقط مالک می‌تواند نقش مدیر را دعوت کند.</span></p></div>
   <section className="panel entity-panel members-list-panel"><div className="entity-toolbar"><div><b>{numberFa(visible.length)} عضویت</b><small>فهرست واقعی عضویت‌های مجموعه</small></div><Button variant="soft" onClick={()=>void load()}>تازه‌سازی</Button></div>
@@ -809,7 +823,7 @@ function MembersPage({membership,search}:{membership:Membership;search:string}) 
     {key:'role',label:'نقش',render:r=><Badge value={r.role} type="role"/>},
     {key:'active',label:'دسترسی',render:r=><Badge value={r.active?'active':'inactive'}/>},
     {key:'created_at',label:'افزوده‌شده',render:r=>dateFa(String(r.created_at??''))}
-   ]} actions={r=>r.active===true&&r.role!=='owner'?<Button variant="danger" disabled={busy} onClick={()=>void deactivate(r)}>غیرفعال‌سازی</Button>:<span className="muted-text">—</span>}/>:<EmptyState title="هنوز عضوی در فهرست نیست" description="با ثبت‌نام مالک و پذیرش دعوت معتبر، اعضای واقعی مجموعه در اینجا نمایش داده می‌شوند." icon={Users}/>}
+   ]} actions={r=>r.active===true&&r.role!=='owner'?<div className="table-action-group"><Button variant="soft" disabled={busy||(r.role==='admin'&&membership.role!=='owner')} onClick={()=>void resetMemberPassword(r)}>بازنشانی رمز</Button><Button variant="danger" disabled={busy} onClick={()=>void deactivate(r)}>غیرفعال‌سازی</Button></div>:<span className="muted-text">—</span>}/>:<EmptyState title="هنوز عضوی در فهرست نیست" description="با ثبت‌نام مالک و پذیرش دعوت معتبر، اعضای واقعی مجموعه در اینجا نمایش داده می‌شوند." icon={Users}/>}
   </section>
   {open&&<Modal title="ساخت کد دعوت" subtitle="این کد اجازه ثبت‌نام و اتصال به همین مجموعه را با نقش تعیین‌شده می‌دهد؛ کد نقش مالک تولید نمی‌کند." onClose={()=>setOpen(false)}><form className="record-form" onSubmit={e=>{e.preventDefault();void createInvite();}}>
    <label className="full-span">نقش دسترسی<select value={inviteRole} onChange={e=>{setInviteRole(e.target.value as AppRole);setInviteCustomerId('');setInviteSupplierId('');}}>{options.map(r=><option value={r} key={r}>{roleLabel[r]}</option>)}</select></label>
