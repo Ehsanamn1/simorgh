@@ -436,7 +436,7 @@ app.post('/api/workspace/create', async (c) => {
   try {
     const created = await sql.query(
       "with actor as (" +
-      " select id,username_normalized from public.medar_users where id=$1::uuid" +
+      " select id,coalesce(nullif(username_normalized,''),username) as username_normalized from public.medar_users where id=$1::uuid" +
       "), new_company as (" +
       " insert into public.companies(name) " +
       " select 'فضای کاری ' || actor.username_normalized from actor " +
