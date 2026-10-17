@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import { CheckCircle2, FileUp, FileText, LoaderCircle, Phone, RefreshCw, ShieldCheck, Users, Warehouse, X } from 'lucide-react';
+import { CheckCircle2, FileUp, FileText, LoaderCircle, Phone, RefreshCw, ShieldCheck, Users, Warehouse } from 'lucide-react';
 import { api } from './lib/apiClient';
 
 type ImportKind = 'customers' | 'suppliers';
