@@ -237,6 +237,33 @@ jobs:
             stage = 'signup-session';
             const signupCookie = sessionCookie(signup);
             await expectUserSession(signupCookie, 'Signup');
+
+            stage = 'presence-heartbeat';
+            const clientId = crypto.randomUUID();
+            const heartbeat = await post('/api/client/heartbeat', {
+              companyId: signupBody.companyId,
+              clientId,
+              platform: 'web',
+              appVersion: 'ci-smoke',
+            }, signupCookie);
+            const heartbeatBody = await heartbeat.json();
+            await saveResult({ status: heartbeat.status, body: heartbeatBody });
+            if (heartbeat.status !== 200 || heartbeatBody.ok !== true) {
+              throw new Error('Live client heartbeat failed: HTTP ' + heartbeat.status + ' ' + JSON.stringify(heartbeatBody));
+            }
+
+            stage = 'central-presence-dashboard';
+            const presenceResponse = await fetch(
+              base + '/api/admin/system/clients?companyId=' + encodeURIComponent(signupBody.companyId),
+              { headers: { cookie: signupCookie }, cache: 'no-store' },
+            );
+            const presenceBody = await presenceResponse.json();
+            await saveResult({ status: presenceResponse.status, body: presenceBody });
+            const recordedClient = presenceBody.clients?.find(client => client.clientId === clientId);
+            if (!presenceResponse.ok || !recordedClient || recordedClient.online !== true || recordedClient.platform !== 'web') {
+              throw new Error('Central panel did not show the live client: HTTP ' + presenceResponse.status + ' ' + JSON.stringify(presenceBody));
+            }
+
             stage = 'logout';
             const logout = await post('/api/auth/logout', {}, signupCookie);
             await saveResult({ status: logout.status, body: await logout.json() });
