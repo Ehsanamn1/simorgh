@@ -44,7 +44,8 @@ jobs:
             worker/migrations/0005_partner_settlement_functions.sql \
             worker/migrations/0006_core_data_api.sql \
             worker/migrations/0007_existing_medar_schema_compat.sql \
-            worker/migrations/0008_operational_task_actions.sql; do
+            worker/migrations/0008_operational_task_actions.sql \
+            worker/migrations/0009_inventory_movement_concurrency_lock.sql; do
             echo "Applying $migration"
             psql -h 127.0.0.1 -U postgres -d medar_test -v ON_ERROR_STOP=1 -1 -f "$migration"
           done
@@ -61,8 +62,70 @@ jobs:
               to_regclass('public.company_invites') is not null and
               to_regprocedure('public.medar_allocate_order_item(uuid,uuid,uuid,uuid)') is not null and
               to_regprocedure('public.medar_start_operational_task(uuid,uuid)') is not null and
-              to_regprocedure('public.medar_create_partner_settlement_period(uuid,uuid,date,date)') is not null
+              to_regprocedure('public.medar_create_partner_settlement_period(uuid,uuid,date,date)') is not null and
+              position('pg_advisory_xact_lock' in pg_get_functiondef(to_regprocedure('public.medar_record_inventory_movement(uuid,uuid,uuid,text,numeric,numeric,uuid,uuid,uuid,text,text)'))) > 0
             )" | grep -qx t
+      - name: Exercise concurrent inventory deductions on PostgreSQL
+        env:
+          PGPASSWORD: medar_test_password
+        shell: bash
+        run: |
+          set -euo pipefail
+          company_id="00000000-0000-4000-8000-000000000022"
+          actor_id="00000000-0000-4000-8000-000000000011"
+          product_id="00000000-0000-4000-8000-000000000033"
+          psql -h 127.0.0.1 -U postgres -d medar_test -v ON_ERROR_STOP=1 <<'SQL'
+          INSERT INTO public.companies (id,name) VALUES
+            ('00000000-0000-4000-8000-000000000022','CI inventory concurrency company');
+          INSERT INTO public.medar_users (id,username,username_normalized,phone_e164,display_name,password_hash) VALUES
+            ('00000000-0000-4000-8000-000000000011','ci.inventory','ci.inventory','+989190000011','CI inventory owner','not-a-login-hash');
+          INSERT INTO public.memberships (company_id,user_id,role,active,created_by) VALUES
+            ('00000000-0000-4000-8000-000000000022','00000000-0000-4000-8000-000000000011','owner',true,'00000000-0000-4000-8000-000000000011');
+          INSERT INTO public.products (id,company_id,sku,name,kind,unit) VALUES
+            ('00000000-0000-4000-8000-000000000033','00000000-0000-4000-8000-000000000022','CI-STOCK-LOCK','CI stock lock probe','other','unit');
+          INSERT INTO public.inventory_movements (company_id,product_id,movement_type,quantity,reference_code,note,recorded_by) VALUES
+            ('00000000-0000-4000-8000-000000000022','00000000-0000-4000-8000-000000000033','adjustment_in',10,'ci-seed-stock-lock','CI stock lock seed','00000000-0000-4000-8000-000000000011');
+          CREATE FUNCTION public.ci_pause_inventory_race() RETURNS trigger LANGUAGE plpgsql AS $
+          BEGIN
+            IF NEW.reference_code LIKE 'ci-race-%' THEN PERFORM pg_sleep(0.75); END IF;
+            RETURN NEW;
+          END $;
+          CREATE TRIGGER ci_pause_inventory_race BEFORE INSERT ON public.inventory_movements
+            FOR EACH ROW EXECUTE FUNCTION public.ci_pause_inventory_race();
+          SQL
+          set +e
+          psql -h 127.0.0.1 -U postgres -d medar_test -v ON_ERROR_STOP=1 -c "select public.medar_record_inventory_movement('$actor_id','$company_id','$product_id','adjustment_out',7,NULL,NULL,NULL,NULL,'ci-race-a','CI concurrency probe')" > "$RUNNER_TEMP/stock-race-a.log" 2>&1 &
+          first_pid=$!
+          psql -h 127.0.0.1 -U postgres -d medar_test -v ON_ERROR_STOP=1 -c "select public.medar_record_inventory_movement('$actor_id','$company_id','$product_id','adjustment_out',7,NULL,NULL,NULL,NULL,'ci-race-b','CI concurrency probe')" > "$RUNNER_TEMP/stock-race-b.log" 2>&1 &
+          second_pid=$!
+          wait "$first_pid"; first_status=$?
+          wait "$second_pid"; second_status=$?
+          set -e
+          successes=0
+          [[ "$first_status" -eq 0 ]] && successes=$((successes+1))
+          [[ "$second_status" -eq 0 ]] && successes=$((successes+1))
+          if [[ "$successes" -ne 1 ]]; then
+            cat "$RUNNER_TEMP/stock-race-a.log" "$RUNNER_TEMP/stock-race-b.log"
+            echo "Expected exactly one of two simultaneous quantity-7 deductions against stock 10 to succeed; succeeded: $successes."
+            exit 1
+          fi
+          stock_ok="$(psql -h 127.0.0.1 -U postgres -d medar_test -v ON_ERROR_STOP=1 -Atqc "select (quantity_on_hand = 3)::text from public.inventory_balances where company_id='$company_id' and product_id='$product_id'")"
+          if [[ "$stock_ok" != "true" ]]; then
+            psql -h 127.0.0.1 -U postgres -d medar_test -c "select movement_type,quantity,reference_code from public.inventory_movements where company_id='$company_id' and product_id='$product_id' order by created_at"
+            echo "Concurrent deduction left an invalid stock balance."
+            exit 1
+          fi
+          psql -h 127.0.0.1 -U postgres -d medar_test -v ON_ERROR_STOP=1 <<'SQL'
+          DROP TRIGGER ci_pause_inventory_race ON public.inventory_movements;
+          DROP FUNCTION public.ci_pause_inventory_race();
+          DELETE FROM public.audit_events WHERE company_id='00000000-0000-4000-8000-000000000022';
+          DELETE FROM public.inventory_movements WHERE company_id='00000000-0000-4000-8000-000000000022';
+          DELETE FROM public.products WHERE id='00000000-0000-4000-8000-000000000033';
+          DELETE FROM public.memberships WHERE company_id='00000000-0000-4000-8000-000000000022';
+          DELETE FROM public.medar_users WHERE id='00000000-0000-4000-8000-000000000011';
+          DELETE FROM public.companies WHERE id='00000000-0000-4000-8000-000000000022';
+          SQL
+          echo "Concurrent stock deductions were serialized; exactly one deduction succeeded and stock remained nonnegative."
       - name: Summarize all dependency advisories
         shell: bash
         run: |
