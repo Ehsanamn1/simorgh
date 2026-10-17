@@ -21,6 +21,28 @@ test('public demo is navigable, searchable and clearly read-only', async ({ page
   await expect(page.locator('.demo-stat-card')).toHaveCount(4);
   await expect(page.locator('.simorgh-signin-layer')).toHaveCount(0);
 
+  const enableLightMode = page.getByRole('button', { name: 'فعال‌کردن حالت روشن' });
+  await expect(enableLightMode).toBeVisible();
+  await enableLightMode.click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+  await expect(page.getByRole('button', { name: 'فعال‌کردن حالت تاریک' })).toHaveAttribute('aria-pressed', 'true');
+  await expect.poll(() => page.evaluate(() => localStorage.getItem('simorgh-theme'))).toBe('light');
+  const lightPalette = await page.evaluate(() => ({
+    bodyBackground: getComputedStyle(document.body).backgroundColor,
+    noticeTitle: getComputedStyle(document.querySelector('.demo-preview-notice b')!).color,
+    metricText: getComputedStyle(document.querySelector('.demo-stat-value')!).color,
+  }));
+  expect(lightPalette.bodyBackground).toBe('rgb(244, 247, 247)');
+  expect(lightPalette.noticeTitle).not.toBe(lightPalette.bodyBackground);
+  expect(lightPalette.metricText).not.toBe(lightPalette.bodyBackground);
+
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await expect(page.locator('.demo-workspace')).toBeVisible();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+  await page.getByRole('button', { name: 'فعال‌کردن حالت تاریک' }).click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  await expect.poll(() => page.evaluate(() => localStorage.getItem('simorgh-theme'))).toBe('dark');
+
   if (await page.locator('.demo-menu-button').isVisible()) {
     await page.locator('.demo-menu-button').click();
   }
@@ -57,6 +79,14 @@ test('mobile demo has four bottom navigation items, all key modules, and working
   await expect(bottomNav.locator('button')).toHaveCount(4);
   await expect(page.locator('.demo-quick-access')).toBeVisible();
   await expect(page.locator('.demo-quick-action')).toHaveCount(4);
+
+  await page.getByRole('button', { name: 'فعال‌کردن حالت روشن' }).click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+  const lightMobileDimensions = await page.evaluate(() => ({ viewport: innerWidth, document: document.documentElement.scrollWidth, body: document.body.scrollWidth }));
+  expect(lightMobileDimensions.document).toBeLessThanOrEqual(lightMobileDimensions.viewport);
+  expect(lightMobileDimensions.body).toBeLessThanOrEqual(lightMobileDimensions.viewport);
+  await page.getByRole('button', { name: 'فعال‌کردن حالت تاریک' }).click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
 
   await bottomNav.getByRole('button', { name: 'سفارش‌ها', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'سفارش‌ها', exact: true })).toBeVisible();
