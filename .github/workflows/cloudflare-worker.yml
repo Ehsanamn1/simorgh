@@ -54,7 +54,7 @@ jobs:
             psql "$MEDAR_DATABASE_URL" -v ON_ERROR_STOP=1 -1 -f "$migration"
             psql "$MEDAR_DATABASE_URL" -v ON_ERROR_STOP=1 -c "insert into public.medar_schema_migrations(version,checksum) values ('$version','$checksum')"
           done
-            - name: Verify required Medar RPCs and migration ledger
+      - name: Verify required Medar RPCs and migration ledger
         shell: bash
         run: |
           readiness="$(psql "$MEDAR_DATABASE_URL" -v ON_ERROR_STOP=1 -Atqc "
@@ -82,7 +82,7 @@ jobs:
             echo "Neon schema is missing a required table, versioned migration, or Worker RPC. Refusing deployment."
             exit 1
           fi
-- name: Ensure private R2 bucket exists
+      - name: Ensure private R2 bucket exists
         working-directory: worker
         shell: bash
         run: |
