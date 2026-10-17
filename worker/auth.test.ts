@@ -19,7 +19,11 @@ describe('server-side username normalization', () => {
     expect(FAILED_LOGIN_UPSERT_SQL).not.toContain('public.medar_rate_limits.window_started_at');
   });
   it('rejects PBKDF2 hashes above the Cloudflare Web Crypto iteration ceiling', async () => {
-    const unsupportedHash = DUMMY_PASSWORD_HASH.replace('$100000    expect(DUMMY_PASSWORD_HASH).toMatch(/^pbkdf2_sha256\$100000\$/);
+    const unsupportedHash = DUMMY_PASSWORD_HASH.replace('$100000$', '$310000$');
+    await expect(verifyPassword('medar-invalid-login-dummy-password', unsupportedHash)).resolves.toBe(false);
+  });
+  it('uses a valid fixed PBKDF2 dummy verifier for missing-account login checks', async () => {
+    expect(DUMMY_PASSWORD_HASH).toMatch(/^pbkdf2_sha256\$100000\$/);
     await expect(verifyPassword('medar-invalid-login-dummy-password', DUMMY_PASSWORD_HASH)).resolves.toBe(true);
     await expect(verifyPassword('different-password', DUMMY_PASSWORD_HASH)).resolves.toBe(false);
   });
