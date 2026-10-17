@@ -10,8 +10,14 @@ function apiUrl(path: string): string {
 
 async function parseResponse(response: Response): Promise<unknown> {
   const contentType = response.headers.get('content-type') ?? '';
-  if (!contentType.includes('application/json')) {
-    throw new HttpError(503, 'این میزبان به API مدار متصل نیست؛ نسخه عملیاتی باید از میزبان Cloudflare Worker باز شود.');
+  if (!contentType.toLowerCase().includes('application/json')) {
+    if (!response.ok) {
+      const message = response.status >= 500
+        ? 'سرویس مدار هنگام انجام درخواست دچار خطا شد؛ چند لحظه بعد دوباره تلاش کن.'
+        : `پاسخ معتبر از سرویس مدار دریافت نشد (HTTP ${response.status}).`;
+      throw new HttpError(response.status, message);
+    }
+    throw new HttpError(502, 'پاسخ API مدار معتبر نیست؛ میزبان عملیاتی باید پاسخ JSON برگرداند.');
   }
   try {
     return await response.json();
