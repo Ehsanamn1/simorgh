@@ -1,6 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
 
-const projectUrl = 'https://aoxerjimfiwusidaparx.supabase.co';
 const companyId = '00000000-0000-4000-8000-000000000022';
 
 async function installIsolatedSession(page: Page, role: 'owner' | 'supplier' | 'driver' | 'customer' | 'unprovisioned') {
@@ -188,36 +187,50 @@ test('generic farm types and daily rejected quantities are validated before writ
   await expect(page.locator('.ops-modal')).toBeVisible();
 });
 
-test('signed-in accounts without membership wait for lookup and stay on the access screen during retries', async ({ page }) => {
+test('an existing account must join a workspace using an invitation code', async ({ page }) => {
   await installIsolatedSession(page, 'unprovisioned');
-  let membershipRequests = 0;
-  await page.route(projectUrl + '/rest/v1/memberships*', async route => {
-    const headers = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': 'GET,HEAD,OPTIONS,POST,PATCH,DELETE,PUT', 'content-type': 'application/json', 'cache-control': 'no-store' };
-    if (route.request().method() === 'OPTIONS') {
-      await route.fulfill({ status: 204, headers, body: '' });
-      return;
-    }
-    if (route.request().method() === 'HEAD') {
-      await route.fulfill({ status: 200, headers: { ...headers, 'content-range': '*/0' }, body: '' });
-      return;
-    }
-    membershipRequests += 1;
-    await new Promise(resolve => setTimeout(resolve, 450));
-    await route.fulfill({ status: 200, headers: { ...headers, 'content-range': '*/0' }, body: '[]' });
+  let joined = false;
+  const user = {
+    id: userId,
+    username: 'unprovisioned_test',
+    phone: '+989120000011',
+    full_name: 'کاربر بدون عضویت مدار',
+  };
+  const joinedMembership = {
+    id: '00000000-0000-4000-8000-000000000077',
+    company_id: companyId,
+    user_id: userId,
+    role: 'owner',
+    customer_id: null,
+    supplier_id: null,
+    active: true,
+    company: { name: 'شرکت دعوت آزمایشی' },
+  };
+  await page.route('**/api/auth/me', route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ user, memberships: joined ? [joinedMembership] : [] }),
+  }));
+  await page.route('**/api/workspace/join', async route => {
+    const payload = route.request().postDataJSON() as Record<string, unknown>;
+    expect(payload.inviteCode).toBe('a'.repeat(64));
+    joined = true;
+    await route.fulfill({
+      status: 201,
+      contentType: 'application/json',
+      body: JSON.stringify({ membership: joinedMembership, memberships: [joinedMembership] }),
+    });
   });
 
   await page.goto('/simorgh/app/command', { waitUntil: 'domcontentloaded' });
-  await page.waitForRequest(request => request.url().includes('/rest/v1/memberships'));
-  await expect(page.locator('.waiting-screen')).toHaveCount(0);
-  await expect(page.locator('.waiting-screen')).toBeVisible({ timeout: 8000 });
-  await expect(page.getByRole('heading', { name: 'حساب شما هنوز به مجموعه‌ای متصل نیست.' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'بررسی دوباره دسترسی' })).toBeVisible();
-
-  const beforeRetry = membershipRequests;
-  await page.getByRole('button', { name: 'بررسی دوباره دسترسی' }).click();
-  await expect.poll(() => membershipRequests).toBeGreaterThan(beforeRetry);
-  await expect(page.locator('.waiting-screen')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'خروج از حساب' })).toBeVisible();
+  await expect(page.locator('.access-request-card')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'پیوستن به مجموعه' })).toBeVisible();
+  await expect(page.getByLabel('کد دعوت')).toBeVisible();
+  await page.getByLabel('کد دعوت').fill('a'.repeat(64));
+  await page.getByRole('button', { name: 'پیوستن به مجموعه' }).click();
+  await expect(page.locator('.app-frame')).toBeVisible();
+  expect(joined).toBe(true);
+  await expect(page.locator('.workspace-switch')).toContainText('شرکت دعوت آزمایشی');
 });
 
 test('supplier workspace keeps manager-only routes out of the allowed menu', async ({ page }, testInfo) => {
