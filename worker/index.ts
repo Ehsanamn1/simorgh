@@ -700,18 +700,24 @@ function buildMembershipScopeSql(table:string,columns:Set<string>,memberships:Me
  return '('+branches.join(' or ')+')';
 }
 function sanitizeExternalRows(table:string,rows:Record<string,unknown>[],memberships:MembershipScope[]):Record<string,unknown>[] {
- return rows.map(row=>{
-  const company=String(row.company_id??'');
+ const redact=(input:Record<string,unknown>):Record<string,unknown>=>{
+  const result={...input};
+  const company=String(input.company_id??'');
   const roles=memberships.filter(m=>m.company_id===company).map(m=>m.role);
-  if(roles.some(role=>INTERNAL_ROLES.has(role)))return row;
-  const result={...row};
-  if(roles.includes('driver')){
-   for(const key of ['credit_limit','unit_price','amount','paid_amount','paid_at','paid_by','payment_reference','net_result','company_share_amount','partner_share_amount','balance_due_to_partner','balance_due_to_company','approved_shared_expenses','unpaid_approved_expenses','company_paid_shared_expenses','partner_paid_shared_expenses','recorded_cash_available','settled_amount','external_reference','calculation_snapshot'])delete result[key];
-  } else if(roles.includes('customer')){
-   for(const key of ['credit_limit','partner_share_amount','company_share_amount','net_result','balance_due_to_partner','balance_due_to_company','approved_shared_expenses','unpaid_approved_expenses','company_paid_shared_expenses','partner_paid_shared_expenses','recorded_cash_available','settled_amount','calculation_snapshot'])delete result[key];
+  if(!roles.some(role=>INTERNAL_ROLES.has(role))){
+   if(roles.includes('driver')){
+    for(const key of ['credit_limit','unit_price','amount','paid_amount','paid_at','paid_by','payment_reference','net_result','company_share_amount','partner_share_amount','balance_due_to_partner','balance_due_to_company','approved_shared_expenses','unpaid_approved_expenses','company_paid_shared_expenses','partner_paid_shared_expenses','recorded_cash_available','settled_amount','external_reference','calculation_snapshot'])delete result[key];
+   }else if(roles.includes('customer')){
+    for(const key of ['credit_limit','net_result','company_share_amount','partner_share_amount','balance_due_to_partner','balance_due_to_company','approved_shared_expenses','unpaid_approved_expenses','company_paid_shared_expenses','partner_paid_shared_expenses','recorded_cash_available','settled_amount','calculation_snapshot'])delete result[key];
+   }
+  }
+  for(const [key,value] of Object.entries(result)){
+   if(Array.isArray(value))result[key]=value.map(item=>item&&typeof item==='object'&&!Array.isArray(item)?redact(item as Record<string,unknown>):item);
+   else if(value&&typeof value==='object')result[key]=redact(value as Record<string,unknown>);
   }
   return result;
- });
+ };
+ return rows.map(redact);
 }
 function companyRole(memberships:MembershipScope[],companyId:string):MembershipScope|undefined {
  return memberships.find(m=>m.company_id===companyId);
