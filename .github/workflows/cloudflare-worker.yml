@@ -190,7 +190,7 @@ jobs:
             if (await nav.locator('button').count() !== 4) throw new Error('Mobile bottom navigation must have exactly four items.');
             if (await page.locator('.demo-quick-action').count() !== 4) throw new Error('Mobile quick access must have four actions.');
             await nav.getByRole('button', { name: 'ماژول‌ها' }).click();
-            await page.locator('.demo-sidebar').waitFor({ state: 'visible' });
+            await page.locator('.demo-sidebar.is-open').waitFor({ state: 'visible' });
             await page.locator('.demo-nav-item').filter({ hasText: 'مشتریان' }).click();
             await page.getByRole('heading', { name: 'مشتریان', exact: true }).waitFor({ state: 'visible' });
             const mobile = await page.evaluate(() => ({ viewport: innerWidth, document: document.documentElement.scrollWidth, body: document.body.scrollWidth }));
