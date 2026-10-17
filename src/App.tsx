@@ -28,6 +28,7 @@ const navDefinitions: { key: PageKey; label: string; group: string; icon: typeof
   { key: 'customers', label: 'مشتریان', group: 'فروش و تأمین', icon: Users, roles: ['owner', 'admin', 'staff'] },
   { key: 'suppliers', label: 'تأمین‌کنندگان', group: 'فروش و تأمین', icon: Factory, roles: ['owner', 'admin', 'staff'] },
   { key: 'products', label: 'کاتالوگ و قیمت', group: 'فروش و تأمین', icon: Package, roles: ['owner', 'admin', 'staff'] },
+  { key: 'purchase-orders', label: 'سفارش خرید و رسید', group: 'فروش و تأمین', icon: FileText, roles: ['owner', 'admin', 'staff'] },
   { key: 'inventory', label: 'موجودی و ثبت خرید', group: 'عملیات', icon: Warehouse, roles: ['owner', 'admin', 'staff'] },
   { key: 'capacity', label: 'برنامه ظرفیت', group: 'عملیات', icon: Warehouse, roles: ['owner', 'admin', 'staff'] },
   { key: 'quality', label: 'کیفیت و محموله', group: 'عملیات', icon: ClipboardCheck, roles: ['owner', 'admin', 'staff'] },
@@ -181,7 +182,7 @@ function AppShell() {
       </section>
     </div>}
     {mobileNav && <button aria-label="بستن منو" className="mobile-scrim" onClick={() => setMobileNav(false)}/>}
-    <main className="app-main"><header className="app-topbar"><button className="mobile-menu" onClick={() => setMobileNav(true)} aria-label="بازکردن منو"><Menu size={19}/></button><div className="breadcrumbs"><span>مدار</span><i>/</i><b>{active?.label ?? 'مرکز فرمان'}</b></div><div className="topbar-tools"><label className="global-search"><Search size={16}/><input placeholder="جست‌وجو در بخش فعلی…" value={search} onChange={e => setSearch(e.target.value)}/></label><button className="icon-action theme-toggle" type="button" onClick={() => setTheme(current => current === 'dark' ? 'light' : 'dark')} title={theme === 'dark' ? 'فعال‌کردن حالت روشن' : 'فعال‌کردن حالت تاریک'} aria-label={theme === 'dark' ? 'فعال‌کردن حالت روشن' : 'فعال‌کردن حالت تاریک'}>{theme === 'dark' ? <Sun size={17}/> : <Moon size={17}/>}</button><a className="icon-action" title="راهنمای مدار" aria-label="راهنمای مدار" href="https://github.com/Ehsanamn1/simorgh/blob/main/README.md" target="_blank" rel="noreferrer"><CircleHelp size={17}/></a><span className="topbar-sep"/><span className="topbar-user"><b>{companyName}</b><small>{new Intl.DateTimeFormat('fa-IR',{dateStyle:'medium'}).format(new Date())}</small></span></div></header><div className="page-container">{!allowed ? <Navigate to={`/app/${homeDestination}`} replace/> : <Routes><Route path="command" element={<Dashboard membership={membership!}/>}/><Route path="orders" element={<OrdersPage membership={membership!} search={search}/>}/><Route path="goals" element={<GoalsPage membership={membership!} search={search}/>}/><Route path="customers" element={<EntityPage membership={membership!} table="customers" title="مشتریان" description="حساب‌های سازمانی، اطلاعات تماس و شرایط همکاری." fields={[{name:'name',label:'نام مشتری',required:true},{name:'city',label:'شهر'},{name:'phone',label:'شماره تماس',type:'tel'},{name:'segment',label:'نوع مشتری'},{name:'address',label:'نشانی'},{name:'credit_limit',label:'سقف اعتبار (تومان)',type:'number'}]} columns={[{key:'name',label:'مشتری'},{key:'city',label:'شهر'},{key:'phone',label:'تلفن'},{key:'segment',label:'بخش'},{key:'credit_limit',label:'سقف اعتبار'}]} search={search}/>}/><Route path="suppliers" element={<EntityPage membership={membership!} table="suppliers" title="شبکه تأمین" description="اطلاعات تولیدکنندگان و تأمین‌کنندگان تأییدشده." fields={[{name:'name',label:'نام تأمین‌کننده',required:true},{name:'city',label:'شهر'},{name:'phone',label:'شماره تماس',type:'tel'},{name:'farm_registration',label:'شناسه یا مجوز مزرعه'}]} columns={[{key:'name',label:'تأمین‌کننده'},{key:'city',label:'شهر'},{key:'phone',label:'تلفن'},{key:'farm_registration',label:'شناسه مزرعه'},{key:'active',label:'وضعیت'}]} search={search}/>}/><Route path="products" element={<ProductsPage membership={membership!} search={search}/>}/><Route path="inventory" element={<InventoryPage membership={membership!} search={search}/>}/><Route path="capacity" element={<CapacityPage membership={membership!} search={search}/>}/><Route path="quality" element={<QualityPage membership={membership!} search={search}/>}/><Route path="shipments" element={<ShipmentsPage membership={membership!} search={search}/>}/><Route path="finance" element={<FinancePage membership={membership!} search={search}/>}/><Route path="members" element={<MembersPage membership={membership!} search={search}/>}/><Route path="audit" element={<AuditPage membership={membership!} search={search}/>}/><Route path="catalog" element={<CustomerCatalog membership={membership!}/>}/><Route path="my-orders" element={<CustomerOrders membership={membership!} search={search}/>}/><Route path="my-account" element={<CustomerAccount membership={membership!}/>}/><Route path="supplier-work" element={<SupplierWork membership={membership!} search={search}/>}/><Route path="supplier-capacity" element={<SupplierCapacityPage membership={membership!} search={search}/>}/><Route path="supplier-settlement" element={<SupplierSettlementPage membership={membership!} search={search}/>}/><Route path="driver-work" element={<ShipmentsPage membership={membership!} search={search} driverMode/>}/><Route path="farm-sites" element={<OperationsWorkspacePage kind="farm-sites" membership={membership!} search={search}/>}/><Route path="flock-cycles" element={<OperationsWorkspacePage kind="flock-cycles" membership={membership!} search={search}/>}/><Route path="production-batches" element={<OperationsWorkspacePage kind="production-batches" membership={membership!} search={search}/>}/><Route path="daily-production" element={<OperationsWorkspacePage kind="daily-production" membership={membership!} search={search}/>}/><Route path="task-templates" element={<OperationsWorkspacePage kind="task-templates" membership={membership!} search={search}/>}/><Route path="operational-tasks" element={<OperationsWorkspacePage kind="operational-tasks" membership={membership!} search={search}/>}/><Route path="incidents" element={<OperationsWorkspacePage kind="incidents" membership={membership!} search={search}/>}/><Route path="partnership-agreements" element={<OperationsWorkspacePage kind="partnership-agreements" membership={membership!} search={search}/>}/><Route path="partner-finance" element={<OperationsWorkspacePage kind="partner-finance" membership={membership!} search={search}/>}/><Route path="partner-settlements" element={<OperationsWorkspacePage kind="partner-settlements" membership={membership!} search={search}/>}/><Route path="*" element={<Navigate to={`/app/${homeDestination}`} replace/>}/></Routes>}</div><footer className="app-footer"><span><Logo compact/> <b>مدار</b> · مدیریت مزرعه و عملیات</span><span>تاریخچه تغییرات فعال <i/> داده‌های واقعی پایگاه داده</span></footer></main>
+    <main className="app-main"><header className="app-topbar"><button className="mobile-menu" onClick={() => setMobileNav(true)} aria-label="بازکردن منو"><Menu size={19}/></button><div className="breadcrumbs"><span>مدار</span><i>/</i><b>{active?.label ?? 'مرکز فرمان'}</b></div><div className="topbar-tools"><label className="global-search"><Search size={16}/><input placeholder="جست‌وجو در بخش فعلی…" value={search} onChange={e => setSearch(e.target.value)}/></label><button className="icon-action theme-toggle" type="button" onClick={() => setTheme(current => current === 'dark' ? 'light' : 'dark')} title={theme === 'dark' ? 'فعال‌کردن حالت روشن' : 'فعال‌کردن حالت تاریک'} aria-label={theme === 'dark' ? 'فعال‌کردن حالت روشن' : 'فعال‌کردن حالت تاریک'}>{theme === 'dark' ? <Sun size={17}/> : <Moon size={17}/>}</button><a className="icon-action" title="راهنمای مدار" aria-label="راهنمای مدار" href="https://github.com/Ehsanamn1/simorgh/blob/main/README.md" target="_blank" rel="noreferrer"><CircleHelp size={17}/></a><span className="topbar-sep"/><span className="topbar-user"><b>{companyName}</b><small>{new Intl.DateTimeFormat('fa-IR',{dateStyle:'medium'}).format(new Date())}</small></span></div></header><div className="page-container">{!allowed ? <Navigate to={`/app/${homeDestination}`} replace/> : <Routes><Route path="command" element={<Dashboard membership={membership!}/>}/><Route path="orders" element={<OrdersPage membership={membership!} search={search}/>}/><Route path="goals" element={<GoalsPage membership={membership!} search={search}/>}/><Route path="customers" element={<EntityPage membership={membership!} table="customers" title="مشتریان" description="حساب‌های سازمانی، اطلاعات تماس و شرایط همکاری." fields={[{name:'name',label:'نام مشتری',required:true},{name:'city',label:'شهر'},{name:'phone',label:'شماره تماس',type:'tel'},{name:'segment',label:'نوع مشتری'},{name:'address',label:'نشانی'},{name:'credit_limit',label:'سقف اعتبار (تومان)',type:'number'}]} columns={[{key:'name',label:'مشتری'},{key:'city',label:'شهر'},{key:'phone',label:'تلفن'},{key:'segment',label:'بخش'},{key:'credit_limit',label:'سقف اعتبار'}]} search={search}/>}/><Route path="suppliers" element={<EntityPage membership={membership!} table="suppliers" title="شبکه تأمین" description="اطلاعات تولیدکنندگان و تأمین‌کنندگان تأییدشده." fields={[{name:'name',label:'نام تأمین‌کننده',required:true},{name:'city',label:'شهر'},{name:'phone',label:'شماره تماس',type:'tel'},{name:'farm_registration',label:'شناسه یا مجوز مزرعه'}]} columns={[{key:'name',label:'تأمین‌کننده'},{key:'city',label:'شهر'},{key:'phone',label:'تلفن'},{key:'farm_registration',label:'شناسه مزرعه'},{key:'active',label:'وضعیت'}]} search={search}/>}/><Route path="products" element={<ProductsPage membership={membership!} search={search}/>}/><Route path="purchase-orders" element={<PurchaseOrdersPage membership={membership!} search={search}/>}/><Route path="inventory" element={<InventoryPage membership={membership!} search={search}/>}/><Route path="capacity" element={<CapacityPage membership={membership!} search={search}/>}/><Route path="quality" element={<QualityPage membership={membership!} search={search}/>}/><Route path="shipments" element={<ShipmentsPage membership={membership!} search={search}/>}/><Route path="finance" element={<FinancePage membership={membership!} search={search}/>}/><Route path="members" element={<MembersPage membership={membership!} search={search}/>}/><Route path="audit" element={<AuditPage membership={membership!} search={search}/>}/><Route path="catalog" element={<CustomerCatalog membership={membership!}/>}/><Route path="my-orders" element={<CustomerOrders membership={membership!} search={search}/>}/><Route path="my-account" element={<CustomerAccount membership={membership!}/>}/><Route path="supplier-work" element={<SupplierWork membership={membership!} search={search}/>}/><Route path="supplier-capacity" element={<SupplierCapacityPage membership={membership!} search={search}/>}/><Route path="supplier-settlement" element={<SupplierSettlementPage membership={membership!} search={search}/>}/><Route path="driver-work" element={<ShipmentsPage membership={membership!} search={search} driverMode/>}/><Route path="farm-sites" element={<OperationsWorkspacePage kind="farm-sites" membership={membership!} search={search}/>}/><Route path="flock-cycles" element={<OperationsWorkspacePage kind="flock-cycles" membership={membership!} search={search}/>}/><Route path="production-batches" element={<OperationsWorkspacePage kind="production-batches" membership={membership!} search={search}/>}/><Route path="daily-production" element={<OperationsWorkspacePage kind="daily-production" membership={membership!} search={search}/>}/><Route path="task-templates" element={<OperationsWorkspacePage kind="task-templates" membership={membership!} search={search}/>}/><Route path="operational-tasks" element={<OperationsWorkspacePage kind="operational-tasks" membership={membership!} search={search}/>}/><Route path="incidents" element={<OperationsWorkspacePage kind="incidents" membership={membership!} search={search}/>}/><Route path="partnership-agreements" element={<OperationsWorkspacePage kind="partnership-agreements" membership={membership!} search={search}/>}/><Route path="partner-finance" element={<OperationsWorkspacePage kind="partner-finance" membership={membership!} search={search}/>}/><Route path="partner-settlements" element={<OperationsWorkspacePage kind="partner-settlements" membership={membership!} search={search}/>}/><Route path="*" element={<Navigate to={`/app/${homeDestination}`} replace/>}/></Routes>}</div><footer className="app-footer"><span><Logo compact/> <b>مدار</b> · مدیریت مزرعه و عملیات</span><span>تاریخچه تغییرات فعال <i/> داده‌های واقعی پایگاه داده</span></footer></main>
   </div>;
 }
 
@@ -476,6 +477,221 @@ const inventoryMovementLabels: Record<string,string> = {
   waste_out: 'ضایعات',
   return_in: 'مرجوعی / برگشت',
 };
+
+
+const purchaseOrderStatusLabel: Record<string,string> = {
+  draft: 'پیش‌نویس',
+  approved: 'تأییدشده برای خرید',
+  partially_received: 'دریافت جزئی',
+  received: 'دریافت کامل',
+  cancelled: 'لغوشده',
+};
+
+function PurchaseOrdersPage({membership,search}:{membership:Membership;search:string}) {
+  const [orders,setOrders]=useState<Row[]>([]);
+  const [suppliers,setSuppliers]=useState<Row[]>([]);
+  const [products,setProducts]=useState<Row[]>([]);
+  const [loading,setLoading]=useState(true);
+  const [busy,setBusy]=useState(false);
+  const [error,setError]=useState('');
+  const [notice,setNotice]=useState('');
+  const [createOpen,setCreateOpen]=useState(false);
+  const [draftSupplier,setDraftSupplier]=useState('');
+  const [draftReference,setDraftReference]=useState('');
+  const [expectedDelivery,setExpectedDelivery]=useState('');
+  const [draftNote,setDraftNote]=useState('');
+  const [draftItems,setDraftItems]=useState<{product_id:string;quantity:string;unit_cost:string}[]>([{product_id:'',quantity:'',unit_cost:''}]);
+  const [receiptOrder,setReceiptOrder]=useState<Row|null>(null);
+  const [receiptQuantities,setReceiptQuantities]=useState<Record<string,string>>({});
+  const [receiptReference,setReceiptReference]=useState('');
+  const [receiptNote,setReceiptNote]=useState('');
+
+  const load=async()=>{
+    if(!dataApi){setError('اتصال پایگاه داده پیکربندی نشده است.');setLoading(false);return;}
+    setLoading(true);setError('');
+    const [o,s,p]=await Promise.all([
+      dataApi.from('purchase_orders').select('*,suppliers(name),purchase_order_items(id,product_id,ordered_quantity,received_quantity,unit_cost,products(name,sku,unit))').eq('company_id',membership.company_id).order('created_at',{ascending:false}).limit(250),
+      dataApi.from('suppliers').select('id,name,active').eq('company_id',membership.company_id).eq('active',true).order('name').limit(300),
+      dataApi.from('products').select('id,sku,name,unit,active').eq('company_id',membership.company_id).eq('active',true).order('name').limit(500),
+    ]);
+    const firstError=o.error??s.error??p.error;
+    if(firstError){setError(firstError.message);setOrders([]);}
+    else setOrders((o.data??[]) as Row[]);
+    setSuppliers((s.data??[]) as Row[]);
+    setProducts((p.data??[]) as Row[]);
+    setLoading(false);
+  };
+  useEffect(()=>{void load();},[membership.company_id]);
+
+  const resetDraft=()=>{
+    setDraftSupplier('');
+    setDraftReference('PO-'+new Date().toISOString().slice(0,10).replaceAll('-','')+'-'+crypto.randomUUID().slice(0,6).toUpperCase());
+    setExpectedDelivery('');
+    setDraftNote('');
+    setDraftItems([{product_id:'',quantity:'',unit_cost:''}]);
+  };
+  const createDraft=async(event:React.FormEvent<HTMLFormElement>)=>{
+    event.preventDefault();
+    if(!dataApi)return;
+    setError('');setNotice('');
+    if(!draftSupplier){setError('ابتدا تأمین‌کننده را انتخاب کن.');return;}
+    if(draftItems.some(item=>!item.product_id||!item.quantity||!item.unit_cost)){
+      setError('محصول، مقدار و بهای واحد برای تمام ردیف‌ها الزامی است.');return;
+    }
+    const ids=draftItems.map(item=>item.product_id);
+    if(new Set(ids).size!==ids.length){setError('هر محصول را فقط یک بار وارد کن؛ برای همان محصول یک ردیف را اصلاح کن.');return;}
+    const parsed=draftItems.map(item=>({product_id:item.product_id,quantity:Number(item.quantity),unit_cost:Number(item.unit_cost)}));
+    if(parsed.some(item=>!Number.isFinite(item.quantity)||item.quantity<=0||!Number.isFinite(item.unit_cost)||item.unit_cost<0)){
+      setError('مقدار باید مثبت و بهای واحد صفر یا بیشتر باشد.');return;
+    }
+    setBusy(true);
+    try{
+      const {error:rpcError}=await dataApi.rpc('create_purchase_order',{
+        _company:membership.company_id,
+        _supplier:draftSupplier,
+        _reference:draftReference.trim(),
+        _items:JSON.stringify(parsed),
+        _expected_delivery:expectedDelivery||null,
+        _note:draftNote.trim()||null,
+      });
+      if(rpcError)throw new Error(rpcError.message);
+      setNotice('پیش‌نویس سفارش خرید ثبت شد. برای ارسال سفارش به تأمین‌کننده، مالک یا مدیر باید آن را تأیید کند.');
+      setCreateOpen(false);
+      await load();
+    }catch(caught){
+      setError(caught instanceof Error?caught.message:'ساخت سفارش خرید ناموفق بود.');
+    }finally{setBusy(false);}
+  };
+  const approve=async(order:Row)=>{
+    if(!dataApi||!window.confirm('سفارش خرید «'+String(order.reference)+'» برای ارسال به تأمین‌کننده تأیید شود؟'))return;
+    setBusy(true);setError('');setNotice('');
+    try{
+      const {error:rpcError}=await dataApi.rpc('approve_purchase_order',{_company:membership.company_id,_purchase_order:String(order.id)});
+      if(rpcError)throw new Error(rpcError.message);
+      setNotice('سفارش خرید تأیید شد؛ می‌توانی دریافت کالا را به‌صورت جزئی یا کامل ثبت کنی.');
+      await load();
+    }catch(caught){setError(caught instanceof Error?caught.message:'تأیید سفارش خرید ناموفق بود.');}
+    finally{setBusy(false);}
+  };
+  const openReceipt=(order:Row)=>{
+    const lines=(order.purchase_order_items??[]) as Row[];
+    const next:Record<string,string>={};
+    for(const line of lines){
+      const remaining=Math.max(0,Number(line.ordered_quantity)-Number(line.received_quantity??0));
+      if(remaining>0)next[String(line.id)]=String(remaining);
+    }
+    setReceiptQuantities(next);setReceiptReference('');setReceiptNote('');
+    setReceiptOrder(order);setError('');setNotice('');
+  };
+  const receive=async(event:React.FormEvent<HTMLFormElement>)=>{
+    event.preventDefault();
+    if(!dataApi||!receiptOrder)return;
+    const lines=(receiptOrder.purchase_order_items??[]) as Row[];
+    const receiptItems=lines.map(line=>({
+      purchase_order_item_id:String(line.id),
+      quantity_received:Number(receiptQuantities[String(line.id)]??0),
+    })).filter(line=>line.quantity_received>0);
+    if(!receiptItems.length||receiptItems.some(line=>!Number.isFinite(line.quantity_received)||line.quantity_received<=0)){
+      setError('حداقل یک قلم با مقدار دریافتی مثبت وارد کن.');return;
+    }
+    setBusy(true);setError('');setNotice('');
+    try{
+      const {error:rpcError}=await dataApi.rpc('receive_purchase_order',{
+        _company:membership.company_id,
+        _purchase_order:String(receiptOrder.id),
+        _items:JSON.stringify(receiptItems),
+        _reference:receiptReference.trim()||null,
+        _note:receiptNote.trim()||null,
+      });
+      if(rpcError)throw new Error(rpcError.message);
+      setNotice('رسید ثبت شد و دفتر موجودی به‌صورت اتمیک به‌روزرسانی شد.');
+      setReceiptOrder(null);
+      await load();
+    }catch(caught){setError(caught instanceof Error?caught.message:'ثبت رسید سفارش خرید ناموفق بود.');}
+    finally{setBusy(false);}
+  };
+  const internal=['owner','admin','staff'].includes(membership.role);
+  const canApprove=['owner','admin'].includes(membership.role);
+  const visible=orders.filter(order=>{
+    const lines=(order.purchase_order_items??[]) as Row[];
+    const supplier=(order.suppliers as Row|null)?.name??'';
+    const haystack=[order.reference,supplier,order.status,...lines.flatMap(line=>[(line.products as Row|null)?.name,(line.products as Row|null)?.sku])].map(v=>String(v??'')).join(' ').toLowerCase();
+    return !search||haystack.includes(search.toLowerCase());
+  });
+  const totalValue=(order:Row)=>((order.purchase_order_items??[]) as Row[]).reduce((sum,line)=>sum+Number(line.ordered_quantity??0)*Number(line.unit_cost??0),0);
+  return <>
+    <PageHeading eyebrow="PROCUREMENT / PURCHASE ORDERS" title="سفارش خرید و رسید انبار" description="چرخه‌ی مستند خرید: پیش‌نویس، تأیید مالک/مدیر، دریافت جزئی یا کامل و ثبت اتمیک در دفتر موجودی." action={internal&&<Button onClick={()=>{setError('');setNotice('');resetDraft();setCreateOpen(true);}} disabled={!suppliers.length||!products.length}><Plus size={16}/> سفارش خرید جدید</Button>}/>
+    {error&&<InlineError error={error} retry={()=>void load()}/>}
+    {notice&&<div className="form-success notice-wide"><CheckCircle2 size={16}/>{notice}</div>}
+    <div className="rule-banner"><ShieldCheck size={18}/><p><b>کنترل سمت سرور</b><span>ساخت سفارش با قلم‌های همان شرکت اعتبارسنجی می‌شود؛ تأیید فقط برای مالک/مدیر است و رسید بیش از مقدار باقیمانده رد می‌شود. موجودی فقط با رسید واقعی تغییر می‌کند.</span></p></div>
+    <section className="stats-grid tower-stats">
+      <article className="stat-card"><div className="stat-card-top"><span>سفارش‌های ثبت‌شده</span><i className="stat-icon"><FileText size={18}/></i></div><b>{numberFa(String(orders.length))}</b><small>برای همین فضای کاری</small></article>
+      <article className="stat-card"><div className="stat-card-top"><span>در انتظار دریافت</span><i className="stat-icon"><Package size={18}/></i></div><b>{numberFa(String(orders.filter(o=>['approved','partially_received'].includes(String(o.status))).length))}</b><small>سفارش تأییدشده یا دریافت جزئی</small></article>
+      <article className="stat-card"><div className="stat-card-top"><span>ارزش سفارش‌ها</span><i className="stat-icon"><CreditCard size={18}/></i></div><b>{moneyFa(orders.reduce((sum,order)=>sum+totalValue(order),0))}</b><small>ارزش ثبت‌شده اقلام؛ نه پرداخت بانکی</small></article>
+    </section>
+    <div className="purchase-order-collection">
+      {loading?<div className="panel-loading"><span className="spinner small"/></div>:visible.length?visible.map(order=>{
+        const lines=(order.purchase_order_items??[]) as Row[];
+        const remaining=lines.reduce((sum,line)=>sum+Math.max(0,Number(line.ordered_quantity)-Number(line.received_quantity??0)),0);
+        return <section className="panel entity-panel purchase-order-card" key={String(order.id)}>
+          <div className="panel-heading">
+            <div><span className="section-number">PURCHASE</span><div><h3 dir="ltr">{String(order.reference)}</h3><p>{String((order.suppliers as Row|null)?.name??'تأمین‌کننده')} · ثبت {dateTimeFa(String(order.created_at??''))}</p></div></div>
+            <span className="status-badge neutral">{purchaseOrderStatusLabel[String(order.status)]??String(order.status)}</span>
+          </div>
+          <div className="purchase-order-meta">
+            <span>ارزش سفارش <b>{moneyFa(totalValue(order))}</b></span>
+            <span>باقی‌مانده برای دریافت <b>{numberFa(String(remaining))} واحد از اقلام</b></span>
+            <span>موعد تحویل <b>{order.expected_delivery?dateFa(String(order.expected_delivery)):'ثبت نشده'}</b></span>
+          </div>
+          {lines.length?<div className="table-scroll"><DataTable rows={lines} columns={[
+            {key:'product_id',label:'محصول',render:line=><span>{String((line.products as Row|null)?.name??'محصول')}<small className="cell-subtitle">{String((line.products as Row|null)?.sku??'')}</small></span>},
+            {key:'ordered_quantity',label:'سفارش',render:line=>numberFa(String(line.ordered_quantity))},
+            {key:'received_quantity',label:'دریافت‌شده',render:line=>numberFa(String(line.received_quantity??0))},
+            {key:'unit_cost',label:'بهای واحد',render:line=>moneyFa(Number(line.unit_cost??0))},
+            {key:'line_total',label:'ارزش ردیف',render:line=>moneyFa(Number(line.ordered_quantity??0)*Number(line.unit_cost??0))},
+          ]}/></div>:<EmptyState title="سفارش فاقد اقلام است" description="برای این سفارش قلمی پیدا نشد." icon={Package}/>}
+          {typeof order.notes==='string'&&order.notes.length>0&&<p className="purchase-order-note">{order.notes}</p>}
+          <div className="purchase-order-actions">
+            {canApprove&&order.status==='draft'&&<Button disabled={busy} onClick={()=>void approve(order)}><CheckCircle2 size={15}/> تأیید سفارش</Button>}
+            {internal&&['approved','partially_received'].includes(String(order.status))&&<Button disabled={busy||remaining<=0} onClick={()=>openReceipt(order)}><Package size={15}/> ثبت رسید انبار</Button>}
+            {order.status==='received'&&<span className="status-badge success"><i/>همه‌ی اقلام دریافت شده‌اند</span>}
+          </div>
+        </section>;
+      }):<section className="panel"><EmptyState title="سفارش خریدی ثبت نشده" description="با انتخاب تأمین‌کننده، کالاها و مقدار موردنیاز، پیش‌نویس بساز. پس از تأیید مدیر، رسید جزئی یا نهایی از همین صفحه ثبت می‌شود." icon={FileText}/></section>}
+    </div>
+
+    {createOpen&&<Modal title="ساخت سفارش خرید" subtitle="ساخت سفارش موجودی را تغییر نمی‌دهد؛ موجودی پس از ثبت رسید معتبر افزایش می‌یابد." onClose={()=>!busy&&setCreateOpen(false)}>
+      <form className="record-form" onSubmit={createDraft}>
+        <label>تأمین‌کننده<select required value={draftSupplier} onChange={e=>setDraftSupplier(e.target.value)}><option value="">انتخاب تأمین‌کننده…</option>{suppliers.map(s=><option key={String(s.id)} value={String(s.id)}>{String(s.name)}</option>)}</select></label>
+        <label>شماره سفارش<input required minLength={3} maxLength={80} value={draftReference} onChange={e=>setDraftReference(e.target.value)} dir="ltr"/></label>
+        <label>موعد تحویل مورد انتظار<input type="date" value={expectedDelivery} onChange={e=>setExpectedDelivery(e.target.value)}/></label>
+        <div className="full-span purchase-line-editor">
+          <div className="panel-heading"><div><h3>اقلام سفارش</h3><p>حداکثر ۱۰۰ قلم؛ تکرار یک محصول در ردیف جدا پذیرفته نمی‌شود.</p></div><Button variant="soft" disabled={draftItems.length>=100} onClick={()=>setDraftItems(old=>[...old,{product_id:'',quantity:'',unit_cost:''}])}><Plus size={14}/> افزودن قلم</Button></div>
+          {draftItems.map((line,index)=><div className="purchase-line-row" key={index}>
+            <label>محصول<select required value={line.product_id} onChange={e=>setDraftItems(old=>old.map((item,i)=>i===index?{...item,product_id:e.target.value}:item))}><option value="">انتخاب کالا…</option>{products.map(p=><option key={String(p.id)} value={String(p.id)}>{String(p.sku)} · {String(p.name)} ({String(p.unit)})</option>)}</select></label>
+            <label>مقدار سفارش<input type="number" min="0.001" max="999999999" step="0.001" required value={line.quantity} onChange={e=>setDraftItems(old=>old.map((item,i)=>i===index?{...item,quantity:e.target.value}:item))} dir="ltr"/></label>
+            <label>بهای واحد (تومان)<input type="number" min="0" max="999999999999" step="0.01" required value={line.unit_cost} onChange={e=>setDraftItems(old=>old.map((item,i)=>i===index?{...item,unit_cost:e.target.value}:item))} dir="ltr"/></label>
+            {draftItems.length>1&&<Button variant="danger" onClick={()=>setDraftItems(old=>old.filter((_,i)=>i!==index))}>حذف ردیف</Button>}
+          </div>)}
+        </div>
+        <label className="full-span">یادداشت / شرایط خرید<textarea rows={2} maxLength={2000} value={draftNote} onChange={e=>setDraftNote(e.target.value)} placeholder="شرایط تحویل یا توضیحی که در سند بماند…"/></label>
+        <div className="modal-actions"><Button variant="soft" disabled={busy} onClick={()=>setCreateOpen(false)}>انصراف</Button><Button type="submit" disabled={busy||!suppliers.length||!products.length}>{busy?'در حال ثبت…':'ثبت پیش‌نویس'}</Button></div>
+      </form>
+    </Modal>}
+
+    {receiptOrder&&<Modal title={'ثبت رسید · '+String(receiptOrder.reference)} subtitle="فقط مقدار تحویل‌شده‌ی واقعی را وارد کن؛ هر قلم با مانده سفارش کنترل می‌شود." onClose={()=>!busy&&setReceiptOrder(null)}>
+      <form className="record-form" onSubmit={receive}>
+        {((receiptOrder.purchase_order_items??[]) as Row[]).filter(line=>Number(line.ordered_quantity)>Number(line.received_quantity??0)).map(line=>{
+          const remaining=Number(line.ordered_quantity)-Number(line.received_quantity??0);
+          return <label className="full-span purchase-receipt-line" key={String(line.id)}><span>{String((line.products as Row|null)?.name??'محصول')}<small>باقی‌مانده: {numberFa(String(remaining))} {String((line.products as Row|null)?.unit??'واحد')}</small></span><input aria-label={'مقدار دریافتی '+String((line.products as Row|null)?.name??line.id)} type="number" min="0" max={remaining} step="0.001" value={receiptQuantities[String(line.id)]??'0'} onChange={e=>setReceiptQuantities(old=>({...old,[String(line.id)]:e.target.value}))} dir="ltr"/></label>;
+        })}
+        <label>شماره رسید / فاکتور<input maxLength={120} value={receiptReference} onChange={e=>setReceiptReference(e.target.value)} dir="ltr" placeholder={String(receiptOrder.reference)}/></label>
+        <label>یادداشت رسید<textarea rows={2} maxLength={2000} value={receiptNote} onChange={e=>setReceiptNote(e.target.value)} placeholder="کسری، وضعیت بسته‌بندی یا توضیح تحویل…"/></label>
+        <div className="modal-actions"><Button variant="soft" disabled={busy} onClick={()=>setReceiptOrder(null)}>انصراف</Button><Button type="submit" disabled={busy}>{busy?'در حال ثبت رسید…':'ثبت رسید و افزایش موجودی'}</Button></div>
+      </form>
+    </Modal>}
+  </>;
+}
 
 function InventoryPage({membership,search}:{membership:Membership;search:string}) {
   const [balances,setBalances]=useState<Row[]>([]);
