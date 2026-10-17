@@ -330,7 +330,7 @@ jobs:
             await page.locator('.simorgh-signin-layer').waitFor({ state: 'visible', timeout: 20000 });
             await page.getByRole('heading', { name: 'ورود به مدار' }).waitFor({ state: 'visible' });
             if (await page.locator('.app-frame').count()) throw new Error(label + ': private workspace appeared before login.');
-            await page.getByLabel('نام کاربری').waitFor({ state: 'visible' });
+            await page.getByLabel('شماره موبایل یا نام کاربری').waitFor({ state: 'visible' });
             await page.getByLabel('گذرواژه', { exact: true }).waitFor({ state: 'visible' });
             if (await page.locator('#simorgh-signin-email').count()) throw new Error(label + ': email input must not appear.');
             await page.getByRole('button', { name: 'ساخت حساب و فضای کاری' }).click();
