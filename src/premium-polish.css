@@ -887,3 +887,41 @@ html[data-theme="light"] .mobile-workspace-nav {
   box-shadow: 0 12px 36px rgb(20 48 46 / 14%);
 }
 html[data-theme="light"] .mobile-workspace-more { background: #FFFFFF; border-color: var(--obs-border); }
+
+
+/* Ensure the full operational canvas and every data-entry surface follow the active theme. */
+.app-frame { background: var(--obs-bg); color: var(--obs-text); }
+html[data-theme="light"] input:not([type="checkbox"]):not([type="radio"]),
+html[data-theme="light"] select,
+html[data-theme="light"] textarea,
+html[data-theme="light"] .record-form input,
+html[data-theme="light"] .record-form select,
+html[data-theme="light"] .record-form textarea,
+html[data-theme="light"] .data-table select,
+html[data-theme="light"] .row-actions select {
+  background: #FFFFFF;
+  color: var(--obs-text);
+  border-color: var(--obs-border);
+}
+html[data-theme="light"] input::placeholder,
+html[data-theme="light"] textarea::placeholder { color: #718589; }
+html[data-theme="light"] .empty-state {
+  background: #FAFCFB;
+  border-color: #C7D8D5;
+}
+html[data-theme="light"] .empty-state > span,
+html[data-theme="light"] .stat-icon,
+html[data-theme="light"] .section-number {
+  background: #E5F2EE; color: #26786A; border-color: #C6E0D8;
+}
+html[data-theme="light"] .section-number.orange {
+  background: #FFF5E3; color: #8C5E16; border-color: #EFDFBE;
+}
+html[data-theme="light"] .modal-heading > button {
+  background: #F0F5F4; color: #52686B; border-color: var(--obs-border);
+}
+html[data-theme="light"] .modal-actions { background: #FFFFFF; border-color: var(--obs-border); }
+html[data-theme="light"] .entity-toolbar { color: var(--obs-text); }
+html[data-theme="light"] .entity-toolbar button,
+html[data-theme="light"] .row-actions button { color: #26786A; }
+html[data-theme="light"] .customer-order-card { background: #FFFFFF; }
