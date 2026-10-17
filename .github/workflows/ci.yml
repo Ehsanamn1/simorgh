@@ -85,11 +85,11 @@ jobs:
             ('00000000-0000-4000-8000-000000000033','00000000-0000-4000-8000-000000000022','CI-STOCK-LOCK','CI stock lock probe','other','unit');
           INSERT INTO public.inventory_movements (company_id,product_id,movement_type,quantity,reference_code,note,recorded_by) VALUES
             ('00000000-0000-4000-8000-000000000022','00000000-0000-4000-8000-000000000033','adjustment_in',10,'ci-seed-stock-lock','CI stock lock seed','00000000-0000-4000-8000-000000000011');
-          CREATE FUNCTION public.ci_pause_inventory_race() RETURNS trigger LANGUAGE plpgsql AS $
+          CREATE FUNCTION public.ci_pause_inventory_race() RETURNS trigger LANGUAGE plpgsql AS $$
           BEGIN
             IF NEW.reference_code LIKE 'ci-race-%' THEN PERFORM pg_sleep(0.75); END IF;
             RETURN NEW;
-          END $;
+          END $$;
           CREATE TRIGGER ci_pause_inventory_race BEFORE INSERT ON public.inventory_movements
             FOR EACH ROW EXECUTE FUNCTION public.ci_pause_inventory_race();
           SQL
