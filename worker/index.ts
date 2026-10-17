@@ -778,7 +778,7 @@ export function canTransitionMedarStatus(table: string, current: string, next: s
 
 function applyInsertActorFields(table:string,row:Record<string,unknown>,columns:Set<string>,userId:string):Record<string,unknown> {
  const out={...row};
- for(const field of ['user_id','created_by','updated_by','recorded_by','captured_by','uploaded_by','reported_by','submitted_by'])delete out[field];
+ for(const field of ['id','user_id','created_at','updated_at','deleted_at','created_by','updated_by','recorded_by','captured_by','uploaded_by','reported_by','submitted_by'])delete out[field];
  if(columns.has('created_by'))out.created_by=userId;
  if(columns.has('updated_by'))out.updated_by=userId;
  if(columns.has('recorded_by'))out.recorded_by=userId;
@@ -859,7 +859,9 @@ app.post('/api/data/:table',async c=>{
      if(!prices.length)return c.json({message:'برای این محصول قرارداد قیمت فعال پیدا نشد.'},422);
      const price=prices[0] as {unit_price:string|number;min_qty:string|number};
      if(!Number.isFinite(Number(original.quantity))||Number(original.quantity)<Number(price.min_qty))return c.json({message:'مقدار سفارش از حداقل قرارداد کمتر است.'},422);
-     row.unit_price=Number(price.unit_price);sanitized.push(row);continue;
+     row.unit_price=Number(price.unit_price);
+     delete row.supplier_id;delete row.lot_id;delete row.capacity_commitment_id;
+     sanitized.push(row);continue;
     }
     if(membership.role==='driver'&&(table==='shipment_locations'||table==='delivery_evidence')){
      const shipmentId=String(original.shipment_id??'');
@@ -1147,6 +1149,13 @@ type PrivateFileAction = 'read' | 'write' | 'delete';
 async function canAccessPrivateFile(c: Ctx, userId: string, bucket: string, path: string, action: PrivateFileAction): Promise<boolean> {
   const [companyId, resourceId] = path.split('/');
   const sql = sqlFor(c);
+  if (action === 'delete') {
+    const manager = await sql.query(
+      "select exists(select 1 from public.memberships m where m.user_id=$1::uuid and m.company_id=$2::uuid and m.active=true and m.role::text in ('owner','admin')) as allowed",
+      [userId, companyId],
+    );
+    return Boolean((manager[0] as {allowed?:boolean}|undefined)?.allowed);
+  }
   const rows = await sql.query(
     "select case " +
     "when $4='contract-documents' then (" +
