@@ -57,7 +57,7 @@ jobs:
         shell: bash
         run: |
           psql "$MEDAR_DATABASE_URL" -v ON_ERROR_STOP=1 -c "create table if not exists public.medar_schema_migrations (version text primary key, checksum text not null, applied_at timestamptz not null default now())"
-          for migration in worker/migrations/0007_existing_medar_schema_compat.sql worker/migrations/0008_operational_task_actions.sql; do
+          for migration in worker/migrations/0007_existing_medar_schema_compat.sql worker/migrations/0008_operational_task_actions.sql worker/migrations/0009_inventory_movement_concurrency_lock.sql; do
             version="$(basename "$migration")"
             checksum="$(sha256sum "$migration" | awk '{print $1}')"
             applied="$(psql "$MEDAR_DATABASE_URL" -v ON_ERROR_STOP=1 -Atqc "select checksum from public.medar_schema_migrations where version = '$version'")"
@@ -86,6 +86,7 @@ jobs:
               to_regclass('public.medar_files') is not null and
               to_regprocedure('public.medar_allocate_order_item(uuid,uuid,uuid,uuid)') is not null and
               to_regprocedure('public.medar_record_inventory_movement(uuid,uuid,uuid,text,numeric,numeric,uuid,uuid,uuid,text,text)') is not null and
+              position('pg_advisory_xact_lock' in pg_get_functiondef(to_regprocedure('public.medar_record_inventory_movement(uuid,uuid,uuid,text,numeric,numeric,uuid,uuid,uuid,text,text)'))) > 0 and
               to_regprocedure('public.medar_record_quality_review(uuid,uuid,uuid,text,text,jsonb)') is not null and
               to_regprocedure('public.medar_start_operational_task(uuid,uuid)') is not null and
               to_regprocedure('public.medar_submit_operational_task(uuid,uuid,text)') is not null and
@@ -94,7 +95,7 @@ jobs:
               to_regprocedure('public.medar_refresh_partner_settlement_period(uuid,uuid)') is not null and
               to_regprocedure('public.medar_approve_partner_settlement_period(uuid,uuid)') is not null and
               to_regprocedure('public.medar_record_partner_settlement_payment(uuid,uuid,numeric,text,timestamptz)') is not null and
-              (select count(*) from public.medar_schema_migrations where version in ('0007_existing_medar_schema_compat.sql','0008_operational_task_actions.sql')) = 2
+              (select count(*) from public.medar_schema_migrations where version in ('0007_existing_medar_schema_compat.sql','0008_operational_task_actions.sql','0009_inventory_movement_concurrency_lock.sql')) = 3
             )
           ")"
           if [[ "$readiness" != "t" ]]; then
