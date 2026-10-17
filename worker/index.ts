@@ -183,7 +183,7 @@ async function getMemberships(c: Ctx, userId: string) {
   const sql = sqlFor(c);
   return await sql`
     select m.id, m.company_id, m.user_id, m.role, m.active,
-      null::uuid as customer_id, null::uuid as supplier_id,
+      m.customer_id, m.supplier_id,
       json_build_object('name', coalesce(c.name, 'مجموعه مدار')) as company
     from public.memberships m
     join public.companies c on c.id = m.company_id
@@ -498,7 +498,7 @@ app.post('/api/workspace/join', async (c) => {
     ), membership as (
       insert into public.memberships(company_id, user_id, role, active, created_by, customer_id, supplier_id)
       select company_id, ${user.id}, role, true, ${user.id}, customer_id, supplier_id from invite
-      on conflict (company_id, user_id, role) do update set active = true
+      on conflict (company_id, user_id, role) do update set active = true, customer_id = excluded.customer_id, supplier_id = excluded.supplier_id
       returning id, company_id, role
     )
     select id, company_id, role from membership limit 1
