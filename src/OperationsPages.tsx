@@ -186,7 +186,7 @@ export function OperationsWorkspacePage({kind,membership,search}:{kind:Operation
   const [periodEnd,setPeriodEnd]=useState('');
 
   const load=async()=>{
-    if(!dataApi){setError('اتصال Supabase در این build تنظیم نشده است.');setLoading(false);return;}
+    if(!dataApi){setError('اتصال API مدار در این build تنظیم نشده است.');setLoading(false);return;}
     setLoading(true);setError('');
     const [main,suppliers,sites,batches,templates,agreements,entries,products]=await Promise.all([
       dataApi.from(cfg.table).select('*').eq('company_id',membership.company_id).order('created_at',{ascending:false}).limit(200),
@@ -428,24 +428,24 @@ export function OperationsWorkspacePage({kind,membership,search}:{kind:Operation
     setNotice(success);await load();
   };
   const updateRow=(table:string,id:unknown,patch:Record<string,unknown>)=>{
-    if(!dataApi)return Promise.resolve({error:{message:'Supabase تنظیم نشده است.'}});
+    if(!dataApi)return Promise.resolve({error:{message:'API مدار تنظیم نشده است.'}});
     return dataApi.from(table).update(patch).eq('company_id',membership.company_id).eq('id',String(id));
   };
   const assigned=(row:Row)=>membership.role==='supplier'
     ? String(row.assignee_supplier_id)===String(membership.supplier_id)
     : String(row.assignee_user_id)===String(membership.user_id)||manager;
   const startTask=(row:Row)=>action(
-    ()=>dataApi?dataApi.rpc('start_operational_task',{_task:String(row.id)}):Promise.resolve({error:{message:'Supabase تنظیم نشده است.'}}),
+    ()=>dataApi?dataApi.rpc('start_operational_task',{_task:String(row.id)}):Promise.resolve({error:{message:'API مدار تنظیم نشده است.'}}),
     'وظیفه شروع شد.'
   );
   const submitTask=(row:Row)=>{
     const note=window.prompt('یادداشت تکمیل کار (اختیاری):')??'';
-    return action(()=>dataApi?dataApi.rpc('submit_operational_task',{_task:String(row.id),_completion_note:note}):Promise.resolve({error:{message:'Supabase تنظیم نشده است.'}}),'وظیفه برای بازبینی ارسال شد.');
+    return action(()=>dataApi?dataApi.rpc('submit_operational_task',{_task:String(row.id),_completion_note:note}):Promise.resolve({error:{message:'API مدار تنظیم نشده است.'}}),'وظیفه برای بازبینی ارسال شد.');
   };
   const reviewTask=(row:Row,decision:'approved'|'rejected')=>{
     const note=window.prompt(decision==='approved'?'یادداشت تأیید (اختیاری):':'علت رد و اقدام اصلاحی:')??'';
     if(decision==='rejected'&&!note.trim()){setError('برای رد وظیفه باید دلیل ثبت شود.');return;}
-    void action(()=>dataApi?dataApi.rpc('review_operational_task',{_task:String(row.id),_decision:decision,_review_note:note}):Promise.resolve({error:{message:'Supabase تنظیم نشده است.'}}),decision==='approved'?'وظیفه تأیید شد.':'وظیفه رد شد و نیازمند اصلاح است.');
+    void action(()=>dataApi?dataApi.rpc('review_operational_task',{_task:String(row.id),_decision:decision,_review_note:note}):Promise.resolve({error:{message:'API مدار تنظیم نشده است.'}}),decision==='approved'?'وظیفه تأیید شد.':'وظیفه رد شد و نیازمند اصلاح است.');
   };
   const approveTemplate=(row:Row)=>void action(()=>updateRow('task_templates',row.id,{status:'approved'}),'دستورالعمل تأیید و قفل نسخه شد.');
   const startBatch=(row:Row)=>void action(()=>updateRow('production_batches',row.id,{status:'active',started_on:row.started_on??new Date().toISOString().slice(0,10)}),'بچ تولید آغاز شد.');
@@ -473,8 +473,8 @@ export function OperationsWorkspacePage({kind,membership,search}:{kind:Operation
     const first=refs.agreements.find(a=>['active','suspended','expired','terminated'].includes(String(a.status)));
     setDraft({agreement_id:first?.id?String(first.id):''});setPeriodStart('');setPeriodEnd('');setError('');setOpenForm(true);
   };
-  const refreshPeriod=(row:Row)=>void action(()=>dataApi?dataApi.rpc('refresh_partner_settlement_period',{_period:String(row.id)}):Promise.resolve({error:{message:'Supabase تنظیم نشده است.'}}),'محاسبات دوره از دفتر مالی بازخوانی شد.');
-  const approvePeriod=(row:Row)=>void action(()=>dataApi?dataApi.rpc('approve_partner_settlement_period',{_period:String(row.id)}):Promise.resolve({error:{message:'Supabase تنظیم نشده است.'}}),'دوره تسویه تأیید و قفل شد.');
+  const refreshPeriod=(row:Row)=>void action(()=>dataApi?dataApi.rpc('refresh_partner_settlement_period',{_period:String(row.id)}):Promise.resolve({error:{message:'API مدار تنظیم نشده است.'}}),'محاسبات دوره از دفتر مالی بازخوانی شد.');
+  const approvePeriod=(row:Row)=>void action(()=>dataApi?dataApi.rpc('approve_partner_settlement_period',{_period:String(row.id)}):Promise.resolve({error:{message:'API مدار تنظیم نشده است.'}}),'دوره تسویه تأیید و قفل شد.');
   const payPeriod=async(e:FormEvent<HTMLFormElement>)=>{
     e.preventDefault();if(!dataApi||!paymentPeriod)return;
     setBusy(true);setError('');setNotice('');
