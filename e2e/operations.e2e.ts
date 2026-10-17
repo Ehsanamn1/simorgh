@@ -341,7 +341,8 @@ test('driver lands in assigned shipments and does not get customer or manager na
   expect(dimensions.body).toBeLessThanOrEqual(dimensions.viewport);
   expect(errors).toEqual([]);
 });
-test('a signed-in user can change their own password through the protected Worker endpoint', async ({ page }) => {
+test('a signed-in user can change their own password through the protected Worker endpoint', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop-chromium', 'Validate the credential-change request once; responsive auth and workspace layout are covered in every viewport.');
   await installIsolatedSession(page, 'owner');
   let submitted: Record<string, unknown> | undefined;
   await page.route('**/api/auth/password/change', async route => {
