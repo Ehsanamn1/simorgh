@@ -236,3 +236,120 @@ jobs:
           invalid_login_status="$(curl --silent --show-error --output "$RUNNER_TEMP/medar-invalid-login.json" --write-out '%{http_code}' --header 'Content-Type: application/json' --data '{"username":"ab","password":"x"}' "$worker_url/api/auth/login")"
           if [[ "$invalid_login_status" != "401" ]]; then echo "Malformed login must return 401 (received $invalid_login_status)."; cat "$RUNNER_TEMP/medar-invalid-login.json"; exit 1; fi
           echo "Malformed login rejected without touching account data."
+
+      # Keep medar-api as the public showcase. The operational app is a separate Worker
+      # so enabling its sign-in UI never changes the read-only public demo.
+      - name: Build the protected operational app with sign-in enabled
+        run: npm run build
+        env:
+          VITE_ENABLE_AUTH_UI: 'true'
+      - name: Verify the operational bundle includes sign-in and owner onboarding
+        shell: bash
+        run: |
+          test -f dist/index.html
+          grep -q 'id="root"' dist/index.html
+          test -n "$(find dist/assets -maxdepth 1 -type f -name '*.js' -print -quit)"
+          test -n "$(find dist/assets -maxdepth 1 -type f -name '*.css' -print -quit)"
+          grep -Rqs --include='*.js' 'simorgh-signin-layer' dist/assets
+          grep -Rqs --include='*.js' 'ساخت حساب و فضای کاری' dist/assets
+          grep -Rqs --include='*.js' 'نحوه اتصال به مجموعه' dist/assets
+          grep -Rqs --include='*.css' 'simorgh-signin-layer' dist/assets
+          grep -Rqs --include='*.css' 'signin-form-card' dist/assets
+          echo "Operational bundle includes the guarded sign-in and first-owner registration UI."
+      - name: Create operational Worker script
+        working-directory: worker
+        run: set -o pipefail; npx wrangler@4 deploy --name medar-ops 2>&1 | tee /tmp/medar-ops-bootstrap.log
+      - name: Configure Neon database secret for the operational Worker
+        working-directory: worker
+        shell: bash
+        run: printf '%s' "$MEDAR_DATABASE_URL" | npx wrangler@4 secret put DATABASE_URL --name medar-ops
+      - name: Publish operational Worker with database secret
+        working-directory: worker
+        run: set -o pipefail; npx wrangler@4 deploy --name medar-ops 2>&1 | tee /tmp/medar-ops-deploy.log
+      - name: Smoke-test the live operational Worker and protected route
+        shell: bash
+        run: |
+          worker_url="$(grep -Eo 'https://medar-ops\.[a-z0-9-]+\.workers\.dev' /tmp/medar-ops-deploy.log 2>/dev/null | tail -n1 || true)"
+          if [[ -z "$worker_url" ]]; then
+            echo "Could not resolve the operational medar-ops URL from Wrangler output."
+            exit 1
+          fi
+          response="$(curl --fail --silent --show-error --retry 10 --retry-all-errors --retry-delay 3 "$worker_url/api/health")"
+          printf '%s' "$response" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const x=JSON.parse(s);if(x.ok!==true||x.database!==true||x.authentication!=='username-password'){console.error('Unexpected operational health response:',s);process.exit(1)}console.log('Operational Worker database health OK:',s)})"
+          WORKER_URL="$worker_url" node --input-type=module <<'NODE'
+          const base = process.env.WORKER_URL;
+          const rootResponse = await fetch(base + '/');
+          if (!rootResponse.ok) throw new Error('Operational root failed: ' + rootResponse.status);
+          const html = await rootResponse.text();
+          if (!html.includes('id="root"')) throw new Error('Operational root HTML is missing the React root.');
+          const jsPaths = [...new Set([...html.matchAll(/(?:src|href)="([^"]+\.js)"/g)].map(m => new URL(m[1], base + '/').pathname))];
+          const cssPaths = [...new Set([...html.matchAll(/href="([^"]+\.css)"/g)].map(m => new URL(m[1], base + '/').pathname))];
+          if (!jsPaths.length || !cssPaths.length) throw new Error('Operational HTML has no JS or CSS references.');
+          const getText = async path => {
+            const response = await fetch(new URL(path, base + '/'));
+            if (!response.ok) throw new Error(path + ' returned ' + response.status);
+            return response.text();
+          };
+          const [js, css] = await Promise.all([Promise.all(jsPaths.map(getText)), Promise.all(cssPaths.map(getText))]);
+          if (!js.join('\n').includes('simorgh-signin-layer') || !js.join('\n').includes('ساخت حساب و فضای کاری')) throw new Error('Live operational JS bundle is missing sign-in/registration.');
+          if (!css.join('\n').includes('simorgh-signin-layer')) throw new Error('Live operational CSS is missing the sign-in surface.');
+          const deepLink = await fetch(base + '/app/command');
+          if (!deepLink.ok || !(await deepLink.text()).includes('id="root"')) throw new Error('Operational /app/command deep-link failed.');
+          const meResponse = await fetch(base + '/api/auth/me');
+          if (!meResponse.ok) throw new Error('Unauthenticated session inspection failed: ' + meResponse.status);
+          const session = await meResponse.json();
+          if (session.user !== null || !Array.isArray(session.memberships)) throw new Error('Unexpected unauthenticated session payload.');
+          console.log('Operational root, live JS/CSS, /app/command deep-link, and unauthenticated session response verified.');
+          NODE
+      - name: Verify live operational sign-in and owner registration UI in Chromium
+        shell: bash
+        run: |
+          worker_url="$(grep -Eo 'https://medar-ops\.[a-z0-9-]+\.workers\.dev' /tmp/medar-ops-deploy.log 2>/dev/null | tail -n1 || true)"
+          test -n "$worker_url"
+          WORKER_URL="$worker_url" node --input-type=module <<'NODE'
+          import { chromium } from '@playwright/test';
+          const base = process.env.WORKER_URL;
+          const browser = await chromium.launch({ headless: true });
+          const errors = [];
+          async function checkAuth(page, viewport, label) {
+            await page.setViewportSize(viewport);
+            const response = await page.goto(base + '/app/command', { waitUntil: 'networkidle', timeout: 60000 });
+            if (!response?.ok()) throw new Error(label + ': operational deep link failed.');
+            await page.locator('.simorgh-signin-layer').waitFor({ state: 'visible', timeout: 20000 });
+            await page.getByRole('heading', { name: 'ورود به مدار' }).waitFor({ state: 'visible' });
+            if (await page.locator('.app-frame').count()) throw new Error(label + ': private workspace appeared before login.');
+            await page.getByLabel('نام کاربری').waitFor({ state: 'visible' });
+            await page.getByLabel('گذرواژه', { exact: true }).waitFor({ state: 'visible' });
+            if (await page.locator('#simorgh-signin-email').count()) throw new Error(label + ': email input must not appear.');
+            await page.getByRole('button', { name: 'ساخت حساب و فضای کاری' }).click();
+            await page.getByRole('heading', { name: 'ساخت حساب و فضای کاری' }).waitFor({ state: 'visible' });
+            await page.getByLabel('نام و نام خانوادگی').waitFor({ state: 'visible' });
+            await page.getByLabel('نحوه اتصال به مجموعه').selectOption('create');
+            await page.getByLabel('نام مزرعه یا مجموعه').waitFor({ state: 'visible' });
+            await page.getByLabel('شماره موبایل').waitFor({ state: 'visible' });
+            await page.getByLabel('تکرار گذرواژه').waitFor({ state: 'visible' });
+            const size = await page.evaluate(() => ({ viewport: innerWidth, document: document.documentElement.scrollWidth, body: document.body.scrollWidth }));
+            if (size.document > size.viewport || size.body > size.viewport) throw new Error(label + ': horizontal overflow ' + JSON.stringify(size));
+          }
+          try {
+            const page = await browser.newPage({ viewport: { width: 1365, height: 900 } });
+            page.on('pageerror', error => errors.push(error.message));
+            await checkAuth(page,{width:1365,height:900},'desktop');
+            await checkAuth(page,{width:390,height:844},'mobile');
+            if (errors.length) throw new Error('Operational browser runtime errors: ' + errors.join(' | '));
+            console.log('Live operational sign-in/registration verified on desktop and mobile. No production account was created.');
+          } finally {
+            await browser.close();
+          }
+          NODE
+      - name: Verify operational API authorization and origin protections
+        shell: bash
+        run: |
+          worker_url="$(grep -Eo 'https://medar-ops\.[a-z0-9-]+\.workers\.dev' /tmp/medar-ops-deploy.log 2>/dev/null | tail -n1 || true)"
+          test -n "$worker_url"
+          membership_status="$(curl --silent --show-error --output "$RUNNER_TEMP/medar-ops-memberships.json" --write-out '%{http_code}' "$worker_url/api/workspace/memberships")"
+          if [[ "$membership_status" != "401" ]]; then echo "Unauthenticated operational memberships must return 401 (received $membership_status)."; cat "$RUNNER_TEMP/medar-ops-memberships.json"; exit 1; fi
+          cors_status="$(curl --silent --show-error --output "$RUNNER_TEMP/medar-ops-cors.json" --write-out '%{http_code}' --request POST --header 'Origin: https://untrusted-origin.invalid' --header 'Content-Type: application/json' --data '{"username":"ab","password":"x"}' "$worker_url/api/auth/login")"
+          if [[ "$cors_status" != "403" ]]; then echo "Untrusted-origin operational mutation must return 403 (received $cors_status)."; cat "$RUNNER_TEMP/medar-ops-cors.json"; exit 1; fi
+          echo "Operational API authorization and cross-origin protections passed."
+
