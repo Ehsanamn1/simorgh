@@ -22,22 +22,23 @@ jobs:
       - run: npm run typecheck
       - run: npm run lint
       - run: npm run test
-      - name: Build same-origin Worker app with secure sign-in enabled
+      - name: Build Worker app in public demo mode
         run: npm run build
         env:
-          VITE_ENABLE_AUTH_UI: 'true'
-      - name: Verify the Worker bundle includes sign-in and the polished operations UI
+          VITE_ENABLE_AUTH_UI: 'false'
+      - name: Verify the Worker bundle includes the public demo and polished UI
         shell: bash
         run: |
           test -f dist/index.html
           grep -q 'id="root"' dist/index.html
           test -n "$(find dist/assets -maxdepth 1 -type f -name '*.js' -print -quit)"
           test -n "$(find dist/assets -maxdepth 1 -type f -name '*.css' -print -quit)"
-          grep -Rqs --include='*.js' 'ورود به مدار' dist/assets
-          grep -Rqs --include='*.js' 'simorgh-signin-layer' dist/assets
-          grep -Rqs --include='*.css' 'tower-quick-grid' dist/assets
+          grep -Rqs --include='*.js' 'demo-workspace' dist/assets
+          grep -Rqs --include='*.js' 'دموی قابل ارائه' dist/assets
+          grep -Rqs --include='*.css' 'demo-workspace' dist/assets
+          grep -Rqs --include='*.css' 'demo-preview-notice' dist/assets
           grep -Rqs --include='*.css' 'medar-glass' dist/assets
-          echo "Worker frontend includes secure sign-in and the polished operations styles."
+          echo "Worker frontend includes the public demo and polished UI styles."
       - name: Validate deployment credentials
         shell: bash
         run: |
@@ -126,27 +127,32 @@ jobs:
           const htmlResponse = await fetch(base + '/');
           if (!htmlResponse.ok) throw new Error('Root HTML failed: ' + htmlResponse.status);
           const html = await htmlResponse.text();
-          const scriptPath = html.match(/src="([^"]+\.js)"/)?.[1];
-          const cssPath = html.match(/href="([^"]+\.css)"/)?.[1];
-          if (!scriptPath || !cssPath) throw new Error('Root HTML is missing JS/CSS assets.');
+          const jsPaths = [...new Set([...html.matchAll(/(?:src|href)="([^"]+\\.js)"/g)].map(match => match[1]))];
+          const cssPaths = [...new Set([...html.matchAll(/href="([^"]+\\.css)"/g)].map(match => match[1]))];
+          if (!jsPaths.length || !cssPaths.length) throw new Error('Root HTML is missing JS/CSS assets.');
           const resolve = path => new URL(path, base + '/').toString();
-          const [jsResponse, cssResponse] = await Promise.all([fetch(resolve(scriptPath)), fetch(resolve(cssPath))]);
-          if (!jsResponse.ok || !cssResponse.ok) throw new Error('Frontend assets failed: JS ' + jsResponse.status + ', CSS ' + cssResponse.status);
-          const [js, css] = await Promise.all([jsResponse.text(), cssResponse.text()]);
-          for (const token of ['ورود به مدار', 'simorgh-signin-layer']) if (!js.includes(token)) throw new Error('Live JS bundle missing required sign-in UI token: ' + token);
-          for (const token of ['tower-quick-grid', 'medar-glass']) if (!css.includes(token)) throw new Error('Live CSS bundle missing required design token: ' + token);
+          const fetchTexts = async paths => Promise.all(paths.map(async path => {
+            const response = await fetch(resolve(path));
+            if (!response.ok) throw new Error('Frontend asset failed: ' + path + ' (' + response.status + ')');
+            return response.text();
+          }));
+          const [jsFiles, cssFiles] = await Promise.all([fetchTexts(jsPaths), fetchTexts(cssPaths)]);
+          const js = jsFiles.join('\\n');
+          const css = cssFiles.join('\\n');
+          for (const token of ['demo-workspace', 'دموی قابل ارائه']) if (!js.includes(token)) throw new Error('Live JS bundles missing public demo token: ' + token);
+          for (const token of ['demo-workspace', 'demo-preview-notice', 'medar-glass']) if (!css.includes(token)) throw new Error('Live CSS bundles missing expected design token: ' + token);
           const appRoute = await fetch(base + '/app/command');
           if (!appRoute.ok || !(await appRoute.text()).includes('id="root"')) throw new Error('SPA deep-link fallback failed for /app/command');
-          console.log('Live frontend assets and /app/command deep link OK');
+          console.log('Live public-demo assets and /app/command deep link OK');
           NODE
           )" || { echo "Live frontend smoke test failed."; exit 1; }
           echo "$asset_results"
       - name: Install Chromium for live Worker UI verification
         run: npx playwright install --with-deps chromium
-      - name: Verify the deployed sign-in flow and responsive layout in a real browser
+      - name: Verify the deployed public demo and responsive layout in a real browser
         shell: bash
         run: |
-          worker_url="$(grep -Eo 'https://medar-api\.[a-z0-9-]+\.workers\.dev' /tmp/medar-deploy.log 2>/dev/null | tail -n1 || true)"
+          worker_url="$(grep -Eo 'https://medar-api\\.[a-z0-9-]+\\.workers\\.dev' /tmp/medar-deploy.log 2>/dev/null | tail -n1 || true)"
           test -n "$worker_url"
           WORKER_URL="$worker_url" node --input-type=module <<'NODE'
           import { chromium } from '@playwright/test';
@@ -156,31 +162,35 @@ jobs:
           try {
             const page = await browser.newPage({ viewport: { width: 1365, height: 900 } });
             page.on('pageerror', error => errors.push(error.message));
-            const response = await page.goto(base + '/app/command', { waitUntil: 'domcontentloaded', timeout: 60000 });
-            if (!response?.ok()) throw new Error('Protected deep-link did not return a successful app shell.');
-            await page.locator('.simorgh-signin-layer').waitFor({ state: 'visible', timeout: 20000 });
-            await page.getByRole('heading', { name: 'ورود به مدار' }).waitFor({ state: 'visible' });
-            if (await page.locator('#simorgh-signin-username').count() !== 1) throw new Error('Live username field is missing.');
-            if (await page.locator('#simorgh-signin-password').count() !== 1) throw new Error('Live password field is missing.');
-            if (await page.locator('#simorgh-signin-email').count()) throw new Error('A forbidden email field rendered in the live login form.');
+            const response = await page.goto(base + '/', { waitUntil: 'networkidle', timeout: 60000 });
+            if (!response?.ok()) throw new Error('Public demo root did not return a successful app shell.');
+            await page.locator('.demo-workspace').waitFor({ state: 'visible', timeout: 20000 });
+            if (await page.locator('.simorgh-signin-layer').count()) throw new Error('Sign-in UI must remain disabled in the public demo.');
+            if (await page.locator('.app-frame, .setup-screen').count()) throw new Error('Protected workspace or setup screen rendered instead of the public demo.');
+            await page.getByRole('heading', { name: 'عملیات، در یک نگاه.' }).waitFor({ state: 'visible' });
+            await page.locator('.demo-nav-item').filter({ hasText: 'سفارش‌ها' }).click();
+            await page.locator('.demo-breadcrumb b').filter({ hasText: 'سفارش‌ها' }).waitFor({ state: 'visible' });
             const desktop = await page.evaluate(() => ({ viewport: innerWidth, document: document.documentElement.scrollWidth, body: document.body.scrollWidth }));
             if (desktop.document > desktop.viewport || desktop.body > desktop.viewport) throw new Error('Desktop horizontal overflow: ' + JSON.stringify(desktop));
-            await page.getByRole('button', { name: 'ساخت حساب و فضای کاری' }).click();
-            await page.getByRole('heading', { name: 'ساخت حساب و فضای کاری' }).waitFor({ state: 'visible' });
-            await page.getByLabel('شماره موبایل').waitFor({ state: 'visible' });
-            await page.getByLabel('نام کاربری').waitFor({ state: 'visible' });
-            if (await page.locator('#simorgh-signin-email').count()) throw new Error('The live signup form unexpectedly asks for email.');
+            if (errors.length) throw new Error('Live desktop runtime errors: ' + errors.join(' | '));
             await page.setViewportSize({ width: 390, height: 844 });
-            await page.goto(base + '/app/command', { waitUntil: 'domcontentloaded', timeout: 60000 });
-            await page.locator('.simorgh-signin-layer').waitFor({ state: 'visible', timeout: 20000 });
+            await page.goto(base + '/app/command', { waitUntil: 'networkidle', timeout: 60000 });
+            await page.locator('.demo-workspace').waitFor({ state: 'visible', timeout: 20000 });
+            if (await page.locator('.simorgh-signin-layer').count()) throw new Error('The mobile public demo unexpectedly rendered sign-in UI.');
+            if (await page.locator('.demo-preview-notice').count() !== 1) throw new Error('The demo-data safety notice is missing.');
+            await page.locator('.demo-menu-button').click();
+            if (!(await page.locator('.demo-sidebar').getAttribute('class') || '').includes('is-open')) throw new Error('The mobile navigation drawer did not open.');
+            await page.locator('.demo-nav-item').filter({ hasText: 'سفارش‌ها' }).click();
+            await page.locator('.demo-breadcrumb b').filter({ hasText: 'سفارش‌ها' }).waitFor({ state: 'visible' });
             const mobile = await page.evaluate(() => ({ viewport: innerWidth, document: document.documentElement.scrollWidth, body: document.body.scrollWidth }));
             if (mobile.document > mobile.viewport || mobile.body > mobile.viewport) throw new Error('Mobile horizontal overflow: ' + JSON.stringify(mobile));
-            if (errors.length) throw new Error('Live browser runtime errors: ' + errors.join(' | '));
-            console.log('Live Worker sign-in/signup UI, deep links and responsive layout passed desktop and mobile checks.');
+            if (errors.length) throw new Error('Live mobile runtime errors: ' + errors.join(' | '));
+            console.log('Live Worker public demo and responsive layout passed desktop/mobile checks.');
           } finally {
             await browser.close();
           }
           NODE
+
       - name: Verify unauthenticated Worker API access controls
         shell: bash
         run: |
