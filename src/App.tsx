@@ -716,11 +716,22 @@ function MembersPage({membership,search}:{membership:Membership;search:string}) 
  const [busy,setBusy]=useState(false);
  const [inviteRole,setInviteRole]=useState<AppRole>('staff');
  const [inviteCode,setInviteCode]=useState('');
+ const [customers,setCustomers]=useState<Row[]>([]);const [suppliers,setSuppliers]=useState<Row[]>([]);
+ const [inviteCustomerId,setInviteCustomerId]=useState('');const [inviteSupplierId,setInviteSupplierId]=useState('');
  const load=async()=>{
   setLoading(true);setError('');
   try {
    const result=await api.get<{members:Row[]}>(`/api/workspace/members?companyId=${encodeURIComponent(membership.company_id)}`);
    setRows(result.members??[]);
+   if(supabase){
+    const [customerResult,supplierResult]=await Promise.all([
+     supabase.from('customers').select('id,name').eq('company_id',membership.company_id).order('name'),
+     supabase.from('suppliers').select('id,name').eq('company_id',membership.company_id).order('name'),
+    ]);
+    if(customerResult.error)throw new Error(customerResult.error.message);
+    if(supplierResult.error)throw new Error(supplierResult.error.message);
+    setCustomers((customerResult.data??[]) as Row[]);setSuppliers((supplierResult.data??[]) as Row[]);
+   }
   } catch(caught) {
    setError(caught instanceof Error?caught.message:'دریافت اعضای مجموعه ناموفق بود.');
    setRows([]);
@@ -730,7 +741,11 @@ function MembersPage({membership,search}:{membership:Membership;search:string}) 
  const createInvite=async()=>{
   setBusy(true);setError('');setNotice('');setInviteCode('');
   try {
-   const result=await api.post<{inviteCode:string;expiresAt:string}>('/api/workspace/invites',{companyId:membership.company_id,role:inviteRole});
+   const result=await api.post<{inviteCode:string;expiresAt:string}>('/api/workspace/invites',{
+    companyId:membership.company_id,role:inviteRole,
+    customerId:inviteRole==='customer'?inviteCustomerId:null,
+    supplierId:inviteRole==='supplier'?inviteSupplierId:null,
+   });
    setInviteCode(result.inviteCode);
    setNotice('کد دعوت ساخته شد. آن را فقط با فرد موردنظر به اشتراک بگذار؛ کد پس از ۷ روز منقضی می‌شود.');
    setOpen(false);
@@ -768,9 +783,11 @@ function MembersPage({membership,search}:{membership:Membership;search:string}) 
    ]} actions={r=>r.active===true&&r.role!=='owner'?<Button variant="danger" disabled={busy} onClick={()=>void deactivate(r)}>غیرفعال‌سازی</Button>:<span className="muted-text">—</span>}/>:<EmptyState title="هنوز عضوی در فهرست نیست" description="با ثبت‌نام مالک و پذیرش دعوت معتبر، اعضای واقعی مجموعه در اینجا نمایش داده می‌شوند." icon={Users}/>}
   </section>
   {open&&<Modal title="ساخت کد دعوت" subtitle="این کد اجازه ثبت‌نام و اتصال به همین مجموعه را با نقش تعیین‌شده می‌دهد؛ کد نقش مالک تولید نمی‌کند." onClose={()=>setOpen(false)}><form className="record-form" onSubmit={e=>{e.preventDefault();void createInvite();}}>
-   <label className="full-span">نقش دسترسی<select value={inviteRole} onChange={e=>setInviteRole(e.target.value as AppRole)}>{options.map(r=><option value={r} key={r}>{roleLabel[r]}</option>)}</select></label>
+   <label className="full-span">نقش دسترسی<select value={inviteRole} onChange={e=>{setInviteRole(e.target.value as AppRole);setInviteCustomerId('');setInviteSupplierId('');}}>{options.map(r=><option value={r} key={r}>{roleLabel[r]}</option>)}</select></label>
+   {inviteRole==='customer'&&<label className="full-span">حساب مشتری<select required value={inviteCustomerId} onChange={e=>setInviteCustomerId(e.target.value)}><option value="">انتخاب مشتری همان مجموعه…</option>{customers.map(row=><option key={String(row.id)} value={String(row.id)}>{String(row.name)}</option>)}</select></label>}
+   {inviteRole==='supplier'&&<label className="full-span">حساب تأمین‌کننده<select required value={inviteSupplierId} onChange={e=>setInviteSupplierId(e.target.value)}><option value="">انتخاب تأمین‌کننده همان مجموعه…</option>{suppliers.map(row=><option key={String(row.id)} value={String(row.id)}>{String(row.name)}</option>)}</select></label>}
    {error&&<div className="form-error full-span">{error}</div>}
-   <div className="modal-actions"><Button variant="soft" onClick={()=>setOpen(false)}>انصراف</Button><Button type="submit" disabled={busy}>{busy?'در حال ساخت…':'ساخت کد دعوت'}</Button></div>
+   <div className="modal-actions"><Button variant="soft" onClick={()=>setOpen(false)}>انصراف</Button><Button type="submit" disabled={busy||(inviteRole==='customer'&&!inviteCustomerId)||(inviteRole==='supplier'&&!inviteSupplierId)}>{busy?'در حال ساخت…':'ساخت کد دعوت'}</Button></div>
   </form></Modal>}
  </>;
 }
