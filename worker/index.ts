@@ -888,7 +888,7 @@ app.post('/api/data/:table',async c=>{
     }
     return c.json({message:'نقش فعلی اجازه ایجاد این رکورد را ندارد.'},403);
    }
-   const keys=Array.from(new Set(sanitized.flatMap(row=>Object.keys(row).filter(key=>columns.has(key)&&!['password_hash','token_hash','user_id'].includes(key)))));
+   const keys=Array.from(new Set(sanitized.flatMap(row=>Object.keys(row).filter(key=>columns.has(key)&&!['id','password_hash','token_hash','user_id'].includes(key)))));
    if(!keys.length||sanitized.some(row=>Object.keys(row).some(key=>!columns.has(key))))return c.json({message:'یکی از فیلدهای رکورد غیرمجاز است.'},422);
    const insertParams:unknown[]=[];
    const tuples=sanitized.map(row=>'('+keys.map(key=>{insertParams.push(row[key]??null);return '$'+insertParams.length;}).join(',')+')');
