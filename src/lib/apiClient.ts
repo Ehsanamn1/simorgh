@@ -1,12 +1,7 @@
 import { HttpError } from './http';
+import { medarApiUrl, MEDAR_API_CONFIGURATION_ERROR } from './runtimeConfig';
 
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL?.trim() || '').replace(/\/$/, '');
-export const isApiConfigured = import.meta.env.VITE_DISABLE_API_UI !== 'true';
-
-function apiUrl(path: string): string {
-  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
-  return `${API_BASE_URL}${normalizedPath}`;
-}
+export const isApiConfigured = import.meta.env.VITE_DISABLE_API_UI !== 'true' && !MEDAR_API_CONFIGURATION_ERROR;
 
 async function parseResponse(response: Response): Promise<unknown> {
   const contentType = response.headers.get('content-type') ?? '';
@@ -29,7 +24,7 @@ async function parseResponse(response: Response): Promise<unknown> {
 export async function apiRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers);
   if (init.body && !headers.has('content-type')) headers.set('content-type', 'application/json');
-  const response = await fetch(apiUrl(path), {
+  const response = await fetch(medarApiUrl(path), {
     ...init,
     headers,
     credentials: 'include',
