@@ -716,7 +716,8 @@ app.post('/api/contacts/import', async (c) => {
   if (membership.role !== 'owner' && membership.role !== 'admin') return c.json({ message: 'فقط مالک یا مدیر می‌تواند مخاطبین مجموعه را وارد کند.' }, 403);
   if (!Array.isArray(body.contacts) || body.contacts.length < 1 || body.contacts.length > 1000) return c.json({ message: 'تعداد مخاطبین باید بین ۱ تا ۱۰۰۰ باشد.' }, 422);
   const contacts: Array<{ name: string; phone: string; city: string; address: string; kind: 'customers' | 'suppliers' }> = [];
-  const seen = new Set<string>();
+  const seenNames = new Set<string>();
+  const seenPhones = new Set<string>();
   for (const raw of body.contacts) {
     if (!raw || typeof raw !== 'object') continue;
     const item = raw as Record<string, unknown>;
@@ -729,10 +730,14 @@ app.post('/api/contacts/import', async (c) => {
     const address = typeof item.address === 'string' ? item.address.trim().slice(0, 500) : '';
     const kind = item.kind === 'customers' || item.kind === 'suppliers' ? item.kind : defaultKind;
     if (!kind || name.length < 2 || name.length > 160) continue;
-    // A contact can legitimately be both a customer and a supplier; de-duplicate within each category.
-    const dedupeKey = kind + ':' + (phone.replace(/\D/g, '') || name.toLocaleLowerCase('fa-IR'));
-    if (seen.has(dedupeKey)) continue;
-    seen.add(dedupeKey);
+    // Same person can be a customer and supplier, but each category must have unique names and phones in this batch.
+    const category = kind + ':';
+    const nameKey = category + name.toLocaleLowerCase('fa-IR');
+    const phoneNumber = phone.replace(/\D/g, '');
+    const phoneKey = phoneNumber ? category + phoneNumber : '';
+    if (seenNames.has(nameKey) || (phoneKey && seenPhones.has(phoneKey))) continue;
+    seenNames.add(nameKey);
+    if (phoneKey) seenPhones.add(phoneKey);
     contacts.push({ name, phone, city, address, kind });
   }
   if (!contacts.length) return c.json({ message: 'مخاطب معتبر با دسته‌ی مقصد مشخص برای واردسازی باقی نمانده است.' }, 422);
