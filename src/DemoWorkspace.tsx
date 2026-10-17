@@ -216,6 +216,19 @@ export default function DemoWorkspace() {
                 </article>; })}
               </section>
 
+              <section className="demo-quick-access" aria-label="دسترسی سریع">
+                <div className="demo-quick-heading">
+                  <span className="demo-quick-heading-mark"><Sparkles size={17}/></span>
+                  <div><b>دسترسی سریع</b><small>میانبرهای اصلی عملیات مدار</small></div>
+                  <span className="demo-quick-count">۴ میانبر</span>
+                </div>
+                <div className="demo-quick-grid">
+                  <button type="button" className="demo-quick-action" onClick={() => selectPage('orders')}><span><FileText size={18}/></span><b>سفارش‌ها</b><small>ثبت و پیگیری</small><ArrowLeft size={14}/></button>
+                  <button type="button" className="demo-quick-action" onClick={() => selectPage('farm-sites')}><span><Factory size={18}/></span><b>تولید و مزرعه</b><small>سایت‌ها و برنامه تولید</small><ArrowLeft size={14}/></button>
+                  <button type="button" className="demo-quick-action" onClick={() => selectPage('shipments')}><span><Truck size={18}/></span><b>ارسال و تحویل</b><small>محموله‌ها و مقصد</small><ArrowLeft size={14}/></button>
+                  <button type="button" className="demo-quick-action" onClick={() => selectPage('finance')}><span><CreditCard size={18}/></span><b>مالی و تسویه</b><small>فاکتورها و تطبیق</small><ArrowLeft size={14}/></button>
+                </div>
+              </section>
               <div className="demo-dashboard-grid">
                 <section className="demo-panel demo-trend-panel">
                   <div className="demo-panel-heading"><div><span className="demo-panel-mark"><Gauge size={17}/></span><div><h2>روند عملیات هفتگی</h2><p>شاخص ترکیبی تکمیل کارها · داده نمونه</p></div></div><span className="demo-period-chip">۷ روز گذشته <ChevronLeft size={13}/></span></div>
@@ -266,6 +279,12 @@ export default function DemoWorkspace() {
           <footer className="demo-footer"><span><MedarLogo compact/> مدار <i/> دموی تعاملی</span><span>{lastChecked ? `آخرین بررسی API: ${new Intl.DateTimeFormat('fa-IR', { hour: '2-digit', minute: '2-digit' }).format(lastChecked)}` : 'در انتظار بررسی API'} <i/> مقادیر عملیاتی، نمونه هستند</span></footer>
         </div>
       </main>
+      <nav className="demo-mobile-bottom-nav" aria-label="ناوبری اصلی موبایل">
+        <button type="button" className={activePage === 'command' ? 'is-active' : ''} onClick={() => selectPage('command')} aria-current={activePage === 'command' ? 'page' : undefined}><LayoutDashboard size={20}/><span>نمای کلی</span></button>
+        <button type="button" className={activePage === 'orders' ? 'is-active' : ''} onClick={() => selectPage('orders')} aria-current={activePage === 'orders' ? 'page' : undefined}><FileText size={20}/><span>سفارش‌ها</span></button>
+        <button type="button" className={['farm-sites', 'inventory', 'quality', 'shipments'].includes(activePage) ? 'is-active' : ''} onClick={() => selectPage('farm-sites')} aria-current={['farm-sites', 'inventory', 'quality', 'shipments'].includes(activePage) ? 'page' : undefined}><Factory size={20}/><span>عملیات</span></button>
+        <button type="button" className={!['command', 'orders', 'farm-sites', 'inventory', 'quality', 'shipments'].includes(activePage) ? 'is-active' : ''} onClick={() => setSidebarOpen(true)} aria-label="بازکردن فهرست ماژول‌ها"><Menu size={20}/><span>ماژول‌ها</span></button>
+      </nav>
     </div>
   );
 }
