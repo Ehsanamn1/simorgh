@@ -71,6 +71,37 @@ jobs:
               to_regprocedure('public.medar_approve_purchase_order(uuid,uuid,uuid)') is not null and
               to_regprocedure('public.medar_receive_purchase_order(uuid,uuid,uuid,jsonb,text,text)') is not null
             )" | grep -qx t
+      - name: Exercise the exact failed-login upsert SQL on PostgreSQL
+        env:
+          PGPASSWORD: medar_test_password
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import { readFile, writeFile } from 'node:fs/promises';
+          const source = await readFile('worker/index.ts', 'utf8');
+          const match = source.match(/export const FAILED_LOGIN_UPSERT_SQL = \`([\s\S]*?)\`;/);
+          if (!match) throw new Error('Failed to extract FAILED_LOGIN_UPSERT_SQL from worker/index.ts');
+          const statement = match[1].trim();
+          if (!statement.includes('AS rate_limit') || statement.includes('public.medar_rate_limits.window_started_at')) {
+            throw new Error('Failed-login upsert must use an unambiguous INSERT alias.');
+          }
+          const key = 'f'.repeat(64);
+          const sql = [
+            'PREPARE medar_failed_login(text) AS ' + statement + ';',
+            "EXECUTE medar_failed_login('" + key + "');",
+            "EXECUTE medar_failed_login('" + key + "');",
+            "DO $rate_limit_test$ DECLARE observed integer; BEGIN " +
+              "SELECT attempts INTO observed FROM public.medar_rate_limits WHERE key_hash = '" + key + "'; " +
+              "IF observed IS DISTINCT FROM 2 THEN RAISE EXCEPTION 'expected two failed attempts, got %', observed; END IF; " +
+            'END $rate_limit_test$;',
+            "DELETE FROM public.medar_rate_limits WHERE key_hash = '" + key + "';",
+            'DEALLOCATE medar_failed_login;'
+          ].join('\n');
+          await writeFile(process.env.RUNNER_TEMP + '/medar-failed-login-upsert.sql', sql);
+          NODE
+          psql -h 127.0.0.1 -U postgres -d medar_test -v ON_ERROR_STOP=1 -f "$RUNNER_TEMP/medar-failed-login-upsert.sql"
+          echo "The exact failed-login rate-limit SQL executed twice successfully; the stored counter incremented to 2."
       - name: Exercise concurrent stock deductions and purchase-order receipt lifecycle
         env:
           PGPASSWORD: medar_test_password
