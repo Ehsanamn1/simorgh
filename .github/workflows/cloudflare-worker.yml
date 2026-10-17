@@ -101,34 +101,8 @@ jobs:
             echo "Neon schema is missing a required table, versioned migration, or Worker RPC. Refusing deployment."
             exit 1
           fi
-      - name: Provision private R2 storage when the account supports it
-        id: private-storage
-        working-directory: worker
-        shell: bash
-        run: |
-          set -euo pipefail
-          bucket_name="medar-private-files"
-          bucket_ready="false"
-          if npx wrangler@4 r2 bucket info "$bucket_name" >/dev/null 2>&1; then
-            echo "Private R2 bucket already exists: $bucket_name"
-            bucket_ready="true"
-          elif npx wrangler@4 r2 bucket create "$bucket_name"; then
-            bucket_ready="true"
-          elif npx wrangler@4 r2 bucket info "$bucket_name" >/dev/null 2>&1; then
-            echo "The bucket became available despite the create command response."
-            bucket_ready="true"
-          else
-            echo "::warning::Cloudflare R2 is unavailable or this token cannot manage buckets. Deploying without FILE_STORE; private file routes return HTTP 503."
-          fi
-          if [[ "$bucket_ready" == "true" ]]; then
-            if ! grep -Fq 'binding = "FILE_STORE"' wrangler.toml; then
-              printf '\n\n[[r2_buckets]]\nbinding = "FILE_STORE"\nbucket_name = "%s"\n' "$bucket_name" >> wrangler.toml
-            fi
-            echo "enabled=true" >> "$GITHUB_OUTPUT"
-            echo "Private R2 binding enabled for this deployment."
-          else
-            echo "enabled=false" >> "$GITHUB_OUTPUT"
-          fi
+      - name: Keep private file storage disabled until explicitly requested
+        run: echo "R2 setup is intentionally out of scope; file routes remain unavailable without FILE_STORE."
       - name: Configure Neon database secret
         working-directory: worker
         shell: bash
