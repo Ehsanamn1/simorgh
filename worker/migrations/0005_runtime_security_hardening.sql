@@ -672,13 +672,13 @@ create policy operational_evidence_storage_read on public.medar_files for select
 using (
   bucket_id='operational-evidence'
   and (string_to_array(regexp_replace(name, '/[^/]+)[1] ~* '^[0-9a-f-]{36}$'
-  and (storage.foldername(name))[2] ~* '^[0-9a-f-]{36}$'
+  and (string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[2] ~* '^[0-9a-f-]{36}$'
   and (
-    public.is_company_internal(((storage.foldername(name))[1])::uuid)
+    public.is_company_internal(((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1])::uuid)
     or exists (
       select 1 from public.operational_tasks t
-      where t.company_id=((storage.foldername(name))[1])::uuid
-        and t.id=((storage.foldername(name))[2])::uuid
+      where t.company_id=((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1])::uuid
+        and t.id=((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[2])::uuid
         and public.is_company_member(t.company_id)
         and (t.assignee_user_id=public.medar_user_id() or t.assignee_supplier_id in (select public.my_supplier_ids()))
     )
@@ -688,14 +688,14 @@ drop policy if exists operational_evidence_storage_insert on public.medar_files;
 create policy operational_evidence_storage_insert on public.medar_files for insert to public
 with check (
   bucket_id='operational-evidence'
-  and (storage.foldername(name))[1] ~* '^[0-9a-f-]{36}$'
-  and (storage.foldername(name))[2] ~* '^[0-9a-f-]{36}$'
+  and (string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1] ~* '^[0-9a-f-]{36}$'
+  and (string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[2] ~* '^[0-9a-f-]{36}$'
   and (
-    public.is_company_internal(((storage.foldername(name))[1])::uuid)
+    public.is_company_internal(((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1])::uuid)
     or exists (
       select 1 from public.operational_tasks t
-      where t.company_id=((storage.foldername(name))[1])::uuid
-        and t.id=((storage.foldername(name))[2])::uuid
+      where t.company_id=((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1])::uuid
+        and t.id=((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[2])::uuid
         and public.is_company_member(t.company_id)
         and (t.assignee_user_id=public.medar_user_id() or t.assignee_supplier_id in (select public.my_supplier_ids()))
     )
@@ -710,14 +710,14 @@ drop policy if exists contract_documents_storage_read on public.medar_files;
 create policy contract_documents_storage_read on public.medar_files for select to public
 using (
   bucket_id='contract-documents'
-  and (storage.foldername(name))[1] ~* '^[0-9a-f-]{36}$'
-  and (storage.foldername(name))[2] ~* '^[0-9a-f-]{36}$'
+  and (string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1] ~* '^[0-9a-f-]{36}$'
+  and (string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[2] ~* '^[0-9a-f-]{36}$'
   and (
-    public.is_company_manager(((storage.foldername(name))[1])::uuid)
+    public.is_company_manager(((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1])::uuid)
     or exists(
       select 1 from public.partnership_agreements pa
-      where pa.company_id=((storage.foldername(name))[1])::uuid
-        and pa.supplier_id=((storage.foldername(name))[2])::uuid
+      where pa.company_id=((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1])::uuid
+        and pa.supplier_id=((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[2])::uuid
         and pa.supplier_id in (select public.my_supplier_ids())
         and pa.signed_document_path=name
         and pa.status in ('active','suspended','expired','terminated')
@@ -728,13 +728,13 @@ drop policy if exists contract_documents_storage_insert on public.medar_files;
 create policy contract_documents_storage_insert on public.medar_files for insert to public
 with check (
   bucket_id='contract-documents'
-  and (storage.foldername(name))[1] ~* '^[0-9a-f-]{36}$'
-  and (storage.foldername(name))[2] ~* '^[0-9a-f-]{36}$'
-  and public.is_company_manager(((storage.foldername(name))[1])::uuid)
+  and (string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1] ~* '^[0-9a-f-]{36}$'
+  and (string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[2] ~* '^[0-9a-f-]{36}$'
+  and public.is_company_manager(((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1])::uuid)
   and exists(
     select 1 from public.suppliers su
-    where su.company_id=((storage.foldername(name))[1])::uuid
-      and su.id=((storage.foldername(name))[2])::uuid
+    where su.company_id=((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1])::uuid
+      and su.id=((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[2])::uuid
   )
 );
 
@@ -785,11 +785,11 @@ end loop; end $$;
 , ''), '/'))[1] ~* '^[0-9a-f-]{36}$'
   and (string_to_array(regexp_replace(name, '/[^/]+)[2] ~* '^[0-9a-f-]{36}$'
   and (
-    public.is_company_internal(((storage.foldername(name))[1])::uuid)
+    public.is_company_internal(((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1])::uuid)
     or exists (
       select 1 from public.operational_tasks t
-      where t.company_id=((storage.foldername(name))[1])::uuid
-        and t.id=((storage.foldername(name))[2])::uuid
+      where t.company_id=((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1])::uuid
+        and t.id=((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[2])::uuid
         and public.is_company_member(t.company_id)
         and (t.assignee_user_id=public.medar_user_id() or t.assignee_supplier_id in (select public.my_supplier_ids()))
     )
@@ -799,14 +799,14 @@ drop policy if exists operational_evidence_storage_insert on public.medar_files;
 create policy operational_evidence_storage_insert on public.medar_files for insert to public
 with check (
   bucket_id='operational-evidence'
-  and (storage.foldername(name))[1] ~* '^[0-9a-f-]{36}$'
-  and (storage.foldername(name))[2] ~* '^[0-9a-f-]{36}$'
+  and (string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1] ~* '^[0-9a-f-]{36}$'
+  and (string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[2] ~* '^[0-9a-f-]{36}$'
   and (
-    public.is_company_internal(((storage.foldername(name))[1])::uuid)
+    public.is_company_internal(((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1])::uuid)
     or exists (
       select 1 from public.operational_tasks t
-      where t.company_id=((storage.foldername(name))[1])::uuid
-        and t.id=((storage.foldername(name))[2])::uuid
+      where t.company_id=((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1])::uuid
+        and t.id=((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[2])::uuid
         and public.is_company_member(t.company_id)
         and (t.assignee_user_id=public.medar_user_id() or t.assignee_supplier_id in (select public.my_supplier_ids()))
     )
@@ -821,14 +821,14 @@ drop policy if exists contract_documents_storage_read on public.medar_files;
 create policy contract_documents_storage_read on public.medar_files for select to public
 using (
   bucket_id='contract-documents'
-  and (storage.foldername(name))[1] ~* '^[0-9a-f-]{36}$'
-  and (storage.foldername(name))[2] ~* '^[0-9a-f-]{36}$'
+  and (string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1] ~* '^[0-9a-f-]{36}$'
+  and (string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[2] ~* '^[0-9a-f-]{36}$'
   and (
-    public.is_company_manager(((storage.foldername(name))[1])::uuid)
+    public.is_company_manager(((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1])::uuid)
     or exists(
       select 1 from public.partnership_agreements pa
-      where pa.company_id=((storage.foldername(name))[1])::uuid
-        and pa.supplier_id=((storage.foldername(name))[2])::uuid
+      where pa.company_id=((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1])::uuid
+        and pa.supplier_id=((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[2])::uuid
         and pa.supplier_id in (select public.my_supplier_ids())
         and pa.signed_document_path=name
         and pa.status in ('active','suspended','expired','terminated')
@@ -839,13 +839,13 @@ drop policy if exists contract_documents_storage_insert on public.medar_files;
 create policy contract_documents_storage_insert on public.medar_files for insert to public
 with check (
   bucket_id='contract-documents'
-  and (storage.foldername(name))[1] ~* '^[0-9a-f-]{36}$'
-  and (storage.foldername(name))[2] ~* '^[0-9a-f-]{36}$'
-  and public.is_company_manager(((storage.foldername(name))[1])::uuid)
+  and (string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1] ~* '^[0-9a-f-]{36}$'
+  and (string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[2] ~* '^[0-9a-f-]{36}$'
+  and public.is_company_manager(((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1])::uuid)
   and exists(
     select 1 from public.suppliers su
-    where su.company_id=((storage.foldername(name))[1])::uuid
-      and su.id=((storage.foldername(name))[2])::uuid
+    where su.company_id=((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1])::uuid
+      and su.id=((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[2])::uuid
   )
 );
 
@@ -898,8 +898,8 @@ end loop; end $$;
     public.is_company_internal(((string_to_array(regexp_replace(name, '/[^/]+)[1])::uuid)
     or exists (
       select 1 from public.operational_tasks t
-      where t.company_id=((storage.foldername(name))[1])::uuid
-        and t.id=((storage.foldername(name))[2])::uuid
+      where t.company_id=((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1])::uuid
+        and t.id=((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[2])::uuid
         and public.is_company_member(t.company_id)
         and (t.assignee_user_id=public.medar_user_id() or t.assignee_supplier_id in (select public.my_supplier_ids()))
     )
@@ -909,14 +909,14 @@ drop policy if exists operational_evidence_storage_insert on public.medar_files;
 create policy operational_evidence_storage_insert on public.medar_files for insert to public
 with check (
   bucket_id='operational-evidence'
-  and (storage.foldername(name))[1] ~* '^[0-9a-f-]{36}$'
-  and (storage.foldername(name))[2] ~* '^[0-9a-f-]{36}$'
+  and (string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1] ~* '^[0-9a-f-]{36}$'
+  and (string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[2] ~* '^[0-9a-f-]{36}$'
   and (
-    public.is_company_internal(((storage.foldername(name))[1])::uuid)
+    public.is_company_internal(((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1])::uuid)
     or exists (
       select 1 from public.operational_tasks t
-      where t.company_id=((storage.foldername(name))[1])::uuid
-        and t.id=((storage.foldername(name))[2])::uuid
+      where t.company_id=((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1])::uuid
+        and t.id=((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[2])::uuid
         and public.is_company_member(t.company_id)
         and (t.assignee_user_id=public.medar_user_id() or t.assignee_supplier_id in (select public.my_supplier_ids()))
     )
@@ -931,14 +931,14 @@ drop policy if exists contract_documents_storage_read on public.medar_files;
 create policy contract_documents_storage_read on public.medar_files for select to public
 using (
   bucket_id='contract-documents'
-  and (storage.foldername(name))[1] ~* '^[0-9a-f-]{36}$'
-  and (storage.foldername(name))[2] ~* '^[0-9a-f-]{36}$'
+  and (string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1] ~* '^[0-9a-f-]{36}$'
+  and (string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[2] ~* '^[0-9a-f-]{36}$'
   and (
-    public.is_company_manager(((storage.foldername(name))[1])::uuid)
+    public.is_company_manager(((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1])::uuid)
     or exists(
       select 1 from public.partnership_agreements pa
-      where pa.company_id=((storage.foldername(name))[1])::uuid
-        and pa.supplier_id=((storage.foldername(name))[2])::uuid
+      where pa.company_id=((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1])::uuid
+        and pa.supplier_id=((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[2])::uuid
         and pa.supplier_id in (select public.my_supplier_ids())
         and pa.signed_document_path=name
         and pa.status in ('active','suspended','expired','terminated')
@@ -949,13 +949,13 @@ drop policy if exists contract_documents_storage_insert on public.medar_files;
 create policy contract_documents_storage_insert on public.medar_files for insert to public
 with check (
   bucket_id='contract-documents'
-  and (storage.foldername(name))[1] ~* '^[0-9a-f-]{36}$'
-  and (storage.foldername(name))[2] ~* '^[0-9a-f-]{36}$'
-  and public.is_company_manager(((storage.foldername(name))[1])::uuid)
+  and (string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1] ~* '^[0-9a-f-]{36}$'
+  and (string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[2] ~* '^[0-9a-f-]{36}$'
+  and public.is_company_manager(((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1])::uuid)
   and exists(
     select 1 from public.suppliers su
-    where su.company_id=((storage.foldername(name))[1])::uuid
-      and su.id=((storage.foldername(name))[2])::uuid
+    where su.company_id=((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1])::uuid
+      and su.id=((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[2])::uuid
   )
 );
 
@@ -1007,7 +1007,7 @@ end loop; end $$;
     or exists (
       select 1 from public.operational_tasks t
       where t.company_id=((string_to_array(regexp_replace(name, '/[^/]+)[1])::uuid
-        and t.id=((storage.foldername(name))[2])::uuid
+        and t.id=((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[2])::uuid
         and public.is_company_member(t.company_id)
         and (t.assignee_user_id=public.medar_user_id() or t.assignee_supplier_id in (select public.my_supplier_ids()))
     )
@@ -1017,14 +1017,14 @@ drop policy if exists operational_evidence_storage_insert on public.medar_files;
 create policy operational_evidence_storage_insert on public.medar_files for insert to public
 with check (
   bucket_id='operational-evidence'
-  and (storage.foldername(name))[1] ~* '^[0-9a-f-]{36}$'
-  and (storage.foldername(name))[2] ~* '^[0-9a-f-]{36}$'
+  and (string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1] ~* '^[0-9a-f-]{36}$'
+  and (string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[2] ~* '^[0-9a-f-]{36}$'
   and (
-    public.is_company_internal(((storage.foldername(name))[1])::uuid)
+    public.is_company_internal(((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1])::uuid)
     or exists (
       select 1 from public.operational_tasks t
-      where t.company_id=((storage.foldername(name))[1])::uuid
-        and t.id=((storage.foldername(name))[2])::uuid
+      where t.company_id=((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1])::uuid
+        and t.id=((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[2])::uuid
         and public.is_company_member(t.company_id)
         and (t.assignee_user_id=public.medar_user_id() or t.assignee_supplier_id in (select public.my_supplier_ids()))
     )
@@ -1039,14 +1039,14 @@ drop policy if exists contract_documents_storage_read on public.medar_files;
 create policy contract_documents_storage_read on public.medar_files for select to public
 using (
   bucket_id='contract-documents'
-  and (storage.foldername(name))[1] ~* '^[0-9a-f-]{36}$'
-  and (storage.foldername(name))[2] ~* '^[0-9a-f-]{36}$'
+  and (string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1] ~* '^[0-9a-f-]{36}$'
+  and (string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[2] ~* '^[0-9a-f-]{36}$'
   and (
-    public.is_company_manager(((storage.foldername(name))[1])::uuid)
+    public.is_company_manager(((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1])::uuid)
     or exists(
       select 1 from public.partnership_agreements pa
-      where pa.company_id=((storage.foldername(name))[1])::uuid
-        and pa.supplier_id=((storage.foldername(name))[2])::uuid
+      where pa.company_id=((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1])::uuid
+        and pa.supplier_id=((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[2])::uuid
         and pa.supplier_id in (select public.my_supplier_ids())
         and pa.signed_document_path=name
         and pa.status in ('active','suspended','expired','terminated')
@@ -1057,13 +1057,13 @@ drop policy if exists contract_documents_storage_insert on public.medar_files;
 create policy contract_documents_storage_insert on public.medar_files for insert to public
 with check (
   bucket_id='contract-documents'
-  and (storage.foldername(name))[1] ~* '^[0-9a-f-]{36}$'
-  and (storage.foldername(name))[2] ~* '^[0-9a-f-]{36}$'
-  and public.is_company_manager(((storage.foldername(name))[1])::uuid)
+  and (string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1] ~* '^[0-9a-f-]{36}$'
+  and (string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[2] ~* '^[0-9a-f-]{36}$'
+  and public.is_company_manager(((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1])::uuid)
   and exists(
     select 1 from public.suppliers su
-    where su.company_id=((storage.foldername(name))[1])::uuid
-      and su.id=((storage.foldername(name))[2])::uuid
+    where su.company_id=((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1])::uuid
+      and su.id=((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[2])::uuid
   )
 );
 
@@ -1122,14 +1122,14 @@ drop policy if exists operational_evidence_storage_insert on public.medar_files;
 create policy operational_evidence_storage_insert on public.medar_files for insert to public
 with check (
   bucket_id='operational-evidence'
-  and (storage.foldername(name))[1] ~* '^[0-9a-f-]{36}$'
-  and (storage.foldername(name))[2] ~* '^[0-9a-f-]{36}$'
+  and (string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1] ~* '^[0-9a-f-]{36}$'
+  and (string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[2] ~* '^[0-9a-f-]{36}$'
   and (
-    public.is_company_internal(((storage.foldername(name))[1])::uuid)
+    public.is_company_internal(((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1])::uuid)
     or exists (
       select 1 from public.operational_tasks t
-      where t.company_id=((storage.foldername(name))[1])::uuid
-        and t.id=((storage.foldername(name))[2])::uuid
+      where t.company_id=((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1])::uuid
+        and t.id=((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[2])::uuid
         and public.is_company_member(t.company_id)
         and (t.assignee_user_id=public.medar_user_id() or t.assignee_supplier_id in (select public.my_supplier_ids()))
     )
@@ -1144,14 +1144,14 @@ drop policy if exists contract_documents_storage_read on public.medar_files;
 create policy contract_documents_storage_read on public.medar_files for select to public
 using (
   bucket_id='contract-documents'
-  and (storage.foldername(name))[1] ~* '^[0-9a-f-]{36}$'
-  and (storage.foldername(name))[2] ~* '^[0-9a-f-]{36}$'
+  and (string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1] ~* '^[0-9a-f-]{36}$'
+  and (string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[2] ~* '^[0-9a-f-]{36}$'
   and (
-    public.is_company_manager(((storage.foldername(name))[1])::uuid)
+    public.is_company_manager(((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1])::uuid)
     or exists(
       select 1 from public.partnership_agreements pa
-      where pa.company_id=((storage.foldername(name))[1])::uuid
-        and pa.supplier_id=((storage.foldername(name))[2])::uuid
+      where pa.company_id=((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1])::uuid
+        and pa.supplier_id=((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[2])::uuid
         and pa.supplier_id in (select public.my_supplier_ids())
         and pa.signed_document_path=name
         and pa.status in ('active','suspended','expired','terminated')
@@ -1162,13 +1162,13 @@ drop policy if exists contract_documents_storage_insert on public.medar_files;
 create policy contract_documents_storage_insert on public.medar_files for insert to public
 with check (
   bucket_id='contract-documents'
-  and (storage.foldername(name))[1] ~* '^[0-9a-f-]{36}$'
-  and (storage.foldername(name))[2] ~* '^[0-9a-f-]{36}$'
-  and public.is_company_manager(((storage.foldername(name))[1])::uuid)
+  and (string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1] ~* '^[0-9a-f-]{36}$'
+  and (string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[2] ~* '^[0-9a-f-]{36}$'
+  and public.is_company_manager(((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1])::uuid)
   and exists(
     select 1 from public.suppliers su
-    where su.company_id=((storage.foldername(name))[1])::uuid
-      and su.id=((storage.foldername(name))[2])::uuid
+    where su.company_id=((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1])::uuid
+      and su.id=((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[2])::uuid
   )
 );
 
@@ -1227,13 +1227,13 @@ create policy operational_evidence_storage_insert on public.medar_files for inse
 with check (
   bucket_id='operational-evidence'
   and (string_to_array(regexp_replace(name, '/[^/]+)[1] ~* '^[0-9a-f-]{36}$'
-  and (storage.foldername(name))[2] ~* '^[0-9a-f-]{36}$'
+  and (string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[2] ~* '^[0-9a-f-]{36}$'
   and (
-    public.is_company_internal(((storage.foldername(name))[1])::uuid)
+    public.is_company_internal(((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1])::uuid)
     or exists (
       select 1 from public.operational_tasks t
-      where t.company_id=((storage.foldername(name))[1])::uuid
-        and t.id=((storage.foldername(name))[2])::uuid
+      where t.company_id=((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1])::uuid
+        and t.id=((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[2])::uuid
         and public.is_company_member(t.company_id)
         and (t.assignee_user_id=public.medar_user_id() or t.assignee_supplier_id in (select public.my_supplier_ids()))
     )
@@ -1248,14 +1248,14 @@ drop policy if exists contract_documents_storage_read on public.medar_files;
 create policy contract_documents_storage_read on public.medar_files for select to public
 using (
   bucket_id='contract-documents'
-  and (storage.foldername(name))[1] ~* '^[0-9a-f-]{36}$'
-  and (storage.foldername(name))[2] ~* '^[0-9a-f-]{36}$'
+  and (string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1] ~* '^[0-9a-f-]{36}$'
+  and (string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[2] ~* '^[0-9a-f-]{36}$'
   and (
-    public.is_company_manager(((storage.foldername(name))[1])::uuid)
+    public.is_company_manager(((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1])::uuid)
     or exists(
       select 1 from public.partnership_agreements pa
-      where pa.company_id=((storage.foldername(name))[1])::uuid
-        and pa.supplier_id=((storage.foldername(name))[2])::uuid
+      where pa.company_id=((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1])::uuid
+        and pa.supplier_id=((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[2])::uuid
         and pa.supplier_id in (select public.my_supplier_ids())
         and pa.signed_document_path=name
         and pa.status in ('active','suspended','expired','terminated')
@@ -1266,13 +1266,13 @@ drop policy if exists contract_documents_storage_insert on public.medar_files;
 create policy contract_documents_storage_insert on public.medar_files for insert to public
 with check (
   bucket_id='contract-documents'
-  and (storage.foldername(name))[1] ~* '^[0-9a-f-]{36}$'
-  and (storage.foldername(name))[2] ~* '^[0-9a-f-]{36}$'
-  and public.is_company_manager(((storage.foldername(name))[1])::uuid)
+  and (string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1] ~* '^[0-9a-f-]{36}$'
+  and (string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[2] ~* '^[0-9a-f-]{36}$'
+  and public.is_company_manager(((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1])::uuid)
   and exists(
     select 1 from public.suppliers su
-    where su.company_id=((storage.foldername(name))[1])::uuid
-      and su.id=((storage.foldername(name))[2])::uuid
+    where su.company_id=((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1])::uuid
+      and su.id=((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[2])::uuid
   )
 );
 
@@ -1323,11 +1323,11 @@ end loop; end $$;
 , ''), '/'))[1] ~* '^[0-9a-f-]{36}$'
   and (string_to_array(regexp_replace(name, '/[^/]+)[2] ~* '^[0-9a-f-]{36}$'
   and (
-    public.is_company_internal(((storage.foldername(name))[1])::uuid)
+    public.is_company_internal(((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1])::uuid)
     or exists (
       select 1 from public.operational_tasks t
-      where t.company_id=((storage.foldername(name))[1])::uuid
-        and t.id=((storage.foldername(name))[2])::uuid
+      where t.company_id=((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1])::uuid
+        and t.id=((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[2])::uuid
         and public.is_company_member(t.company_id)
         and (t.assignee_user_id=public.medar_user_id() or t.assignee_supplier_id in (select public.my_supplier_ids()))
     )
@@ -1342,14 +1342,14 @@ drop policy if exists contract_documents_storage_read on public.medar_files;
 create policy contract_documents_storage_read on public.medar_files for select to public
 using (
   bucket_id='contract-documents'
-  and (storage.foldername(name))[1] ~* '^[0-9a-f-]{36}$'
-  and (storage.foldername(name))[2] ~* '^[0-9a-f-]{36}$'
+  and (string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1] ~* '^[0-9a-f-]{36}$'
+  and (string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[2] ~* '^[0-9a-f-]{36}$'
   and (
-    public.is_company_manager(((storage.foldername(name))[1])::uuid)
+    public.is_company_manager(((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1])::uuid)
     or exists(
       select 1 from public.partnership_agreements pa
-      where pa.company_id=((storage.foldername(name))[1])::uuid
-        and pa.supplier_id=((storage.foldername(name))[2])::uuid
+      where pa.company_id=((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1])::uuid
+        and pa.supplier_id=((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[2])::uuid
         and pa.supplier_id in (select public.my_supplier_ids())
         and pa.signed_document_path=name
         and pa.status in ('active','suspended','expired','terminated')
@@ -1360,13 +1360,13 @@ drop policy if exists contract_documents_storage_insert on public.medar_files;
 create policy contract_documents_storage_insert on public.medar_files for insert to public
 with check (
   bucket_id='contract-documents'
-  and (storage.foldername(name))[1] ~* '^[0-9a-f-]{36}$'
-  and (storage.foldername(name))[2] ~* '^[0-9a-f-]{36}$'
-  and public.is_company_manager(((storage.foldername(name))[1])::uuid)
+  and (string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1] ~* '^[0-9a-f-]{36}$'
+  and (string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[2] ~* '^[0-9a-f-]{36}$'
+  and public.is_company_manager(((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1])::uuid)
   and exists(
     select 1 from public.suppliers su
-    where su.company_id=((storage.foldername(name))[1])::uuid
-      and su.id=((storage.foldername(name))[2])::uuid
+    where su.company_id=((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1])::uuid
+      and su.id=((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[2])::uuid
   )
 );
 
@@ -1419,8 +1419,8 @@ end loop; end $$;
     public.is_company_internal(((string_to_array(regexp_replace(name, '/[^/]+)[1])::uuid)
     or exists (
       select 1 from public.operational_tasks t
-      where t.company_id=((storage.foldername(name))[1])::uuid
-        and t.id=((storage.foldername(name))[2])::uuid
+      where t.company_id=((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1])::uuid
+        and t.id=((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[2])::uuid
         and public.is_company_member(t.company_id)
         and (t.assignee_user_id=public.medar_user_id() or t.assignee_supplier_id in (select public.my_supplier_ids()))
     )
@@ -1435,14 +1435,14 @@ drop policy if exists contract_documents_storage_read on public.medar_files;
 create policy contract_documents_storage_read on public.medar_files for select to public
 using (
   bucket_id='contract-documents'
-  and (storage.foldername(name))[1] ~* '^[0-9a-f-]{36}$'
-  and (storage.foldername(name))[2] ~* '^[0-9a-f-]{36}$'
+  and (string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1] ~* '^[0-9a-f-]{36}$'
+  and (string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[2] ~* '^[0-9a-f-]{36}$'
   and (
-    public.is_company_manager(((storage.foldername(name))[1])::uuid)
+    public.is_company_manager(((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1])::uuid)
     or exists(
       select 1 from public.partnership_agreements pa
-      where pa.company_id=((storage.foldername(name))[1])::uuid
-        and pa.supplier_id=((storage.foldername(name))[2])::uuid
+      where pa.company_id=((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1])::uuid
+        and pa.supplier_id=((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[2])::uuid
         and pa.supplier_id in (select public.my_supplier_ids())
         and pa.signed_document_path=name
         and pa.status in ('active','suspended','expired','terminated')
@@ -1453,13 +1453,13 @@ drop policy if exists contract_documents_storage_insert on public.medar_files;
 create policy contract_documents_storage_insert on public.medar_files for insert to public
 with check (
   bucket_id='contract-documents'
-  and (storage.foldername(name))[1] ~* '^[0-9a-f-]{36}$'
-  and (storage.foldername(name))[2] ~* '^[0-9a-f-]{36}$'
-  and public.is_company_manager(((storage.foldername(name))[1])::uuid)
+  and (string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1] ~* '^[0-9a-f-]{36}$'
+  and (string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[2] ~* '^[0-9a-f-]{36}$'
+  and public.is_company_manager(((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1])::uuid)
   and exists(
     select 1 from public.suppliers su
-    where su.company_id=((storage.foldername(name))[1])::uuid
-      and su.id=((storage.foldername(name))[2])::uuid
+    where su.company_id=((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1])::uuid
+      and su.id=((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[2])::uuid
   )
 );
 
@@ -1511,7 +1511,7 @@ end loop; end $$;
     or exists (
       select 1 from public.operational_tasks t
       where t.company_id=((string_to_array(regexp_replace(name, '/[^/]+)[1])::uuid
-        and t.id=((storage.foldername(name))[2])::uuid
+        and t.id=((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[2])::uuid
         and public.is_company_member(t.company_id)
         and (t.assignee_user_id=public.medar_user_id() or t.assignee_supplier_id in (select public.my_supplier_ids()))
     )
@@ -1526,14 +1526,14 @@ drop policy if exists contract_documents_storage_read on public.medar_files;
 create policy contract_documents_storage_read on public.medar_files for select to public
 using (
   bucket_id='contract-documents'
-  and (storage.foldername(name))[1] ~* '^[0-9a-f-]{36}$'
-  and (storage.foldername(name))[2] ~* '^[0-9a-f-]{36}$'
+  and (string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1] ~* '^[0-9a-f-]{36}$'
+  and (string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[2] ~* '^[0-9a-f-]{36}$'
   and (
-    public.is_company_manager(((storage.foldername(name))[1])::uuid)
+    public.is_company_manager(((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1])::uuid)
     or exists(
       select 1 from public.partnership_agreements pa
-      where pa.company_id=((storage.foldername(name))[1])::uuid
-        and pa.supplier_id=((storage.foldername(name))[2])::uuid
+      where pa.company_id=((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1])::uuid
+        and pa.supplier_id=((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[2])::uuid
         and pa.supplier_id in (select public.my_supplier_ids())
         and pa.signed_document_path=name
         and pa.status in ('active','suspended','expired','terminated')
@@ -1544,13 +1544,13 @@ drop policy if exists contract_documents_storage_insert on public.medar_files;
 create policy contract_documents_storage_insert on public.medar_files for insert to public
 with check (
   bucket_id='contract-documents'
-  and (storage.foldername(name))[1] ~* '^[0-9a-f-]{36}$'
-  and (storage.foldername(name))[2] ~* '^[0-9a-f-]{36}$'
-  and public.is_company_manager(((storage.foldername(name))[1])::uuid)
+  and (string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1] ~* '^[0-9a-f-]{36}$'
+  and (string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[2] ~* '^[0-9a-f-]{36}$'
+  and public.is_company_manager(((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1])::uuid)
   and exists(
     select 1 from public.suppliers su
-    where su.company_id=((storage.foldername(name))[1])::uuid
-      and su.id=((storage.foldername(name))[2])::uuid
+    where su.company_id=((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1])::uuid
+      and su.id=((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[2])::uuid
   )
 );
 
@@ -1614,14 +1614,14 @@ drop policy if exists contract_documents_storage_read on public.medar_files;
 create policy contract_documents_storage_read on public.medar_files for select to public
 using (
   bucket_id='contract-documents'
-  and (storage.foldername(name))[1] ~* '^[0-9a-f-]{36}$'
-  and (storage.foldername(name))[2] ~* '^[0-9a-f-]{36}$'
+  and (string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1] ~* '^[0-9a-f-]{36}$'
+  and (string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[2] ~* '^[0-9a-f-]{36}$'
   and (
-    public.is_company_manager(((storage.foldername(name))[1])::uuid)
+    public.is_company_manager(((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1])::uuid)
     or exists(
       select 1 from public.partnership_agreements pa
-      where pa.company_id=((storage.foldername(name))[1])::uuid
-        and pa.supplier_id=((storage.foldername(name))[2])::uuid
+      where pa.company_id=((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1])::uuid
+        and pa.supplier_id=((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[2])::uuid
         and pa.supplier_id in (select public.my_supplier_ids())
         and pa.signed_document_path=name
         and pa.status in ('active','suspended','expired','terminated')
@@ -1632,13 +1632,13 @@ drop policy if exists contract_documents_storage_insert on public.medar_files;
 create policy contract_documents_storage_insert on public.medar_files for insert to public
 with check (
   bucket_id='contract-documents'
-  and (storage.foldername(name))[1] ~* '^[0-9a-f-]{36}$'
-  and (storage.foldername(name))[2] ~* '^[0-9a-f-]{36}$'
-  and public.is_company_manager(((storage.foldername(name))[1])::uuid)
+  and (string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1] ~* '^[0-9a-f-]{36}$'
+  and (string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[2] ~* '^[0-9a-f-]{36}$'
+  and public.is_company_manager(((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1])::uuid)
   and exists(
     select 1 from public.suppliers su
-    where su.company_id=((storage.foldername(name))[1])::uuid
-      and su.id=((storage.foldername(name))[2])::uuid
+    where su.company_id=((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1])::uuid
+      and su.id=((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[2])::uuid
   )
 );
 
@@ -1702,13 +1702,13 @@ create policy contract_documents_storage_read on public.medar_files for select t
 using (
   bucket_id='contract-documents'
   and (string_to_array(regexp_replace(name, '/[^/]+)[1] ~* '^[0-9a-f-]{36}$'
-  and (storage.foldername(name))[2] ~* '^[0-9a-f-]{36}$'
+  and (string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[2] ~* '^[0-9a-f-]{36}$'
   and (
-    public.is_company_manager(((storage.foldername(name))[1])::uuid)
+    public.is_company_manager(((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1])::uuid)
     or exists(
       select 1 from public.partnership_agreements pa
-      where pa.company_id=((storage.foldername(name))[1])::uuid
-        and pa.supplier_id=((storage.foldername(name))[2])::uuid
+      where pa.company_id=((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1])::uuid
+        and pa.supplier_id=((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[2])::uuid
         and pa.supplier_id in (select public.my_supplier_ids())
         and pa.signed_document_path=name
         and pa.status in ('active','suspended','expired','terminated')
@@ -1719,13 +1719,13 @@ drop policy if exists contract_documents_storage_insert on public.medar_files;
 create policy contract_documents_storage_insert on public.medar_files for insert to public
 with check (
   bucket_id='contract-documents'
-  and (storage.foldername(name))[1] ~* '^[0-9a-f-]{36}$'
-  and (storage.foldername(name))[2] ~* '^[0-9a-f-]{36}$'
-  and public.is_company_manager(((storage.foldername(name))[1])::uuid)
+  and (string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1] ~* '^[0-9a-f-]{36}$'
+  and (string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[2] ~* '^[0-9a-f-]{36}$'
+  and public.is_company_manager(((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1])::uuid)
   and exists(
     select 1 from public.suppliers su
-    where su.company_id=((storage.foldername(name))[1])::uuid
-      and su.id=((storage.foldername(name))[2])::uuid
+    where su.company_id=((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1])::uuid
+      and su.id=((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[2])::uuid
   )
 );
 
@@ -1776,11 +1776,11 @@ end loop; end $$;
 , ''), '/'))[1] ~* '^[0-9a-f-]{36}$'
   and (string_to_array(regexp_replace(name, '/[^/]+)[2] ~* '^[0-9a-f-]{36}$'
   and (
-    public.is_company_manager(((storage.foldername(name))[1])::uuid)
+    public.is_company_manager(((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1])::uuid)
     or exists(
       select 1 from public.partnership_agreements pa
-      where pa.company_id=((storage.foldername(name))[1])::uuid
-        and pa.supplier_id=((storage.foldername(name))[2])::uuid
+      where pa.company_id=((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1])::uuid
+        and pa.supplier_id=((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[2])::uuid
         and pa.supplier_id in (select public.my_supplier_ids())
         and pa.signed_document_path=name
         and pa.status in ('active','suspended','expired','terminated')
@@ -1791,13 +1791,13 @@ drop policy if exists contract_documents_storage_insert on public.medar_files;
 create policy contract_documents_storage_insert on public.medar_files for insert to public
 with check (
   bucket_id='contract-documents'
-  and (storage.foldername(name))[1] ~* '^[0-9a-f-]{36}$'
-  and (storage.foldername(name))[2] ~* '^[0-9a-f-]{36}$'
-  and public.is_company_manager(((storage.foldername(name))[1])::uuid)
+  and (string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1] ~* '^[0-9a-f-]{36}$'
+  and (string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[2] ~* '^[0-9a-f-]{36}$'
+  and public.is_company_manager(((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1])::uuid)
   and exists(
     select 1 from public.suppliers su
-    where su.company_id=((storage.foldername(name))[1])::uuid
-      and su.id=((storage.foldername(name))[2])::uuid
+    where su.company_id=((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1])::uuid
+      and su.id=((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[2])::uuid
   )
 );
 
@@ -1850,8 +1850,8 @@ end loop; end $$;
     public.is_company_manager(((string_to_array(regexp_replace(name, '/[^/]+)[1])::uuid)
     or exists(
       select 1 from public.partnership_agreements pa
-      where pa.company_id=((storage.foldername(name))[1])::uuid
-        and pa.supplier_id=((storage.foldername(name))[2])::uuid
+      where pa.company_id=((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1])::uuid
+        and pa.supplier_id=((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[2])::uuid
         and pa.supplier_id in (select public.my_supplier_ids())
         and pa.signed_document_path=name
         and pa.status in ('active','suspended','expired','terminated')
@@ -1862,13 +1862,13 @@ drop policy if exists contract_documents_storage_insert on public.medar_files;
 create policy contract_documents_storage_insert on public.medar_files for insert to public
 with check (
   bucket_id='contract-documents'
-  and (storage.foldername(name))[1] ~* '^[0-9a-f-]{36}$'
-  and (storage.foldername(name))[2] ~* '^[0-9a-f-]{36}$'
-  and public.is_company_manager(((storage.foldername(name))[1])::uuid)
+  and (string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1] ~* '^[0-9a-f-]{36}$'
+  and (string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[2] ~* '^[0-9a-f-]{36}$'
+  and public.is_company_manager(((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1])::uuid)
   and exists(
     select 1 from public.suppliers su
-    where su.company_id=((storage.foldername(name))[1])::uuid
-      and su.id=((storage.foldername(name))[2])::uuid
+    where su.company_id=((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1])::uuid
+      and su.id=((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[2])::uuid
   )
 );
 
@@ -1920,7 +1920,7 @@ end loop; end $$;
     or exists(
       select 1 from public.partnership_agreements pa
       where pa.company_id=((string_to_array(regexp_replace(name, '/[^/]+)[1])::uuid
-        and pa.supplier_id=((storage.foldername(name))[2])::uuid
+        and pa.supplier_id=((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[2])::uuid
         and pa.supplier_id in (select public.my_supplier_ids())
         and pa.signed_document_path=name
         and pa.status in ('active','suspended','expired','terminated')
@@ -1931,13 +1931,13 @@ drop policy if exists contract_documents_storage_insert on public.medar_files;
 create policy contract_documents_storage_insert on public.medar_files for insert to public
 with check (
   bucket_id='contract-documents'
-  and (storage.foldername(name))[1] ~* '^[0-9a-f-]{36}$'
-  and (storage.foldername(name))[2] ~* '^[0-9a-f-]{36}$'
-  and public.is_company_manager(((storage.foldername(name))[1])::uuid)
+  and (string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1] ~* '^[0-9a-f-]{36}$'
+  and (string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[2] ~* '^[0-9a-f-]{36}$'
+  and public.is_company_manager(((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1])::uuid)
   and exists(
     select 1 from public.suppliers su
-    where su.company_id=((storage.foldername(name))[1])::uuid
-      and su.id=((storage.foldername(name))[2])::uuid
+    where su.company_id=((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1])::uuid
+      and su.id=((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[2])::uuid
   )
 );
 
@@ -1997,13 +1997,13 @@ drop policy if exists contract_documents_storage_insert on public.medar_files;
 create policy contract_documents_storage_insert on public.medar_files for insert to public
 with check (
   bucket_id='contract-documents'
-  and (storage.foldername(name))[1] ~* '^[0-9a-f-]{36}$'
-  and (storage.foldername(name))[2] ~* '^[0-9a-f-]{36}$'
-  and public.is_company_manager(((storage.foldername(name))[1])::uuid)
+  and (string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1] ~* '^[0-9a-f-]{36}$'
+  and (string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[2] ~* '^[0-9a-f-]{36}$'
+  and public.is_company_manager(((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1])::uuid)
   and exists(
     select 1 from public.suppliers su
-    where su.company_id=((storage.foldername(name))[1])::uuid
-      and su.id=((storage.foldername(name))[2])::uuid
+    where su.company_id=((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1])::uuid
+      and su.id=((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[2])::uuid
   )
 );
 
@@ -2063,12 +2063,12 @@ create policy contract_documents_storage_insert on public.medar_files for insert
 with check (
   bucket_id='contract-documents'
   and (string_to_array(regexp_replace(name, '/[^/]+)[1] ~* '^[0-9a-f-]{36}$'
-  and (storage.foldername(name))[2] ~* '^[0-9a-f-]{36}$'
-  and public.is_company_manager(((storage.foldername(name))[1])::uuid)
+  and (string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[2] ~* '^[0-9a-f-]{36}$'
+  and public.is_company_manager(((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1])::uuid)
   and exists(
     select 1 from public.suppliers su
-    where su.company_id=((storage.foldername(name))[1])::uuid
-      and su.id=((storage.foldername(name))[2])::uuid
+    where su.company_id=((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1])::uuid
+      and su.id=((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[2])::uuid
   )
 );
 
@@ -2118,11 +2118,11 @@ do $$ declare table_name text; begin foreach table_name in array array[
 end loop; end $$;
 , ''), '/'))[1] ~* '^[0-9a-f-]{36}$'
   and (string_to_array(regexp_replace(name, '/[^/]+)[2] ~* '^[0-9a-f-]{36}$'
-  and public.is_company_manager(((storage.foldername(name))[1])::uuid)
+  and public.is_company_manager(((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1])::uuid)
   and exists(
     select 1 from public.suppliers su
-    where su.company_id=((storage.foldername(name))[1])::uuid
-      and su.id=((storage.foldername(name))[2])::uuid
+    where su.company_id=((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1])::uuid
+      and su.id=((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[2])::uuid
   )
 );
 
@@ -2174,8 +2174,8 @@ end loop; end $$;
   and public.is_company_manager(((string_to_array(regexp_replace(name, '/[^/]+)[1])::uuid)
   and exists(
     select 1 from public.suppliers su
-    where su.company_id=((storage.foldername(name))[1])::uuid
-      and su.id=((storage.foldername(name))[2])::uuid
+    where su.company_id=((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[1])::uuid
+      and su.id=((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[2])::uuid
   )
 );
 
@@ -2227,7 +2227,7 @@ end loop; end $$;
   and exists(
     select 1 from public.suppliers su
     where su.company_id=((string_to_array(regexp_replace(name, '/[^/]+)[1])::uuid
-      and su.id=((storage.foldername(name))[2])::uuid
+      and su.id=((string_to_array(regexp_replace(name, '/[^/]+$', ''), '/'))[2])::uuid
   )
 );
 
