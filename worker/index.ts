@@ -310,7 +310,7 @@ app.post('/api/auth/signup', async (c) => {
           set uses = uses + 1, updated_at = now()
           where token_hash = ${tokenHash} and revoked_at is null
             and expires_at > now() and uses < max_uses
-          returning company_id, role
+          returning company_id, role, customer_id, supplier_id
         ),
         new_user as (
           insert into public.app_users(username, phone_e164, full_name, password_hash)
@@ -319,8 +319,8 @@ app.post('/api/auth/signup', async (c) => {
           returning id, username, phone_e164, full_name
         ),
         new_membership as (
-          insert into public.memberships(company_id, user_id, role, active, created_by)
-          select i.company_id, u.id, i.role, true, u.id
+          insert into public.memberships(company_id, user_id, role, active, created_by, customer_id, supplier_id)
+          select i.company_id, u.id, i.role, true, u.id, i.customer_id, i.supplier_id
           from valid_invite i cross join new_user u
           returning company_id
         )
@@ -440,8 +440,11 @@ app.post('/api/workspace/invites', async (c) => {
   const body = await c.req.json<Record<string, unknown>>().catch(() => null);
   const companyId = typeof body?.companyId === 'string' ? body.companyId : '';
   const role = typeof body?.role === 'string' ? body.role : '';
+  const customerId = typeof body?.customerId === 'string' ? body.customerId : null;
+  const supplierId = typeof body?.supplierId === 'string' ? body.supplierId : null;
   const allowedRoles = ['admin', 'staff', 'customer', 'supplier', 'driver'];
-  if (!companyId || !allowedRoles.includes(role)) return c.json({ message: 'شرکت یا نقش دعوت معتبر نیست.' }, 422);
+  if (!/^[0-9a-f-]{36}$/i.test(companyId) || !allowedRoles.includes(role)) return c.json({ message: 'شرکت یا نقش دعوت معتبر نیست.' }, 422);
+  if ((role === 'customer' && (!customerId || supplierId)) || (role === 'supplier' && (!supplierId || customerId)) || (!['customer','supplier'].includes(role) && (customerId || supplierId))) return c.json({ message: 'برای نقش مشتری یا تأمین‌کننده باید حساب مربوط به همان مجموعه انتخاب شود.' }, 422);
   const sql = sqlFor(c);
   const memberships = await sql`
     select role from public.memberships
@@ -450,11 +453,13 @@ app.post('/api/workspace/invites', async (c) => {
   const actorRole = (memberships[0] as { role: string } | undefined)?.role;
   if (!actorRole || !['owner', 'admin'].includes(actorRole)) return c.json({ message: 'برای ساخت دعوت، دسترسی مالک یا مدیر لازم است.' }, 403);
   if (role === 'admin' && actorRole !== 'owner') return c.json({ message: 'فقط مالک می‌تواند مدیر جدید دعوت کند.' }, 403);
+  if (customerId) { const found = await sql`select 1 from public.customers where id = ${customerId} and company_id = ${companyId} limit 1`; if (!found.length) return c.json({ message: 'حساب مشتری به این مجموعه تعلق ندارد.' }, 422); }
+  if (supplierId) { const found = await sql`select 1 from public.suppliers where id = ${supplierId} and company_id = ${companyId} limit 1`; if (!found.length) return c.json({ message: 'حساب تأمین‌کننده به این مجموعه تعلق ندارد.' }, 422); }
   const code = randomToken();
   const tokenHash = await sha256(code);
   const rows = await sql`
-    insert into public.company_invites(company_id, role, token_hash, created_by, expires_at)
-    values (${companyId}, ${role}::public.app_role, ${tokenHash}, ${user.id}, now() + interval '7 days')
+    insert into public.company_invites(company_id, role, token_hash, created_by, expires_at, customer_id, supplier_id)
+    values (${companyId}, ${role}::public.app_role, ${tokenHash}, ${user.id}, now() + interval '7 days', ${customerId}, ${supplierId})
     returning id, expires_at
   `;
   return c.json({ inviteCode: code, inviteId: (rows[0] as { id: string }).id, expiresAt: (rows[0] as { expires_at: string }).expires_at }, 201);
@@ -474,11 +479,11 @@ app.post('/api/workspace/join', async (c) => {
       set uses = uses + 1, updated_at = now()
       where token_hash = ${tokenHash} and revoked_at is null
         and expires_at > now() and uses < max_uses
-      returning company_id, role
+      returning company_id, role, customer_id, supplier_id
     ),
     membership as (
-      insert into public.memberships(company_id, user_id, role, active, created_by)
-      select company_id, ${user.id}, role, true, ${user.id} from invite
+      insert into public.memberships(company_id, user_id, role, active, created_by, customer_id, supplier_id)
+      select company_id, ${user.id}, role, true, ${user.id}, customer_id, supplier_id from invite
       on conflict (company_id, user_id, role) do update set active = true
       returning id, company_id, role
     )
@@ -549,7 +554,7 @@ app.post('/api/workspace/members/deactivate', async (c) => {
 
 
 const DATA_TABLES = new Set([
-  'companies','profiles','memberships','customers','suppliers','products','price_agreements',
+  'customers','suppliers','products','price_agreements',
   'orders','order_items','capacity_commitments','lots','quality_reviews','shipments','delivery_evidence',
   'invoices','settlements','notifications','audit_events','access_requests','farm_sites',
   'partnership_agreements','flock_cycles','production_batches','daily_production_records','task_templates',
