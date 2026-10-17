@@ -745,6 +745,37 @@ const UPDATE_PROTECTED_FIELDS:Record<string,Set<string>>={
  partner_settlement_periods:new Set(['status','approved_by','approved_at','settled_by','settled_at','calculation_snapshot','net_result','company_share_amount','partner_share_amount','balance_due_to_partner','balance_due_to_company']),
  inventory_movements:new Set(['company_id','product_id','movement_type','quantity','unit_cost'])
 };
+export const MEDAR_STATUS_TRANSITIONS: Record<string, Record<string, readonly string[]>> = {
+  orders: {
+    draft: ['submitted', 'cancelled'],
+    submitted: ['confirmed', 'cancelled'],
+    confirmed: ['allocated', 'cancelled'],
+    allocated: ['in_fulfillment', 'cancelled'],
+    in_fulfillment: ['dispatched', 'cancelled'],
+    dispatched: ['delivered'],
+  },
+  shipments: {
+    planned: ['loading', 'failed'],
+    loading: ['in_transit', 'failed'],
+    in_transit: ['arrived', 'failed'],
+    arrived: ['delivered', 'returned', 'failed'],
+  },
+  invoices: {
+    draft: ['issued', 'void'],
+    issued: ['partially_paid', 'paid', 'overdue', 'void'],
+    partially_paid: ['paid', 'overdue', 'void'],
+    overdue: ['partially_paid', 'paid', 'void'],
+  },
+  settlements: {
+    pending: ['approved', 'disputed'],
+    approved: ['paid', 'disputed'],
+    disputed: ['pending', 'approved'],
+  },
+};
+export function canTransitionMedarStatus(table: string, current: string, next: string): boolean {
+  return (MEDAR_STATUS_TRANSITIONS[table]?.[current] ?? []).includes(next);
+}
+
 function applyInsertActorFields(table:string,row:Record<string,unknown>,columns:Set<string>,userId:string):Record<string,unknown> {
  const out={...row};
  for(const field of ['user_id','created_by','updated_by','recorded_by','captured_by','uploaded_by','reported_by','submitted_by'])delete out[field];
@@ -926,37 +957,10 @@ app.post('/api/data/:table',async c=>{
     const current = currentRows[0];
     const currentState = String(current[stateField] ?? '');
     const nextState = String(requestedState);
-    const transitions: Record<string, Record<string, string[]>> = {
-      orders: {
-        draft: ['submitted', 'cancelled'],
-        submitted: ['confirmed', 'cancelled'],
-        confirmed: ['allocated', 'cancelled'],
-        allocated: ['in_fulfillment', 'cancelled'],
-        in_fulfillment: ['dispatched', 'cancelled'],
-        dispatched: ['delivered'],
-      },
-      shipments: {
-        planned: ['loading', 'failed'],
-        loading: ['in_transit', 'failed'],
-        in_transit: ['arrived', 'failed'],
-        arrived: ['delivered', 'returned', 'failed'],
-      },
-      invoices: {
-        draft: ['issued', 'void'],
-        issued: ['partially_paid', 'paid', 'overdue', 'void'],
-        partially_paid: ['paid', 'overdue', 'void'],
-        overdue: ['partially_paid', 'paid', 'void'],
-      },
-      settlements: {
-        pending: ['approved', 'disputed'],
-        approved: ['paid', 'disputed'],
-        disputed: ['pending', 'approved'],
-      },
-    };
-    if (!(transitions[table]?.[currentState] ?? []).includes(nextState)) {
+    if (!canTransitionMedarStatus(table, currentState, nextState)) {
       return c.json({ message: 'این انتقال وضعیت با گردش‌کار فعلی مجاز نیست.' }, 422);
     }
-    if (table === 'orders' && !mutationScopes.some(m => INTERNAL_ROLES.has(m.role))) {
+        if (table === 'orders' && !mutationScopes.some(m => INTERNAL_ROLES.has(m.role))) {
       if (!mutationScopes.some(m => m.role === 'customer' && m.customer_id === String(current.customer_id)) ||
           currentState !== 'draft' || !['submitted', 'cancelled'].includes(nextState)) {
         return c.json({ message: 'مشتری فقط می‌تواند پیش‌نویس متعلق به خود را ارسال یا لغو کند.' }, 403);
