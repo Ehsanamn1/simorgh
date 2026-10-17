@@ -23,13 +23,13 @@ alter table public.shipment_locations enable row level security;
 
 
 
-create policy shipment_locations_internal_read
-  on public.shipment_locations
+drop policy if exists shipment_locations_internal_read on public.shipment_locations;
+create policy shipment_locations_internal_read on public.shipment_locations
   for select to public
   using (public.is_company_internal(company_id));
 
-create policy shipment_locations_assigned_driver_read
-  on public.shipment_locations
+drop policy if exists shipment_locations_assigned_driver_read on public.shipment_locations;
+create policy shipment_locations_assigned_driver_read on public.shipment_locations
   for select to public
   using (
     driver_user_id = (select public.medar_user_id())
@@ -41,8 +41,8 @@ create policy shipment_locations_assigned_driver_read
     )
   );
 
-create policy shipment_locations_assigned_driver_insert
-  on public.shipment_locations
+drop policy if exists shipment_locations_assigned_driver_insert on public.shipment_locations;
+create policy shipment_locations_assigned_driver_insert on public.shipment_locations
   for insert to public
   with check (
     driver_user_id = (select public.medar_user_id())
@@ -93,8 +93,8 @@ alter table public.inventory_movements enable row level security;
 
 
 
-create policy inventory_movements_internal_read
-  on public.inventory_movements
+drop policy if exists inventory_movements_internal_read on public.inventory_movements;
+create policy inventory_movements_internal_read on public.inventory_movements
   for select to public
   using (public.is_company_internal(company_id));
 
@@ -279,28 +279,28 @@ alter table public.company_goals enable row level security;
 
 
 
-create policy company_goals_internal_read
-  on public.company_goals for select to public
+drop policy if exists company_goals_internal_read on public.company_goals;
+create policy company_goals_internal_read on public.company_goals for select to public
   using (public.is_company_internal(company_id));
 
-create policy company_goals_manager_insert
-  on public.company_goals for insert to public
+drop policy if exists company_goals_manager_insert on public.company_goals;
+create policy company_goals_manager_insert on public.company_goals for insert to public
   with check (
     public.is_company_manager(company_id)
     and created_by = (select public.medar_user_id())
     and updated_by = (select public.medar_user_id())
   );
 
-create policy company_goals_manager_update
-  on public.company_goals for update to public
+drop policy if exists company_goals_manager_update on public.company_goals;
+create policy company_goals_manager_update on public.company_goals for update to public
   using (public.is_company_manager(company_id))
   with check (
     public.is_company_manager(company_id)
     and updated_by = (select public.medar_user_id())
   );
 
-create policy company_goals_manager_delete
-  on public.company_goals for delete to public
+drop policy if exists company_goals_manager_delete on public.company_goals;
+create policy company_goals_manager_delete on public.company_goals for delete to public
   using (public.is_company_manager(company_id));
 
 create or replace function public.audit_company_goal_change()
@@ -718,26 +718,30 @@ end loop; end $$;
 
 -- Identity/control tables are only accessed via explicit Worker handlers.
 drop policy if exists access_requests_read_own_or_manager on public.access_requests;
+drop policy if exists access_requests_read_own_or_manager on public.access_requests;
 create policy access_requests_read_own_or_manager on public.access_requests for select to public
 using (user_id = public.medar_user_id() or public.is_company_manager(company_id));
+drop policy if exists delivery_files_read on public.medar_files;
 drop policy if exists delivery_files_read on public.medar_files;
 create policy delivery_files_read on public.medar_files for select to public
 using (bucket_id = 'delivery-evidence' and (
   public.is_company_internal(company_id) or exists (
     select 1 from public.shipments s
-    where s.id = split_part(name, '/', 2)::uuid and s.company_id = company_id
+    where s.id = split_part(public.medar_files.name, '/', 2)::uuid and s.company_id = public.medar_files.company_id
       and s.driver_user_id = public.medar_user_id()
   )
 ));
+drop policy if exists delivery_files_insert on public.medar_files;
 drop policy if exists delivery_files_insert on public.medar_files;
 create policy delivery_files_insert on public.medar_files for insert to public
 with check (bucket_id = 'delivery-evidence' and (
   public.is_company_internal(company_id) or exists (
     select 1 from public.shipments s
-    where s.id = split_part(name, '/', 2)::uuid and s.company_id = company_id
+    where s.id = split_part(public.medar_files.name, '/', 2)::uuid and s.company_id = public.medar_files.company_id
       and s.driver_user_id = public.medar_user_id()
   )
 ));
+drop policy if exists medar_files_delete_own_or_internal on public.medar_files;
 drop policy if exists medar_files_delete_own_or_internal on public.medar_files;
 create policy medar_files_delete_own_or_internal on public.medar_files for delete to public
 using (uploaded_by = public.medar_user_id() or public.is_company_internal(company_id));
