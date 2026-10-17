@@ -88,3 +88,17 @@ create table if not exists public.auth_audit_events (
   created_at timestamptz not null default now()
 );
 create index if not exists auth_audit_events_user_time_idx on public.auth_audit_events(user_id, created_at desc);
+
+-- Reconcile the access-request shape when upgrading from an earlier draft of the migration.
+alter table public.access_requests add column if not exists company_id uuid references public.companies(id) on delete cascade;
+alter table public.access_requests add column if not exists notes text;
+alter table public.access_requests add column if not exists reviewed_by uuid references public.app_users(id);
+alter table public.access_requests add column if not exists reviewed_at timestamptz;
+alter table public.access_requests add column if not exists updated_at timestamptz not null default now();
+do $$ begin
+  if exists (select 1 from information_schema.columns where table_schema='public' and table_name='access_requests' and column_name='company_name') then
+    execute 'update public.access_requests r set company_id = c.id from public.companies c where r.company_id is null and (r.company_name is null or trim(r.company_name)=trim(c.name))';
+  end if;
+end $$;
+create index if not exists access_requests_company_status_created_idx on public.access_requests(company_id,status,created_at desc);
+create unique index if not exists access_requests_one_pending_per_user_company_idx on public.access_requests(company_id,user_id) where status='pending';
