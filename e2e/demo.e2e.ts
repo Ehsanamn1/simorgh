@@ -20,6 +20,9 @@ test('public demo is navigable, searchable and clearly read-only', async ({ page
   await expect(page.getByRole('heading', { name: 'عملیات، در یک نگاه.' })).toBeVisible();
   await expect(page.locator('.demo-stat-card')).toHaveCount(4);
   await expect(page.locator('.simorgh-signin-layer')).toHaveCount(0);
+  const operationalEntry = page.getByRole('link', { name: 'ورود به فضای عملیاتی مدار' });
+  await expect(operationalEntry).toBeVisible();
+  await expect(operationalEntry).toHaveAttribute('href', 'https://medar-ops.dengxiao445.workers.dev/app/command');
 
   if (await page.locator('.demo-menu-button').isVisible()) {
     await page.locator('.demo-menu-button').click();
@@ -57,6 +60,7 @@ test('mobile demo has four bottom navigation items, all key modules, and working
   await expect(bottomNav.locator('button')).toHaveCount(4);
   await expect(page.locator('.demo-quick-access')).toBeVisible();
   await expect(page.locator('.demo-quick-action')).toHaveCount(4);
+  await expect(page.getByRole('link', { name: 'ورود به فضای عملیاتی مدار' })).toBeVisible();
 
   await bottomNav.getByRole('button', { name: 'سفارش‌ها', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'سفارش‌ها', exact: true })).toBeVisible();

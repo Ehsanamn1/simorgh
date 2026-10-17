@@ -231,3 +231,10 @@
 }
 @media(max-height:520px) and (max-width:700px){.demo-mobile-bottom-nav{display:none}.demo-content{padding-bottom:20px}}
 @media(prefers-reduced-motion:reduce){.demo-quick-action{transition:none}.demo-quick-action:hover{transform:none}}
+
+/* Clear transition from the read-only showcase to the separately authenticated operations workspace. */
+.demo-ops-link{display:inline-flex;align-items:center;justify-content:center;gap:7px;flex:none;min-height:34px;padding:0 11px;border:1px solid #47776f;border-radius:10px;background:linear-gradient(135deg,#1b3533,#142725);color:#c9e9df;font-size:10px;font-weight:850;text-decoration:none;white-space:nowrap;transition:transform .16s ease,border-color .16s ease,background .16s ease,box-shadow .16s ease}
+.demo-ops-link:hover{transform:translateY(-1px);border-color:var(--obs-accent);background:linear-gradient(135deg,#244542,#193331);box-shadow:0 5px 16px #00000022;color:#ecfff8}
+.demo-ops-link:focus-visible{outline:2px solid var(--obs-accent);outline-offset:3px}
+.demo-ops-link svg{flex:none}
+@media(max-width:700px){.demo-ops-link{min-height:32px;padding-inline:8px;gap:4px;font-size:8px}.demo-ops-link svg{width:13px;height:13px}}

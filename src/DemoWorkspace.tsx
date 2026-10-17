@@ -289,6 +289,7 @@ export default function DemoWorkspace() {
           <section className="demo-preview-notice" role="status">
             <span className="demo-preview-notice-icon"><ShieldCheck size={18}/></span>
             <div><b>محیط نمایشی — داده‌های این صفحه نمونه هستند</b><p>این نسخه برای معرفی محصول است؛ ثبت سفارش، پرداخت، حذف و هرگونه تغییر در اطلاعات عملیاتی عمداً غیرفعال است.</p></div>
+            <a className="demo-ops-link" href="https://medar-ops.dengxiao445.workers.dev/app/command" aria-label="ورود به فضای عملیاتی مدار"><ShieldCheck size={15}/><span>ورود عملیاتی</span><ArrowLeft size={13}/></a>
             <span className="demo-preview-chip">READ ONLY</span>
           </section>
 
