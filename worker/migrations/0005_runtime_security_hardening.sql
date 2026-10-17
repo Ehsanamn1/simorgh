@@ -745,7 +745,7 @@ with check (
 
 -- Enforce row-level tenant isolation for Worker requests.
 do $$ declare table_name text; begin foreach table_name in array array[
-'companies','profiles','memberships','customers','suppliers','products','price_agreements','orders','order_items','capacity_commitments','lots','quality_reviews','shipments','delivery_evidence','invoices','settlements','notifications','audit_events','access_requests','farm_sites','partnership_agreements','flock_cycles','production_batches','daily_production_records','task_templates','operational_tasks','task_evidence','operational_incidents','partner_financial_entries','partner_settlement_periods','shipment_locations','inventory_movements','company_goals','medar_files'
+'customers','suppliers','products','price_agreements','orders','order_items','capacity_commitments','lots','quality_reviews','shipments','delivery_evidence','invoices','settlements','notifications','audit_events','access_requests','farm_sites','partnership_agreements','flock_cycles','production_batches','daily_production_records','task_templates','operational_tasks','task_evidence','operational_incidents','partner_financial_entries','partner_settlement_periods','shipment_locations','inventory_movements','company_goals','medar_files'
 ] loop
   if to_regclass('public.'||table_name) is not null then
     execute format('alter table public.%I enable row level security',table_name);
@@ -853,7 +853,7 @@ with check (
 
 -- Enforce row-level tenant isolation for Worker requests.
 do $$ declare table_name text; begin foreach table_name in array array[
-'companies','profiles','memberships','customers','suppliers','products','price_agreements','orders','order_items','capacity_commitments','lots','quality_reviews','shipments','delivery_evidence','invoices','settlements','notifications','audit_events','access_requests','farm_sites','partnership_agreements','flock_cycles','production_batches','daily_production_records','task_templates','operational_tasks','task_evidence','operational_incidents','partner_financial_entries','partner_settlement_periods','shipment_locations','inventory_movements','company_goals','medar_files'
+'customers','suppliers','products','price_agreements','orders','order_items','capacity_commitments','lots','quality_reviews','shipments','delivery_evidence','invoices','settlements','notifications','audit_events','access_requests','farm_sites','partnership_agreements','flock_cycles','production_batches','daily_production_records','task_templates','operational_tasks','task_evidence','operational_incidents','partner_financial_entries','partner_settlement_periods','shipment_locations','inventory_movements','company_goals','medar_files'
 ] loop
   if to_regclass('public.'||table_name) is not null then
     execute format('alter table public.%I enable row level security',table_name);
@@ -960,7 +960,7 @@ with check (
 
 -- Enforce row-level tenant isolation for Worker requests.
 do $$ declare table_name text; begin foreach table_name in array array[
-'companies','profiles','memberships','customers','suppliers','products','price_agreements','orders','order_items','capacity_commitments','lots','quality_reviews','shipments','delivery_evidence','invoices','settlements','notifications','audit_events','access_requests','farm_sites','partnership_agreements','flock_cycles','production_batches','daily_production_records','task_templates','operational_tasks','task_evidence','operational_incidents','partner_financial_entries','partner_settlement_periods','shipment_locations','inventory_movements','company_goals','medar_files'
+'customers','suppliers','products','price_agreements','orders','order_items','capacity_commitments','lots','quality_reviews','shipments','delivery_evidence','invoices','settlements','notifications','audit_events','access_requests','farm_sites','partnership_agreements','flock_cycles','production_batches','daily_production_records','task_templates','operational_tasks','task_evidence','operational_incidents','partner_financial_entries','partner_settlement_periods','shipment_locations','inventory_movements','company_goals','medar_files'
 ] loop
   if to_regclass('public.'||table_name) is not null then
     execute format('alter table public.%I enable row level security',table_name);
@@ -1065,7 +1065,7 @@ with check (
 
 -- Enforce row-level tenant isolation for Worker requests.
 do $$ declare table_name text; begin foreach table_name in array array[
-'companies','profiles','memberships','customers','suppliers','products','price_agreements','orders','order_items','capacity_commitments','lots','quality_reviews','shipments','delivery_evidence','invoices','settlements','notifications','audit_events','access_requests','farm_sites','partnership_agreements','flock_cycles','production_batches','daily_production_records','task_templates','operational_tasks','task_evidence','operational_incidents','partner_financial_entries','partner_settlement_periods','shipment_locations','inventory_movements','company_goals','medar_files'
+'customers','suppliers','products','price_agreements','orders','order_items','capacity_commitments','lots','quality_reviews','shipments','delivery_evidence','invoices','settlements','notifications','audit_events','access_requests','farm_sites','partnership_agreements','flock_cycles','production_batches','daily_production_records','task_templates','operational_tasks','task_evidence','operational_incidents','partner_financial_entries','partner_settlement_periods','shipment_locations','inventory_movements','company_goals','medar_files'
 ] loop
   if to_regclass('public.'||table_name) is not null then
     execute format('alter table public.%I enable row level security',table_name);
@@ -1167,7 +1167,7 @@ with check (
 
 -- Enforce row-level tenant isolation for Worker requests.
 do $$ declare table_name text; begin foreach table_name in array array[
-'companies','profiles','memberships','customers','suppliers','products','price_agreements','orders','order_items','capacity_commitments','lots','quality_reviews','shipments','delivery_evidence','invoices','settlements','notifications','audit_events','access_requests','farm_sites','partnership_agreements','flock_cycles','production_batches','daily_production_records','task_templates','operational_tasks','task_evidence','operational_incidents','partner_financial_entries','partner_settlement_periods','shipment_locations','inventory_movements','company_goals','medar_files'
+'customers','suppliers','products','price_agreements','orders','order_items','capacity_commitments','lots','quality_reviews','shipments','delivery_evidence','invoices','settlements','notifications','audit_events','access_requests','farm_sites','partnership_agreements','flock_cycles','production_batches','daily_production_records','task_templates','operational_tasks','task_evidence','operational_incidents','partner_financial_entries','partner_settlement_periods','shipment_locations','inventory_movements','company_goals','medar_files'
 ] loop
   if to_regclass('public.'||table_name) is not null then
     execute format('alter table public.%I enable row level security',table_name);
@@ -1268,7 +1268,7 @@ with check (
 
 -- Enforce row-level tenant isolation for Worker requests.
 do $$ declare table_name text; begin foreach table_name in array array[
-'companies','profiles','memberships','customers','suppliers','products','price_agreements','orders','order_items','capacity_commitments','lots','quality_reviews','shipments','delivery_evidence','invoices','settlements','notifications','audit_events','access_requests','farm_sites','partnership_agreements','flock_cycles','production_batches','daily_production_records','task_templates','operational_tasks','task_evidence','operational_incidents','partner_financial_entries','partner_settlement_periods','shipment_locations','inventory_movements','company_goals','medar_files'
+'customers','suppliers','products','price_agreements','orders','order_items','capacity_commitments','lots','quality_reviews','shipments','delivery_evidence','invoices','settlements','notifications','audit_events','access_requests','farm_sites','partnership_agreements','flock_cycles','production_batches','daily_production_records','task_templates','operational_tasks','task_evidence','operational_incidents','partner_financial_entries','partner_settlement_periods','shipment_locations','inventory_movements','company_goals','medar_files'
 ] loop
   if to_regclass('public.'||table_name) is not null then
     execute format('alter table public.%I enable row level security',table_name);
@@ -1360,7 +1360,7 @@ with check (
 
 -- Enforce row-level tenant isolation for Worker requests.
 do $$ declare table_name text; begin foreach table_name in array array[
-'companies','profiles','memberships','customers','suppliers','products','price_agreements','orders','order_items','capacity_commitments','lots','quality_reviews','shipments','delivery_evidence','invoices','settlements','notifications','audit_events','access_requests','farm_sites','partnership_agreements','flock_cycles','production_batches','daily_production_records','task_templates','operational_tasks','task_evidence','operational_incidents','partner_financial_entries','partner_settlement_periods','shipment_locations','inventory_movements','company_goals','medar_files'
+'customers','suppliers','products','price_agreements','orders','order_items','capacity_commitments','lots','quality_reviews','shipments','delivery_evidence','invoices','settlements','notifications','audit_events','access_requests','farm_sites','partnership_agreements','flock_cycles','production_batches','daily_production_records','task_templates','operational_tasks','task_evidence','operational_incidents','partner_financial_entries','partner_settlement_periods','shipment_locations','inventory_movements','company_goals','medar_files'
 ] loop
   if to_regclass('public.'||table_name) is not null then
     execute format('alter table public.%I enable row level security',table_name);
@@ -1451,7 +1451,7 @@ with check (
 
 -- Enforce row-level tenant isolation for Worker requests.
 do $$ declare table_name text; begin foreach table_name in array array[
-'companies','profiles','memberships','customers','suppliers','products','price_agreements','orders','order_items','capacity_commitments','lots','quality_reviews','shipments','delivery_evidence','invoices','settlements','notifications','audit_events','access_requests','farm_sites','partnership_agreements','flock_cycles','production_batches','daily_production_records','task_templates','operational_tasks','task_evidence','operational_incidents','partner_financial_entries','partner_settlement_periods','shipment_locations','inventory_movements','company_goals','medar_files'
+'customers','suppliers','products','price_agreements','orders','order_items','capacity_commitments','lots','quality_reviews','shipments','delivery_evidence','invoices','settlements','notifications','audit_events','access_requests','farm_sites','partnership_agreements','flock_cycles','production_batches','daily_production_records','task_templates','operational_tasks','task_evidence','operational_incidents','partner_financial_entries','partner_settlement_periods','shipment_locations','inventory_movements','company_goals','medar_files'
 ] loop
   if to_regclass('public.'||table_name) is not null then
     execute format('alter table public.%I enable row level security',table_name);
@@ -1540,7 +1540,7 @@ with check (
 
 -- Enforce row-level tenant isolation for Worker requests.
 do $$ declare table_name text; begin foreach table_name in array array[
-'companies','profiles','memberships','customers','suppliers','products','price_agreements','orders','order_items','capacity_commitments','lots','quality_reviews','shipments','delivery_evidence','invoices','settlements','notifications','audit_events','access_requests','farm_sites','partnership_agreements','flock_cycles','production_batches','daily_production_records','task_templates','operational_tasks','task_evidence','operational_incidents','partner_financial_entries','partner_settlement_periods','shipment_locations','inventory_movements','company_goals','medar_files'
+'customers','suppliers','products','price_agreements','orders','order_items','capacity_commitments','lots','quality_reviews','shipments','delivery_evidence','invoices','settlements','notifications','audit_events','access_requests','farm_sites','partnership_agreements','flock_cycles','production_batches','daily_production_records','task_templates','operational_tasks','task_evidence','operational_incidents','partner_financial_entries','partner_settlement_periods','shipment_locations','inventory_movements','company_goals','medar_files'
 ] loop
   if to_regclass('public.'||table_name) is not null then
     execute format('alter table public.%I enable row level security',table_name);
@@ -1626,7 +1626,7 @@ with check (
 
 -- Enforce row-level tenant isolation for Worker requests.
 do $$ declare table_name text; begin foreach table_name in array array[
-'companies','profiles','memberships','customers','suppliers','products','price_agreements','orders','order_items','capacity_commitments','lots','quality_reviews','shipments','delivery_evidence','invoices','settlements','notifications','audit_events','access_requests','farm_sites','partnership_agreements','flock_cycles','production_batches','daily_production_records','task_templates','operational_tasks','task_evidence','operational_incidents','partner_financial_entries','partner_settlement_periods','shipment_locations','inventory_movements','company_goals','medar_files'
+'customers','suppliers','products','price_agreements','orders','order_items','capacity_commitments','lots','quality_reviews','shipments','delivery_evidence','invoices','settlements','notifications','audit_events','access_requests','farm_sites','partnership_agreements','flock_cycles','production_batches','daily_production_records','task_templates','operational_tasks','task_evidence','operational_incidents','partner_financial_entries','partner_settlement_periods','shipment_locations','inventory_movements','company_goals','medar_files'
 ] loop
   if to_regclass('public.'||table_name) is not null then
     execute format('alter table public.%I enable row level security',table_name);
@@ -1711,7 +1711,7 @@ with check (
 
 -- Enforce row-level tenant isolation for Worker requests.
 do $$ declare table_name text; begin foreach table_name in array array[
-'companies','profiles','memberships','customers','suppliers','products','price_agreements','orders','order_items','capacity_commitments','lots','quality_reviews','shipments','delivery_evidence','invoices','settlements','notifications','audit_events','access_requests','farm_sites','partnership_agreements','flock_cycles','production_batches','daily_production_records','task_templates','operational_tasks','task_evidence','operational_incidents','partner_financial_entries','partner_settlement_periods','shipment_locations','inventory_movements','company_goals','medar_files'
+'customers','suppliers','products','price_agreements','orders','order_items','capacity_commitments','lots','quality_reviews','shipments','delivery_evidence','invoices','settlements','notifications','audit_events','access_requests','farm_sites','partnership_agreements','flock_cycles','production_batches','daily_production_records','task_templates','operational_tasks','task_evidence','operational_incidents','partner_financial_entries','partner_settlement_periods','shipment_locations','inventory_movements','company_goals','medar_files'
 ] loop
   if to_regclass('public.'||table_name) is not null then
     execute format('alter table public.%I enable row level security',table_name);
@@ -1782,7 +1782,7 @@ with check (
 
 -- Enforce row-level tenant isolation for Worker requests.
 do $$ declare table_name text; begin foreach table_name in array array[
-'companies','profiles','memberships','customers','suppliers','products','price_agreements','orders','order_items','capacity_commitments','lots','quality_reviews','shipments','delivery_evidence','invoices','settlements','notifications','audit_events','access_requests','farm_sites','partnership_agreements','flock_cycles','production_batches','daily_production_records','task_templates','operational_tasks','task_evidence','operational_incidents','partner_financial_entries','partner_settlement_periods','shipment_locations','inventory_movements','company_goals','medar_files'
+'customers','suppliers','products','price_agreements','orders','order_items','capacity_commitments','lots','quality_reviews','shipments','delivery_evidence','invoices','settlements','notifications','audit_events','access_requests','farm_sites','partnership_agreements','flock_cycles','production_batches','daily_production_records','task_templates','operational_tasks','task_evidence','operational_incidents','partner_financial_entries','partner_settlement_periods','shipment_locations','inventory_movements','company_goals','medar_files'
 ] loop
   if to_regclass('public.'||table_name) is not null then
     execute format('alter table public.%I enable row level security',table_name);
@@ -1852,7 +1852,7 @@ with check (
 
 -- Enforce row-level tenant isolation for Worker requests.
 do $$ declare table_name text; begin foreach table_name in array array[
-'companies','profiles','memberships','customers','suppliers','products','price_agreements','orders','order_items','capacity_commitments','lots','quality_reviews','shipments','delivery_evidence','invoices','settlements','notifications','audit_events','access_requests','farm_sites','partnership_agreements','flock_cycles','production_batches','daily_production_records','task_templates','operational_tasks','task_evidence','operational_incidents','partner_financial_entries','partner_settlement_periods','shipment_locations','inventory_movements','company_goals','medar_files'
+'customers','suppliers','products','price_agreements','orders','order_items','capacity_commitments','lots','quality_reviews','shipments','delivery_evidence','invoices','settlements','notifications','audit_events','access_requests','farm_sites','partnership_agreements','flock_cycles','production_batches','daily_production_records','task_templates','operational_tasks','task_evidence','operational_incidents','partner_financial_entries','partner_settlement_periods','shipment_locations','inventory_movements','company_goals','medar_files'
 ] loop
   if to_regclass('public.'||table_name) is not null then
     execute format('alter table public.%I enable row level security',table_name);
@@ -1920,7 +1920,7 @@ with check (
 
 -- Enforce row-level tenant isolation for Worker requests.
 do $$ declare table_name text; begin foreach table_name in array array[
-'companies','profiles','memberships','customers','suppliers','products','price_agreements','orders','order_items','capacity_commitments','lots','quality_reviews','shipments','delivery_evidence','invoices','settlements','notifications','audit_events','access_requests','farm_sites','partnership_agreements','flock_cycles','production_batches','daily_production_records','task_templates','operational_tasks','task_evidence','operational_incidents','partner_financial_entries','partner_settlement_periods','shipment_locations','inventory_movements','company_goals','medar_files'
+'customers','suppliers','products','price_agreements','orders','order_items','capacity_commitments','lots','quality_reviews','shipments','delivery_evidence','invoices','settlements','notifications','audit_events','access_requests','farm_sites','partnership_agreements','flock_cycles','production_batches','daily_production_records','task_templates','operational_tasks','task_evidence','operational_incidents','partner_financial_entries','partner_settlement_periods','shipment_locations','inventory_movements','company_goals','medar_files'
 ] loop
   if to_regclass('public.'||table_name) is not null then
     execute format('alter table public.%I enable row level security',table_name);
@@ -1985,7 +1985,7 @@ with check (
 
 -- Enforce row-level tenant isolation for Worker requests.
 do $$ declare table_name text; begin foreach table_name in array array[
-'companies','profiles','memberships','customers','suppliers','products','price_agreements','orders','order_items','capacity_commitments','lots','quality_reviews','shipments','delivery_evidence','invoices','settlements','notifications','audit_events','access_requests','farm_sites','partnership_agreements','flock_cycles','production_batches','daily_production_records','task_templates','operational_tasks','task_evidence','operational_incidents','partner_financial_entries','partner_settlement_periods','shipment_locations','inventory_movements','company_goals','medar_files'
+'customers','suppliers','products','price_agreements','orders','order_items','capacity_commitments','lots','quality_reviews','shipments','delivery_evidence','invoices','settlements','notifications','audit_events','access_requests','farm_sites','partnership_agreements','flock_cycles','production_batches','daily_production_records','task_templates','operational_tasks','task_evidence','operational_incidents','partner_financial_entries','partner_settlement_periods','shipment_locations','inventory_movements','company_goals','medar_files'
 ] loop
   if to_regclass('public.'||table_name) is not null then
     execute format('alter table public.%I enable row level security',table_name);
@@ -2049,7 +2049,7 @@ with check (
 
 -- Enforce row-level tenant isolation for Worker requests.
 do $$ declare table_name text; begin foreach table_name in array array[
-'companies','profiles','memberships','customers','suppliers','products','price_agreements','orders','order_items','capacity_commitments','lots','quality_reviews','shipments','delivery_evidence','invoices','settlements','notifications','audit_events','access_requests','farm_sites','partnership_agreements','flock_cycles','production_batches','daily_production_records','task_templates','operational_tasks','task_evidence','operational_incidents','partner_financial_entries','partner_settlement_periods','shipment_locations','inventory_movements','company_goals','medar_files'
+'customers','suppliers','products','price_agreements','orders','order_items','capacity_commitments','lots','quality_reviews','shipments','delivery_evidence','invoices','settlements','notifications','audit_events','access_requests','farm_sites','partnership_agreements','flock_cycles','production_batches','daily_production_records','task_templates','operational_tasks','task_evidence','operational_incidents','partner_financial_entries','partner_settlement_periods','shipment_locations','inventory_movements','company_goals','medar_files'
 ] loop
   if to_regclass('public.'||table_name) is not null then
     execute format('alter table public.%I enable row level security',table_name);
@@ -2103,7 +2103,7 @@ end loop; end $$;
 
 -- Enforce row-level tenant isolation for Worker requests.
 do $$ declare table_name text; begin foreach table_name in array array[
-'companies','profiles','memberships','customers','suppliers','products','price_agreements','orders','order_items','capacity_commitments','lots','quality_reviews','shipments','delivery_evidence','invoices','settlements','notifications','audit_events','access_requests','farm_sites','partnership_agreements','flock_cycles','production_batches','daily_production_records','task_templates','operational_tasks','task_evidence','operational_incidents','partner_financial_entries','partner_settlement_periods','shipment_locations','inventory_movements','company_goals','medar_files'
+'customers','suppliers','products','price_agreements','orders','order_items','capacity_commitments','lots','quality_reviews','shipments','delivery_evidence','invoices','settlements','notifications','audit_events','access_requests','farm_sites','partnership_agreements','flock_cycles','production_batches','daily_production_records','task_templates','operational_tasks','task_evidence','operational_incidents','partner_financial_entries','partner_settlement_periods','shipment_locations','inventory_movements','company_goals','medar_files'
 ] loop
   if to_regclass('public.'||table_name) is not null then
     execute format('alter table public.%I enable row level security',table_name);
@@ -2156,7 +2156,7 @@ end loop; end $$;
 
 -- Enforce row-level tenant isolation for Worker requests.
 do $$ declare table_name text; begin foreach table_name in array array[
-'companies','profiles','memberships','customers','suppliers','products','price_agreements','orders','order_items','capacity_commitments','lots','quality_reviews','shipments','delivery_evidence','invoices','settlements','notifications','audit_events','access_requests','farm_sites','partnership_agreements','flock_cycles','production_batches','daily_production_records','task_templates','operational_tasks','task_evidence','operational_incidents','partner_financial_entries','partner_settlement_periods','shipment_locations','inventory_movements','company_goals','medar_files'
+'customers','suppliers','products','price_agreements','orders','order_items','capacity_commitments','lots','quality_reviews','shipments','delivery_evidence','invoices','settlements','notifications','audit_events','access_requests','farm_sites','partnership_agreements','flock_cycles','production_batches','daily_production_records','task_templates','operational_tasks','task_evidence','operational_incidents','partner_financial_entries','partner_settlement_periods','shipment_locations','inventory_movements','company_goals','medar_files'
 ] loop
   if to_regclass('public.'||table_name) is not null then
     execute format('alter table public.%I enable row level security',table_name);
@@ -2208,7 +2208,7 @@ end loop; end $$;
 
 -- Enforce row-level tenant isolation for Worker requests.
 do $$ declare table_name text; begin foreach table_name in array array[
-'companies','profiles','memberships','customers','suppliers','products','price_agreements','orders','order_items','capacity_commitments','lots','quality_reviews','shipments','delivery_evidence','invoices','settlements','notifications','audit_events','access_requests','farm_sites','partnership_agreements','flock_cycles','production_batches','daily_production_records','task_templates','operational_tasks','task_evidence','operational_incidents','partner_financial_entries','partner_settlement_periods','shipment_locations','inventory_movements','company_goals','medar_files'
+'customers','suppliers','products','price_agreements','orders','order_items','capacity_commitments','lots','quality_reviews','shipments','delivery_evidence','invoices','settlements','notifications','audit_events','access_requests','farm_sites','partnership_agreements','flock_cycles','production_batches','daily_production_records','task_templates','operational_tasks','task_evidence','operational_incidents','partner_financial_entries','partner_settlement_periods','shipment_locations','inventory_movements','company_goals','medar_files'
 ] loop
   if to_regclass('public.'||table_name) is not null then
     execute format('alter table public.%I enable row level security',table_name);
@@ -2257,7 +2257,7 @@ end loop; end $$;
 
 -- Enforce row-level tenant isolation for Worker requests.
 do $$ declare table_name text; begin foreach table_name in array array[
-'companies','profiles','memberships','customers','suppliers','products','price_agreements','orders','order_items','capacity_commitments','lots','quality_reviews','shipments','delivery_evidence','invoices','settlements','notifications','audit_events','access_requests','farm_sites','partnership_agreements','flock_cycles','production_batches','daily_production_records','task_templates','operational_tasks','task_evidence','operational_incidents','partner_financial_entries','partner_settlement_periods','shipment_locations','inventory_movements','company_goals','medar_files'
+'customers','suppliers','products','price_agreements','orders','order_items','capacity_commitments','lots','quality_reviews','shipments','delivery_evidence','invoices','settlements','notifications','audit_events','access_requests','farm_sites','partnership_agreements','flock_cycles','production_batches','daily_production_records','task_templates','operational_tasks','task_evidence','operational_incidents','partner_financial_entries','partner_settlement_periods','shipment_locations','inventory_movements','company_goals','medar_files'
 ] loop
   if to_regclass('public.'||table_name) is not null then
     execute format('alter table public.%I enable row level security',table_name);
@@ -2305,7 +2305,7 @@ end loop; end $$;
 
 -- Enforce row-level tenant isolation for Worker requests.
 do $$ declare table_name text; begin foreach table_name in array array[
-'companies','profiles','memberships','customers','suppliers','products','price_agreements','orders','order_items','capacity_commitments','lots','quality_reviews','shipments','delivery_evidence','invoices','settlements','notifications','audit_events','access_requests','farm_sites','partnership_agreements','flock_cycles','production_batches','daily_production_records','task_templates','operational_tasks','task_evidence','operational_incidents','partner_financial_entries','partner_settlement_periods','shipment_locations','inventory_movements','company_goals','medar_files'
+'customers','suppliers','products','price_agreements','orders','order_items','capacity_commitments','lots','quality_reviews','shipments','delivery_evidence','invoices','settlements','notifications','audit_events','access_requests','farm_sites','partnership_agreements','flock_cycles','production_batches','daily_production_records','task_templates','operational_tasks','task_evidence','operational_incidents','partner_financial_entries','partner_settlement_periods','shipment_locations','inventory_movements','company_goals','medar_files'
 ] loop
   if to_regclass('public.'||table_name) is not null then
     execute format('alter table public.%I enable row level security',table_name);
