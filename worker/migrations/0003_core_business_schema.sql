@@ -124,18 +124,18 @@ create or replace function public.my_supplier_ids()
 returns setof uuid language sql stable security definer set search_path = '' as $$
   select m.supplier_id from public.memberships m where m.user_id=public.medar_user_id() and m.active and m.role='supplier' and m.supplier_id is not null;
 $$;
-revoke all on function public.has_company_role(uuid,public.app_role[]) from public, anon;
-revoke all on function public.is_company_member(uuid) from public, anon;
-revoke all on function public.is_company_internal(uuid) from public, anon;
-revoke all on function public.is_company_manager(uuid) from public, anon;
-revoke all on function public.my_customer_ids() from public, anon;
-revoke all on function public.my_supplier_ids() from public, anon;
-grant execute on function public.has_company_role(uuid,public.app_role[]) to public;
-grant execute on function public.is_company_member(uuid) to public;
-grant execute on function public.is_company_internal(uuid) to public;
-grant execute on function public.is_company_manager(uuid) to public;
-grant execute on function public.my_customer_ids() to public;
-grant execute on function public.my_supplier_ids() to public;
+
+
+
+
+
+
+
+
+
+
+
+
 
 create table if not exists public.products (
   id uuid primary key default gen_random_uuid(), company_id uuid not null references public.companies(id) on delete cascade,
@@ -326,7 +326,7 @@ begin
   end if;
   raise exception 'اقلام سفارش پس از ارسال تغییرناپذیرند؛ فقط تخصیص تأمین از مسیر مجاز قابل انجام است';
 end $$;
-revoke all on function public.enforce_order_item_mutability() from public,anon,authenticated;
+
 drop trigger if exists order_items_mutability_guard on public.order_items;
 create trigger order_items_mutability_guard before insert or update or delete on public.order_items for each row execute function public.enforce_order_item_mutability();
 
@@ -411,8 +411,8 @@ begin
   insert into public.memberships(company_id,user_id,role,customer_id,supplier_id,created_by) values(_company,target,_role,_customer,_supplier,public.medar_user_id()) returning id into new_id;
   return new_id;
 end $$;
-revoke all on function public.grant_membership(uuid,text,public.app_role,uuid,uuid) from public,anon;
-grant execute on function public.grant_membership(uuid,text,public.app_role,uuid,uuid) to public;
+
+
 
 drop function if exists public.company_members(uuid);
 create or replace function public.company_members(_company uuid)
@@ -424,8 +424,8 @@ language sql stable security definer set search_path='' as $
   where m.company_id=_company and public.is_company_manager(_company)
   order by m.created_at;
 $;
-revoke all on function public.company_members(uuid) from public,anon;
-grant execute on function public.company_members(uuid) to public;
+
+
 
 -- RLS on every application table in public schema.
 do $$ declare t text; begin foreach t in array array['companies','profiles','customers','suppliers','memberships','products','price_agreements','orders','order_items','capacity_commitments','lots','quality_reviews','shipments','delivery_evidence','invoices','settlements','notifications','audit_events'] loop execute format('alter table public.%I enable row level security',t); end loop; end $$;
@@ -488,27 +488,22 @@ create policy orders_supplier_read on public.orders for select to public using(e
 create policy shipments_customer_read on public.shipments for select to public using(exists(select 1 from public.orders o where o.id=shipments.order_id and o.company_id=shipments.company_id and o.customer_id in (select public.my_customer_ids())));
 
 -- Least-privilege database grants: RLS remains the row-level boundary.
-revoke all on all tables in schema public from anon;
-grant select on public.companies, public.profiles, public.customers, public.suppliers, public.memberships,
-  public.products, public.price_agreements, public.orders, public.order_items, public.capacity_commitments,
-  public.lots, public.quality_reviews, public.shipments, public.delivery_evidence, public.invoices,
-  public.settlements, public.notifications, public.audit_events to public;
-grant insert, update, delete on public.customers, public.suppliers, public.products, public.price_agreements,
-  public.orders, public.order_items, public.capacity_commitments, public.lots, public.quality_reviews,
-  public.shipments, public.delivery_evidence, public.invoices, public.settlements, public.notifications to public;
-grant update (full_name, phone, updated_at) on public.profiles to public;
+
+
+
+
 -- Membership creation is restricted to grant_membership(); the only direct change permitted is deactivation/reactivation.
-revoke insert, update, delete on public.memberships from authenticated;
-grant update (active) on public.memberships to public;
-revoke insert, update, delete on public.companies, public.audit_events from authenticated;
-revoke all on function public.touch_updated_at() from public, anon, authenticated;
-revoke all on function public.enforce_order_status_transition() from public, anon, authenticated;
-revoke all on function public.set_agreed_order_price() from public, anon, authenticated;
-revoke all on function public.enforce_capacity_permissions() from public, anon, authenticated;
-revoke all on function public.enforce_shipment_permissions() from public, anon, authenticated;
-revoke all on function public.apply_quality_review() from public, anon, authenticated;
-revoke all on function public.create_profile_for_auth_user() from public, anon, authenticated;
-revoke all on function public.audit_row_change() from public, anon, authenticated;
+
+
+
+
+
+
+
+
+
+
+
 
 
 -- Atomically allocate one order line against confirmed supplier capacity.
@@ -543,8 +538,8 @@ begin
     update public.orders set status='allocated' where id=oid and company_id=_company and status='confirmed';
   end if;
 end $$;
-revoke all on function public.allocate_order_item(uuid,uuid,uuid) from public,anon;
-grant execute on function public.allocate_order_item(uuid,uuid,uuid) to public;
+
+
 
 -- Force policies to apply even when queries use the database owner role from the Worker.
 do $$ declare table_name text; begin foreach table_name in array array['customers','suppliers','products','price_agreements','orders','order_items','capacity_commitments','lots','quality_reviews','shipments','delivery_evidence','invoices','settlements','notifications','audit_events'] loop execute format('alter table public.%I force row level security', table_name); end loop; end $$;
