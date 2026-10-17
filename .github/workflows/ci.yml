@@ -112,14 +112,12 @@ jobs:
             cat dist/index.html
             exit 1
           fi
-          js_file="$(find dist/assets -maxdepth 1 -type f -name '*.js' -print -quit)"
-          css_file="$(find dist/assets -maxdepth 1 -type f -name '*.css' -print -quit)"
-          test -n "$js_file" && test -s "$js_file"
-          test -n "$css_file" && test -s "$css_file"
-          grep -q 'ورود به مدار' "$js_file"
-          grep -q 'simorgh-signin-layer' "$js_file"
-          grep -q 'tower-quick-grid' "$css_file"
-          grep -q 'medar-glass' "$css_file"
+          test -n "$(find dist/assets -maxdepth 1 -type f -name '*.js' -print -quit)"
+          test -n "$(find dist/assets -maxdepth 1 -type f -name '*.css' -print -quit)"
+          grep -Rqs --include='*.js' 'ورود به مدار' dist/assets
+          grep -Rqs --include='*.js' 'simorgh-signin-layer' dist/assets
+          grep -Rqs --include='*.css' 'tower-quick-grid' dist/assets
+          grep -Rqs --include='*.css' 'medar-glass' dist/assets
           echo "Worker frontend build includes sign-in, the command-center polish, and root-relative assets."
       - name: Build the Pages production bundle
         run: npm run build:pages
