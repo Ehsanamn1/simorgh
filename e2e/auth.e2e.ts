@@ -51,6 +51,10 @@ test('signup supports an Iranian mobile and username/password without email or O
     contentType: 'application/json',
     body: JSON.stringify(authenticated ? { user, memberships: [membership] } : { user: null, memberships: [] }),
   }));
+  await page.route('**/api/workspace/memberships', route => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({ memberships: authenticated ? [membership] : [] }),
+  }));
   await page.route('**/api/auth/signup', async route => {
     signupBody = route.request().postDataJSON() as Record<string, unknown>;
     authenticated = true;
