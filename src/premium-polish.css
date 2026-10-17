@@ -594,3 +594,142 @@ html[data-theme="light"] .demo-ops-link:hover {
   border-color: #26786A;
   color: #124B42;
 }
+
+
+/* Theme tokens drive both the operational app and its read-only showcase. */
+html[data-theme="light"] {
+  color-scheme: light;
+  --obs-bg: #F4F7F7;
+  --obs-surface: #FFFFFF;
+  --obs-surface-2: #EEF4F3;
+  --obs-elevated: #E5EEEC;
+  --obs-border: #D6E2E0;
+  --obs-text: #1B2B2C;
+  --obs-muted: #52686B;
+  --obs-subtle: #6B8083;
+  --obs-accent: #26786A;
+  --obs-accent-2: #376C7C;
+  --obs-highlight: #15594F;
+  --obs-warning: #8C5E16;
+  --obs-critical: #AF403D;
+  --obs-positive: #28775E;
+  --obs-shadow: 0 10px 28px rgb(20 48 46 / 7%);
+  --obs-shadow-raised: 0 24px 70px rgb(20 48 46 / 13%);
+  --medar-glass: rgb(255 255 255 / 92%);
+  --medar-glass-strong: rgb(255 255 255 / 98%);
+  --medar-line-soft: rgb(38 87 78 / 12%);
+  --medar-mint-glow: 0 0 0 1px rgb(38 120 106 / 7%), 0 14px 36px rgb(20 48 46 / 7%);
+}
+html[data-theme="light"], html[data-theme="light"] body { background: var(--obs-bg); color: var(--obs-text); }
+html[data-theme="light"] .app-sidebar {
+  background: linear-gradient(180deg, #FFFFFF 0%, #F7FAF9 100%);
+  border-color: var(--obs-border);
+  box-shadow: 6px 0 26px rgb(25 46 50 / 5%);
+}
+html[data-theme="light"] .workspace-switch {
+  background: linear-gradient(135deg, #FFFFFF, #F2F7F6);
+  border-color: var(--obs-border);
+  color: var(--obs-text);
+  box-shadow: none;
+}
+html[data-theme="light"] .app-topbar {
+  background: rgb(255 255 255 / 94%);
+  border-color: var(--obs-border);
+  box-shadow: 0 1px 0 rgb(24 49 50 / 3%);
+}
+html[data-theme="light"] .global-search,
+html[data-theme="light"] .icon-action,
+html[data-theme="light"] .mobile-menu,
+html[data-theme="light"] .mobile-workspace-more {
+  background: #FFFFFF;
+  border-color: var(--obs-border);
+  color: var(--obs-muted);
+}
+html[data-theme="light"] .global-search input { background: transparent; color: var(--obs-text); }
+html[data-theme="light"] .global-search:focus-within,
+html[data-theme="light"] .icon-action:hover,
+html[data-theme="light"] .mobile-workspace-more:hover {
+  background: #EAF4F1;
+  border-color: #B5D3CA;
+  color: #15594F;
+}
+html[data-theme="light"] .panel,
+html[data-theme="light"] .metric-card,
+html[data-theme="light"] .stat-card,
+html[data-theme="light"] .chart-panel,
+html[data-theme="light"] .data-panel,
+html[data-theme="light"] .summary-card,
+html[data-theme="light"] .table-panel {
+  background: linear-gradient(150deg, #FFFFFF, #F8FAFA);
+  border-color: var(--obs-border);
+  box-shadow: var(--obs-shadow);
+}
+html[data-theme="light"] .button-soft,
+html[data-theme="light"] .button-ghost {
+  background: #FFFFFF;
+  border-color: var(--obs-border);
+  color: var(--obs-text);
+}
+html[data-theme="light"] .button-soft:hover:not(:disabled),
+html[data-theme="light"] .button-ghost:hover:not(:disabled) {
+  background: #EDF5F2;
+  border-color: #B5D3CA;
+}
+html[data-theme="light"] .data-table th,
+html[data-theme="light"] thead th {
+  background: #EEF4F3;
+  color: #52686B;
+}
+html[data-theme="light"] .data-table td,
+html[data-theme="light"] td { color: #344B4E; }
+html[data-theme="light"] .data-table tbody tr:hover,
+html[data-theme="light"] tbody tr:hover { background: #F0F7F5; }
+html[data-theme="light"] .modal-card {
+  background: linear-gradient(145deg, #FFFFFF, #F4F8F7);
+  border-color: var(--obs-border);
+  box-shadow: 0 30px 90px rgb(20 48 46 / 18%);
+}
+html[data-theme="light"] .modal-heading h2,
+html[data-theme="light"] .modal-heading p { color: var(--obs-text); }
+html[data-theme="light"] .mobile-workspace-nav {
+  background: rgb(255 255 255 / 96%);
+  border-color: var(--obs-border);
+  box-shadow: 0 12px 36px rgb(20 48 46 / 15%);
+}
+html[data-theme="light"] .mobile-workspace-nav a,
+html[data-theme="light"] .mobile-workspace-more { color: var(--obs-muted); }
+html[data-theme="light"] .mobile-workspace-nav a.is-active {
+  color: #15594F;
+  background: #E5F2EE;
+}
+html[data-theme="light"] .mobile-workspace-nav a.is-active svg { color: #26786A; }
+html[data-theme="light"] .simorgh-signin-form-area { background: #F4F7F7; }
+html[data-theme="light"] .simorgh-signin-form-card {
+  background: linear-gradient(145deg, #FFFFFF, #F8FAFA 80%);
+  border-color: var(--obs-border);
+  box-shadow: 0 18px 55px rgb(20 48 46 / 10%);
+}
+html[data-theme="light"] .simorgh-signin-form-card h2,
+html[data-theme="light"] .simorgh-signin-form-card > p { color: var(--obs-text); }
+html[data-theme="light"] .auth-input,
+html[data-theme="light"] .simorgh-signin-form input,
+html[data-theme="light"] .simorgh-signin-form select {
+  background: #FFFFFF;
+  color: var(--obs-text);
+  border-color: var(--obs-border);
+}
+html[data-theme="light"] .signin-assurance,
+html[data-theme="light"] .signin-no-signup {
+  background: #F0F7F5;
+  border-color: var(--obs-border);
+  color: var(--obs-muted);
+}
+html[data-theme="light"] .simorgh-signin-brand {
+  background: radial-gradient(ellipse at 20% 80%, #E0F0EA, transparent 44%), #F4F7F7;
+}
+@media (prefers-reduced-motion: reduce) {
+  .demo-theme-toggle, .tower-achievement-card, .tower-achievement-progress > span {
+    transition: none !important;
+    animation: none !important;
+  }
+}
