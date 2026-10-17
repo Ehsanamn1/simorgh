@@ -160,7 +160,7 @@ jobs:
       - name: Verify the deployed public demo, four-item mobile navigation, and responsive layout
         shell: bash
         run: |
-          worker_url="$(grep -Eo 'https://medar-api\\.[a-z0-9-]+\\.workers\\.dev' /tmp/medar-deploy.log 2>/dev/null | tail -n1 || true)"
+          worker_url="$(grep -Eo 'https://medar-api\.[a-z0-9-]+\.workers\.dev' /tmp/medar-deploy.log 2>/dev/null | tail -n1 || true)"
           test -n "$worker_url"
           WORKER_URL="$worker_url" node --input-type=module <<'NODE'
           import { chromium } from '@playwright/test';
