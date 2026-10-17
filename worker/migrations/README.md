@@ -21,3 +21,6 @@ The \`Simorgh CI\` workflow runs this full sequence against a clean PostgreSQL 1
 The production deployment workflow intentionally does **not** replay the fresh-database migrations against the existing Neon application database. It validates the established Medar tables, verifies the checksums of migrations 0007–0011, applies only missing compatible versions, verifies the stock-lock and purchase-order RPC implementations are present, and performs live Worker health and authorization smoke tests. Do not point that workflow at an empty database; use the canonical fresh-database sequence above on a dedicated new database first.
 
 No test business records or owner accounts are inserted by these migrations.
+
+
+- `0013_ai_assistant_and_contacts.sql`: adds company-scoped encrypted AI provider configuration, a minimal request-usage ledger for rate limits, and prerequisites for the secure assistant/contact import endpoints.

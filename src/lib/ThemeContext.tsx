@@ -13,9 +13,10 @@ const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 function savedTheme(): AppTheme {
   try {
-    return window.localStorage.getItem('simorgh-theme') === 'light' ? 'light' : 'dark';
+    const saved = window.localStorage.getItem('simorgh-theme');
+    return saved === 'dark' ? 'dark' : 'light';
   } catch {
-    return 'dark';
+    return 'light';
   }
 }
 
@@ -24,7 +25,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setTheme] = useState<AppTheme>(savedTheme);
 
   useEffect(() => {
-    const documentThemeColor = theme === 'dark' ? '#192320' : '#F3F6F2';
+    const documentThemeColor = theme === 'dark' ? '#171A20' : '#F3F6F2';
     document.documentElement.dataset.theme = theme;
     document.documentElement.style.colorScheme = theme;
     const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
