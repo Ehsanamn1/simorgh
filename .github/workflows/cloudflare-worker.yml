@@ -104,3 +104,14 @@ jobs:
           fi
           response="$(curl --fail --silent --show-error --retry 10 --retry-all-errors --retry-delay 3 "$worker_url/api/health")"
           printf '%s' "$response" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const x=JSON.parse(s);if(x.status!=='ok' && x.ok!==true && x.healthy!==true){console.error('Unexpected health response:',s);process.exit(1)}console.log('Live Worker health OK:',s)})"
+          me_response="$(curl --fail --silent --show-error "$worker_url/api/auth/me")"
+          printf '%s' "$me_response" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const x=JSON.parse(s);if(x.user!==null||!Array.isArray(x.memberships)){console.error('Unexpected unauthenticated session response:',s);process.exit(1)}console.log('Unauthenticated session shape OK')})"
+          membership_status="$(curl --silent --show-error --output "$RUNNER_TEMP/medar-memberships.json" --write-out '%{http_code}' "$worker_url/api/workspace/memberships")"
+          if [[ "$membership_status" != "401" ]]; then echo "Unauthenticated workspace memberships must return 401 (received $membership_status)."; cat "$RUNNER_TEMP/medar-memberships.json"; exit 1; fi
+          echo "Unauthenticated workspace access correctly denied."
+          cors_status="$(curl --silent --show-error --output "$RUNNER_TEMP/medar-cors.json" --write-out '%{http_code}' --request POST --header 'Origin: https://untrusted-origin.invalid' --header 'Content-Type: application/json' --data '{"username":"ab","password":"x"}' "$worker_url/api/auth/login")"
+          if [[ "$cors_status" != "403" ]]; then echo "Untrusted-origin mutation must return 403 (received $cors_status)."; cat "$RUNNER_TEMP/medar-cors.json"; exit 1; fi
+          echo "Cross-origin mutation guard OK."
+          invalid_login_status="$(curl --silent --show-error --output "$RUNNER_TEMP/medar-invalid-login.json" --write-out '%{http_code}' --header 'Content-Type: application/json' --data '{"username":"ab","password":"x"}' "$worker_url/api/auth/login")"
+          if [[ "$invalid_login_status" != "401" ]]; then echo "Malformed login must return 401 (received $invalid_login_status)."; cat "$RUNNER_TEMP/medar-invalid-login.json"; exit 1; fi
+          echo "Malformed login rejected without touching account data."

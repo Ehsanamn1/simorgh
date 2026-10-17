@@ -42,7 +42,7 @@ function readAllowedLinks(): NavigationEntry[] {
 
 /** Private operational app entry. Public self-registration is intentionally disabled. */
 export default function ProductExperience() {
-  const { user, loading, memberships, refreshSession } = useAuth();
+  const { user, loading, memberships, refreshSession, error: sessionError } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [appMain, setAppMain] = useState<HTMLElement | null>(null);
@@ -246,6 +246,10 @@ export default function ProductExperience() {
             <span className="signin-overline">{mode === 'signup' ? 'ثبت‌نام مجموعه' : 'ورود امن'}</span>
             <h2 id="simorgh-signin-title">{mode === 'signup' ? 'ساخت حساب و فضای کاری' : 'ورود به مدار'}</h2>
             <p>{mode === 'signup' ? 'با نام کاربری، شماره موبایل و گذرواژه ثبت‌نام کن؛ می‌توانی مجموعه جدید بسازی یا با کد دعوت به یک مجموعه بپیوندی.' : 'با نام کاربری و گذرواژه وارد مدار شو. ایمیل و تأیید پیامکی برای ورود لازم نیست.'}</p>
+            {sessionError && <div className="auth-feedback error session-connection-error" role="status">
+              <span>{sessionError}</span>
+              <button type="button" className="auth-text-action" onClick={() => void refreshSession()} disabled={loading}>تلاش دوباره برای اتصال</button>
+            </div>}
              <form className="simorgh-signin-form" onSubmit={event => void submitAuth(event)}>
                {mode === 'signup' && <>
                  <label htmlFor="simorgh-signin-full-name">نام و نام خانوادگی</label><input id="simorgh-signin-full-name" className="auth-input" type="text" autoComplete="name" required minLength={2} maxLength={160} value={fullName} onChange={e => setFullName(e.target.value)} placeholder="نام کامل"/>
