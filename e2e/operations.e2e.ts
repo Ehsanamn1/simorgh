@@ -394,7 +394,7 @@ test('manager can preview and import a mixed supplier/customer CSV with duplicat
   await page.locator('input[type="file"]').first().setInputFiles({
     name: 'contacts.csv',
     mimeType: 'text/csv',
-    buffer: Buffer.from('name,phone,city,type\\nSupplier One,09120000001,Tehran,supplier\\nCustomer Two,09120000002,Karaj,customer\\nDuplicate supplier,+989120000001,Tehran,supplier', 'utf8'),
+    buffer: Buffer.from('name,phone,city,type\nSupplier One,09120000001,Tehran,supplier\nCustomer Two,09120000002,Karaj,customer\nDuplicate supplier,+989120000001,Tehran,supplier', 'utf8'),
   });
   await expect(page.getByText('Supplier One')).toBeVisible();
   await expect(page.getByText('Customer Two')).toBeVisible();
