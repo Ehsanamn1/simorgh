@@ -239,6 +239,25 @@ jobs:
 
       # Keep medar-api as the public showcase. The operational app is a separate Worker
       # so enabling its sign-in UI never changes the read-only public demo.
+      - name: Build safe bootstrap bundle for the operational Worker
+        run: npm run build
+        env:
+          VITE_ENABLE_AUTH_UI: 'false'
+      - name: Verify safe bootstrap bundle before attaching the production database
+        shell: bash
+        run: |
+          test -f dist/index.html
+          grep -q 'id="root"' dist/index.html
+          grep -Rqs --include='*.js' 'demo-workspace' dist/assets
+          grep -Rqs --include='*.js' 'دموی قابل ارائه' dist/assets
+          echo "Bootstrap bundle stays in the read-only showcase mode while the operational database secret is attached."
+      - name: Create operational Worker script in safe bootstrap mode
+        working-directory: worker
+        run: set -o pipefail; npx wrangler@4 deploy --name medar-ops 2>&1 | tee /tmp/medar-ops-bootstrap.log
+      - name: Configure Neon database secret for the operational Worker
+        working-directory: worker
+        shell: bash
+        run: printf '%s' "$MEDAR_DATABASE_URL" | npx wrangler@4 secret put DATABASE_URL --name medar-ops
       - name: Build the protected operational app with sign-in enabled
         run: npm run build
         env:
@@ -256,13 +275,6 @@ jobs:
           grep -Rqs --include='*.css' 'simorgh-signin-layer' dist/assets
           grep -Rqs --include='*.css' 'signin-form-card' dist/assets
           echo "Operational bundle includes the guarded sign-in and first-owner registration UI."
-      - name: Create operational Worker script
-        working-directory: worker
-        run: set -o pipefail; npx wrangler@4 deploy --name medar-ops 2>&1 | tee /tmp/medar-ops-bootstrap.log
-      - name: Configure Neon database secret for the operational Worker
-        working-directory: worker
-        shell: bash
-        run: printf '%s' "$MEDAR_DATABASE_URL" | npx wrangler@4 secret put DATABASE_URL --name medar-ops
       - name: Publish operational Worker with database secret
         working-directory: worker
         run: set -o pipefail; npx wrangler@4 deploy --name medar-ops 2>&1 | tee /tmp/medar-ops-deploy.log
