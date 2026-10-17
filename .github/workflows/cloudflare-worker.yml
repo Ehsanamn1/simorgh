@@ -38,21 +38,22 @@ jobs:
         shell: bash
         run: |
           psql "$MEDAR_DATABASE_URL" -v ON_ERROR_STOP=1 -c "create table if not exists public.medar_schema_migrations (version text primary key, checksum text not null, applied_at timestamptz not null default now())"
-          migration="worker/migrations/0007_existing_medar_schema_compat.sql"
-          version="$(basename "$migration")"
-          checksum="$(sha256sum "$migration" | awk '{print $1}')"
-          applied="$(psql "$MEDAR_DATABASE_URL" -v ON_ERROR_STOP=1 -Atqc "select checksum from public.medar_schema_migrations where version = '$version'")"
-          if [ -n "$applied" ]; then
-            if [ "$applied" != "$checksum" ]; then
-              echo "Migration checksum mismatch for $version. Applied migrations must not be edited in place."
-              exit 1
+          for migration in worker/migrations/0007_existing_medar_schema_compat.sql worker/migrations/0008_operational_task_actions.sql; do
+            version="$(basename "$migration")"
+            checksum="$(sha256sum "$migration" | awk '{print $1}')"
+            applied="$(psql "$MEDAR_DATABASE_URL" -v ON_ERROR_STOP=1 -Atqc "select checksum from public.medar_schema_migrations where version = '$version'")"
+            if [ -n "$applied" ]; then
+              if [ "$applied" != "$checksum" ]; then
+                echo "Migration checksum mismatch for $version. Applied migrations must not be edited in place."
+                exit 1
+              fi
+              echo "Skipping already-applied migration $version"
+              continue
             fi
-            echo "Skipping already-applied migration $version"
-          else
             echo "Applying $version"
             psql "$MEDAR_DATABASE_URL" -v ON_ERROR_STOP=1 -1 -f "$migration"
             psql "$MEDAR_DATABASE_URL" -v ON_ERROR_STOP=1 -c "insert into public.medar_schema_migrations(version,checksum) values ('$version','$checksum')"
-          fi
+          done
       - name: Ensure private R2 bucket exists
         working-directory: worker
         shell: bash
