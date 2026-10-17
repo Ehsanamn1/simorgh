@@ -340,7 +340,7 @@ app.get('/api/health', async (c) => {
   try {
     const sql = sqlFor(c);
     await sql`select 1 as ready`;
-    return c.json({ ok: true, service: 'medar-api', database: true, authentication: 'username-password' });
+    return c.json({ ok: true, service: c.env.MEDAR_MODE === 'operational' ? 'medar-ops' : 'medar-api', database: true, authentication: 'username-password' });
   } catch {
     return c.json({ ok: false, service: 'medar-api', database: false }, 503);
   }
