@@ -454,6 +454,64 @@ app.post('/api/workspace/join', async (c) => {
   return c.json({ membership: joined, memberships: await getMemberships(c, user.id) }, 201);
 });
 
+app.get('/api/workspace/members', async (c) => {
+  const user = await requireUser(c);
+  if (user instanceof Response) return user;
+  const companyId = c.req.query('companyId') ?? '';
+  if (!/^[0-9a-f-]{36}$/i.test(companyId)) return c.json({ message: 'شناسه مجموعه معتبر نیست.' }, 422);
+  const sql = sqlFor(c);
+  const actorRows = await sql`
+    select role from public.memberships
+    where user_id = ${user.id} and company_id = ${companyId} and active = true limit 1
+  `;
+  const actorRole = (actorRows[0] as { role: string } | undefined)?.role;
+  if (!actorRole || !['owner', 'admin'].includes(actorRole)) {
+    return c.json({ message: 'برای مدیریت اعضا دسترسی مالک یا مدیر لازم است.' }, 403);
+  }
+  const members = await sql`
+    select m.id as membership_id, m.company_id, m.user_id, m.role, m.active, m.created_at,
+      u.username, u.phone_e164 as phone, u.full_name
+    from public.memberships m
+    join public.app_users u on u.id = m.user_id
+    where m.company_id = ${companyId}
+    order by case m.role when 'owner' then 0 when 'admin' then 1 else 2 end, m.created_at
+  `;
+  return c.json({ members });
+});
+
+app.post('/api/workspace/members/deactivate', async (c) => {
+  const user = await requireUser(c);
+  if (user instanceof Response) return user;
+  const body = await c.req.json<Record<string, unknown>>().catch(() => null);
+  const companyId = typeof body?.companyId === 'string' ? body.companyId : '';
+  const membershipId = typeof body?.membershipId === 'string' ? body.membershipId : '';
+  if (!/^[0-9a-f-]{36}$/i.test(companyId) || !/^[0-9a-f-]{36}$/i.test(membershipId)) {
+    return c.json({ message: 'شناسه مجموعه یا عضویت معتبر نیست.' }, 422);
+  }
+  const sql = sqlFor(c);
+  const actors = await sql`
+    select role from public.memberships
+    where user_id = ${user.id} and company_id = ${companyId} and active = true limit 1
+  `;
+  const actorRole = (actors[0] as { role: string } | undefined)?.role;
+  if (!actorRole || !['owner', 'admin'].includes(actorRole)) {
+    return c.json({ message: 'برای مدیریت اعضا دسترسی مالک یا مدیر لازم است.' }, 403);
+  }
+  const targets = await sql`
+    select id, role from public.memberships
+    where id = ${membershipId} and company_id = ${companyId} and active = true limit 1
+  `;
+  const target = targets[0] as { id: string; role: string } | undefined;
+  if (!target) return c.json({ message: 'عضویت فعال در این مجموعه پیدا نشد.' }, 404);
+  if (target.role === 'owner') return c.json({ message: 'دسترسی مالک را نمی‌توان از این صفحه غیرفعال کرد.' }, 403);
+  if (target.role === 'admin' && actorRole !== 'owner') {
+    return c.json({ message: 'فقط مالک می‌تواند دسترسی مدیر را غیرفعال کند.' }, 403);
+  }
+  await sql`update public.memberships set active = false where id = ${membershipId} and company_id = ${companyId}`;
+  await sql`insert into public.auth_audit_events(user_id,event_type,success) values (${user.id},'membership.deactivated',true)`;
+  return c.json({ ok: true });
+});
+
 app.post('/api/access-requests', async (c) => {
   const user = await requireUser(c);
   if (user instanceof Response) return user;
