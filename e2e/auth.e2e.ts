@@ -32,6 +32,13 @@ test('the app opens a Persian phone-or-username/password sign-in without any ema
   await expect(page.getByRole('heading', { name: 'ورود به مدار' })).toBeVisible();
   await expect(page.getByLabel('شماره موبایل یا نام کاربری')).toBeVisible();
   await expect(page.getByLabel('گذرواژه', { exact: true })).toBeVisible();
+  const signInThemeToggle = page.getByRole('button', { name: 'فعال‌کردن حالت روشن' });
+  await expect(signInThemeToggle).toBeVisible();
+  await signInThemeToggle.click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+  await expect(page.getByRole('button', { name: 'فعال‌کردن حالت تاریک' })).toHaveAttribute('aria-pressed', 'true');
+  await page.getByRole('button', { name: 'فعال‌کردن حالت تاریک' }).click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   await expect(page.locator('#simorgh-signin-email')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'ساخت حساب و فضای کاری' })).toBeVisible();
   await expect(page.locator('.portal')).toHaveCount(0);
