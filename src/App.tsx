@@ -5,7 +5,7 @@ import { Link, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import {
   Activity, AlertTriangle, ArrowLeft, ArrowUpLeft, Boxes, Building2, CalendarDays, CheckCircle2,
   ChevronDown, CircleHelp, ClipboardCheck, CreditCard, Factory, FileCheck2, FileText, LayoutDashboard,
-  LogOut, MapPin, Menu, Moon, Package, Plus, RefreshCw, Search, Settings2, ShieldCheck, Sun, Target, Truck, Users, Warehouse, X, Zap,
+  LockKeyhole, LogOut, MapPin, Menu, Moon, Package, Plus, RefreshCw, Search, Settings2, ShieldCheck, Sun, Target, Truck, Users, Warehouse, X, Zap,
 } from 'lucide-react';
 import { useAuth } from './lib/AuthContext';
 import { useAppTheme } from './lib/ThemeContext';
@@ -393,7 +393,7 @@ function Dashboard({ membership }: { membership: Membership }) {
           >
             <span className="tower-achievement-icon"><MilestoneIcon size={18}/></span>
             <span className="tower-achievement-copy"><b>{milestone.title}</b><small>{milestone.description}</small><em>{loading ? 'در حال بررسی' : milestone.achieved ? 'نشان باز شد' : 'گام بعدی'}</em></span>
-            <span className="tower-achievement-state">{loading ? <span className="spinner small"/> : milestone.achieved ? <CheckCircle2 size={16}/> : <span className="tower-achievement-lock" aria-hidden="true">•</span>}</span>
+            <span className="tower-achievement-state">{loading ? <span className="spinner small"/> : milestone.achieved ? <CheckCircle2 size={16}/> : <span className="tower-achievement-lock" aria-hidden="true"><LockKeyhole size={15}/></span>}</span>
           </Link>;
         })}
       </div>
