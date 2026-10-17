@@ -331,11 +331,53 @@ jobs:
           const base = process.env.WORKER_URL;
           const browser = await chromium.launch({ headless: true });
           const errors = [];
+          const consoleErrors = [];
           async function checkAuth(page, viewport, label) {
             await page.setViewportSize(viewport);
+            page.on('console', message => { if (message.type() === 'error') consoleErrors.push(message.text()); });
             const response = await page.goto(base + '/app/command', { waitUntil: 'networkidle', timeout: 60000 });
             if (!response?.ok()) throw new Error(label + ': operational deep link failed.');
-            await page.locator('.simorgh-signin-layer').waitFor({ state: 'visible', timeout: 20000 });
+            try {
+              await page.locator('.simorgh-signin-layer').waitFor({ state: 'visible', timeout: 20000 });
+            } catch (caught) {
+              const diagnostics = await page.evaluate(async () => {
+                const scripts = await Promise.all(Array.from(document.scripts).filter(s => s.src).map(async script => {
+                  try {
+                    const response = await fetch(script.src, { cache: 'no-store' });
+                    const code = await response.text();
+                    return { src: script.src, status: response.status, type: response.headers.get('content-type'), bytes: code.length,
+                      hasSignIn: code.includes('simorgh-signin-layer'), hasOwnerSignup: code.includes('ساخت حساب و فضای کاری'),
+                      hasDemo: code.includes('دموی قابل ارائه'), hasAuthFlagText: code.includes('VITE_ENABLE_AUTH_UI') };
+                  } catch (error) { return { src: script.src, fetchError: String(error) }; }
+                }));
+                let registrations = [];
+                let cacheNames = [];
+                try {
+                  registrations = (await navigator.serviceWorker.getRegistrations()).map(r => ({
+                    scope: r.scope, active: r.active?.scriptURL ?? null, activeState: r.active?.state ?? null,
+                    waiting: r.waiting?.scriptURL ?? null, installing: r.installing?.scriptURL ?? null
+                  }));
+                } catch (error) { registrations = [{ error: String(error) }]; }
+                try { cacheNames = await caches.keys(); } catch (error) { cacheNames = ['cache inspection failed: ' + String(error)]; }
+                const visibleNodes = Array.from(document.querySelectorAll('h1,h2,[role="alert"],.setup-screen,.portal,.app-frame,.demo-workspace,.config-screen,.sim-runtime-error,#app-boot-screen'))
+                  .slice(0, 30).map(n => ({ tag: n.tagName, className: typeof n.className === 'string' ? n.className : '', role: n.getAttribute('role'), text: (n.textContent || '').trim().slice(0, 180), display: getComputedStyle(n).display, visibility: getComputedStyle(n).visibility }));
+                const auth = document.querySelector('.simorgh-signin-layer');
+                return {
+                  href: location.href, pathname: location.pathname, hash: location.hash, title: document.title,
+                  readyState: document.readyState, bootState: document.documentElement.dataset.simorghReady ?? null,
+                  rootText: (document.querySelector('#root')?.innerText || '').slice(0, 2000),
+                  bodyText: (document.body?.innerText || '').slice(0, 2400), visibleNodes,
+                  authNodeExists: !!auth, authDisplay: auth ? getComputedStyle(auth).display : null,
+                  authVisibility: auth ? getComputedStyle(auth).visibility : null, authRect: auth ? (() => { const r=auth.getBoundingClientRect(); return {x:r.x,y:r.y,width:r.width,height:r.height}; })() : null,
+                  scripts, serviceWorkerController: navigator.serviceWorker?.controller?.scriptURL ?? null,
+                  registrations, cacheNames, theme: document.documentElement.dataset.theme ?? null
+                };
+              });
+              console.log('LIVE_OPERATIONAL_AUTH_DIAGNOSTICS ' + JSON.stringify({
+                label, currentUrl: page.url(), pageErrors: errors, consoleErrors, diagnostics
+              }));
+              throw new Error(label + ': sign-in UI did not render. Diagnostic snapshot printed above. ' + String(caught));
+            }
             await page.getByRole('heading', { name: 'ورود به مدار' }).waitFor({ state: 'visible' });
             if (await page.locator('.app-frame').count()) throw new Error(label + ': private workspace appeared before login.');
             await page.getByLabel('شماره موبایل یا نام کاربری').waitFor({ state: 'visible' });
@@ -356,7 +398,7 @@ jobs:
             page.on('pageerror', error => errors.push(error.message));
             await checkAuth(page,{width:1365,height:900},'desktop');
             await checkAuth(page,{width:390,height:844},'mobile');
-            if (errors.length) throw new Error('Operational browser runtime errors: ' + errors.join(' | '));
+            if (errors.length || consoleErrors.length) throw new Error('Operational browser runtime errors: ' + [...errors, ...consoleErrors].join(' | '));
             console.log('Live operational sign-in/registration verified on desktop and mobile. No production account was created.');
           } finally {
             await browser.close();
