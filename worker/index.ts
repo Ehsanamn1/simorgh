@@ -724,7 +724,7 @@ app.post('/api/rpc/:name',async c=>{
   if(meta.length!==1)return c.json({message:'عملیات دیتابیس در دسترس نیست یا مبهم است.'},404);
   const info=meta[0] as {arg_names:string[];arg_types:string[]},names=info.arg_names??[],types=info.arg_types??[];
   if(names.some(n=>!Object.prototype.hasOwnProperty.call(args,n))||Object.keys(args).some(n=>!names.includes(n)))return c.json({message:'پارامترهای عملیات کامل نیستند یا پارامتر ناشناخته وجود دارد.'},422);
-  if(types.some(t=>!/^[a-zA-Z_][a-zA-Z0-9_ .\[\]]*$/.test(t)))return c.json({message:'نوع پارامتر عملیات معتبر نیست.'},500);
+  if(types.some(t=>!/^[a-zA-Z_][a-zA-Z0-9_ .]*$/.test(t)))return c.json({message:'نوع پارامتر عملیات معتبر نیست.'},500);
   const marks=names.map((n,i)=>'$'+(i+1)+'::'+types[i]),values=names.map(n=>args[n]??null);
   const rows=await runForUser(c,user.id,'select * from public.'+quoteSqlIdentifier(name)+'('+marks.join(',')+')',values);
   return c.json({data:rows,error:null});
