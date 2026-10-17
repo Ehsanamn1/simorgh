@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  Activity, ArrowLeft, ArrowUpLeft, Building2, CalendarDays,
+  Activity, ArrowLeft, ArrowUpLeft, Boxes, Building2, CalendarDays,
   ChevronLeft, CircleAlert, ClipboardCheck, Clock3, CreditCard, Factory,
-  FileText, Gauge, LayoutDashboard, ListChecks, MapPin, Menu, RefreshCw,
+  FileText, Gauge, LayoutDashboard, ListChecks, MapPin, Menu, Package, RefreshCw,
   Search, ShieldCheck, Sparkles, Target, Truck, Users, Warehouse, X,
   type LucideIcon,
 } from 'lucide-react';
@@ -33,14 +33,34 @@ const navItems: DemoNav[] = [
   { key: 'command', label: 'مرکز فرمان', description: 'تصویر کلی از وضعیت عملیات، سفارش‌ها و فعالیت‌های روز جاری.', group: 'مدیریت', icon: LayoutDashboard },
   { key: 'orders', label: 'سفارش‌ها', description: 'پیگیری وضعیت سفارش از ثبت تا آماده‌سازی، ارسال و تحویل.', group: 'مدیریت', icon: FileText },
   { key: 'goals', label: 'اهداف و برنامه', description: 'هدف‌های دوره‌ای و میزان پیشرفت تیم در برابر برنامه.', group: 'مدیریت', icon: Target },
-  { key: 'suppliers', label: 'تأمین‌کنندگان', description: 'نمای یکپارچه از شرکا، ظرفیت و وضعیت همکاری تأمین‌کنندگان.', group: 'شبکه تأمین', icon: Factory },
-  { key: 'farm-sites', label: 'سایت‌های مزرعه', description: 'نمای عملیاتی سایت‌ها، چرخه‌های پرورش و تولید روزانه.', group: 'شبکه تأمین', icon: MapPin },
+  { key: 'customers', label: 'مشتریان', description: 'حساب‌های سازمانی و اطلاعات تماس مشتریان.', group: 'فروش و تأمین', icon: Users },
+  { key: 'suppliers', label: 'تأمین‌کنندگان', description: 'نمای یکپارچه از شرکا، ظرفیت و وضعیت همکاری تأمین‌کنندگان.', group: 'فروش و تأمین', icon: Factory },
+  { key: 'products', label: 'کاتالوگ و قیمت', description: 'محصولات فعال، واحدها و قیمت‌های قابل ارائه.', group: 'فروش و تأمین', icon: Package },
+  { key: 'purchase-orders', label: 'سفارش خرید و رسید', description: 'سفارش خرید، تأیید و ورود کالا به انبار.', group: 'فروش و تأمین', icon: FileText },
+  { key: 'catalog', label: 'خرید سازمانی', description: 'مشاهده کاتالوگ برای ثبت درخواست خرید سازمانی.', group: 'خرید سازمانی', icon: Boxes },
+  { key: 'farm-sites', label: 'سایت‌های مزرعه', description: 'نمای عملیاتی سایت‌ها، چرخه‌های پرورش و تولید روزانه.', group: 'تولید', icon: MapPin },
+  { key: 'flock-cycles', label: 'چرخه‌های کشت و پرورش', description: 'چرخه‌های فعال، برنامه و وضعیت پرورش.', group: 'تولید', icon: Factory },
+  { key: 'production-batches', label: 'بچ‌های تولید', description: 'ردیابی بچ‌های تولید و وضعیت هر مرحله.', group: 'تولید', icon: Boxes },
+  { key: 'daily-production', label: 'ثبت روزانه تولید', description: 'ثبت گزارش روزانه و بررسی روند تولید.', group: 'تولید', icon: Activity },
   { key: 'inventory', label: 'موجودی و خرید', description: 'کنترل موجودی قابل استفاده، آستانه سفارش و ورود کالا.', group: 'عملیات', icon: Warehouse },
+  { key: 'capacity', label: 'برنامه ظرفیت', description: 'ظرفیت‌های اعلام‌شده، تأییدشده و تعهدشده.', group: 'عملیات', icon: Warehouse },
   { key: 'quality', label: 'کیفیت و محموله', description: 'کنترل چک‌لیست‌ها، نتایج بازرسی و موارد نیازمند بررسی.', group: 'عملیات', icon: ClipboardCheck },
   { key: 'shipments', label: 'ارسال و تحویل', description: 'پیگیری وضعیت محموله‌ها، زمان تحویل و رخدادهای مسیر.', group: 'عملیات', icon: Truck },
-  { key: 'finance', label: 'مالی و تسویه', description: 'نمای فاکتورها، سررسیدها و وضعیت تطبیق داخلی حساب‌ها.', group: 'کنترل', icon: CreditCard },
+  { key: 'task-templates', label: 'دستورالعمل‌های کاری', description: 'الگوها و چک‌لیست‌های اجرای کار.', group: 'وظایف و رخدادها', icon: ListChecks },
+  { key: 'operational-tasks', label: 'وظایف عملیاتی', description: 'کارهای واگذارشده، موعدها و بررسی انجام کار.', group: 'وظایف و رخدادها', icon: ClipboardCheck },
+  { key: 'incidents', label: 'رخدادها و مغایرت‌ها', description: 'ثبت و پیگیری مشکلات عملیاتی و موارد مغایر.', group: 'وظایف و رخدادها', icon: CircleAlert },
+  { key: 'finance', label: 'مالی و تسویه', description: 'نمای فاکتورها، سررسیدها و وضعیت تطبیق داخلی حساب‌ها.', group: 'مشارکت و مالی', icon: CreditCard },
+  { key: 'partnership-agreements', label: 'قراردادهای مشارکت', description: 'مشاهده چارچوب‌ها و وضعیت قراردادهای مشارکت.', group: 'مشارکت و مالی', icon: FileText },
+  { key: 'partner-finance', label: 'دفتر مالی شریک', description: 'تراکنش‌ها و مانده‌های ثبت‌شده برای شرکا.', group: 'مشارکت و مالی', icon: CreditCard },
+  { key: 'partner-settlements', label: 'دوره‌های تسویه', description: 'دوره‌های محاسبه و تطبیق تسویه.', group: 'مشارکت و مالی', icon: ClipboardCheck },
   { key: 'members', label: 'اعضا و دسترسی', description: 'نمای نقش‌های سازمانی و اصول دسترسی مبتنی بر عضویت.', group: 'کنترل', icon: Users },
   { key: 'audit', label: 'تاریخچه تغییرات', description: 'ثبت رخدادهای کلیدی برای قابلیت پیگیری و پاسخ‌گویی.', group: 'کنترل', icon: Activity },
+  { key: 'my-orders', label: 'سفارش‌های من', description: 'وضعیت سفارش‌های ثبت‌شده برای حساب سازمانی.', group: 'خرید سازمانی', icon: FileText },
+  { key: 'my-account', label: 'حساب سازمانی', description: 'مشخصات مجموعه خریدار و حساب جاری.', group: 'خرید سازمانی', icon: Building2 },
+  { key: 'supplier-work', label: 'کارهای واگذارشده', description: 'فهرست کارهای اجرایی واگذارشده به تأمین‌کننده.', group: 'تأمین', icon: ClipboardCheck },
+  { key: 'supplier-capacity', label: 'ظرفیت من', description: 'اعلام و پیگیری ظرفیت قابل ارائه.', group: 'تأمین', icon: Warehouse },
+  { key: 'supplier-settlement', label: 'تسویه‌های من', description: 'اسناد و وضعیت تسویه‌های تأمین‌کننده.', group: 'تأمین', icon: CreditCard },
+  { key: 'driver-work', label: 'محموله‌های من', description: 'محموله‌های تخصیص‌یافته به راننده.', group: 'ارسال', icon: Truck },
 ];
 
 const orderRows: DemoRow[] = [
@@ -50,6 +70,52 @@ const orderRows: DemoRow[] = [
   { id: 'MD-2405', primary: 'سفارش نهاده تولید', secondary: 'شرکت دانه‌طلایی · ۸۰۰ کیلوگرم', value: '۳۱ میلیون تومان', status: 'نیازمند بررسی', tone: 'bad', date: 'دیروز، ۱۵:۲۶' },
   { id: 'MD-2404', primary: 'تأمین بسته‌بندی', secondary: 'نگین صنعت · ۳٬۰۰۰ عدد', value: '۱۸٫۲ میلیون تومان', status: 'تحویل‌شده', tone: 'good', date: '۱۶ مهر، ۱۲:۱۰' },
 ];
+
+const customerRows: DemoRow[] = [
+  { id: 'CUS-021', primary: 'سپهر پخش', secondary: 'توزیع منطقه‌ای · گرگان', value: 'فعال', status: 'مجاز', tone: 'good', date: 'آخرین بررسی: نمونه' },
+  { id: 'CUS-018', primary: 'پخش آریا', secondary: 'خریدار سازمانی · ساری', value: 'فعال', status: 'مجاز', tone: 'good', date: 'آخرین بررسی: نمونه' },
+  { id: 'CUS-014', primary: 'بازرگانی شمال', secondary: 'مشتری عمده · گنبد', value: 'در بررسی', status: 'بررسی', tone: 'warn', date: 'اطلاعات نمونه' },
+];
+const productRows: DemoRow[] = [
+  { id: 'PRD-031', primary: 'تخم‌مرغ درجه A', secondary: 'محصول بسته‌بندی‌شده · شانه', value: '۲۵٬۶۰۰ تومان', status: 'فعال', tone: 'good', date: 'قیمت نمونه' },
+  { id: 'PRD-022', primary: 'خوراک رشد', secondary: 'نهاده تولید · کیلوگرم', value: '۳۵٬۸۰۰ تومان', status: 'فعال', tone: 'good', date: 'قیمت نمونه' },
+  { id: 'PRD-016', primary: 'کارتن بسته‌بندی', secondary: 'ملزومات · عدد', value: '۱۲٬۴۰۰ تومان', status: 'نیازمند بررسی', tone: 'warn', date: 'قیمت نمونه' },
+];
+const purchaseOrderRows: DemoRow[] = [
+  { id: 'PO-108', primary: 'خرید خوراک رشد', secondary: 'انبار مرکزی · سفارش سازمانی', value: '۸۶ میلیون تومان', status: 'منتظر تأیید', tone: 'warn', date: 'تاریخ نمونه' },
+  { id: 'PO-106', primary: 'خرید بسته‌بندی', secondary: 'انبار محصولات · سفارش سازمانی', value: '۱۸٫۲ میلیون تومان', status: 'رسید جزئی', tone: 'neutral', date: 'تاریخ نمونه' },
+];
+const capacityRows: DemoRow[] = [
+  { id: 'CAP-031', primary: 'ظرفیت تخم‌مرغ درجه A', secondary: 'سایت مرکزی · بازه هفتگی', value: '۵٬۰۰۰ شانه', status: 'تأییدشده', tone: 'good', date: 'بازه نمونه' },
+  { id: 'CAP-029', primary: 'ظرفیت خوراک رشد', secondary: 'تأمین دام گستر · بازه هفتگی', value: '۲٫۴ تن', status: 'منتظر بررسی', tone: 'warn', date: 'بازه نمونه' },
+];
+const taskRows: DemoRow[] = [
+  { id: 'TSK-038', primary: 'ثبت گزارش شیفت تولید', secondary: 'سایت مرکزی · مسئول عملیات', value: 'امروز', status: 'باز', tone: 'warn', date: 'موعد نمونه' },
+  { id: 'TSK-035', primary: 'کنترل شرایط انبار', secondary: 'انبار مرکزی · چک‌لیست روزانه', value: 'امروز', status: 'در حال انجام', tone: 'neutral', date: 'موعد نمونه' },
+  { id: 'TSK-031', primary: 'بررسی سفارش خرید', secondary: 'تیم تأمین · بررسی مدیر', value: 'اولویت بالا', status: 'منتظر بررسی', tone: 'bad', date: 'موعد نمونه' },
+];
+const productionRows: DemoRow[] = [
+  { id: 'PRD-B-031', primary: 'بچ تولید سایت مرکزی', secondary: 'چرخه پاییز · واحد نمونه', value: '۴٬۸۲۰ کیلوگرم', status: 'در جریان', tone: 'good', date: 'گزارش نمونه' },
+  { id: 'PRD-B-028', primary: 'بچ تولید سایت شرقی', secondary: 'چرخه فعال · واحد نمونه', value: '۳٬۶۵۰ کیلوگرم', status: 'تحت پایش', tone: 'warn', date: 'گزارش نمونه' },
+];
+const incidentRows: DemoRow[] = [
+  { id: 'INC-014', primary: 'مغایرت موجودی ملزومات', secondary: 'انبار مرکزی · نیازمند تطبیق', value: 'متوسط', status: 'باز', tone: 'warn', date: 'زمان نمونه' },
+  { id: 'INC-012', primary: 'تأخیر تحویل محموله', secondary: 'ارسال منطقه‌ای · بررسی علت', value: 'بالا', status: 'در حال پیگیری', tone: 'bad', date: 'زمان نمونه' },
+];
+const agreementRows: DemoRow[] = [
+  { id: 'AGR-006', primary: 'قرارداد مشارکت سایت مرکزی', secondary: 'نسخه نمایشی قرارداد · بدون اثر حقوقی', value: 'در بررسی', status: 'پیش‌نویس', tone: 'neutral', date: 'تاریخ نمونه' },
+  { id: 'AGR-004', primary: 'توافق تأمین دوره‌ای', secondary: 'شرایط تحویل و کیفیت', value: 'فعال', status: 'ثبت نمونه', tone: 'good', date: 'تاریخ نمونه' },
+];
+const partnerFinanceRows: DemoRow[] = [
+  { id: 'PFIN-011', primary: 'ثبت سهم دوره تولید', secondary: 'دفتر شریک · ثبت آزمایشی', value: '۴۸ میلیون تومان', status: 'در انتظار تطبیق', tone: 'warn', date: 'دوره نمونه' },
+];
+const settlementRows: DemoRow[] = [
+  { id: 'SET-087', primary: 'تسویه تأمین‌کننده', secondary: 'دوره نیمه اول مهر · سند نمونه', value: '۴۸ میلیون تومان', status: 'منتظر تطبیق', tone: 'warn', date: 'دوره نمونه' },
+];
+const accountRows: DemoRow[] = [
+  { id: 'ACC-001', primary: 'حساب سازمانی نمونه', secondary: 'نمایش معرفی مدار · بدون اتصال به حساب واقعی', value: 'نمونه', status: 'فقط‌خواندنی', tone: 'neutral', date: 'بدون اطلاعات واقعی' },
+];
+
 const rowsByPage: Record<string, DemoRow[]> = {
   orders: orderRows,
   suppliers: [
@@ -100,8 +166,32 @@ const rowsByPage: Record<string, DemoRow[]> = {
     { id: 'EVT-182', primary: 'به‌روزرسانی ظرفیت سایت', secondary: 'SITE-02 · چرخه فعال', value: 'تولید', status: 'ثبت‌شده', tone: 'good', date: 'امروز، ۰۹:۵۶' },
     { id: 'EVT-181', primary: 'ثبت دریافت نهاده', secondary: 'INV-104 · انبار مرکزی', value: 'انبار', status: 'ثبت‌شده', tone: 'good', date: 'امروز، ۰۹:۱۸' },
   ],
+
+  customers: customerRows,
+  products: productRows,
+  catalog: productRows,
+  'purchase-orders': purchaseOrderRows,
+  capacity: capacityRows,
+  'supplier-capacity': capacityRows,
+  'flock-cycles': productionRows,
+  'production-batches': productionRows,
+  'daily-production': productionRows,
+  'task-templates': taskRows,
+  'operational-tasks': taskRows,
+  'supplier-work': taskRows,
+  incidents: incidentRows,
+  'partnership-agreements': agreementRows,
+  'partner-finance': partnerFinanceRows,
+  'partner-settlements': settlementRows,
+  'supplier-settlement': settlementRows,
+  'my-orders': orderRows,
+  'my-account': accountRows,
+  'driver-work': [
+    { id: 'DRV-022', primary: 'محموله MD-2406', secondary: 'مقصد: ساری · جزئیات نمونه', value: '۱٬۲۰۰ بسته', status: 'در مسیر', tone: 'warn', date: 'تحویل نمونه' },
+    { id: 'DRV-021', primary: 'محموله MD-2404', secondary: 'مبدأ: ساری · مقصد: گرگان', value: '۳٬۰۰۰ عدد', status: 'تحویل‌شده', tone: 'good', date: 'زمان نمونه' },
+  ],
 };
-const groupOrder = ['مدیریت', 'شبکه تأمین', 'عملیات', 'کنترل'];
+const groupOrder = ['مدیریت', 'فروش و تأمین', 'تولید', 'عملیات', 'وظایف و رخدادها', 'مشارکت و مالی', 'کنترل', 'خرید سازمانی', 'تأمین', 'ارسال'];
 
 const statCards = [
   { label: 'سفارش‌های باز', value: '۱۲', detail: '۳ مورد نیازمند پیگیری', icon: FileText, tone: 'teal' },
@@ -139,7 +229,7 @@ export default function DemoWorkspace() {
   useEffect(() => { void checkHealth(); }, [checkHealth]);
 
   const visibleRows = useMemo(() => {
-    const rows = activePage === 'command' ? orderRows : (rowsByPage[activePage] ?? orderRows);
+    const rows = activePage === 'command' ? orderRows : (rowsByPage[activePage] ?? []);
     const query = search.trim().toLocaleLowerCase('fa-IR');
     if (!query) return rows;
     return rows.filter((row) => `${row.id} ${row.primary} ${row.secondary} ${row.value} ${row.status}`.toLocaleLowerCase('fa-IR').includes(query));
@@ -216,6 +306,19 @@ export default function DemoWorkspace() {
                 </article>; })}
               </section>
 
+              <section className="demo-quick-access" aria-label="دسترسی سریع">
+                <div className="demo-quick-heading">
+                  <span className="demo-quick-heading-mark"><Sparkles size={17}/></span>
+                  <div><b>دسترسی سریع</b><small>میانبرهای اصلی عملیات مدار</small></div>
+                  <span className="demo-quick-count">۴ میانبر</span>
+                </div>
+                <div className="demo-quick-grid">
+                  <button type="button" className="demo-quick-action" onClick={() => selectPage('orders')}><span><FileText size={18}/></span><b>سفارش‌ها</b><small>ثبت و پیگیری</small><ArrowLeft size={14}/></button>
+                  <button type="button" className="demo-quick-action" onClick={() => selectPage('farm-sites')}><span><Factory size={18}/></span><b>تولید و مزرعه</b><small>سایت‌ها و برنامه تولید</small><ArrowLeft size={14}/></button>
+                  <button type="button" className="demo-quick-action" onClick={() => selectPage('shipments')}><span><Truck size={18}/></span><b>ارسال و تحویل</b><small>محموله‌ها و مقصد</small><ArrowLeft size={14}/></button>
+                  <button type="button" className="demo-quick-action" onClick={() => selectPage('finance')}><span><CreditCard size={18}/></span><b>مالی و تسویه</b><small>فاکتورها و تطبیق</small><ArrowLeft size={14}/></button>
+                </div>
+              </section>
               <div className="demo-dashboard-grid">
                 <section className="demo-panel demo-trend-panel">
                   <div className="demo-panel-heading"><div><span className="demo-panel-mark"><Gauge size={17}/></span><div><h2>روند عملیات هفتگی</h2><p>شاخص ترکیبی تکمیل کارها · داده نمونه</p></div></div><span className="demo-period-chip">۷ روز گذشته <ChevronLeft size={13}/></span></div>
@@ -266,6 +369,12 @@ export default function DemoWorkspace() {
           <footer className="demo-footer"><span><MedarLogo compact/> مدار <i/> دموی تعاملی</span><span>{lastChecked ? `آخرین بررسی API: ${new Intl.DateTimeFormat('fa-IR', { hour: '2-digit', minute: '2-digit' }).format(lastChecked)}` : 'در انتظار بررسی API'} <i/> مقادیر عملیاتی، نمونه هستند</span></footer>
         </div>
       </main>
+      <nav className="demo-mobile-bottom-nav" aria-label="ناوبری اصلی موبایل">
+        <button type="button" className={activePage === 'command' ? 'is-active' : ''} onClick={() => selectPage('command')} aria-current={activePage === 'command' ? 'page' : undefined}><LayoutDashboard size={20}/><span>نمای کلی</span></button>
+        <button type="button" className={activePage === 'orders' ? 'is-active' : ''} onClick={() => selectPage('orders')} aria-current={activePage === 'orders' ? 'page' : undefined}><FileText size={20}/><span>سفارش‌ها</span></button>
+        <button type="button" className={['farm-sites', 'flock-cycles', 'production-batches', 'daily-production', 'inventory', 'capacity', 'quality', 'shipments', 'task-templates', 'operational-tasks', 'incidents'].includes(activePage) ? 'is-active' : ''} onClick={() => selectPage('operational-tasks')} aria-current={['farm-sites', 'flock-cycles', 'production-batches', 'daily-production', 'inventory', 'capacity', 'quality', 'shipments', 'task-templates', 'operational-tasks', 'incidents'].includes(activePage) ? 'page' : undefined}><Factory size={20}/><span>عملیات</span></button>
+        <button type="button" className={!['command', 'orders', 'farm-sites', 'flock-cycles', 'production-batches', 'daily-production', 'inventory', 'capacity', 'quality', 'shipments', 'task-templates', 'operational-tasks', 'incidents'].includes(activePage) ? 'is-active' : ''} onClick={() => setSidebarOpen(true)} aria-label="بازکردن فهرست ماژول‌ها"><Menu size={20}/><span>ماژول‌ها</span></button>
+      </nav>
     </div>
   );
 }
