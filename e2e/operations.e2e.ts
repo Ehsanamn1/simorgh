@@ -341,3 +341,26 @@ test('driver lands in assigned shipments and does not get customer or manager na
   expect(dimensions.body).toBeLessThanOrEqual(dimensions.viewport);
   expect(errors).toEqual([]);
 });
+test('a signed-in user can change their own password through the protected Worker endpoint', async ({ page }) => {
+  await installIsolatedSession(page, 'owner');
+  let submitted: Record<string, unknown> | undefined;
+  await page.route('**/api/auth/password/change', async route => {
+    submitted = route.request().postDataJSON() as Record<string, unknown>;
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ ok: true, message: 'گذرواژه تغییر کرد؛ نشست‌های دیگر بسته شدند.' }),
+    });
+  });
+
+  await page.goto('/simorgh/app/command', { waitUntil: 'domcontentloaded' });
+  await page.getByRole('button', { name: /تغییر گذرواژه/ }).click();
+  await expect(page.getByRole('dialog', { name: 'تغییر گذرواژه' })).toBeVisible();
+  await page.getByLabel('گذرواژه فعلی').fill('Old-pass-2026');
+  await page.getByLabel('گذرواژه جدید').fill('New-pass-2026');
+  await page.getByLabel('تکرار گذرواژه جدید').fill('New-pass-2026');
+  await page.getByRole('button', { name: 'ذخیره گذرواژه جدید' }).click();
+
+  await expect(page.getByRole('status')).toContainText('گذرواژه تغییر کرد');
+  expect(submitted).toEqual({ currentPassword: 'Old-pass-2026', newPassword: 'New-pass-2026' });
+});

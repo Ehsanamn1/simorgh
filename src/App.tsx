@@ -75,6 +75,50 @@ function AppShell() {
   const { user, memberships, signOut, loading, error } = useAuth();
   const location = useLocation();
   const [membershipId, setMembershipId] = useState(''); const [mobileNav, setMobileNav] = useState(false); const [search, setSearch] = useState('');
+  const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [passwordBusy, setPasswordBusy] = useState(false);
+  const [passwordError, setPasswordError] = useState('');
+  const [passwordNotice, setPasswordNotice] = useState('');
+  const closePasswordDialog = () => {
+    if (passwordBusy) return;
+    setPasswordDialogOpen(false);
+    setCurrentPassword('');
+    setNewPassword('');
+    setConfirmNewPassword('');
+    setPasswordError('');
+    setPasswordNotice('');
+  };
+  async function submitOwnPasswordChange(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setPasswordError('');
+    setPasswordNotice('');
+    if (newPassword.length < 8 || newPassword.length > 128) {
+      setPasswordError('گذرواژه جدید باید بین ۸ تا ۱۲۸ نویسه باشد.');
+      return;
+    }
+    if (newPassword !== confirmNewPassword) {
+      setPasswordError('تکرار گذرواژه جدید یکسان نیست.');
+      return;
+    }
+    setPasswordBusy(true);
+    try {
+      const result = await api.post<{ ok: boolean; message?: string }>('/api/auth/password/change', {
+        currentPassword,
+        newPassword,
+      });
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmNewPassword('');
+      setPasswordNotice(result.message || 'گذرواژه با موفقیت تغییر کرد.');
+    } catch (caught) {
+      setPasswordError(caught instanceof Error ? caught.message : 'تغییر گذرواژه ناموفق بود.');
+    } finally {
+      setPasswordBusy(false);
+    }
+  }
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
     try { return window.localStorage.getItem('simorgh-theme') === 'light' ? 'light' : 'dark'; }
     catch { return 'dark'; }
@@ -109,8 +153,33 @@ function AppShell() {
   if (!memberships.length) return <WaitingAccess membershipsError={error}/>;
   const companyName = membership?.company?.name || 'مجموعه مدار';
   return <div className="app-frame" dir="rtl">
-    <aside className={`app-sidebar ${mobileNav ? 'open' : ''}`}><div className="sidebar-brand"><Logo/><button className="sidebar-close" onClick={() => setMobileNav(false)}><X size={17}/></button></div><button className="workspace-switch" disabled={memberships.length <= 1} onClick={() => memberships.length > 1 && setMembershipId(memberships[(memberships.findIndex(m => m.id === membership?.id) + 1) % memberships.length].id)}><span className="workspace-avatar">{companyName.slice(0,1)}</span><span><b>{companyName}</b><small>{roleLabel[role ?? '']}</small></span>{memberships.length > 1 ? <ChevronDown size={15}/> : <span className="workspace-lock"><ShieldCheck size={14}/></span>}</button><div className="nav-caption">فضای کاری</div><nav className="side-nav">{navItems.map(item => {const Icon = item.icon; const current = active?.key === item.key; return <Link to={`/app/${item.key}`} key={item.key} onClick={() => setMobileNav(false)} className={current ? 'selected' : ''}><Icon size={17}/><span>{item.label}</span>{item.key === 'orders' && <small className="nav-marker">↗</small>}</Link>;})}</nav><div className="sidebar-bottom"><div className="sidebar-status"><span className="status-orb"/><span><b>اتصال مدار</b><small>نشست کاربری امن</small></span><CheckCircle2 size={16}/></div><button className="profile-row" onClick={() => void signOut()}><span className="profile-avatar">{(user.username ?? 'U').slice(0,1).toUpperCase()}</span><span><b>{String(user.full_name || user.username || '')}</b><small dir="ltr">@{user.username} · خروج از حساب</small></span><LogOut size={15}/></button></div></aside>
-    {mobileNav && <button aria-label="بستن منو" className="mobile-scrim" onClick={() => setMobileNav(false)}/>}
+    <aside className={`app-sidebar ${mobileNav ? 'open' : ''}`}><div className="sidebar-brand"><Logo/><button className="sidebar-close" onClick={() => setMobileNav(false)}><X size={17}/></button></div><button className="workspace-switch" disabled={memberships.length <= 1} onClick={() => memberships.length > 1 && setMembershipId(memberships[(memberships.findIndex(m => m.id === membership?.id) + 1) % memberships.length].id)}><span className="workspace-avatar">{companyName.slice(0,1)}</span><span><b>{companyName}</b><small>{roleLabel[role ?? '']}</small></span>{memberships.length > 1 ? <ChevronDown size={15}/> : <span className="workspace-lock"><ShieldCheck size={14}/></span>}</button><div className="nav-caption">فضای کاری</div><nav className="side-nav">{navItems.map(item => {const Icon = item.icon; const current = active?.key === item.key; return <Link to={`/app/${item.key}`} key={item.key} onClick={() => setMobileNav(false)} className={current ? 'selected' : ''}><Icon size={17}/><span>{item.label}</span>{item.key === 'orders' && <small className="nav-marker">↗</small>}</Link>;})}</nav><div className="sidebar-bottom"><div className="sidebar-status"><span className="status-orb"/><span><b>اتصال مدار</b><small>نشست کاربری امن</small></span><CheckCircle2 size={16}/></div><button type="button" className="profile-row" onClick={() => { setPasswordError(''); setPasswordNotice(''); setPasswordDialogOpen(true); }}><span className="profile-avatar"><ShieldCheck size={14}/></span><span><b>تغییر گذرواژه</b><small>امنیت حساب کاربری</small></span><ShieldCheck size={15}/></button><button className="profile-row" onClick={() => void signOut()}><span className="profile-avatar">{(user.username ?? 'U').slice(0,1).toUpperCase()}</span><span><b>{String(user.full_name || user.username || '')}</b><small dir="ltr">@{user.username} · خروج از حساب</small></span><LogOut size={15}/></button></div></aside>
+    {passwordDialogOpen && <div className="modal-backdrop password-change-backdrop">
+      <section className="modal-card password-change-card" role="dialog" aria-modal="true" aria-labelledby="password-change-title" dir="rtl">
+        <div className="modal-heading">
+          <div><h2 id="password-change-title">تغییر گذرواژه</h2><p>برای امنیت حساب، گذرواژه فعلی را تأیید کن. نشست‌های دیگر پس از تغییر بسته می‌شوند.</p></div>
+          <button type="button" onClick={closePasswordDialog} aria-label="بستن پنجره"><X size={17}/></button>
+        </div>
+        <form className="password-change-form" onSubmit={event => void submitOwnPasswordChange(event)}>
+          <label htmlFor="current-password">گذرواژه فعلی
+            <input id="current-password" type="password" autoComplete="current-password" required maxLength={128} value={currentPassword} onChange={event => setCurrentPassword(event.target.value)} />
+          </label>
+          <label htmlFor="new-password">گذرواژه جدید
+            <input id="new-password" type="password" autoComplete="new-password" required minLength={8} maxLength={128} value={newPassword} onChange={event => setNewPassword(event.target.value)} />
+          </label>
+          <label htmlFor="confirm-new-password">تکرار گذرواژه جدید
+            <input id="confirm-new-password" type="password" autoComplete="new-password" required minLength={8} maxLength={128} value={confirmNewPassword} onChange={event => setConfirmNewPassword(event.target.value)} />
+          </label>
+          {passwordError && <div className="form-error" role="alert">{passwordError}</div>}
+          {passwordNotice && <div className="form-success" role="status">{passwordNotice}</div>}
+          <div className="password-change-actions">
+            <button className="button-primary" type="submit" disabled={passwordBusy || !currentPassword || !newPassword || !confirmNewPassword}>{passwordBusy ? 'در حال ذخیره…' : 'ذخیره گذرواژه جدید'}</button>
+            <button className="button-soft" type="button" onClick={closePasswordDialog} disabled={passwordBusy}>انصراف</button>
+          </div>
+        </form>
+      </section>
+    </div>}
+    {mobileNav && <button aria-label="بستن منو" className="mobile-scrim" onClick={() => setMobileNav(false)}/>
     <main className="app-main"><header className="app-topbar"><button className="mobile-menu" onClick={() => setMobileNav(true)} aria-label="بازکردن منو"><Menu size={19}/></button><div className="breadcrumbs"><span>مدار</span><i>/</i><b>{active?.label ?? 'مرکز فرمان'}</b></div><div className="topbar-tools"><label className="global-search"><Search size={16}/><input placeholder="جست‌وجو در بخش فعلی…" value={search} onChange={e => setSearch(e.target.value)}/></label><button className="icon-action theme-toggle" type="button" onClick={() => setTheme(current => current === 'dark' ? 'light' : 'dark')} title={theme === 'dark' ? 'فعال‌کردن حالت روشن' : 'فعال‌کردن حالت تاریک'} aria-label={theme === 'dark' ? 'فعال‌کردن حالت روشن' : 'فعال‌کردن حالت تاریک'}>{theme === 'dark' ? <Sun size={17}/> : <Moon size={17}/>}</button><a className="icon-action" title="راهنمای مدار" aria-label="راهنمای مدار" href="https://github.com/Ehsanamn1/simorgh/blob/main/README.md" target="_blank" rel="noreferrer"><CircleHelp size={17}/></a><span className="topbar-sep"/><span className="topbar-user"><b>{companyName}</b><small>{new Intl.DateTimeFormat('fa-IR',{dateStyle:'medium'}).format(new Date())}</small></span></div></header><div className="page-container">{!allowed ? <Navigate to={`/app/${homeDestination}`} replace/> : <Routes><Route path="command" element={<Dashboard membership={membership!}/>}/><Route path="orders" element={<OrdersPage membership={membership!} search={search}/>}/><Route path="goals" element={<GoalsPage membership={membership!} search={search}/>}/><Route path="customers" element={<EntityPage membership={membership!} table="customers" title="مشتریان" description="حساب‌های سازمانی، اطلاعات تماس و شرایط همکاری." fields={[{name:'name',label:'نام مشتری',required:true},{name:'city',label:'شهر'},{name:'phone',label:'شماره تماس',type:'tel'},{name:'segment',label:'نوع مشتری'},{name:'address',label:'نشانی'},{name:'credit_limit',label:'سقف اعتبار (تومان)',type:'number'}]} columns={[{key:'name',label:'مشتری'},{key:'city',label:'شهر'},{key:'phone',label:'تلفن'},{key:'segment',label:'بخش'},{key:'credit_limit',label:'سقف اعتبار'}]} search={search}/>}/><Route path="suppliers" element={<EntityPage membership={membership!} table="suppliers" title="شبکه تأمین" description="اطلاعات تولیدکنندگان و تأمین‌کنندگان تأییدشده." fields={[{name:'name',label:'نام تأمین‌کننده',required:true},{name:'city',label:'شهر'},{name:'phone',label:'شماره تماس',type:'tel'},{name:'farm_registration',label:'شناسه یا مجوز مزرعه'}]} columns={[{key:'name',label:'تأمین‌کننده'},{key:'city',label:'شهر'},{key:'phone',label:'تلفن'},{key:'farm_registration',label:'شناسه مزرعه'},{key:'active',label:'وضعیت'}]} search={search}/>}/><Route path="products" element={<ProductsPage membership={membership!} search={search}/>}/><Route path="inventory" element={<InventoryPage membership={membership!} search={search}/>}/><Route path="capacity" element={<CapacityPage membership={membership!} search={search}/>}/><Route path="quality" element={<QualityPage membership={membership!} search={search}/>}/><Route path="shipments" element={<ShipmentsPage membership={membership!} search={search}/>}/><Route path="finance" element={<FinancePage membership={membership!} search={search}/>}/><Route path="members" element={<MembersPage membership={membership!} search={search}/>}/><Route path="audit" element={<AuditPage membership={membership!} search={search}/>}/><Route path="catalog" element={<CustomerCatalog membership={membership!}/>}/><Route path="my-orders" element={<CustomerOrders membership={membership!} search={search}/>}/><Route path="my-account" element={<CustomerAccount membership={membership!}/>}/><Route path="supplier-work" element={<SupplierWork membership={membership!} search={search}/>}/><Route path="supplier-capacity" element={<SupplierCapacityPage membership={membership!} search={search}/>}/><Route path="supplier-settlement" element={<SupplierSettlementPage membership={membership!} search={search}/>}/><Route path="driver-work" element={<ShipmentsPage membership={membership!} search={search} driverMode/>}/><Route path="farm-sites" element={<OperationsWorkspacePage kind="farm-sites" membership={membership!} search={search}/>}/><Route path="flock-cycles" element={<OperationsWorkspacePage kind="flock-cycles" membership={membership!} search={search}/>}/><Route path="production-batches" element={<OperationsWorkspacePage kind="production-batches" membership={membership!} search={search}/>}/><Route path="daily-production" element={<OperationsWorkspacePage kind="daily-production" membership={membership!} search={search}/>}/><Route path="task-templates" element={<OperationsWorkspacePage kind="task-templates" membership={membership!} search={search}/>}/><Route path="operational-tasks" element={<OperationsWorkspacePage kind="operational-tasks" membership={membership!} search={search}/>}/><Route path="incidents" element={<OperationsWorkspacePage kind="incidents" membership={membership!} search={search}/>}/><Route path="partnership-agreements" element={<OperationsWorkspacePage kind="partnership-agreements" membership={membership!} search={search}/>}/><Route path="partner-finance" element={<OperationsWorkspacePage kind="partner-finance" membership={membership!} search={search}/>}/><Route path="partner-settlements" element={<OperationsWorkspacePage kind="partner-settlements" membership={membership!} search={search}/>}/><Route path="*" element={<Navigate to={`/app/${homeDestination}`} replace/>}/></Routes>}</div><footer className="app-footer"><span><Logo compact/> <b>مدار</b> · مدیریت مزرعه و عملیات</span><span>تاریخچه تغییرات فعال <i/> داده‌های واقعی پایگاه داده</span></footer></main>
   </div>;
 }
