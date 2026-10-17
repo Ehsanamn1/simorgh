@@ -17,7 +17,7 @@ const membership = {
   company: { name: 'مزرعه آزمایشی' },
 };
 
-test('the app opens a Persian phone-or-username/password sign-in without any email field', async ({ page }) => {
+test('the app opens a username-and-password sign-in without an email field', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.route('**/api/auth/me', route => route.fulfill({
