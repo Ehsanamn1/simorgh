@@ -1,7 +1,7 @@
 import { HttpError } from './http';
+import { medarApiUrl, MEDAR_API_CONFIGURATION_ERROR } from './runtimeConfig';
 
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL?.trim() || '').replace(/\/$/, '');
-export const isDataApiConfigured = import.meta.env.VITE_DISABLE_API_UI !== 'true';
+export const isDataApiConfigured = import.meta.env.VITE_DISABLE_API_UI !== 'true' && !MEDAR_API_CONFIGURATION_ERROR;
 
 type Filter = { column: string; op: string; value?: unknown };
 type Order = { column: string; ascending: boolean };
@@ -85,7 +85,7 @@ class DataQuery implements PromiseLike<ApiResult> {
     if (this.executed) return this.executed;
     this.executed = (async () => {
       try {
-        const response = await fetch(API_BASE_URL + '/api/data/' + encodeURIComponent(this.table), {
+        const response = await fetch(medarApiUrl('/api/data/' + encodeURIComponent(this.table)), {
           method: 'POST',
           credentials: 'include',
           cache: 'no-store',
