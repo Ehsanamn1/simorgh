@@ -114,6 +114,13 @@ jobs:
         working-directory: worker
         shell: bash
         run: printf '%s' "$MEDAR_DATABASE_URL" | npx wrangler@4 secret put DATABASE_URL --name medar-ops
+      - name: Configure a dedicated AI encryption key when supplied
+        if: ${{ secrets.MEDAR_AI_ENCRYPTION_KEY != '' }}
+        working-directory: worker
+        shell: bash
+        env:
+          MEDAR_AI_ENCRYPTION_KEY: ${{ secrets.MEDAR_AI_ENCRYPTION_KEY }}
+        run: printf '%s' "$MEDAR_AI_ENCRYPTION_KEY" | npx wrangler@4 secret put AI_ENCRYPTION_KEY --name medar-ops
       - name: Build the protected operational app with sign-in enabled and shared API
         run: npm run build
         env:
