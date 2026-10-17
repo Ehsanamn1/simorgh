@@ -136,7 +136,7 @@ class FileBucket {
   constructor(private readonly bucket: string) {}
   async upload(path: string, file: Blob, options?: { upsert?: boolean; contentType?: string }): Promise<ApiResult> {
     try {
-      const response = await fetch(API_BASE_URL + '/api/storage/' + encodeURIComponent(this.bucket) + '?path=' + encodeURIComponent(path), {
+      const response = await fetch(medarApiUrl('/api/storage/' + encodeURIComponent(this.bucket) + '?path=' + encodeURIComponent(path)), {
         method: 'PUT',
         credentials: 'include',
         headers: { 'content-type': options?.contentType || file.type || 'application/octet-stream', 'x-upsert': options?.upsert ? 'true' : 'false' },
@@ -150,11 +150,11 @@ class FileBucket {
     }
   }
   getPublicUrl(path: string): { data: { publicUrl: string } } {
-    return { data: { publicUrl: API_BASE_URL + '/api/storage/' + encodeURIComponent(this.bucket) + '?path=' + encodeURIComponent(path) } };
+    return { data: { publicUrl: medarApiUrl('/api/storage/' + encodeURIComponent(this.bucket) + '?path=' + encodeURIComponent(path)) } };
   }
   async remove(paths: string[]): Promise<ApiResult> {
     try {
-      const response = await fetch(API_BASE_URL + '/api/storage/' + encodeURIComponent(this.bucket) + '/remove', {
+      const response = await fetch(medarApiUrl('/api/storage/' + encodeURIComponent(this.bucket) + '/remove'), {
         method: 'POST',
         credentials: 'include',
         headers: { 'content-type': 'application/json' },
@@ -175,7 +175,7 @@ export const dataApi: any = isDataApiConfigured ? {
   },
   async rpc(name: string, args: Record<string, unknown> = {}): Promise<ApiResult> {
     try {
-      const response = await fetch(API_BASE_URL + '/api/rpc/' + encodeURIComponent(name), {
+      const response = await fetch(medarApiUrl('/api/rpc/' + encodeURIComponent(name)), {
         method: 'POST', credentials: 'include', cache: 'no-store',
         headers: { 'content-type': 'application/json' }, body: JSON.stringify({ args }),
       });
