@@ -7,7 +7,6 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     env:
-      VITE_NEON_AUTH_URL: https://ep-wild-mountain-baaweix2.neonauth.c-8.eu-central-1.aws.neon.tech/neondb/auth
       MEDAR_DATABASE_URL: ${{ secrets.MEDAR_DATABASE_URL }}
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -29,7 +28,7 @@ jobs:
           test -n "$MEDAR_DATABASE_URL" || { echo "MEDAR_DATABASE_URL is missing"; exit 1; }
       - name: Apply Neon foundation schema
         shell: bash
-        run: psql "$MEDAR_DATABASE_URL" -v ON_ERROR_STOP=1 -f worker/migrations/0001_foundation.sql
+        run: psql "$MEDAR_DATABASE_URL" -v ON_ERROR_STOP=1 -f worker/migrations/0001_foundation.sql -f worker/migrations/0002_username_password_auth.sql
       - name: Configure Neon database secret
         working-directory: worker
         shell: bash
