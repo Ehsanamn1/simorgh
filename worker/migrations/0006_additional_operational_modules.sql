@@ -707,10 +707,37 @@ commit;
 
 -- Enforce row-level tenant isolation for Worker requests.
 do $$ declare table_name text; begin foreach table_name in array array[
-'companies','profiles','memberships','customers','suppliers','products','price_agreements','orders','order_items','capacity_commitments','lots','quality_reviews','shipments','delivery_evidence','invoices','settlements','notifications','audit_events','access_requests','farm_sites','partnership_agreements','flock_cycles','production_batches','daily_production_records','task_templates','operational_tasks','task_evidence','operational_incidents','partner_financial_entries','partner_settlement_periods','shipment_locations','inventory_movements','company_goals','medar_files'
+'customers','suppliers','products','price_agreements','orders','order_items','capacity_commitments','lots','quality_reviews','shipments','delivery_evidence','invoices','settlements','notifications','audit_events','access_requests','farm_sites','partnership_agreements','flock_cycles','production_batches','daily_production_records','task_templates','operational_tasks','task_evidence','operational_incidents','partner_financial_entries','partner_settlement_periods','shipment_locations','inventory_movements','company_goals','medar_files'
 ] loop
   if to_regclass('public.'||table_name) is not null then
     execute format('alter table public.%I enable row level security',table_name);
     execute format('alter table public.%I force row level security',table_name);
   end if;
 end loop; end $$;
+
+
+-- Identity/control tables are only accessed via explicit Worker handlers.
+drop policy if exists access_requests_read_own_or_manager on public.access_requests;
+create policy access_requests_read_own_or_manager on public.access_requests for select to public
+using (user_id = public.medar_user_id() or public.is_company_manager(company_id));
+drop policy if exists delivery_files_read on public.medar_files;
+create policy delivery_files_read on public.medar_files for select to public
+using (bucket_id = 'delivery-evidence' and (
+  public.is_company_internal(company_id) or exists (
+    select 1 from public.shipments s
+    where s.id = split_part(name, '/', 2)::uuid and s.company_id = company_id
+      and s.driver_user_id = public.medar_user_id()
+  )
+));
+drop policy if exists delivery_files_insert on public.medar_files;
+create policy delivery_files_insert on public.medar_files for insert to public
+with check (bucket_id = 'delivery-evidence' and (
+  public.is_company_internal(company_id) or exists (
+    select 1 from public.shipments s
+    where s.id = split_part(name, '/', 2)::uuid and s.company_id = company_id
+      and s.driver_user_id = public.medar_user_id()
+  )
+));
+drop policy if exists medar_files_delete_own_or_internal on public.medar_files;
+create policy medar_files_delete_own_or_internal on public.medar_files for delete to public
+using (uploaded_by = public.medar_user_id() or public.is_company_internal(company_id));
