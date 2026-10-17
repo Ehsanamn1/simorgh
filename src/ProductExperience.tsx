@@ -150,8 +150,10 @@ export default function ProductExperience() {
     event.preventDefault();
     const cleanUsername = username.trim();
     const normalizedPhone = mode === 'signup' ? normalizeIranPhone(phone) : '';
-    if (cleanUsername.length < 3 || cleanUsername.length > 32 || !/^[\p{L}\p{N}._-]+$/u.test(cleanUsername)) {
-      setError('نام کاربری باید ۳ تا ۳۲ نویسه و شامل حروف، عدد، نقطه، خط تیره یا زیرخط باشد.');
+    const validUsername = cleanUsername.length >= 3 && cleanUsername.length <= 32 && /^[\p{L}\p{N}._-]+$/u.test(cleanUsername);
+    const validLoginPhone = mode === 'signin' ? normalizeIranPhone(cleanUsername) : '';
+    if (mode === 'signup' ? !validUsername : (!validUsername && !validLoginPhone)) {
+      setError(mode === 'signup' ? 'نام کاربری باید ۳ تا ۳۲ نویسه و شامل حروف، عدد، نقطه، خط تیره یا زیرخط باشد.' : 'شماره موبایل ایران یا نام کاربری معتبر وارد کن.');
       return;
     }
     if (mode === 'signup') {
@@ -261,7 +263,7 @@ export default function ProductExperience() {
                    : <><label htmlFor="simorgh-signin-invite">کد دعوت</label><input id="simorgh-signin-invite" className="auth-input" type="text" required minLength={64} maxLength={64} value={inviteCode} onChange={e => setInviteCode(e.target.value.toLowerCase())} placeholder="کد دعوت را وارد کن" dir="ltr"/></>}
                  <label htmlFor="simorgh-signin-phone">شماره موبایل</label><input id="simorgh-signin-phone" className="auth-input" type="tel" autoComplete="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="09121234567" required dir="ltr"/>
                </>}
-               <label htmlFor="simorgh-signin-username">نام کاربری</label><input id="simorgh-signin-username" className="auth-input" type="text" autoComplete="username" required minLength={3} maxLength={32} value={username} onChange={e => setUsername(e.target.value)} placeholder="نام کاربری" dir="ltr"/>
+               <label htmlFor="simorgh-signin-username">{mode === 'signup' ? 'نام کاربری' : 'شماره موبایل یا نام کاربری'}</label><input id="simorgh-signin-username" className="auth-input" type="text" autoComplete="username" required minLength={3} maxLength={32} value={username} onChange={e => setUsername(e.target.value)} placeholder={mode === 'signup' ? 'نام کاربری' : '09121234567 یا نام کاربری'} dir="ltr"/>
                <label htmlFor="simorgh-signin-password">گذرواژه</label>
                <div className="auth-password-wrap"><input id="simorgh-signin-password" className="auth-input" type={showPassword ? 'text' : 'password'} minLength={mode === 'signup' ? 8 : 1} maxLength={128} autoComplete={mode === 'signup' ? 'new-password' : 'current-password'} required value={password} onChange={e => setPassword(e.target.value)} placeholder={mode === 'signup' ? 'حداقل ۸ نویسه' : 'گذرواژه'} dir="ltr"/><button type="button" onClick={() => setShowPassword(value => !value)} aria-label={showPassword ? 'پنهان‌کردن گذرواژه' : 'نمایش گذرواژه'}>{showPassword ? <EyeOff size={16}/> : <Eye size={16}/>}</button></div>
                {mode === 'signup' && <><label htmlFor="simorgh-confirm-password">تکرار گذرواژه</label><input id="simorgh-confirm-password" className="auth-input" type="password" autoComplete="new-password" required minLength={8} maxLength={128} value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="گذرواژه را دوباره وارد کن" dir="ltr"/></>}
