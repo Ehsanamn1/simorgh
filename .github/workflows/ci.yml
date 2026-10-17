@@ -62,7 +62,7 @@ jobs:
             echo "Username/password signup schema still requires a phone number."
             exit 1
           fi
-          signup_smoke="$(psql -h 127.0.0.1 -U postgres -d medar_test -v ON_ERROR_STOP=1 -Atq <<'SQL'
+          signup_smoke="$(psql -h 127.0.0.1 -U postgres -d medar_test -v ON_ERROR_STOP=1 -Atq <<'SQL' | tr -d '\n'
           BEGIN;
           WITH new_user AS (
             INSERT INTO public.medar_users(username,username_normalized,phone_e164,display_name,password_hash,requested_role,account_status)
@@ -70,20 +70,24 @@ jobs:
             RETURNING id,display_name
           ), new_profile AS (
             INSERT INTO public.profiles(id,full_name,phone) SELECT id,display_name,NULL FROM new_user RETURNING id
-          ), new_company AS (
-            INSERT INTO public.companies(name) SELECT 'فضای کاری signup_smoke_user' FROM new_user RETURNING id
-          ), new_membership AS (
-            INSERT INTO public.memberships(company_id,user_id,role,active,created_by)
-            SELECT c.id,u.id,'owner',true,u.id FROM new_user u CROSS JOIN new_company c RETURNING id
           ), new_session AS (
             INSERT INTO public.medar_sessions(user_id,token_hash,expires_at,last_seen_at)
             SELECT id, repeat('a',64), now()+interval '14 days',now() FROM new_user RETURNING id
           )
-          SELECT count(*)=1 FROM new_user CROSS JOIN new_profile CROSS JOIN new_company CROSS JOIN new_membership CROSS JOIN new_session;
+          SELECT count(*)=1 FROM new_user CROSS JOIN new_profile CROSS JOIN new_session;
+          WITH actor AS (
+            SELECT id,username_normalized FROM public.medar_users WHERE username_normalized='signup_smoke_user'
+          ), new_company AS (
+            INSERT INTO public.companies(name) SELECT 'فضای کاری ' || username_normalized FROM actor RETURNING id
+          ), new_membership AS (
+            INSERT INTO public.memberships(company_id,user_id,role,active,created_by)
+            SELECT c.id,a.id,'owner',true,a.id FROM actor a CROSS JOIN new_company c RETURNING company_id
+          )
+          SELECT count(*)=1 FROM new_company CROSS JOIN new_membership;
           ROLLBACK;
           SQL
           )"
-          if [[ "$signup_smoke" != "t" ]]; then
+          if [[ "$signup_smoke" != "tt" ]]; then
             echo "The username/password-only account provisioning transaction failed."
             exit 1
           fi
