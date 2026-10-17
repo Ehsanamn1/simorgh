@@ -22,29 +22,23 @@ jobs:
       - run: npm run typecheck
       - run: npm run lint
       - run: npm run test
-      - name: Build operational Worker app with secure sign-in enabled
+      - name: Build Worker app with secure same-origin sign-in and self-registration
         run: npm run build
         env:
           VITE_ENABLE_AUTH_UI: 'true'
-      - name: Verify the Worker bundle includes sign-in, owner registration, mobile navigation, and polished UI
+      - name: Verify the Worker bundle includes secure sign-in, self-registration, and polished UI
         shell: bash
         run: |
           test -f dist/index.html
           grep -q 'id="root"' dist/index.html
           test -n "$(find dist/assets -maxdepth 1 -type f -name '*.js' -print -quit)"
           test -n "$(find dist/assets -maxdepth 1 -type f -name '*.css' -print -quit)"
-          grep -Rqs --include='*.js' 'demo-workspace' dist/assets
-          grep -Rqs --include='*.js' 'دموی قابل ارائه' dist/assets
-          grep -Rqs --include='*.js' 'demo-mobile-bottom-nav' dist/assets
-          grep -Rqs --include='*.js' 'demo-quick-access' dist/assets
           grep -Rqs --include='*.js' 'simorgh-signin-layer' dist/assets
+          grep -Rqs --include='*.js' 'ورود به مدار' dist/assets
           grep -Rqs --include='*.js' 'ساخت حساب و فضای کاری' dist/assets
-          grep -Rqs --include='*.js' 'نحوه اتصال به مجموعه' dist/assets
           grep -Rqs --include='*.css' 'simorgh-signin-layer' dist/assets
-          grep -Rqs --include='*.css' 'demo-workspace' dist/assets
-          grep -Rqs --include='*.css' 'demo-mobile-bottom-nav' dist/assets
           grep -Rqs --include='*.css' 'medar-glass' dist/assets
-          echo "Worker frontend includes secure sign-in, owner registration, the read-only demo route, mobile navigation, and polished styles."
+          echo "Worker frontend includes secure sign-in, self-registration, and polished operations styles."
       - name: Validate deployment credentials
         shell: bash
         run: |
@@ -160,17 +154,17 @@ jobs:
           const [jsFiles, cssFiles] = await Promise.all([fetchTexts(jsPaths), fetchTexts(cssPaths)]);
           const js = jsFiles.join('\n');
           const css = cssFiles.join('\n');
-          for (const token of ['simorgh-signin-layer', 'ساخت حساب و فضای کاری', 'نحوه اتصال به مجموعه']) if (!js.includes(token)) throw new Error('Live JS bundles missing sign-in/registration token: ' + token);
-          for (const token of ['simorgh-signin-layer', 'medar-glass']) if (!css.includes(token)) throw new Error('Live CSS bundles missing operational sign-in/design token: ' + token);
+          for (const token of ['simorgh-signin-layer', 'ورود به مدار', 'ساخت حساب و فضای کاری']) if (!js.includes(token)) throw new Error('Live JS bundles missing sign-in/sign-up token: ' + token);
+          for (const token of ['simorgh-signin-layer', 'medar-glass']) if (!css.includes(token)) throw new Error('Live CSS bundles missing expected auth/design token: ' + token);
           const appRoute = await fetch(base + '/app/command');
           if (!appRoute.ok || !(await appRoute.text()).includes('id="root"')) throw new Error('SPA deep-link fallback failed for /app/command');
-          console.log('Live auth-enabled Worker JS/CSS assets and /app/command deep link OK');
+          console.log('Live secure sign-in/sign-up assets and /app/command deep link OK');
           NODE
           )" || { echo "Live frontend smoke test failed."; exit 1; }
           echo "$asset_results"
       - name: Install Chromium for live Worker UI verification
         run: npx playwright install --with-deps chromium
-      - name: Verify live sign-in and owner registration on desktop and mobile
+      - name: Verify deployed sign-in, self-registration, and responsive layout in a real browser
         shell: bash
         run: |
           worker_url="$(grep -Eo 'https://medar-api\.[a-z0-9-]+\.workers\.dev' /tmp/medar-deploy.log 2>/dev/null | tail -n1 || true)"
@@ -180,34 +174,43 @@ jobs:
           const base = process.env.WORKER_URL;
           const browser = await chromium.launch({ headless: true });
           const errors = [];
-          async function verifyAuthViewport(page, viewport, label) {
-            await page.setViewportSize(viewport);
-            const response = await page.goto(base + '/app/command', { waitUntil: 'networkidle', timeout: 60000 });
-            if (!response?.ok()) throw new Error(label + ': protected deep link did not return the app shell.');
-            const auth = page.locator('.simorgh-signin-layer');
-            await auth.waitFor({ state: 'visible', timeout: 20000 });
-            await page.getByRole('heading', { name: 'ورود به مدار' }).waitFor({ state: 'visible' });
-            if (await page.locator('.app-frame').count()) throw new Error(label + ': private workspace appeared before authentication.');
-            await page.getByLabel('نام کاربری').waitFor({ state: 'visible' });
-            await page.getByLabel('گذرواژه', { exact: true }).waitFor({ state: 'visible' });
-            if (await page.locator('#simorgh-signin-email').count()) throw new Error(label + ': email field must not be required.');
-            await page.getByRole('button', { name: 'ساخت حساب و فضای کاری' }).click();
-            await page.getByRole('heading', { name: 'ساخت حساب و فضای کاری' }).waitFor({ state: 'visible' });
-            await page.getByLabel('نام و نام خانوادگی').waitFor({ state: 'visible' });
-            await page.getByLabel('نحوه اتصال به مجموعه').selectOption('create');
-            await page.getByLabel('نام مزرعه یا مجموعه').waitFor({ state: 'visible' });
-            await page.getByLabel('شماره موبایل').waitFor({ state: 'visible' });
-            await page.getByLabel('تکرار گذرواژه').waitFor({ state: 'visible' });
-            const sizes = await page.evaluate(() => ({ viewport: innerWidth, document: document.documentElement.scrollWidth, body: document.body.scrollWidth }));
-            if (sizes.document > sizes.viewport || sizes.body > sizes.viewport) throw new Error(label + ': horizontal overflow ' + JSON.stringify(sizes));
-          }
           try {
             const page = await browser.newPage({ viewport: { width: 1365, height: 900 } });
             page.on('pageerror', error => errors.push(error.message));
-            await verifyAuthViewport(page,{width:1365,height:900},'desktop');
-            await verifyAuthViewport(page,{width:390,height:844},'mobile');
+            const response = await page.goto(base + '/app/command', { waitUntil: 'networkidle', timeout: 60000 });
+            if (!response?.ok()) throw new Error('Operational deep-link did not return a successful app shell.');
+            await page.locator('.simorgh-signin-layer').waitFor({ state: 'visible', timeout: 20000 });
+            await page.getByRole('heading', { name: 'ورود به مدار' }).waitFor({ state: 'visible' });
+            for (const selector of ['#simorgh-signin-username', '#simorgh-signin-password']) {
+              if (await page.locator(selector).count() !== 1) throw new Error('Required sign-in field is missing: ' + selector);
+            }
+            if (await page.locator('input[type="email"]').count()) throw new Error('Sign-in UI must not ask for email.');
+            if (await page.locator('.demo-workspace').count()) throw new Error('The live operational route incorrectly rendered the public demo.');
+            const desktop = await page.evaluate(() => ({ viewport: innerWidth, document: document.documentElement.scrollWidth, body: document.body.scrollWidth }));
+            if (desktop.document > desktop.viewport || desktop.body > desktop.viewport) throw new Error('Desktop horizontal overflow: ' + JSON.stringify(desktop));
+
+            await page.getByRole('button', { name: 'ساخت حساب و فضای کاری' }).click();
+            await page.getByRole('heading', { name: 'ساخت حساب و فضای کاری' }).waitFor({ state: 'visible' });
+            for (const selector of ['#simorgh-signin-full-name', '#simorgh-workspace-mode', '#simorgh-signin-organization', '#simorgh-signin-phone', '#simorgh-signin-username', '#simorgh-signin-password', '#simorgh-confirm-password']) {
+              await page.locator(selector).waitFor({ state: 'visible', timeout: 10000 });
+            }
+            if (await page.locator('input[type="email"]').count()) throw new Error('Self-registration must not ask for email.');
+            if (await page.locator('#simorgh-workspace-mode').inputValue() !== 'create') throw new Error('New-account registration should default to creating an isolated workspace.');
+            const signUpDesktop = await page.evaluate(() => ({ viewport: innerWidth, document: document.documentElement.scrollWidth, body: document.body.scrollWidth }));
+            if (signUpDesktop.document > signUpDesktop.viewport || signUpDesktop.body > signUpDesktop.viewport) throw new Error('Desktop sign-up horizontal overflow: ' + JSON.stringify(signUpDesktop));
+
+            await page.setViewportSize({ width: 390, height: 844 });
+            await page.goto(base + '/app/command', { waitUntil: 'networkidle', timeout: 60000 });
+            await page.locator('.simorgh-signin-layer').waitFor({ state: 'visible', timeout: 20000 });
+            await page.getByRole('heading', { name: 'ورود به مدار' }).waitFor({ state: 'visible' });
+            const mobile = await page.evaluate(() => ({ viewport: innerWidth, document: document.documentElement.scrollWidth, body: document.body.scrollWidth }));
+            if (mobile.document > mobile.viewport || mobile.body > mobile.viewport) throw new Error('Mobile sign-in horizontal overflow: ' + JSON.stringify(mobile));
+            await page.getByRole('button', { name: 'ساخت حساب و فضای کاری' }).click();
+            await page.getByRole('heading', { name: 'ساخت حساب و فضای کاری' }).waitFor({ state: 'visible' });
+            const mobileSignup = await page.evaluate(() => ({ viewport: innerWidth, document: document.documentElement.scrollWidth, body: document.body.scrollWidth }));
+            if (mobileSignup.document > mobileSignup.viewport || mobileSignup.body > mobileSignup.viewport) throw new Error('Mobile sign-up horizontal overflow: ' + JSON.stringify(mobileSignup));
             if (errors.length) throw new Error('Live browser runtime errors: ' + errors.join(' | '));
-            console.log('Live sign-in and first-owner registration UI passed desktop/mobile checks without creating a production account.');
+            console.log('Live Worker sign-in and owner self-registration UI passed desktop/mobile checks.');
           } finally {
             await browser.close();
           }
