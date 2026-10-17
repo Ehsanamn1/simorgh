@@ -910,8 +910,8 @@ app.post('/api/data/:table',async c=>{
   if (!mutationScopes.length) return c.json({ message: 'ویرایش یا حذف برای نقش فعلی مجاز نیست.' }, 403);
 
   const params: unknown[] = [];
-  const filters = Array.isArray(body.filters) ? body.filters as DataFilter[] : [];
-  const where = buildFilterSql(filters, columns, params, 1);
+  const mutationFilters = Array.isArray(body.filters) ? body.filters as DataFilter[] : [];
+  const where = buildFilterSql(mutationFilters, columns, params, 1);
   const ors = Array.isArray(body.orFilters) ? body.orFilters as DataFilter[] : [];
   const orWhere = buildFilterSql(ors, columns, params, 1, 'or');
   const scope = buildMembershipScopeSql(table, columns, mutationScopes, user.id, params, 1);
