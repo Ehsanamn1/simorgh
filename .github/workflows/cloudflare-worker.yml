@@ -254,11 +254,15 @@ jobs:
           NODE
       - name: Exercise live username/password registration and login
         shell: bash
+        working-directory: worker
         run: |
           worker_url="$(grep -Eo 'https://medar-ops\.[a-z0-9-]+\.workers\.dev' /tmp/medar-ops-deploy.log 2>/dev/null | tail -n1 || true)"
           test -n "$worker_url"
           smoke_username="signup_smoke_${GITHUB_RUN_ID: -6}_$(openssl rand -hex 4)"
           smoke_password="Smoke-$(openssl rand -hex 12)"
+          tail_log="$RUNNER_TEMP/medar-ops-tail.jsonl"
+          result_file="$RUNNER_TEMP/medar-signup-smoke-result.json"
+          tail_pid=''
           cleanup_smoke_account() {
             psql "$MEDAR_DATABASE_URL" -v ON_ERROR_STOP=1 -v smoke_username="$smoke_username" -v smoke_company="مجموعه $smoke_username" <<'SQL'
           begin;
@@ -267,14 +271,51 @@ jobs:
           commit;
           SQL
           }
-          trap cleanup_smoke_account EXIT
-          WORKER_URL="$worker_url" SMOKE_USERNAME="$smoke_username" SMOKE_PASSWORD="$smoke_password" node --input-type=module <<'NODE'
+          finish_smoke() {
+            status=$?
+            set +e
+            if [[ -n "$tail_pid" ]]; then
+              kill "$tail_pid" >/dev/null 2>&1
+              wait "$tail_pid" >/dev/null 2>&1
+            fi
+            if [[ "$status" -ne 0 ]]; then
+              echo "Live signup/login smoke failed; correlating the failed request with Worker logs."
+              request_id="$(node -e "try { const x=require(process.argv[1]); process.stdout.write(String(x.body?.requestId || '')) } catch {}" "$result_file")"
+              if [[ -n "$request_id" ]] && grep -F "$request_id" "$tail_log"; then
+                :
+              else
+                echo "No matching request ID found in tail; last Worker log entries follow:"
+                tail -n 80 "$tail_log" 2>/dev/null || true
+              fi
+              echo "Failed smoke response:"
+              cat "$result_file" 2>/dev/null || true
+            fi
+            cleanup_smoke_account
+            cleanup_status=$?
+            if [[ "$status" -eq 0 && "$cleanup_status" -ne 0 ]]; then status=1; fi
+            exit "$status"
+          }
+          trap finish_smoke EXIT
+          npx wrangler@4 tail medar-ops --format json --sampling-rate 1 > "$tail_log" 2>&1 &
+          tail_pid=$!
+          sleep 8
+          if ! kill -0 "$tail_pid" >/dev/null 2>&1; then
+            echo "Could not start Cloudflare Worker live logs."
+            cat "$tail_log"
+            exit 1
+          fi
+          WORKER_URL="$worker_url" SMOKE_USERNAME="$smoke_username" SMOKE_PASSWORD="$smoke_password" SMOKE_RESULT_PATH="$result_file" node --input-type=module <<'NODE'
+          import { writeFile } from 'node:fs/promises';
           const base = process.env.WORKER_URL;
           const username = process.env.SMOKE_USERNAME;
           const password = process.env.SMOKE_PASSWORD;
-          const origin = new URL(base).origin;
+          const resultPath = process.env.SMOKE_RESULT_PATH;
+          let stage = 'signup';
+          async function saveResult(result) {
+            await writeFile(resultPath, JSON.stringify({ stage, ...result }));
+          }
           async function post(path, body, cookie) {
-            const headers = { origin, 'content-type': 'application/json' };
+            const headers = { origin: new URL(base).origin, 'content-type': 'application/json' };
             if (cookie) headers.cookie = cookie;
             return fetch(base + path, { method: 'POST', headers, body: JSON.stringify(body), cache: 'no-store' });
           }
@@ -287,25 +328,40 @@ jobs:
           async function expectUserSession(cookie, step) {
             const response = await fetch(base + '/api/auth/me', { headers: { cookie }, cache: 'no-store' });
             const payload = await response.json();
+            await saveResult({ status: response.status, body: payload });
             if (!response.ok || payload.user?.username !== username || !Array.isArray(payload.memberships) || payload.memberships.length < 1) {
               throw new Error(step + ' session verification failed: HTTP ' + response.status + ' ' + JSON.stringify(payload));
             }
           }
-          const signup = await post('/api/auth/signup', { username, password });
-          const signupBody = await signup.json();
-          if (signup.status !== 201) throw new Error('Live signup failed: HTTP ' + signup.status + ' ' + JSON.stringify(signupBody));
-          if (signupBody.user?.username !== username || !signupBody.companyId || !signupBody.memberships?.some(member => member.role === 'owner')) {
-            throw new Error('Live signup did not create an owner account and workspace: ' + JSON.stringify(signupBody));
+          try {
+            const signup = await post('/api/auth/signup', { username, password });
+            const signupBody = await signup.json();
+            await saveResult({ status: signup.status, body: signupBody });
+            if (signup.status !== 201) throw new Error('Live signup failed: HTTP ' + signup.status + ' ' + JSON.stringify(signupBody));
+            if (signupBody.user?.username !== username || !signupBody.companyId || !signupBody.memberships?.some(member => member.role === 'owner')) {
+              throw new Error('Live signup did not create an owner account and workspace: ' + JSON.stringify(signupBody));
+            }
+            stage = 'signup-session';
+            const signupCookie = sessionCookie(signup);
+            await expectUserSession(signupCookie, 'Signup');
+            stage = 'logout';
+            const logout = await post('/api/auth/logout', {}, signupCookie);
+            await saveResult({ status: logout.status, body: await logout.json() });
+            if (!logout.ok) throw new Error('Logout after signup failed.');
+            stage = 'login';
+            const login = await post('/api/auth/login', { username, password });
+            const loginBody = await login.json();
+            await saveResult({ status: login.status, body: loginBody });
+            if (login.status !== 200) throw new Error('Live login after signup failed: HTTP ' + login.status + ' ' + JSON.stringify(loginBody));
+            stage = 'login-session';
+            await expectUserSession(sessionCookie(login), 'Login');
+            stage = 'complete';
+            await saveResult({ status: 200, body: { ok: true } });
+            console.log('Live signup, owner workspace creation, session cookie, logout, and subsequent login passed. Temporary account will be removed by cleanup.');
+          } catch (error) {
+            console.error(String(error));
+            process.exitCode = 1;
           }
-          const signupCookie = sessionCookie(signup);
-          await expectUserSession(signupCookie, 'Signup');
-          const logout = await post('/api/auth/logout', {}, signupCookie);
-          if (!logout.ok) throw new Error('Logout after signup failed: HTTP ' + logout.status + ' ' + await logout.text());
-          const login = await post('/api/auth/login', { username, password });
-          const loginBody = await login.json();
-          if (login.status !== 200) throw new Error('Live login after signup failed: HTTP ' + login.status + ' ' + JSON.stringify(loginBody));
-          await expectUserSession(sessionCookie(login), 'Login');
-          console.log('Live signup, owner workspace creation, session cookie, logout, and subsequent login passed. Temporary account will be removed by cleanup.');
           NODE
       - name: Verify operational API authorization and origin protections
         shell: bash
