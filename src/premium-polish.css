@@ -733,3 +733,69 @@ html[data-theme="light"] .simorgh-signin-brand {
     animation: none !important;
   }
 }
+
+
+/* Data-backed milestone cards add feedback without inventing scores or production numbers. */
+.tower-achievements { padding: clamp(16px, 2vw, 23px); margin-bottom: 18px; overflow: hidden; }
+.tower-achievement-phase {
+  flex: none; display: inline-flex; align-items: center; min-height: 32px; padding: 6px 11px;
+  border: 1px solid var(--obs-border); border-radius: 999px; background: var(--obs-surface-2);
+  color: var(--obs-muted); font-size: 10px; font-weight: 800; line-height: 1.6;
+}
+.tower-achievement-summary {
+  display: grid; grid-template-columns: minmax(0, 1fr) 42px; align-items: center; gap: 16px;
+  margin: 0 0 14px; padding: 15px 17px; border: 1px solid var(--obs-border); border-radius: 15px;
+  background: linear-gradient(125deg, var(--obs-surface-2), var(--obs-surface));
+}
+.tower-achievement-summary-main { min-width: 0; }
+.tower-achievement-count { display: flex; align-items: baseline; gap: 8px; color: var(--obs-muted); font-size: 11px; }
+.tower-achievement-count b { color: var(--obs-accent); font-size: 25px; font-weight: 900; line-height: 1.3; font-variant-numeric: tabular-nums; }
+.tower-achievement-meter { height: 7px; overflow: hidden; margin-top: 10px; border-radius: 999px; background: var(--obs-elevated); }
+.tower-achievement-meter > span {
+  display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #5c9f96, #8ec8b4);
+  transition: width 520ms cubic-bezier(.2,.7,.2,1);
+}
+.tower-achievement-summary-main > small { display: block; margin-top: 7px; color: var(--obs-muted); font-size: 10px; line-height: 1.7; }
+.tower-achievement-emblem {
+  display: grid; place-items: center; width: 42px; height: 42px; border: 1px solid rgb(110 185 172 / 28%);
+  border-radius: 13px; background: rgb(110 185 172 / 10%); color: var(--obs-accent);
+}
+.tower-achievement-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 9px; }
+.tower-achievement-card {
+  display: grid; grid-template-columns: 34px minmax(0, 1fr) 17px; align-items: start; gap: 9px;
+  min-width: 0; min-height: 120px; padding: 13px 11px; border: 1px solid var(--obs-border); border-radius: 14px;
+  background: var(--obs-surface); color: var(--obs-text); text-decoration: none;
+  transition: transform 180ms ease, border-color 180ms ease, background-color 180ms ease, box-shadow 180ms ease;
+}
+.tower-achievement-card.is-earned { background: linear-gradient(145deg, var(--obs-surface), rgb(110 185 172 / 7%)); }
+.tower-achievement-card:hover { transform: translateY(-2px); border-color: var(--obs-accent); box-shadow: var(--obs-shadow); }
+.tower-achievement-card:focus-visible { outline: 2px solid var(--obs-accent); outline-offset: 3px; }
+.tower-achievement-icon {
+  display: grid; place-items: center; width: 34px; height: 34px; border: 1px solid var(--obs-border);
+  border-radius: 11px; background: var(--obs-surface-2); color: var(--obs-muted);
+}
+.tower-achievement-card.is-earned .tower-achievement-icon { border-color: rgb(110 185 172 / 28%); background: rgb(110 185 172 / 11%); color: var(--obs-accent); }
+.tower-achievement-copy { display: flex; min-width: 0; flex-direction: column; gap: 5px; }
+.tower-achievement-copy b { color: var(--obs-text); font-size: 10px; line-height: 1.8; font-weight: 850; }
+.tower-achievement-copy small { color: var(--obs-muted); font-size: 9px; line-height: 1.75; }
+.tower-achievement-copy em { display: inline-flex; align-self: flex-start; margin-top: 3px; color: var(--obs-subtle); font-style: normal; font-size: 9px; font-weight: 750; }
+.tower-achievement-card.is-earned .tower-achievement-copy em { color: var(--obs-positive); }
+.tower-achievement-state { display: flex; justify-content: center; padding-top: 2px; color: var(--obs-subtle); }
+.tower-achievement-card.is-earned .tower-achievement-state { color: var(--obs-positive); }
+.tower-achievement-lock { display: inline-flex; color: var(--obs-subtle); }
+@media (max-width: 1180px) { .tower-achievement-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 720px) {
+  .tower-achievements { padding: 14px; }
+  .tower-achievement-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .tower-achievement-card { grid-template-columns: 30px minmax(0, 1fr) 16px; min-height: 120px; gap: 7px; padding: 11px 9px; }
+  .tower-achievement-icon { width: 30px; height: 30px; border-radius: 9px; }
+  .tower-achievement-phase { font-size: 9px; padding-inline: 8px; }
+}
+@media (max-width: 380px) {
+  .tower-achievement-grid { grid-template-columns: minmax(0, 1fr); }
+  .tower-achievement-card { min-height: 94px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tower-achievement-card, .tower-achievement-meter > span { transition: none !important; }
+  .tower-achievement-card:hover { transform: none; }
+}
