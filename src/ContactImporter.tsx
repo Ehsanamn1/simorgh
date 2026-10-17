@@ -61,7 +61,7 @@ function parseVCard(source: string, fallbackKind: ImportKind): ContactRow[] {
     const categoryHint = get('CATEGORIES') + ' ' + get('TITLE');
     const category = detectKind(categoryHint,fallbackKind);
     return name?{name:org?name+' · '+org:name,phone,city:address,address,...category}:null;
-  }).filter((value):value is ContactRow=>Boolean(value));
+  }).filter(value=>value!==null) as ContactRow[];
 }
 function parseContacts(fileName:string,source:string,fallbackKind:ImportKind):ContactRow[] {
   if(/\.vcf$/i.test(fileName)||/BEGIN:VCARD/i.test(source))return parseVCard(source,fallbackKind);
