@@ -253,7 +253,7 @@ test('manager bottom navigation stays manager-specific on mobile and tablet', as
     for (const label of ['نمای کلی', 'سفارش‌ها', 'ارسال‌ها']) {
       await expect(mobileNav.getByRole('link', { name: label, exact: true })).toBeVisible();
     }
-    await expect(mobileNav.getByRole('button', { name: 'بازکردن منوی کامل' })).toBeVisible();
+    await expect(mobileNav.getByRole('button', { name: 'بازکردن فهرست ماژول‌ها' })).toBeVisible();
     await expect(mobileNav.locator('a,button')).toHaveCount(4);
     await expect(mobileNav.getByRole('link', { name: 'مالی', exact: true })).toHaveCount(0);
     await expect(mobileNav.getByRole('link', { name: 'وظایف', exact: true })).toHaveCount(0);
@@ -274,7 +274,7 @@ test('mobile navigation is role-specific and only mirrors permitted real routes'
     await expect(mobileNav.getByRole('link', { name: 'وظایف' })).toBeVisible();
     await expect(mobileNav.getByRole('link', { name: 'ثبت تولید' })).toBeVisible();
     await expect(mobileNav.getByRole('link', { name: 'ظرفیت' })).toBeVisible();
-    await expect(mobileNav.getByRole('button', { name: 'بازکردن منوی کامل' })).toBeVisible();
+    await expect(mobileNav.getByRole('button', { name: 'بازکردن فهرست ماژول‌ها' })).toBeVisible();
     await expect(mobileNav.locator('a,button')).toHaveCount(4);
     await expect(mobileNav.getByRole('link', { name: 'دفتر شریک' })).toHaveCount(0);
     await expect(mobileNav.getByRole('link', { name: /دسترسی کاربران/ })).toHaveCount(0);
@@ -300,7 +300,7 @@ test('customer lands in their authorized catalogue and sees customer-specific mo
     for (const label of ['خرید', 'سفارش‌های من', 'حساب']) {
       await expect(nav.getByRole('link', { name: label, exact: true })).toBeVisible();
     }
-    await expect(nav.getByRole('button', { name: 'بازکردن منوی کامل' })).toBeVisible();
+    await expect(nav.getByRole('button', { name: 'بازکردن فهرست ماژول‌ها' })).toBeVisible();
     await expect(nav.locator('a,button')).toHaveCount(4);
     await expect(nav.getByRole('link', { name: 'مالی', exact: true })).toHaveCount(0);
     await expect(nav.getByRole('link', { name: 'وظایف', exact: true })).toHaveCount(0);
@@ -329,7 +329,7 @@ test('driver lands in assigned shipments and does not get customer or manager na
     for (const label of ['محموله‌ها', 'نقشه', 'مدرک']) {
       await expect(nav.getByRole('link', { name: label, exact: true })).toBeVisible();
     }
-    await expect(nav.getByRole('button', { name: 'بازکردن منوی کامل' })).toBeVisible();
+    await expect(nav.getByRole('button', { name: 'بازکردن فهرست ماژول‌ها' })).toBeVisible();
     await expect(nav.locator('a,button')).toHaveCount(4);
     await expect(nav.getByRole('link', { name: 'خرید', exact: true })).toHaveCount(0);
     await expect(nav.getByRole('link', { name: 'وظایف', exact: true })).toHaveCount(0);
