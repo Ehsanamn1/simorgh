@@ -1,54 +1,29 @@
 import { describe, expect, it } from 'vitest';
-import { DUMMY_PASSWORD_HASH, FAILED_LOGIN_UPSERT_SQL, normalizeLoginIdentifier, verifyPassword } from './index';
+import { DUMMY_PASSWORD_HASH, FAILED_LOGIN_UPSERT_SQL, normalizeUsername, verifyPassword } from './index';
 
-describe('server-side login identifier normalization', () => {
+describe('server-side username normalization', () => {
   it('uses an explicit INSERT alias in the failed-login upsert', () => {
     expect(FAILED_LOGIN_UPSERT_SQL).toContain('INSERT INTO public.medar_rate_limits AS rate_limit');
     expect(FAILED_LOGIN_UPSERT_SQL).toContain('rate_limit.window_started_at');
     expect(FAILED_LOGIN_UPSERT_SQL).not.toContain('public.medar_rate_limits.window_started_at');
   });
-
   it('uses a valid fixed PBKDF2 dummy verifier for missing-account login checks', async () => {
     expect(DUMMY_PASSWORD_HASH).toMatch(/^pbkdf2_sha256\$310000\$/);
     await expect(verifyPassword('medar-invalid-login-dummy-password', DUMMY_PASSWORD_HASH)).resolves.toBe(true);
     await expect(verifyPassword('different-password', DUMMY_PASSWORD_HASH)).resolves.toBe(false);
   });
-
-  it('converts Iranian mobile numbers written with Persian digits into canonical E.164', () => {
-    expect(normalizeLoginIdentifier('۰۹۱۲۱۲۳۴۵۶۷')).toEqual({
-      kind: 'phone',
-      value: '+989121234567',
-    });
+  it('normalizes usernames consistently and preserves legacy usernames', () => {
+    expect(normalizeUsername('  Legacy_User  ')).toBe('legacy_user');
+    expect(normalizeUsername('OWNER.TEST')).toBe('owner.test');
   });
-
-  it('treats 0098, +98 and national mobile representations as the same login identifier', () => {
-    const variants = [
-      '09121234567',
-      '9121234567',
-      '+989121234567',
-      '00989121234567',
-      '۰۹۱۲۱۲۳۴۵۶۷',
-      '+98 (912) 123-4567',
-    ];
-
-    for (const variant of variants) {
-      expect(normalizeLoginIdentifier(variant)).toEqual({
-        kind: 'phone',
-        value: '+989121234567',
-      });
-    }
+  it('supports Persian usernames without requiring a phone number', () => {
+    expect(normalizeUsername('کاربر_مدار')).toBe('کاربر_مدار');
   });
-
-  it('preserves normalized username login for existing accounts', () => {
-    expect(normalizeLoginIdentifier('  Legacy_User  ')).toEqual({
-      kind: 'username',
-      value: 'legacy_user',
-    });
-  });
-
-  it('rejects identifiers that cannot be normalized as a username or Iranian mobile number', () => {
-    expect(normalizeLoginIdentifier(null)).toBeNull();
-    expect(normalizeLoginIdentifier({ username: 'bad' })).toBeNull();
-    expect(normalizeLoginIdentifier('@@')).toBeNull();
+  it('rejects empty, malformed, or out-of-range username inputs', () => {
+    expect(normalizeUsername(null)).toBeNull();
+    expect(normalizeUsername({ username: 'bad' })).toBeNull();
+    expect(normalizeUsername('@@')).toBeNull();
+    expect(normalizeUsername('_starts_with_punctuation')).toBeNull();
+    expect(normalizeUsername('a'.repeat(33))).toBeNull();
   });
 });

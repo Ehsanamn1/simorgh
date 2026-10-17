@@ -12,11 +12,12 @@ The canonical fresh-database chain is applied in filename order:
 8. \`0008_operational_task_actions.sql\` — role-checked task start, submit and review functions.
 9. \`0009_inventory_movement_concurrency_lock.sql\` — transaction-scoped company/product advisory locking for inventory movements, preventing concurrent deductions from overselling stock.
 10. \`0010_purchase_order_lifecycle.sql\` — purchase orders, approval, partial/final receipt and atomically posted inventory movements with audit events.
+11. \`0011_username_password_only.sql\` — make phone fields optional so sign-up needs only a username and password.
 
 The \`Simorgh CI\` workflow runs this full sequence against a clean PostgreSQL 16 service and checks that the essential tables and RPCs exist.
 
 ## Existing production database
 
-The production deployment workflow intentionally does **not** replay the fresh-database migrations against the existing Neon application database. It validates the established Medar tables, verifies the checksums of migrations 0007–0010, applies only missing compatible versions, verifies the stock-lock and purchase-order RPC implementations are present, and performs live Worker health and authorization smoke tests. Do not point that workflow at an empty database; use the canonical fresh-database sequence above on a dedicated new database first.
+The production deployment workflow intentionally does **not** replay the fresh-database migrations against the existing Neon application database. It validates the established Medar tables, verifies the checksums of migrations 0007–0011, applies only missing compatible versions, verifies the stock-lock and purchase-order RPC implementations are present, and performs live Worker health and authorization smoke tests. Do not point that workflow at an empty database; use the canonical fresh-database sequence above on a dedicated new database first.
 
 No test business records or owner accounts are inserted by these migrations.

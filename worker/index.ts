@@ -31,39 +31,12 @@ function sqlFor(c: Ctx) {
   return neon(c.env.DATABASE_URL);
 }
 
-function asciiDigits(input: string): string {
-  return input
-    .replace(/[۰-۹]/g, (digit) => String(digit.charCodeAt(0) - 0x06f0))
-    .replace(/[٠-٩]/g, (digit) => String(digit.charCodeAt(0) - 0x0660));
-}
-
-export function normalizeIranPhone(input: unknown): string | null {
-  if (typeof input !== 'string') return null;
-  const value = asciiDigits(input.trim()).replace(/[\s()-]/g, '');
-  if (/^09\d{9}$/.test(value)) return '+98' + value.slice(1);
-  if (/^9\d{9}$/.test(value)) return '+98' + value;
-  if (/^\+989\d{9}$/.test(value)) return value;
-  if (/^00989\d{9}$/.test(value)) return '+' + value.slice(2);
-  return null;
-}
-
 export function normalizeUsername(input: unknown): string | null {
   if (typeof input !== 'string') return null;
   const value = input.normalize('NFKC').trim().toLocaleLowerCase('en-US');
   if (value.length < 3 || value.length > 32 || !/^[\p{L}\p{N}._-]+$/u.test(value)) return null;
   if (/^[._-]|[._-]$/.test(value)) return null;
   return value;
-}
-
-export type LoginIdentifier =
-  | { kind: 'phone'; value: string }
-  | { kind: 'username'; value: string };
-
-export function normalizeLoginIdentifier(input: unknown): LoginIdentifier | null {
-  const phone = normalizeIranPhone(input);
-  if (phone) return { kind: 'phone', value: phone };
-  const username = normalizeUsername(input);
-  return username ? { kind: 'username', value: username } : null;
 }
 
 function bytesToBase64(bytes: Uint8Array): string {
@@ -311,93 +284,47 @@ app.get('/api/auth/me', async (c) => {
 app.post('/api/auth/signup', async (c) => {
   const body = await c.req.json<Record<string, unknown>>().catch(() => null);
   if (!body) return c.json({ message: 'اطلاعات ثبت‌نام معتبر نیست.' }, 400);
+  const username = normalizeUsername(body.username);
+  const password = typeof body.password === 'string' ? body.password : '';
+  if (!username) return c.json({ message: 'نام کاربری باید ۳ تا ۳۲ نویسه باشد و با نقطه یا خط تیره شروع یا تمام نشود.' }, 422);
+  if (password.length < 8 || password.length > 128) return c.json({ message: 'رمز عبور باید بین ۸ تا ۱۲۸ نویسه باشد.' }, 422);
   const signupIp = c.req.header('cf-connecting-ip') ?? 'unknown';
   const signupBucket = await sha256('signup-ip:' + signupIp);
   if (await isRateLimited(c, [signupBucket])) return c.json({ message: 'تلاش‌های ثبت‌نام از این اتصال بیش از حد است؛ ۱۵ دقیقه دیگر دوباره امتحان کن.' }, 429);
   await recordFailedLogin(c, [signupBucket]);
-  const username = normalizeUsername(body.username);
-  const phone = normalizeIranPhone(body.phone);
-  const fullName = typeof body.fullName === 'string' ? body.fullName.trim() : '';
-  const companyName = typeof body.companyName === 'string' ? body.companyName.trim() : '';
-  const inviteCode = typeof body.inviteCode === 'string' ? body.inviteCode.trim().toLowerCase() : '';
-  const password = typeof body.password === 'string' ? body.password : '';
-  if (!username) return c.json({ message: 'نام کاربری باید ۳ تا ۳۲ نویسه و شامل حروف، عدد، نقطه، خط تیره یا زیرخط باشد.' }, 422);
-  if (!phone) return c.json({ message: 'شماره موبایل ایران معتبر وارد کن؛ مثال: 09121234567' }, 422);
-  if (fullName.length < 2 || fullName.length > 160) return c.json({ message: 'نام و نام خانوادگی باید بین ۲ تا ۱۶۰ نویسه باشد.' }, 422);
-  if (inviteCode) {
-    if (!/^[a-f0-9]{64}$/.test(inviteCode)) return c.json({ message: 'کد دعوت معتبر نیست.' }, 422);
-  } else if (companyName.length < 2 || companyName.length > 160) {
-    return c.json({ message: 'نام مجموعه باید بین ۲ تا ۱۶۰ نویسه باشد.' }, 422);
-  }
-  if (password.length < 8 || password.length > 128) return c.json({ message: 'گذرواژه باید بین ۸ تا ۱۲۸ نویسه باشد.' }, 422);
 
   const sql = sqlFor(c);
   try {
     const conflicts = await sql.query(
-      "select username_normalized,phone_e164 from public.medar_users where username_normalized=$1 or phone_e164=$2 limit 2",
-      [username, phone],
+      "select id from public.medar_users where coalesce(username_normalized,lower(username))=$1 limit 1",
+      [username],
     );
-    if (conflicts.some((row) => (row as { username_normalized: string }).username_normalized === username)) {
-      return c.json({ message: 'این نام کاربری قبلاً ثبت شده است.' }, 409);
-    }
-    if (conflicts.some((row) => (row as { phone_e164: string }).phone_e164 === phone)) {
-      return c.json({ message: 'این شماره موبایل قبلاً برای حسابی ثبت شده است.' }, 409);
-    }
+    if (conflicts.length) return c.json({ message: 'این نام کاربری قبلاً ثبت شده است.' }, 409);
     const passwordHash = await hashPassword(password);
-    let created: (Record<string, unknown> & { id: string; companyId: string }) | undefined;
-    if (inviteCode) {
-      const tokenHash = await sha256(inviteCode);
-      const result = await sql.query(
-        "with valid_invite as (" +
-        " update public.company_invites set uses=uses+1,updated_at=now() " +
-        " where token_hash=$1 and revoked_at is null and expires_at>now() and uses<max_uses " +
-        " returning company_id,role,customer_id,supplier_id" +
-        "), new_user as (" +
-        " insert into public.medar_users(username,username_normalized,phone_e164,display_name,password_hash,requested_role,account_status) " +
-        " select $2,$2,$3,$4,$5,case when i.role='admin' then 'staff' else i.role::text end,'active' from valid_invite i " +
-        " returning id,username,username_normalized,phone_e164,display_name" +
-        "), new_profile as (" +
-        " insert into public.profiles(id,full_name,phone) select id,display_name,phone_e164 from new_user " +
-        " on conflict(id) do update set full_name=excluded.full_name,phone=excluded.phone returning id" +
-        "), new_membership as (" +
-        " insert into public.memberships(company_id,user_id,role,active,created_by,customer_id,supplier_id) " +
-        " select i.company_id,u.id,i.role,true,u.id,i.customer_id,i.supplier_id from valid_invite i cross join new_user u " +
-        " returning company_id" +
-        ") select u.id,u.username_normalized as username,u.phone_e164 as phone,u.display_name as full_name,m.company_id as \"companyId\" " +
-        "from new_user u cross join new_membership m",
-        [tokenHash, username, phone, fullName, passwordHash],
-      );
-      created = result[0] as (Record<string, unknown> & { id: string; companyId: string }) | undefined;
-      if (!created) return c.json({ message: 'کد دعوت منقضی، لغوشده یا نامعتبر است.' }, 422);
-    } else {
-      const result = await sql.query(
-        "with new_user as (" +
-        " insert into public.medar_users(username,username_normalized,phone_e164,display_name,password_hash,requested_role,account_status) " +
-        " values($1,$1,$2,$3,$4,'owner','active') " +
-        " returning id,username,username_normalized,phone_e164,display_name" +
-        "), new_profile as (" +
-        " insert into public.profiles(id,full_name,phone) select id,display_name,phone_e164 from new_user " +
-        " on conflict(id) do update set full_name=excluded.full_name,phone=excluded.phone returning id" +
-        "), new_company as (" +
-        " insert into public.companies(name) select $5 from new_user returning id" +
-        "), new_membership as (" +
-        " insert into public.memberships(company_id,user_id,role,active,created_by) " +
-        " select c.id,u.id,'owner',true,u.id from new_user u cross join new_company c returning company_id" +
-        ") select u.id,u.username_normalized as username,u.phone_e164 as phone,u.display_name as full_name,m.company_id as \"companyId\" " +
-        "from new_user u cross join new_membership m",
-        [username, phone, fullName, passwordHash, companyName],
-      );
-      created = result[0] as (Record<string, unknown> & { id: string; companyId: string }) | undefined;
-    }
+    const result = await sql.query(
+      "with new_user as (" +
+      " insert into public.medar_users(username,username_normalized,display_name,password_hash,requested_role,account_status) " +
+      " values($1,$1,$1,$2,'owner','active') " +
+      " returning id,username,username_normalized,display_name" +
+      "), new_profile as (" +
+      " insert into public.profiles(id,full_name,phone) select id,display_name,null from new_user " +
+      " on conflict(id) do update set full_name=excluded.full_name returning id" +
+      "), new_company as (" +
+      " insert into public.companies(name) select 'مجموعه ' || display_name from new_user returning id" +
+      "), new_membership as (" +
+      " insert into public.memberships(company_id,user_id,role,active,created_by) " +
+      " select c.id,u.id,'owner',true,u.id from new_user u cross join new_company c returning company_id" +
+      ") select u.id,u.username_normalized as username,null::text as phone,u.display_name as full_name,m.company_id as \"companyId\" " +
+      "from new_user u cross join new_membership m",
+      [username, passwordHash],
+    );
+    const created = result[0] as (Record<string, unknown> & { id: string; companyId: string }) | undefined;
     if (!created) return c.json({ message: 'ساخت حساب و فضای کاری انجام نشد. دوباره تلاش کن.' }, 500);
     await createSession(c, created.id);
     return c.json({ user: safeUser(created), companyId: created.companyId, memberships: await getMemberships(c, created.id) }, 201);
   } catch (error) {
     const databaseError = error as { code?: string; constraint?: string };
-    if (databaseError.code === '23505') {
-      if (databaseError.constraint?.includes('phone')) return c.json({ message: 'این شماره موبایل قبلاً ثبت شده است.' }, 409);
-      return c.json({ message: 'نام کاربری یا شماره موبایل قبلاً ثبت شده است.' }, 409);
-    }
+    if (databaseError.code === '23505') return c.json({ message: 'این نام کاربری قبلاً ثبت شده است.' }, 409);
     throw error;
   }
 });
@@ -405,34 +332,23 @@ app.post('/api/auth/signup', async (c) => {
 app.post('/api/auth/login', async (c) => {
   const body = await c.req.json<Record<string, unknown>>().catch(() => null);
   if (!body) return c.json({ message: 'اطلاعات ورود معتبر نیست.' }, 400);
-  const rawIdentifier = typeof body.username === 'string' && body.username.trim()
-    ? body.username
-    : body.phone;
-  const identifier = normalizeLoginIdentifier(rawIdentifier);
+  const username = normalizeUsername(body.username);
   const password = typeof body.password === 'string' ? body.password : '';
-  if (!identifier || !password || password.length > 128) return c.json({ message: 'شماره موبایل یا نام کاربری، یا گذرواژه نادرست است.' }, 401);
-  // Rate-limit by the normalized identifier so equivalent phone formats share one bucket.
-  const keys = await rateLimitKeys(c, identifier.value);
+  if (!username || !password || password.length > 128) return c.json({ message: 'نام کاربری یا رمز عبور نادرست است.' }, 401);
+  const keys = await rateLimitKeys(c, username);
   if (await isRateLimited(c, keys)) return c.json({ message: 'تلاش‌های ورود بیش از حد است. ۱۵ دقیقه دیگر دوباره امتحان کن.' }, 429);
   const sql = sqlFor(c);
-  const rows = identifier.kind === 'phone'
-    ? await sql.query(
-      "select id,username,username_normalized,phone_e164,display_name,password_hash,account_status " +
-      "from public.medar_users where phone_e164=$1 limit 1",
-      [identifier.value],
-    )
-    : await sql.query(
-      "select id,username,username_normalized,phone_e164,display_name,password_hash,account_status " +
-      "from public.medar_users where username_normalized=$1 limit 1",
-      [identifier.value],
-    );
+  const rows = await sql.query(
+    "select id,username,username_normalized,phone_e164,display_name,password_hash,account_status " +
+    "from public.medar_users where coalesce(username_normalized,lower(username))=$1 limit 1",
+    [username],
+  );
   const account = rows[0] as (Record<string, unknown> & { id: string; password_hash: string; account_status: string }) | undefined;
-  // Verify a fixed dummy hash for unknown accounts; do not create a new password hash on the login path.
-  // verifyPassword handles Web Crypto errors as a failed match, so missing users still receive the same 401.
+  // Verify a fixed dummy hash for unknown accounts so missing usernames follow the same PBKDF2 path.
   const passwordMatches = await verifyPassword(password, account?.password_hash ?? DUMMY_PASSWORD_HASH);
   if (!account || !passwordMatches) {
     await recordFailedLogin(c, keys);
-    return c.json({ message: 'شماره موبایل یا نام کاربری، یا گذرواژه نادرست است.' }, 401);
+    return c.json({ message: 'نام کاربری یا رمز عبور نادرست است.' }, 401);
   }
   if (account.account_status !== 'active') return c.json({ message: 'این حساب غیرفعال یا موقتاً مسدود شده است؛ با مدیر سامانه تماس بگیر.' }, 403);
   await sql.query("update public.medar_users set last_login_at=now(),updated_at=now() where id=$1::uuid", [account.id]);
