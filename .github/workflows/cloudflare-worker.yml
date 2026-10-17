@@ -93,7 +93,7 @@ jobs:
         run: printf '%s' "$MEDAR_DATABASE_URL" | npx wrangler@4 secret put DATABASE_URL
       - name: Deploy Worker
         working-directory: worker
-        run: npx wrangler@4 deploy --name medar-api 2>&1 | tee /tmp/medar-deploy.log
+        run: set -o pipefail; npx wrangler@4 deploy --name medar-api 2>&1 | tee /tmp/medar-deploy.log
       - name: Smoke-test the live Worker
         shell: bash
         run: |

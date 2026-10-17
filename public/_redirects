@@ -1,1 +1,1 @@
-/* /index.html 200
+# SPA fallback is configured by worker/wrangler.toml (not_found_handling = "single-page-application").
