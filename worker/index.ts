@@ -857,6 +857,8 @@ app.post('/api/data/:table',async c=>{
    const inserted=await runForUser(c,user.id,'insert into '+tableName+' ('+keys.map(quoteSqlIdentifier).join(',')+') values '+tuples.join(',')+' returning *',insertParams);
    return c.json({data:inserted,count:inserted.length,error:null},201);
   }
+  const mutationScopes=scopes.filter(m=>INTERNAL_ROLES.has(m.role));
+  if(!mutationScopes.length)return c.json({message:'ویرایش یا حذف رکورد برای نقش فعلی مجاز نیست.'},403);
   const values=action==='update'&&body.values&&typeof body.values==='object'&&!Array.isArray(body.values)?body.values as Record<string,unknown>:null;
   if(action==='update'&&(!values||!Object.keys(values).length||Object.keys(values).some(key=>!columns.has(key)||blocked.has(key)||UPDATE_PROTECTED_FIELDS[table]?.has(key))))return c.json({message:'فیلدهای ویرایش نامعتبر یا محافظت‌شده‌اند.'},422);
   if(action==='update'&&Object.keys(values??{}).some(key=>key==='company_id'||key==='id'))return c.json({message:'شناسه و محدوده شرکت قابل تغییر نیستند.'},422);
@@ -864,20 +866,225 @@ app.post('/api/data/:table',async c=>{
   const where=buildFilterSql(filters,columns,scopedParams,1);
   const ors=Array.isArray(body.orFilters)?body.orFilters as DataFilter[]:[];
   const orWhere=buildFilterSql(ors,columns,scopedParams,1,'or');
-  const scope=buildMembershipScopeSql(table,columns,scopes,user.id,scopedParams,1);
+  const scope=buildMembershipScopeSql(table,columns,mutationScopes,user.id,scopedParams,1);
   const condition=[scope,where,orWhere].filter(Boolean).map(part=>'('+part+')').join(' and ');
   if(action==='update'){
-    const companyIds=new Set(scopes.filter(m=>INTERNAL_ROLES.has(m.role)).map(m=>m.company_id));
-    if(!companyIds.size)return c.json({message:'ویرایش این رکورد برای نقش فعلی مجاز نیست.'},403);
     const setParams:unknown[]=[];
-    const setSql=Object.entries(values??{}).map(([key,value])=>{setParams.push(value??null);return quoteSqlIdentifier(key)+' = $'+setParams.length;}).join(',');
+    const setSql=Object.entries(values??{}).map(([key,value])=>{setParams.push(value??null);return quoteSqlIdentifier(key)+' = 
+});
+app.post('/api/rpc/:name',async c=>{
+ const user=await requireUser(c);if(user instanceof Response)return user;
+ const name=c.req.param('name');if(!RPC_ALLOWLIST.has(name))return c.json({message:'عملیات سرور مجاز نیست.'},404);
+ const body=await c.req.json<Record<string,unknown>>().catch(()=>null);
+ const args=body?.args&&typeof body.args==='object'&&!Array.isArray(body.args)?body.args as Record<string,unknown>:{};
+ const sql=sqlFor(c);
+ try{
+  const meta=await sql.query("select p.proargnames[1:p.pronargs] as arg_names,array(select format_type(t,null) from unnest(p.proargtypes::oid[]) with ordinality as a(t,ord) order by ord) as arg_types from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname=$1 order by p.pronargs limit 2",[name]);
+  if(meta.length!==1)return c.json({message:'عملیات دیتابیس در دسترس نیست یا مبهم است.'},404);
+  const info=meta[0] as {arg_names:string[];arg_types:string[]},names=info.arg_names??[],types=info.arg_types??[];
+  if(names.some(n=>!Object.prototype.hasOwnProperty.call(args,n))||Object.keys(args).some(n=>!names.includes(n)))return c.json({message:'پارامترهای عملیات کامل نیستند یا پارامتر ناشناخته وجود دارد.'},422);
+  if(types.some(t=>!/^[a-zA-Z_][a-zA-Z0-9_ .]*$/.test(t)))return c.json({message:'نوع پارامتر عملیات معتبر نیست.'},500);
+  const marks=names.map((n,i)=>'$'+(i+1)+'::'+types[i]),values=names.map(n=>args[n]??null);
+  const rows=await runForUser(c,user.id,'select * from public.'+quoteSqlIdentifier(name)+'('+marks.join(',')+')',values);
+  return c.json({data:rows,error:null});
+ }catch(error){
+  const caught=error as {code?:string};
+  return c.json({message:caught.code?'این عملیات با توجه به نقش یا وضعیت فعلی مجاز نیست.':'اجرای عملیات ناموفق بود.'},400);
+ }
+});
+app.post('/api/access-requests',async c=>{
+ const user=await requireUser(c);if(user instanceof Response)return user;
+ return c.json({message:'درخواست نقش عمومی فعال نیست؛ با کد دعوت به یک مجموعه بپیوند.',account:user.username},410);
+});
+const PRIVATE_BUCKET_RULES:Record<string,{maxBytes:number;contentTypes:Set<string>}>={
+ 'delivery-evidence':{maxBytes:10*1024*1024,contentTypes:new Set(['image/jpeg','image/png','image/webp','application/pdf'])},
+ 'operational-evidence':{maxBytes:10*1024*1024,contentTypes:new Set(['image/jpeg','image/png','image/webp','application/pdf'])},
+ 'contract-documents':{maxBytes:20*1024*1024,contentTypes:new Set(['application/pdf','image/jpeg','image/png'])}
+};
+function normalizePrivatePath(value:string):string|null{
+ const parts=value.split('/');
+ if(parts.length<3||parts.length>8||parts.some(p=>!p||p==='.'||p==='..'||p.includes('\\')||p.includes('\0')))return null;
+ if(!/^[0-9a-f-]{36}$/i.test(parts[0])||!/^[0-9a-f-]{36}$/i.test(parts[1]))return null;
+ if(parts.some(p=>p.length>180||p.trim()!==p))return null;
+ return parts.join('/');
+}
+async function memberRoleForCompany(c:Ctx,userId:string,companyId:string):Promise<string|null>{
+ const sql=sqlFor(c);
+ const rows=await sql.query("select role from public.memberships where user_id=$1::uuid and company_id=$2::uuid and active=true limit 1",[userId,companyId]);
+ return (rows[0] as {role:string}|undefined)?.role??null;
+}
+app.put('/api/storage/:bucket',async c=>{
+ const user=await requireUser(c);if(user instanceof Response)return user;
+ if(!c.env.FILE_STORE)return c.json({message:'فضای فایل خصوصی Cloudflare R2 هنوز پیکربندی نشده است.'},503);
+ const bucket=c.req.param('bucket'),rules=PRIVATE_BUCKET_RULES[bucket];if(!rules)return c.json({message:'مخزن فایل مجاز نیست.'},404);
+ const path=normalizePrivatePath(c.req.query('path')??'');if(!path)return c.json({message:'مسیر فایل معتبر نیست.'},422);
+ const companyId=path.split('/')[0],role=await memberRoleForCompany(c,user.id,companyId);
+ if(!role)return c.json({message:'برای این مجموعه دسترسی فعال نداری.'},403);
+ if(bucket==='contract-documents'&&!['owner','admin'].includes(role))return c.json({message:'فقط مالک یا مدیر می‌تواند سند قرارداد را بارگذاری کند.'},403);
+ const contentType=(c.req.header('content-type')??'application/octet-stream').split(';')[0].trim().toLowerCase();
+ if(!rules.contentTypes.has(contentType))return c.json({message:'نوع فایل پشتیبانی نمی‌شود.'},415);
+ const len=Number(c.req.header('content-length')??0);if(len>rules.maxBytes)return c.json({message:'حجم فایل از محدودیت مخزن بیشتر است.'},413);
+ const bytes=await c.req.arrayBuffer();if(bytes.byteLength>rules.maxBytes)return c.json({message:'حجم فایل از محدودیت مخزن بیشتر است.'},413);
+ const existing=await runForUser(c,user.id,'select id from public.medar_files where bucket_id=$1 and name=$2 limit 1',[bucket,path]);
+ if(existing.length&&c.req.header('x-upsert')!=='true')return c.json({message:'فایلی با این مسیر قبلاً وجود دارد.'},409);
+ try{
+  await c.env.FILE_STORE.put(bucket+'/'+path,bytes,{httpMetadata:{contentType}});
+  const metadata=await runForUser(c,user.id,'insert into public.medar_files(bucket_id,name,company_id,content_type,size_bytes,uploaded_by) values($1,$2,$3::uuid,$4,$5,$6::uuid) on conflict(bucket_id,name) do update set content_type=excluded.content_type,size_bytes=excluded.size_bytes,uploaded_by=excluded.uploaded_by returning id',[bucket,path,companyId,contentType,bytes.byteLength,user.id]);
+  if(!metadata.length){await c.env.FILE_STORE.delete(bucket+'/'+path);return c.json({message:'قواعد دسترسی بارگذاری این مدرک را مجاز نمی‌دانند.'},403);}
+  return c.json({data:{path,bucket,size:bytes.byteLength,contentType},error:null},201);
+ }catch{return c.json({message:'ذخیره فایل یا ثبت مشخصات آن ناموفق بود.'},400);}
+});
+app.get('/api/storage/:bucket',async c=>{
+ const user=await requireUser(c);if(user instanceof Response)return user;
+ if(!c.env.FILE_STORE)return c.json({message:'فضای فایل خصوصی Cloudflare R2 هنوز پیکربندی نشده است.'},503);
+ const bucket=c.req.param('bucket');if(!PRIVATE_BUCKET_RULES[bucket])return c.json({message:'مخزن فایل مجاز نیست.'},404);
+ const path=normalizePrivatePath(c.req.query('path')??'');if(!path)return c.json({message:'مسیر فایل معتبر نیست.'},422);
+ const meta=await runForUser(c,user.id,'select content_type from public.medar_files where bucket_id=$1 and name=$2 limit 1',[bucket,path]);
+ if(!meta.length)return c.json({message:'فایل پیدا نشد یا دسترسی به آن مجاز نیست.'},404);
+ const object=await c.env.FILE_STORE.get(bucket+'/'+path);if(!object)return c.json({message:'فایل در فضای ذخیره‌سازی پیدا نشد.'},404);
+ const headers=new Headers();object.writeHttpMetadata(headers);headers.set('Content-Type',String(meta[0].content_type??object.httpMetadata?.contentType??'application/octet-stream'));
+ headers.set('Cache-Control','private, no-store');headers.set('X-Content-Type-Options','nosniff');headers.set('Content-Security-Policy',"default-src 'none'; sandbox");
+ return new Response(object.body,{status:200,headers});
+});
+app.post('/api/storage/:bucket/remove',async c=>{
+ const user=await requireUser(c);if(user instanceof Response)return user;
+ if(!c.env.FILE_STORE)return c.json({message:'فضای فایل خصوصی Cloudflare R2 هنوز پیکربندی نشده است.'},503);
+ const bucket=c.req.param('bucket');if(!PRIVATE_BUCKET_RULES[bucket])return c.json({message:'مخزن فایل مجاز نیست.'},404);
+ const body=await c.req.json<{paths?:unknown}>().catch(()=>null);
+ if(!Array.isArray(body?.paths)||body.paths.length<1||body.paths.length>50)return c.json({message:'فهرست فایل‌ها معتبر نیست.'},422);
+ const paths=body.paths.map(raw=>typeof raw==='string'?normalizePrivatePath(raw):null);
+ if(paths.some(path=>!path))return c.json({message:'یکی از مسیرهای فایل معتبر نیست.'},422);
+ const validPaths=paths as string[],params:unknown[]=[bucket],marks=validPaths.map(path=>{params.push(path);return '$'+params.length;});
+ try{
+  const allowed=await runForUser(c,user.id,'select name from public.medar_files where bucket_id=$1 and name in ('+marks.join(',')+')',params);
+  const names=allowed.map(row=>String(row.name));if(!names.length)return c.json({data:[],error:null});
+  await c.env.FILE_STORE.delete(names.map(name=>bucket+'/'+name));
+  const deleteParams:unknown[]=[bucket],deleteMarks=names.map(name=>{deleteParams.push(name);return '$'+deleteParams.length;});
+  await runForUser(c,user.id,'delete from public.medar_files where bucket_id=$1 and name in ('+deleteMarks.join(',')+') returning id',deleteParams);
+  return c.json({data:names.map(name=>({name})),error:null});
+ }catch{return c.json({message:'حذف فایل یا مشخصات آن ناموفق بود.'},400);}
+});
+
+app.notFound((c) => {
+  if (c.req.path.startsWith('/api/')) return c.json({ message: 'مسیر API پیدا نشد.' }, 404);
+  return c.env.ASSETS ? c.env.ASSETS.fetch(c.req.raw) : c.json({ message: 'مسیر پیدا نشد.' }, 404);
+});
+app.onError((error, c) => {
+  const requestId = crypto.randomUUID();
+  return c.json({ message: 'درخواست انجام نشد. دوباره تلاش کن.', requestId }, 500);
+});
+export default app;
++setParams.length;}).join(',');
     const finalParams=[...setParams,...scopedParams];
-    const rewrittenCondition=condition.replace(/\$(\d+)/g,(_match,n)=>'$'+(Number(n)+setParams.length));
+    const rewrittenCondition=condition.replace(/\$(\d+)/g,(_match,n)=>'
+});
+app.post('/api/rpc/:name',async c=>{
+ const user=await requireUser(c);if(user instanceof Response)return user;
+ const name=c.req.param('name');if(!RPC_ALLOWLIST.has(name))return c.json({message:'عملیات سرور مجاز نیست.'},404);
+ const body=await c.req.json<Record<string,unknown>>().catch(()=>null);
+ const args=body?.args&&typeof body.args==='object'&&!Array.isArray(body.args)?body.args as Record<string,unknown>:{};
+ const sql=sqlFor(c);
+ try{
+  const meta=await sql.query("select p.proargnames[1:p.pronargs] as arg_names,array(select format_type(t,null) from unnest(p.proargtypes::oid[]) with ordinality as a(t,ord) order by ord) as arg_types from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname=$1 order by p.pronargs limit 2",[name]);
+  if(meta.length!==1)return c.json({message:'عملیات دیتابیس در دسترس نیست یا مبهم است.'},404);
+  const info=meta[0] as {arg_names:string[];arg_types:string[]},names=info.arg_names??[],types=info.arg_types??[];
+  if(names.some(n=>!Object.prototype.hasOwnProperty.call(args,n))||Object.keys(args).some(n=>!names.includes(n)))return c.json({message:'پارامترهای عملیات کامل نیستند یا پارامتر ناشناخته وجود دارد.'},422);
+  if(types.some(t=>!/^[a-zA-Z_][a-zA-Z0-9_ .]*$/.test(t)))return c.json({message:'نوع پارامتر عملیات معتبر نیست.'},500);
+  const marks=names.map((n,i)=>'$'+(i+1)+'::'+types[i]),values=names.map(n=>args[n]??null);
+  const rows=await runForUser(c,user.id,'select * from public.'+quoteSqlIdentifier(name)+'('+marks.join(',')+')',values);
+  return c.json({data:rows,error:null});
+ }catch(error){
+  const caught=error as {code?:string};
+  return c.json({message:caught.code?'این عملیات با توجه به نقش یا وضعیت فعلی مجاز نیست.':'اجرای عملیات ناموفق بود.'},400);
+ }
+});
+app.post('/api/access-requests',async c=>{
+ const user=await requireUser(c);if(user instanceof Response)return user;
+ return c.json({message:'درخواست نقش عمومی فعال نیست؛ با کد دعوت به یک مجموعه بپیوند.',account:user.username},410);
+});
+const PRIVATE_BUCKET_RULES:Record<string,{maxBytes:number;contentTypes:Set<string>}>={
+ 'delivery-evidence':{maxBytes:10*1024*1024,contentTypes:new Set(['image/jpeg','image/png','image/webp','application/pdf'])},
+ 'operational-evidence':{maxBytes:10*1024*1024,contentTypes:new Set(['image/jpeg','image/png','image/webp','application/pdf'])},
+ 'contract-documents':{maxBytes:20*1024*1024,contentTypes:new Set(['application/pdf','image/jpeg','image/png'])}
+};
+function normalizePrivatePath(value:string):string|null{
+ const parts=value.split('/');
+ if(parts.length<3||parts.length>8||parts.some(p=>!p||p==='.'||p==='..'||p.includes('\\')||p.includes('\0')))return null;
+ if(!/^[0-9a-f-]{36}$/i.test(parts[0])||!/^[0-9a-f-]{36}$/i.test(parts[1]))return null;
+ if(parts.some(p=>p.length>180||p.trim()!==p))return null;
+ return parts.join('/');
+}
+async function memberRoleForCompany(c:Ctx,userId:string,companyId:string):Promise<string|null>{
+ const sql=sqlFor(c);
+ const rows=await sql.query("select role from public.memberships where user_id=$1::uuid and company_id=$2::uuid and active=true limit 1",[userId,companyId]);
+ return (rows[0] as {role:string}|undefined)?.role??null;
+}
+app.put('/api/storage/:bucket',async c=>{
+ const user=await requireUser(c);if(user instanceof Response)return user;
+ if(!c.env.FILE_STORE)return c.json({message:'فضای فایل خصوصی Cloudflare R2 هنوز پیکربندی نشده است.'},503);
+ const bucket=c.req.param('bucket'),rules=PRIVATE_BUCKET_RULES[bucket];if(!rules)return c.json({message:'مخزن فایل مجاز نیست.'},404);
+ const path=normalizePrivatePath(c.req.query('path')??'');if(!path)return c.json({message:'مسیر فایل معتبر نیست.'},422);
+ const companyId=path.split('/')[0],role=await memberRoleForCompany(c,user.id,companyId);
+ if(!role)return c.json({message:'برای این مجموعه دسترسی فعال نداری.'},403);
+ if(bucket==='contract-documents'&&!['owner','admin'].includes(role))return c.json({message:'فقط مالک یا مدیر می‌تواند سند قرارداد را بارگذاری کند.'},403);
+ const contentType=(c.req.header('content-type')??'application/octet-stream').split(';')[0].trim().toLowerCase();
+ if(!rules.contentTypes.has(contentType))return c.json({message:'نوع فایل پشتیبانی نمی‌شود.'},415);
+ const len=Number(c.req.header('content-length')??0);if(len>rules.maxBytes)return c.json({message:'حجم فایل از محدودیت مخزن بیشتر است.'},413);
+ const bytes=await c.req.arrayBuffer();if(bytes.byteLength>rules.maxBytes)return c.json({message:'حجم فایل از محدودیت مخزن بیشتر است.'},413);
+ const existing=await runForUser(c,user.id,'select id from public.medar_files where bucket_id=$1 and name=$2 limit 1',[bucket,path]);
+ if(existing.length&&c.req.header('x-upsert')!=='true')return c.json({message:'فایلی با این مسیر قبلاً وجود دارد.'},409);
+ try{
+  await c.env.FILE_STORE.put(bucket+'/'+path,bytes,{httpMetadata:{contentType}});
+  const metadata=await runForUser(c,user.id,'insert into public.medar_files(bucket_id,name,company_id,content_type,size_bytes,uploaded_by) values($1,$2,$3::uuid,$4,$5,$6::uuid) on conflict(bucket_id,name) do update set content_type=excluded.content_type,size_bytes=excluded.size_bytes,uploaded_by=excluded.uploaded_by returning id',[bucket,path,companyId,contentType,bytes.byteLength,user.id]);
+  if(!metadata.length){await c.env.FILE_STORE.delete(bucket+'/'+path);return c.json({message:'قواعد دسترسی بارگذاری این مدرک را مجاز نمی‌دانند.'},403);}
+  return c.json({data:{path,bucket,size:bytes.byteLength,contentType},error:null},201);
+ }catch{return c.json({message:'ذخیره فایل یا ثبت مشخصات آن ناموفق بود.'},400);}
+});
+app.get('/api/storage/:bucket',async c=>{
+ const user=await requireUser(c);if(user instanceof Response)return user;
+ if(!c.env.FILE_STORE)return c.json({message:'فضای فایل خصوصی Cloudflare R2 هنوز پیکربندی نشده است.'},503);
+ const bucket=c.req.param('bucket');if(!PRIVATE_BUCKET_RULES[bucket])return c.json({message:'مخزن فایل مجاز نیست.'},404);
+ const path=normalizePrivatePath(c.req.query('path')??'');if(!path)return c.json({message:'مسیر فایل معتبر نیست.'},422);
+ const meta=await runForUser(c,user.id,'select content_type from public.medar_files where bucket_id=$1 and name=$2 limit 1',[bucket,path]);
+ if(!meta.length)return c.json({message:'فایل پیدا نشد یا دسترسی به آن مجاز نیست.'},404);
+ const object=await c.env.FILE_STORE.get(bucket+'/'+path);if(!object)return c.json({message:'فایل در فضای ذخیره‌سازی پیدا نشد.'},404);
+ const headers=new Headers();object.writeHttpMetadata(headers);headers.set('Content-Type',String(meta[0].content_type??object.httpMetadata?.contentType??'application/octet-stream'));
+ headers.set('Cache-Control','private, no-store');headers.set('X-Content-Type-Options','nosniff');headers.set('Content-Security-Policy',"default-src 'none'; sandbox");
+ return new Response(object.body,{status:200,headers});
+});
+app.post('/api/storage/:bucket/remove',async c=>{
+ const user=await requireUser(c);if(user instanceof Response)return user;
+ if(!c.env.FILE_STORE)return c.json({message:'فضای فایل خصوصی Cloudflare R2 هنوز پیکربندی نشده است.'},503);
+ const bucket=c.req.param('bucket');if(!PRIVATE_BUCKET_RULES[bucket])return c.json({message:'مخزن فایل مجاز نیست.'},404);
+ const body=await c.req.json<{paths?:unknown}>().catch(()=>null);
+ if(!Array.isArray(body?.paths)||body.paths.length<1||body.paths.length>50)return c.json({message:'فهرست فایل‌ها معتبر نیست.'},422);
+ const paths=body.paths.map(raw=>typeof raw==='string'?normalizePrivatePath(raw):null);
+ if(paths.some(path=>!path))return c.json({message:'یکی از مسیرهای فایل معتبر نیست.'},422);
+ const validPaths=paths as string[],params:unknown[]=[bucket],marks=validPaths.map(path=>{params.push(path);return '$'+params.length;});
+ try{
+  const allowed=await runForUser(c,user.id,'select name from public.medar_files where bucket_id=$1 and name in ('+marks.join(',')+')',params);
+  const names=allowed.map(row=>String(row.name));if(!names.length)return c.json({data:[],error:null});
+  await c.env.FILE_STORE.delete(names.map(name=>bucket+'/'+name));
+  const deleteParams:unknown[]=[bucket],deleteMarks=names.map(name=>{deleteParams.push(name);return '$'+deleteParams.length;});
+  await runForUser(c,user.id,'delete from public.medar_files where bucket_id=$1 and name in ('+deleteMarks.join(',')+') returning id',deleteParams);
+  return c.json({data:names.map(name=>({name})),error:null});
+ }catch{return c.json({message:'حذف فایل یا مشخصات آن ناموفق بود.'},400);}
+});
+
+app.notFound((c) => {
+  if (c.req.path.startsWith('/api/')) return c.json({ message: 'مسیر API پیدا نشد.' }, 404);
+  return c.env.ASSETS ? c.env.ASSETS.fetch(c.req.raw) : c.json({ message: 'مسیر پیدا نشد.' }, 404);
+});
+app.onError((error, c) => {
+  const requestId = crypto.randomUUID();
+  return c.json({ message: 'درخواست انجام نشد. دوباره تلاش کن.', requestId }, 500);
+});
+export default app;
++(Number(n)+setParams.length));
     const updated=await runForUser(c,user.id,'update '+tableName+' set '+setSql+' where '+rewrittenCondition+' returning *',finalParams);
-    return c.json({data:sanitizeExternalRows(table,updated,scopes),count:updated.length,error:null});
+    return c.json({data:sanitizeExternalRows(table,updated,mutationScopes),count:updated.length,error:null});
   }
   const deleted=await runForUser(c,user.id,'delete from '+tableName+' where '+condition+' returning *',scopedParams);
-  if(!scopes.some(m=>INTERNAL_ROLES.has(m.role)))return c.json({message:'حذف این رکورد برای نقش فعلی مجاز نیست.'},403);
   return c.json({data:deleted,count:deleted.length,error:null});
 });
 app.post('/api/rpc/:name',async c=>{
