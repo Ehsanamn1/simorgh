@@ -341,6 +341,72 @@ test('driver lands in assigned shipments and does not get customer or manager na
   expect(dimensions.body).toBeLessThanOrEqual(dimensions.viewport);
   expect(errors).toEqual([]);
 });
+
+test('manager AI assistant opens in-panel with provider settings but no client key disclosure', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop-chromium', 'The assistant layout is responsive; verify key configuration flow once.');
+  await installIsolatedSession(page, 'owner');
+  const companyId = '00000000-0000-4000-8000-000000000022';
+  await page.route('**/api/ai/providers*', async route => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        companyId,
+        activeProvider: null,
+        canConfigure: true,
+        providers: [
+          { provider: 'openai', model: 'gpt-6-luna', configured: false, isDefault: false, updatedAt: null },
+          { provider: 'gemini', model: 'gemini-4-argon', configured: false, isDefault: false, updatedAt: null },
+          { provider: 'deepseek', model: 'deepseek-flash', configured: false, isDefault: false, updatedAt: null },
+          { provider: 'anthropic', model: 'claude-sonnet-5', configured: false, isDefault: false, updatedAt: null },
+        ],
+      }),
+    });
+  });
+  await page.goto('/simorgh/app/command', { waitUntil: 'domcontentloaded' });
+  await page.getByRole('button', { name: 'بازکردن دستیار هوش مصنوعی' }).click();
+  const dialog = page.getByRole('dialog', { name: 'دستیار مدار' });
+  await expect(dialog).toBeVisible();
+  await page.getByRole('button', { name: 'تنظیمات اتصال هوش مصنوعی' }).click();
+  await expect(page.getByText('اتصال مدل‌های هوش مصنوعی')).toBeVisible();
+  await expect(dialog.locator('input[type="password"][autocomplete="new-password"]')).toBeVisible();
+  await expect(dialog.getByRole('button', { name: /Gemini/ })).toBeVisible();
+  await expect(dialog.getByRole('button', { name: /DeepSeek/ })).toBeVisible();
+  await expect(page.getByText(/کلید فقط به API امن مدار فرستاده می‌شود/)).toBeVisible();
+});
+
+test('manager can preview and import a mixed supplier/customer CSV with duplicate phone removal', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop-chromium', 'Validate import API payload once; compact layout is covered by general responsive checks.');
+  await installIsolatedSession(page, 'owner');
+  let submitted: Record<string, unknown> | undefined;
+  await page.route('**/api/contacts/import', async route => {
+    submitted = route.request().postDataJSON() as Record<string, unknown>;
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        imported: 2, updated: 0, skipped: 0,
+        byKind: { suppliers: { imported: 1, updated: 0 }, customers: { imported: 1, updated: 0 } },
+      }),
+    });
+  });
+  await page.goto('/simorgh/app/contacts-import', { waitUntil: 'domcontentloaded' });
+  await page.locator('input[type="file"]').first().setInputFiles({
+    name: 'contacts.csv',
+    mimeType: 'text/csv',
+    buffer: Buffer.from('name,phone,city,type\\nSupplier One,09120000001,Tehran,supplier\\nCustomer Two,09120000002,Karaj,customer\\nDuplicate supplier,+989120000001,Tehran,supplier', 'utf8'),
+  });
+  await expect(page.getByText('Supplier One')).toBeVisible();
+  await expect(page.getByText('Customer Two')).toBeVisible();
+  await expect(page.getByText('تکراری')).toBeVisible();
+  await page.getByRole('button', { name: /ثبت .* مخاطب در فضای کاری/ }).click();
+  await expect(page.getByRole('status')).toContainText('واردکردن مخاطبین کامل شد');
+  expect(Array.isArray(submitted?.contacts)).toBe(true);
+  const importedContacts = submitted?.contacts as Array<{ kind: string; name: string }>;
+  expect(importedContacts).toHaveLength(2);
+  expect(importedContacts.map(contact => contact.kind).sort()).toEqual(['customers', 'suppliers']);
+});
+
 test('a signed-in user can change their own password through the protected Worker endpoint', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop-chromium', 'Validate the credential-change request once; responsive auth and workspace layout are covered in every viewport.');
   await installIsolatedSession(page, 'owner');
