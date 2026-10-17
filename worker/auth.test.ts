@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeLoginIdentifier } from './index';
+import { FAILED_LOGIN_UPSERT_SQL, normalizeLoginIdentifier } from './index';
 
 describe('server-side login identifier normalization', () => {
+  it('uses an explicit INSERT alias in the failed-login upsert', () => {
+    expect(FAILED_LOGIN_UPSERT_SQL).toContain('INSERT INTO public.medar_rate_limits AS rate_limit');
+    expect(FAILED_LOGIN_UPSERT_SQL).toContain('rate_limit.window_started_at');
+    expect(FAILED_LOGIN_UPSERT_SQL).not.toContain('public.medar_rate_limits.window_started_at');
+  });
+
   it('converts Iranian mobile numbers written with Persian digits into canonical E.164', () => {
     expect(normalizeLoginIdentifier('۰۹۱۲۱۲۳۴۵۶۷')).toEqual({
       kind: 'phone',
