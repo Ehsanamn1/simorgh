@@ -127,8 +127,8 @@ jobs:
           const htmlResponse = await fetch(base + '/');
           if (!htmlResponse.ok) throw new Error('Root HTML failed: ' + htmlResponse.status);
           const html = await htmlResponse.text();
-          const jsPaths = [...new Set([...html.matchAll(/(?:src|href)="([^"]+\\.js)"/g)].map(match => match[1]))];
-          const cssPaths = [...new Set([...html.matchAll(/href="([^"]+\\.css)"/g)].map(match => match[1]))];
+          const jsPaths = [...new Set([...html.matchAll(/(?:src|href)="([^"]+\.js)"/g)].map(match => match[1]))];
+          const cssPaths = [...new Set([...html.matchAll(/href="([^"]+\.css)"/g)].map(match => match[1]))];
           if (!jsPaths.length || !cssPaths.length) throw new Error('Root HTML is missing JS/CSS assets.');
           const resolve = path => new URL(path, base + '/').toString();
           const fetchTexts = async paths => Promise.all(paths.map(async path => {
