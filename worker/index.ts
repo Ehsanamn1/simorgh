@@ -448,34 +448,30 @@ app.post('/api/workspace/invites', async (c) => {
   const role = typeof body?.role === 'string' ? body.role : '';
   const customerId = typeof body?.customerId === 'string' ? body.customerId : null;
   const supplierId = typeof body?.supplierId === 'string' ? body.supplierId : null;
-  const allowedRoles = ['admin', 'staff', 'customer', 'supplier', 'driver'];
+  const allowedRoles = ['admin','staff','customer','supplier','driver'];
   if (!/^[0-9a-f-]{36}$/i.test(companyId) || !allowedRoles.includes(role)) return c.json({ message: 'شرکت یا نقش دعوت معتبر نیست.' }, 422);
-  if ((role === 'customer' && (!customerId || supplierId)) || (role === 'supplier' && (!supplierId || customerId)) || (!['customer','supplier'].includes(role) && (customerId || supplierId))) {
-    return c.json({ message: 'برای نقش مشتری یا تأمین‌کننده باید حساب مربوط به همان مجموعه انتخاب شود.' }, 422);
-  }
+  if ((role === 'customer' && (!customerId || supplierId)) || (role === 'supplier' && (!supplierId || customerId)) || (!['customer','supplier'].includes(role) && (customerId || supplierId))) return c.json({ message: 'حساب مرتبط با نقش معتبر نیست.' }, 422);
   const sql = sqlFor(c);
-  const memberships = await sql`select role from public.memberships where user_id = ${user.id} and company_id = ${companyId} and active = true limit 1`;
-  const actorRole = (memberships[0] as { role: string } | undefined)?.role;
-  if (!actorRole || !['owner', 'admin'].includes(actorRole)) return c.json({ message: 'برای ساخت دعوت، دسترسی مالک یا مدیر لازم است.' }, 403);
+  const rows = await sql.query('select role from public.memberships where user_id=$1::uuid and company_id=$2::uuid and active=true limit 1', [user.id, companyId]);
+  const actorRole = (rows[0] as {role:string}|undefined)?.role;
+  if (!actorRole || !['owner','admin'].includes(actorRole)) return c.json({ message: 'دسترسی مالک یا مدیر لازم است.' }, 403);
   if (role === 'admin' && actorRole !== 'owner') return c.json({ message: 'فقط مالک می‌تواند مدیر جدید دعوت کند.' }, 403);
   if (customerId) {
-    const found = await sql`select 1 from public.customers where id = ${customerId} and company_id = ${companyId} limit 1`;
+    const found = await sql.query('select 1 from public.customers where id=$1::uuid and company_id=$2::uuid limit 1', [customerId, companyId]);
     if (!found.length) return c.json({ message: 'حساب مشتری به این مجموعه تعلق ندارد.' }, 422);
   }
   if (supplierId) {
-    const found = await sql`select 1 from public.suppliers where id = ${supplierId} and company_id = ${companyId} limit 1`;
+    const found = await sql.query('select 1 from public.suppliers where id=$1::uuid and company_id=$2::uuid limit 1', [supplierId, companyId]);
     if (!found.length) return c.json({ message: 'حساب تأمین‌کننده به این مجموعه تعلق ندارد.' }, 422);
   }
   const code = randomToken();
   const tokenHash = await sha256(code);
-  const rows = await sql`
-    insert into public.company_invites(company_id, role, token_hash, created_by, expires_at, customer_id, supplier_id)
-    values (${companyId}, ${role}::public.app_role, ${tokenHash}, ${user.id}, now() + interval '7 days', ${customerId}, ${supplierId})
-    returning id, expires_at
-  `;
-  return c.json({ inviteCode: code, inviteId: (rows[0] as { id: string }).id, expiresAt: (rows[0] as { expires_at: string }).expires_at }, 201);
+  const created = await sql.query(
+    'insert into public.company_invites(company_id,role,token_hash,created_by,expires_at,customer_id,supplier_id) values($1::uuid,$2::public.app_role,$3,$4::uuid,now()+interval \'7 days\',$5::uuid,$6::uuid) returning id,expires_at',
+    [companyId,role,tokenHash,user.id,customerId,supplierId],
+  );
+  return c.json({ inviteCode: code, inviteId: (created[0] as {id:string}).id, expiresAt: (created[0] as {expires_at:string}).expires_at }, 201);
 });
-
 app.post('/api/workspace/join', async (c) => {
   const user = await requireUser(c);
   if (user instanceof Response) return user;
@@ -486,22 +482,21 @@ app.post('/api/workspace/join', async (c) => {
   const sql = sqlFor(c);
   const rows = await sql`
     with invite as (
-      update public.company_invites set uses = uses + 1, updated_at = now()
-      where token_hash = ${tokenHash} and revoked_at is null and expires_at > now() and uses < max_uses
-      returning company_id, role, customer_id, supplier_id
+      update public.company_invites set uses=uses+1,updated_at=now()
+      where token_hash=${tokenHash} and revoked_at is null and expires_at>now() and uses<max_uses
+      returning company_id,role,customer_id,supplier_id
     ), membership as (
-      insert into public.memberships(company_id, user_id, role, active, created_by, customer_id, supplier_id)
-      select company_id, ${user.id}, role, true, ${user.id}, customer_id, supplier_id from invite
-      on conflict (company_id, user_id, role) do update set active = true
-      returning id, company_id, role
+      insert into public.memberships(company_id,user_id,role,active,created_by,customer_id,supplier_id)
+      select company_id,${user.id},role,true,${user.id},customer_id,supplier_id from invite
+      on conflict(company_id,user_id,role) do update set active=true
+      returning id,company_id,role
     )
-    select id, company_id, role from membership limit 1
+    select id,company_id,role from membership limit 1
   `;
-  const joined = rows[0] as { id: string; company_id: string; role: string } | undefined;
+  const joined = rows[0] as {id:string;company_id:string;role:string}|undefined;
   if (!joined) return c.json({ message: 'دعوت منقضی، لغوشده یا نامعتبر است.' }, 422);
-  return c.json({ membership: joined, memberships: await getMemberships(c, user.id) }, 201);
+  return c.json({ membership: joined, memberships: await getMemberships(c,user.id) }, 201);
 });
-
 app.get('/api/workspace/members', async (c) => {
   const user = await requireUser(c);
   if (user instanceof Response) return user;
@@ -562,17 +557,16 @@ app.post('/api/workspace/members/deactivate', async (c) => {
 
 
 const DATA_TABLES = new Set([
-  'customers','suppliers','products','price_agreements','orders','order_items','capacity_commitments',
-  'lots','quality_reviews','shipments','delivery_evidence','invoices','settlements','notifications',
-  'audit_events','access_requests','farm_sites','partnership_agreements','flock_cycles','production_batches',
-  'daily_production_records','task_templates','operational_tasks','task_evidence','operational_incidents',
-  'partner_financial_entries','partner_settlement_periods','shipment_locations','inventory_movements',
-  'inventory_balances','company_goals',
+  'customers','suppliers','products','price_agreements','orders','order_items','capacity_commitments','lots',
+  'quality_reviews','shipments','delivery_evidence','invoices','settlements','notifications','audit_events',
+  'access_requests','farm_sites','partnership_agreements','flock_cycles','production_batches','daily_production_records',
+  'task_templates','operational_tasks','task_evidence','operational_incidents','partner_financial_entries',
+  'partner_settlement_periods','shipment_locations','inventory_movements','inventory_balances','company_goals',
 ]);
 const RPC_ALLOWLIST = new Set([
-  'allocate_order_item','record_inventory_movement','company_members','start_operational_task',
-  'submit_operational_task','review_operational_task','create_partner_settlement_period',
-  'refresh_partner_settlement_period','approve_partner_settlement_period','record_partner_settlement_payment',
+  'allocate_order_item','record_inventory_movement','company_members','start_operational_task','submit_operational_task',
+  'review_operational_task','create_partner_settlement_period','refresh_partner_settlement_period',
+  'approve_partner_settlement_period','record_partner_settlement_payment',
 ]);
 function quoteSqlIdentifier(value: string): string {
   if (!/^[a-z_][a-z0-9_]*$/.test(value)) throw new Error('شناسه دیتابیس معتبر نیست.');
@@ -589,265 +583,207 @@ async function runForUser(c: Ctx, userId: string, statement: string, parameters:
 async function listTableColumns(c: Ctx, table: string): Promise<Set<string>> {
   const sql = sqlFor(c);
   const rows = await sql.query("select column_name from information_schema.columns where table_schema='public' and table_name=$1", [table]);
-  return new Set(rows.map((row) => String((row as { column_name: string }).column_name)));
+  return new Set(rows.map((row) => String((row as {column_name:string}).column_name)));
 }
-
-const RELATIONSHIPS: Record<string, Record<string, { target: string; local: string; foreign: string; many?: boolean }>> = {
-  orders: { customers: { target: 'customers', local: 'customer_id', foreign: 'id' }, order_items: { target: 'order_items', local: 'id', foreign: 'order_id', many: true } },
-  order_items: { products: { target: 'products', local: 'product_id', foreign: 'id' }, suppliers: { target: 'suppliers', local: 'supplier_id', foreign: 'id' }, capacity_commitments: { target: 'capacity_commitments', local: 'capacity_commitment_id', foreign: 'id' } },
-  invoices: { customers: { target: 'customers', local: 'customer_id', foreign: 'id' }, orders: { target: 'orders', local: 'order_id', foreign: 'id' } },
-  settlements: { suppliers: { target: 'suppliers', local: 'supplier_id', foreign: 'id' } },
-  capacity_commitments: { suppliers: { target: 'suppliers', local: 'supplier_id', foreign: 'id' }, products: { target: 'products', local: 'product_id', foreign: 'id' } },
-  lots: { products: { target: 'products', local: 'product_id', foreign: 'id' }, suppliers: { target: 'suppliers', local: 'supplier_id', foreign: 'id' } },
-  quality_reviews: { lots: { target: 'lots', local: 'lot_id', foreign: 'id' } },
-  shipments: { orders: { target: 'orders', local: 'order_id', foreign: 'id' } },
-  shipment_locations: { shipments: { target: 'shipments', local: 'shipment_id', foreign: 'id' } },
-  delivery_evidence: { shipments: { target: 'shipments', local: 'shipment_id', foreign: 'id' } },
-  inventory_movements: { products: { target: 'products', local: 'product_id', foreign: 'id' } },
-  production_batches: { farm_sites: { target: 'farm_sites', local: 'farm_site_id', foreign: 'id' }, suppliers: { target: 'suppliers', local: 'supplier_id', foreign: 'id' } },
-  partnership_agreements: { suppliers: { target: 'suppliers', local: 'supplier_id', foreign: 'id' } },
-  partner_financial_entries: { suppliers: { target: 'suppliers', local: 'supplier_id', foreign: 'id' }, partnership_agreements: { target: 'partnership_agreements', local: 'agreement_id', foreign: 'id' } },
-  partner_settlement_periods: { partnership_agreements: { target: 'partnership_agreements', local: 'agreement_id', foreign: 'id' } },
-  task_evidence: { operational_tasks: { target: 'operational_tasks', local: 'task_id', foreign: 'id' } },
-};
-function splitSelection(selection: string): string[] {
-  const parts: string[] = [];
-  let depth = 0, start = 0;
-  for (let i = 0; i < selection.length; i += 1) {
-    if (selection[i] === '(') depth++;
-    else if (selection[i] === ')') depth--;
-    else if (selection[i] === ',' && depth === 0) { parts.push(selection.slice(start, i).trim()); start = i + 1; }
-  }
-  const tail = selection.slice(start).trim();
-  if (tail) parts.push(tail);
-  return parts;
-}
-async function expandRelations(c: Ctx, userId: string, table: string, rows: Record<string, unknown>[], selection: string, depth = 0): Promise<Record<string, unknown>[]> {
-  if (!rows.length || depth >= 3) return rows;
-  const relationMap = RELATIONSHIPS[table] ?? {};
-  const relations = splitSelection(selection).flatMap((part) => {
-    const match = part.match(/^([a-z_][a-z0-9_]*)\((.*)\)$/s);
-    return match && relationMap[match[1]] ? [{ name: match[1], selection: match[2], config: relationMap[match[1]] }] : [];
-  });
-  for (const relation of relations) {
-    const ids = Array.from(new Set(rows.map((row) => row[relation.config.local]).filter((value) => typeof value === 'string' && value.length > 0)));
-    if (!ids.length) {
-      for (const row of rows) row[relation.name] = relation.config.many ? [] : null;
-      continue;
-    }
-    const placeholders = ids.map((_, i) => '
-function buildFilterSql(filters: DataFilter[], allowedColumns: Set<string>, parameters: unknown[], startAt: number, conjunction = 'and'): string {
+type DataFilter = { column:string; op:string; value?:unknown };
+function buildFilterSql(filters:DataFilter[], columns:Set<string>, parameters:unknown[], startAt:number, conjunction='and'):string {
   if (!filters.length) return '';
   const expressions = filters.map((filter) => {
-    if (!allowedColumns.has(filter.column)) throw new Error('ستون فیلتر معتبر نیست.');
-    const column = quoteSqlIdentifier(filter.column);
-    const op = filter.op.toLowerCase();
-    if (op === 'is' || op === 'not_is') {
-      if (filter.value !== null && filter.value !== true && filter.value !== false) throw new Error('مقدار فیلتر معتبر نیست.');
-      return column + (op === 'not_is' ? ' is not ' : ' is ') + (filter.value === null ? 'null' : filter.value ? 'true' : 'false');
+    if (!columns.has(filter.column)) throw new Error('ستون فیلتر معتبر نیست.');
+    const column=quoteSqlIdentifier(filter.column), op=filter.op.toLowerCase();
+    if (op==='is'||op==='not_is') {
+      if (filter.value!==null&&filter.value!==true&&filter.value!==false) throw new Error('مقدار فیلتر معتبر نیست.');
+      return column+(op==='not_is'?' is not ':' is ')+(filter.value===null?'null':filter.value?'true':'false');
     }
-    if (op === 'in' || op === 'not_in') {
-      const values = Array.isArray(filter.value) ? filter.value : String(filter.value ?? '').replace(/^\(|\)$/g, '').split(',').filter(Boolean);
-      if (!values.length) return op === 'in' ? 'false' : 'true';
-      const placeholders = values.map((value) => { parameters.push(value); return '$' + (startAt + parameters.length - 1); });
-      return column + (op === 'not_in' ? ' not in (' : ' in (') + placeholders.join(', ') + ')';
+    if (op==='in'||op==='not_in') {
+      const vals=Array.isArray(filter.value)?filter.value:String(filter.value??'').replace(/^\\(|\\)$/g,'').split(',').filter(Boolean);
+      if(!vals.length)return op==='in'?'false':'true';
+      const holes=vals.map((v)=>{parameters.push(v);return '$'+(startAt+parameters.length-1);});
+      return column+(op==='not_in'?' not in (':' in (')+holes.join(', ')+')';
     }
-    const operators: Record<string, string> = { eq: '=', neq: '<>', gt: '>', gte: '>=', lt: '<', lte: '<=', like: 'like', ilike: 'ilike' };
-    const sqlOperator = operators[op];
-    if (!sqlOperator) throw new Error('عملگر فیلتر پشتیبانی نمی‌شود.');
-    parameters.push(filter.value ?? null);
-    return column + ' ' + sqlOperator + ' $' + (startAt + parameters.length - 1);
+    const operators:Record<string,string>={eq:'=',neq:'<>',gt:'>',gte:'>=',lt:'<',lte:'<=',like:'like',ilike:'ilike'};
+    const sqlOp=operators[op];
+    if(!sqlOp)throw new Error('عملگر فیلتر پشتیبانی نمی‌شود.');
+    parameters.push(filter.value??null);
+    return column+' '+sqlOp+' $'+(startAt+parameters.length-1);
   });
-  return '(' + expressions.join(conjunction === 'or' ? ' or ' : ' and ') + ')';
+  return '('+expressions.join(conjunction==='or'?' or ':' and ')+')';
 }
-app.post('/api/data/:table', async (c) => {
-  const user = await requireUser(c);
-  if (user instanceof Response) return user;
-  const table = c.req.param('table');
-  if (!DATA_TABLES.has(table)) return c.json({ message: 'جدول در API مجاز نیست.' }, 404);
-  const body = await c.req.json<Record<string, unknown>>().catch(() => null);
-  if (!body) return c.json({ message: 'درخواست داده معتبر نیست.' }, 400);
-  const action = typeof body.action === 'string' ? body.action : 'select';
-  if (!['select','insert','update','delete'].includes(action)) return c.json({ message: 'عملیات داده مجاز نیست.' }, 422);
-  try {
-    const columns = await listTableColumns(c, table);
-    const parameters: unknown[] = [];
-    const filters = Array.isArray(body.filters) ? body.filters as DataFilter[] : [];
-    const where = buildFilterSql(filters, columns, parameters, 1);
-    const orFilters = Array.isArray(body.orFilters) ? body.orFilters as DataFilter[] : [];
-    const orWhere = buildFilterSql(orFilters, columns, parameters, 1, 'or');
-    const whereSql = where && orWhere ? ' where ' + where + ' and ' + orWhere : (where || orWhere ? ' where ' + (where || orWhere) : '');
-    const tableName = 'public.' + quoteSqlIdentifier(table);
-    if (action === 'select') {
-      const countRows = body.count === true ? await runForUser(c, user.id, 'select count(*)::int as count from ' + tableName + whereSql, [...parameters]) : [];
-      if (body.head === true) return c.json({ data: [], count: countRows.length ? Number(countRows[0].count) : null, error: null });
-      const limitValue = Math.max(1, Math.min(500, Number.isFinite(Number(body.limit)) ? Math.trunc(Number(body.limit)) : 200));
-      let statement = 'select * from ' + tableName + whereSql;
-      if (body.order && typeof body.order === 'object') {
-        const order = body.order as { column?: string; ascending?: boolean };
-        if (order.column && !columns.has(order.column)) throw new Error('ستون مرتب‌سازی معتبر نیست.');
-        if (order.column) statement += ' order by ' + quoteSqlIdentifier(order.column) + (order.ascending === true ? ' asc' : ' desc');
-      }
-      parameters.push(limitValue);
-      statement += ' limit $' + parameters.length;
-      let rows = await runForUser(c, user.id, statement, parameters);
-      rows = await expandRelations(c, user.id, table, rows, typeof body.selection === 'string' ? body.selection : '*');
-      return c.json({ data: rows, count: countRows.length ? Number(countRows[0].count) : rows.length, error: null });
-    }
-    if (!filters.length && action !== 'insert') return c.json({ message: 'برای ویرایش یا حذف باید فیلتر رکورد مشخص شود.' }, 422);
-    const blocked = new Set(['password_hash','token_hash','reviewed_by','actor_id','approved_by','submitted_by','user_id','created_by']);
-    const rawValues = body.values;
-    if (action === 'insert') {
-      const entries = Array.isArray(rawValues) ? rawValues as Record<string, unknown>[] : [rawValues as Record<string, unknown>];
-      if (!entries.length || entries.some((entry) => !entry || typeof entry !== 'object' || Array.isArray(entry))) return c.json({ message: 'رکورد ورودی معتبر نیست.' }, 422);
-      const keys = Array.from(new Set(entries.flatMap((entry) => Object.keys(entry).filter((key) => !blocked.has(key)))));
-      if (!keys.length || keys.some((key) => !columns.has(key))) return c.json({ message: 'یکی از فیلدهای رکورد غیرمجاز است.' }, 422);
-      const insertParameters: unknown[] = [];
-      const tuples = entries.map((entry) => '(' + keys.map((key) => { insertParameters.push(entry[key] ?? null); return '$' + insertParameters.length; }).join(', ') + ')');
-      const rows = await runForUser(c, user.id, 'insert into ' + tableName + ' (' + keys.map(quoteSqlIdentifier).join(', ') + ') values ' + tuples.join(', ') + ' returning *', insertParameters);
-      return c.json({ data: rows, count: rows.length, error: null }, 201);
-    }
-    if (action === 'update') {
-      const values = rawValues && typeof rawValues === 'object' && !Array.isArray(rawValues) ? rawValues as Record<string, unknown> : null;
-      if (!values || !Object.keys(values).length || Object.keys(values).some((key) => !columns.has(key) || blocked.has(key))) return c.json({ message: 'فیلدهای ویرایش معتبر نیستند.' }, 422);
-      const setParameters: unknown[] = [];
-      const setSql = Object.entries(values).map(([key, value]) => { setParameters.push(value ?? null); return quoteSqlIdentifier(key) + ' = $' + setParameters.length; }).join(', ');
-      const filterParams: unknown[] = [];
-      const updateWhere = buildFilterSql(filters, columns, filterParams, setParameters.length + 1);
-      const rows = await runForUser(c, user.id, 'update ' + tableName + ' set ' + setSql + ' where ' + updateWhere + ' returning *', [...setParameters, ...filterParams]);
-      return c.json({ data: rows, count: rows.length, error: null });
-    }
-    const deleteParams: unknown[] = [];
-    const deleteWhere = buildFilterSql(filters, columns, deleteParams, 1);
-    const rows = await runForUser(c, user.id, 'delete from ' + tableName + ' where ' + deleteWhere + ' returning *', deleteParams);
-    return c.json({ data: rows, count: rows.length, error: null });
-  } catch (error) {
-    const databaseError = error as { code?: string };
-    return c.json({ message: databaseError.code ? 'دسترسی یا اعتبارسنجی داده ناموفق بود.' : (error instanceof Error ? error.message : 'درخواست داده ناموفق بود.') }, 400);
-  }
-});
-app.post('/api/rpc/:name', async (c) => {
-  const user = await requireUser(c);
-  if (user instanceof Response) return user;
-  const name = c.req.param('name');
-  if (!RPC_ALLOWLIST.has(name)) return c.json({ message: 'عملیات سرور مجاز نیست.' }, 404);
-  const body = await c.req.json<Record<string, unknown>>().catch(() => null);
-  const args = body?.args && typeof body.args === 'object' && !Array.isArray(body.args) ? body.args as Record<string, unknown> : {};
-  const sql = sqlFor(c);
-  try {
-    const metadata = await sql.query("select p.proargnames[1:p.pronargs] as arg_names, array(select format_type(t, null) from unnest(p.proargtypes::oid[]) with ordinality as a(t, ord) order by ord) as arg_types from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname=$1 order by p.pronargs limit 2", [name]);
-    if (metadata.length !== 1) return c.json({ message: 'عملیات دیتابیس در دسترس نیست یا مبهم است.' }, 404);
-    const info = metadata[0] as { arg_names: string[]; arg_types: string[] };
-    const argNames = info.arg_names ?? [];
-    const argTypes = info.arg_types ?? [];
-    if (argNames.some((argName) => !Object.prototype.hasOwnProperty.call(args, argName)) || Object.keys(args).some((argName) => !argNames.includes(argName))) return c.json({ message: 'پارامترهای عملیات کامل نیستند یا پارامتر ناشناخته وجود دارد.' }, 422);
-    if (argTypes.some((typeName) => !/^[a-zA-Z_][a-zA-Z0-9_ .\[\]]*$/.test(typeName))) return c.json({ message: 'نوع پارامتر عملیات معتبر نیست.' }, 500);
-    const placeholders = argNames.map((argName, index) => '$' + (index + 1) + '::' + argTypes[index]);
-    const parameters = argNames.map((argName) => args[argName] ?? null);
-    const rows = await runForUser(c, user.id, 'select * from public.' + quoteSqlIdentifier(name) + '(' + placeholders.join(', ') + ')', parameters);
-    return c.json({ data: rows, error: null });
-  } catch (error) {
-    const databaseError = error as { code?: string };
-    return c.json({ message: databaseError.code ? 'این عملیات با توجه به نقش یا وضعیت فعلی مجاز نیست.' : 'اجرای عملیات ناموفق بود.' }, 400);
-  }
-});
-app.post('/api/access-requests', async (c) => {
-  const user = await requireUser(c);
-  if (user instanceof Response) return user;
-  return c.json({ message: 'درخواست نقش عمومی فعال نیست؛ با کد دعوت به یک مجموعه بپیوند.' }, 410);
-});
-const PRIVATE_BUCKET_RULES: Record<string, { maxBytes: number; contentTypes: Set<string> }> = {
-  'delivery-evidence': { maxBytes: 10 * 1024 * 1024, contentTypes: new Set(['image/jpeg','image/png','image/webp','application/pdf']) },
-  'operational-evidence': { maxBytes: 10 * 1024 * 1024, contentTypes: new Set(['image/jpeg','image/png','image/webp','application/pdf']) },
-  'contract-documents': { maxBytes: 20 * 1024 * 1024, contentTypes: new Set(['application/pdf','image/jpeg','image/png']) },
+const RELATIONS:Record<string,Record<string,{table:string;local:string;foreign:string;many?:boolean}>>={
+ orders:{customers:{table:'customers',local:'customer_id',foreign:'id'},order_items:{table:'order_items',local:'id',foreign:'order_id',many:true}},
+ order_items:{products:{table:'products',local:'product_id',foreign:'id'},suppliers:{table:'suppliers',local:'supplier_id',foreign:'id'},capacity_commitments:{table:'capacity_commitments',local:'capacity_commitment_id',foreign:'id'}},
+ invoices:{customers:{table:'customers',local:'customer_id',foreign:'id'},orders:{table:'orders',local:'order_id',foreign:'id'}},
+ settlements:{suppliers:{table:'suppliers',local:'supplier_id',foreign:'id'}},
+ capacity_commitments:{suppliers:{table:'suppliers',local:'supplier_id',foreign:'id'},products:{table:'products',local:'product_id',foreign:'id'}},
+ lots:{products:{table:'products',local:'product_id',foreign:'id'},suppliers:{table:'suppliers',local:'supplier_id',foreign:'id'}},
+ quality_reviews:{lots:{table:'lots',local:'lot_id',foreign:'id'}},shipments:{orders:{table:'orders',local:'order_id',foreign:'id'}},
+ shipment_locations:{shipments:{table:'shipments',local:'shipment_id',foreign:'id'}},
+ delivery_evidence:{shipments:{table:'shipments',local:'shipment_id',foreign:'id'}},
+ inventory_movements:{products:{table:'products',local:'product_id',foreign:'id'}},
+ production_batches:{farm_sites:{table:'farm_sites',local:'farm_site_id',foreign:'id'},suppliers:{table:'suppliers',local:'supplier_id',foreign:'id'}},
+ partnership_agreements:{suppliers:{table:'suppliers',local:'supplier_id',foreign:'id'}},
+ partner_financial_entries:{suppliers:{table:'suppliers',local:'supplier_id',foreign:'id'},partnership_agreements:{table:'partnership_agreements',local:'agreement_id',foreign:'id'}},
+ partner_settlement_periods:{partnership_agreements:{table:'partnership_agreements',local:'agreement_id',foreign:'id'}},
+ task_evidence:{operational_tasks:{table:'operational_tasks',local:'task_id',foreign:'id'}},
 };
-function normalizePrivatePath(value: string): string | null {
-  const segments = value.split('/');
-  if (segments.length < 3 || segments.length > 8 || segments.some((part) => !part || part === '.' || part === '..' || part.includes('\\') || part.includes('\0'))) return null;
-  if (!/^[0-9a-f-]{36}$/i.test(segments[0]) || !/^[0-9a-f-]{36}$/i.test(segments[1])) return null;
-  if (segments.some((part) => part.length > 180 || part.trim() !== part)) return null;
-  return segments.join('/');
+function splitSelection(selection:string):string[] {
+ const parts:string[]=[];let depth=0,start=0;
+ for(let i=0;i<selection.length;i++){if(selection[i]==='(')depth++;else if(selection[i]===')')depth--;else if(selection[i]===','&&depth===0){parts.push(selection.slice(start,i).trim());start=i+1;}}
+ const tail=selection.slice(start).trim();if(tail)parts.push(tail);return parts;
 }
-async function memberRoleForCompany(c: Ctx, userId: string, companyId: string): Promise<string | null> {
-  const sql = sqlFor(c);
-  const rows = await sql.query("select role from public.memberships where user_id = $1::uuid and company_id = $2::uuid and active = true limit 1", [userId, companyId]);
-  return (rows[0] as { role: string } | undefined)?.role ?? null;
+async function expandRelations(c:Ctx,userId:string,table:string,rows:Record<string,unknown>[],selection:string,depth=0):Promise<Record<string,unknown>[]> {
+ if(!rows.length||depth>=3)return rows;
+ const defs=RELATIONS[table]??{};
+ const relations=splitSelection(selection).flatMap((part)=>{const hit=part.match(/^([a-z_][a-z0-9_]*)\\((.*)\\)$/s);return hit&&defs[hit[1]]?[{name:hit[1],select:hit[2],config:defs[hit[1]]}]:[];});
+ for(const rel of relations){
+  const ids=Array.from(new Set(rows.map(row=>row[rel.config.local]).filter(v=>typeof v==='string'&&v.length>0)));
+  if(!ids.length){for(const row of rows)row[rel.name]=rel.config.many?[]:null;continue;}
+  const holes=ids.map((_,i)=>'$'+(i+1)).join(', ');
+  let related=await runForUser(c,userId,'select * from public.'+quoteSqlIdentifier(rel.config.table)+' where '+quoteSqlIdentifier(rel.config.foreign)+' in ('+holes+') limit 500',ids);
+  related=await expandRelations(c,userId,rel.config.table,related,rel.select,depth+1);
+  const byKey=new Map<string,Record<string,unknown>[]>();
+  for(const item of related){const key=String(item[rel.config.foreign]??'');const bucket=byKey.get(key)??[];bucket.push(item);byKey.set(key,bucket);}
+  for(const row of rows){const key=String(row[rel.config.local]??'');const matches=rel.config.many?(byKey.get(key)??[]):(byKey.get(key)??[]).slice(0,1);row[rel.name]=rel.config.many?matches:(matches[0]??null);}
+ }
+ return rows;
 }
-app.put('/api/storage/:bucket', async (c) => {
-  const user = await requireUser(c);
-  if (user instanceof Response) return user;
-  if (!c.env.FILE_STORE) return c.json({ message: 'فضای فایل خصوصی Cloudflare R2 هنوز پیکربندی نشده است.' }, 503);
-  const bucket = c.req.param('bucket');
-  const rules = PRIVATE_BUCKET_RULES[bucket];
-  if (!rules) return c.json({ message: 'مخزن فایل مجاز نیست.' }, 404);
-  const path = normalizePrivatePath(c.req.query('path') ?? '');
-  if (!path) return c.json({ message: 'مسیر فایل معتبر نیست.' }, 422);
-  const companyId = path.split('/')[0];
-  const role = await memberRoleForCompany(c, user.id, companyId);
-  if (!role) return c.json({ message: 'برای این مجموعه دسترسی فعال نداری.' }, 403);
-  if (bucket === 'contract-documents' && !['owner','admin'].includes(role)) return c.json({ message: 'فقط مالک یا مدیر می‌تواند سند قرارداد را بارگذاری کند.' }, 403);
-  const contentType = (c.req.header('content-type') ?? 'application/octet-stream').split(';')[0].trim().toLowerCase();
-  if (!rules.contentTypes.has(contentType)) return c.json({ message: 'نوع فایل پشتیبانی نمی‌شود.' }, 415);
-  const contentLength = Number(c.req.header('content-length') ?? 0);
-  if (contentLength > rules.maxBytes) return c.json({ message: 'حجم فایل از محدودیت مخزن بیشتر است.' }, 413);
-  const bytes = await c.req.arrayBuffer();
-  if (bytes.byteLength > rules.maxBytes) return c.json({ message: 'حجم فایل از محدودیت مخزن بیشتر است.' }, 413);
-  const existing = await runForUser(c, user.id, 'select id from public.medar_files where bucket_id = $1 and name = $2 limit 1', [bucket, path]);
-  if (existing.length && c.req.header('x-upsert') !== 'true') return c.json({ message: 'فایلی با این مسیر قبلاً وجود دارد.' }, 409);
-  try {
-    await c.env.FILE_STORE.put(bucket + '/' + path, bytes, { httpMetadata: { contentType } });
-    const metadata = await runForUser(c, user.id, 'insert into public.medar_files(bucket_id,name,company_id,content_type,size_bytes,uploaded_by) values($1,$2,$3::uuid,$4,$5,$6::uuid) on conflict(bucket_id,name) do update set content_type=excluded.content_type,size_bytes=excluded.size_bytes,uploaded_by=excluded.uploaded_by returning id', [bucket, path, companyId, contentType, bytes.byteLength, user.id]);
-    if (!metadata.length) { await c.env.FILE_STORE.delete(bucket + '/' + path); return c.json({ message: 'قواعد دسترسی بارگذاری این مدرک را مجاز نمی‌دانند.' }, 403); }
-    return c.json({ data: { path, bucket, size: bytes.byteLength, contentType }, error: null }, 201);
-  } catch {
-    return c.json({ message: 'ذخیره فایل یا ثبت مشخصات آن ناموفق بود.' }, 400);
+app.post('/api/data/:table',async(c)=>{
+ const user=await requireUser(c);if(user instanceof Response)return user;
+ const table=c.req.param('table');if(!DATA_TABLES.has(table))return c.json({message:'جدول در API مجاز نیست.'},404);
+ const body=await c.req.json<Record<string,unknown>>().catch(()=>null);if(!body)return c.json({message:'درخواست داده معتبر نیست.'},400);
+ const action=typeof body.action==='string'?body.action:'select';if(!['select','insert','update','delete'].includes(action))return c.json({message:'عملیات داده مجاز نیست.'},422);
+ try{
+  const columns=await listTableColumns(c,table),parameters:unknown[]=[];
+  const filters=Array.isArray(body.filters)?body.filters as DataFilter[]:[];
+  const orFilters=Array.isArray(body.orFilters)?body.orFilters as DataFilter[]:[];
+  const where=buildFilterSql(filters,columns,parameters,1);
+  const orWhere=buildFilterSql(orFilters,columns,parameters,1,'or');
+  const whereSql=where&&orWhere?' where '+where+' and '+orWhere:(where||orWhere?' where '+(where||orWhere):'');
+  const tableName='public.'+quoteSqlIdentifier(table);
+  if(action==='select'){
+   const countRows=body.count===true?await runForUser(c,user.id,'select count(*)::int as count from '+tableName+whereSql,[...parameters]):[];
+   if(body.head===true)return c.json({data:[],count:countRows.length?Number(countRows[0].count):null,error:null});
+   const limit=Math.max(1,Math.min(500,Number.isFinite(Number(body.limit))?Math.trunc(Number(body.limit)):200));
+   let query='select * from '+tableName+whereSql;
+   if(body.order&&typeof body.order==='object'){const order=body.order as {column?:string;ascending?:boolean};if(order.column&&!columns.has(order.column))throw new Error('ستون مرتب‌سازی معتبر نیست.');if(order.column)query+=' order by '+quoteSqlIdentifier(order.column)+(order.ascending?' asc':' desc');}
+   parameters.push(limit);query+=' limit $'+parameters.length;
+   let data=await runForUser(c,user.id,query,parameters);
+   data=await expandRelations(c,user.id,table,data,typeof body.selection==='string'?body.selection:'*');
+   return c.json({data,count:countRows.length?Number(countRows[0].count):data.length,error:null});
   }
-});
-app.get('/api/storage/:bucket', async (c) => {
-  const user = await requireUser(c);
-  if (user instanceof Response) return user;
-  if (!c.env.FILE_STORE) return c.json({ message: 'فضای فایل خصوصی Cloudflare R2 هنوز پیکربندی نشده است.' }, 503);
-  const bucket = c.req.param('bucket');
-  if (!PRIVATE_BUCKET_RULES[bucket]) return c.json({ message: 'مخزن فایل مجاز نیست.' }, 404);
-  const path = normalizePrivatePath(c.req.query('path') ?? '');
-  if (!path) return c.json({ message: 'مسیر فایل معتبر نیست.' }, 422);
-  const metadata = await runForUser(c, user.id, 'select content_type from public.medar_files where bucket_id = $1 and name = $2 limit 1', [bucket, path]);
-  if (!metadata.length) return c.json({ message: 'فایل پیدا نشد یا دسترسی به آن مجاز نیست.' }, 404);
-  const object = await c.env.FILE_STORE.get(bucket + '/' + path);
-  if (!object) return c.json({ message: 'فایل در فضای ذخیره‌سازی پیدا نشد.' }, 404);
-  const headers = new Headers();
-  object.writeHttpMetadata(headers);
-  headers.set('Content-Type', String(metadata[0].content_type ?? object.httpMetadata?.contentType ?? 'application/octet-stream'));
-  headers.set('Cache-Control', 'private, no-store');
-  headers.set('X-Content-Type-Options', 'nosniff');
-  headers.set('Content-Security-Policy', "default-src 'none'; sandbox");
-  return new Response(object.body, { status: 200, headers });
-});
-app.post('/api/storage/:bucket/remove', async (c) => {
-  const user = await requireUser(c);
-  if (user instanceof Response) return user;
-  if (!c.env.FILE_STORE) return c.json({ message: 'فضای فایل خصوصی Cloudflare R2 هنوز پیکربندی نشده است.' }, 503);
-  const bucket = c.req.param('bucket');
-  if (!PRIVATE_BUCKET_RULES[bucket]) return c.json({ message: 'مخزن فایل مجاز نیست.' }, 404);
-  const body = await c.req.json<{ paths?: unknown }>().catch(() => null);
-  if (!Array.isArray(body?.paths) || body.paths.length < 1 || body.paths.length > 50) return c.json({ message: 'فهرست فایل‌ها معتبر نیست.' }, 422);
-  const paths = body.paths.map((raw) => typeof raw === 'string' ? normalizePrivatePath(raw) : null);
-  if (paths.some((path) => !path)) return c.json({ message: 'یکی از مسیرهای فایل معتبر نیست.' }, 422);
-  const validPaths = paths as string[];
-  const parameters: unknown[] = [bucket];
-  const placeholders = validPaths.map((path) => { parameters.push(path); return '$' + parameters.length; });
-  try {
-    const authorized = await runForUser(c, user.id, 'select name from public.medar_files where bucket_id = $1 and name in (' + placeholders.join(',') + ')', parameters);
-    const names = authorized.map((row) => String(row.name));
-    if (!names.length) return c.json({ data: [], error: null });
-    await c.env.FILE_STORE.delete(names.map((path) => bucket + '/' + path));
-    const deleteParams: unknown[] = [bucket];
-    const deletePlaceholders = names.map((path) => { deleteParams.push(path); return '$' + deleteParams.length; });
-    await runForUser(c, user.id, 'delete from public.medar_files where bucket_id = $1 and name in (' + deletePlaceholders.join(',') + ') returning id', deleteParams);
-    return c.json({ data: names.map((path) => ({ name: path })), error: null });
-  } catch {
-    return c.json({ message: 'حذف فایل یا مشخصات آن ناموفق بود.' }, 400);
+  if(!filters.length&&action!=='insert')return c.json({message:'برای ویرایش یا حذف باید فیلتر رکورد مشخص شود.'},422);
+  const blocked=new Set(['password_hash','token_hash','reviewed_by','actor_id','approved_by','submitted_by','user_id','created_by']);
+  const raw=body.values;
+  if(action==='insert'){
+   const entries=Array.isArray(raw)?raw as Record<string,unknown>[]:[raw as Record<string,unknown>];
+   if(!entries.length||entries.some((entry)=>!entry||typeof entry!=='object'||Array.isArray(entry)))return c.json({message:'رکورد ورودی معتبر نیست.'},422);
+   const keys=[...new Set(entries.map(entry=>Object.keys(entry)).flat().filter(key=>!blocked.has(key))];
+   if(!keys.length||keys.some(key=>!columns.has(key)))return c.json({message:'یکی از فیلدهای رکورد غیرمجاز است.'},422);
+   const params:unknown[]=[];
+   const tuples=entries.map(entry=>'('+keys.map(key=>{params.push(entry[key]??null);return '$'+params.length;}).join(', ')+')');
+   const rows=await runForUser(c,user.id,'insert into '+tableName+' ('+keys.map(quoteSqlIdentifier).join(', ')+') values '+tuples.join(', ')+' returning *',params);
+   return c.json({data:rows,count:rows.length,error:null},201);
   }
+  if(action==='update'){
+   const values=raw&&typeof raw==='object'&&!Array.isArray(raw)?raw as Record<string,unknown>:null;
+   if(!values||!Object.keys(values).length||Object.keys(values).some(key=>!columns.has(key)||blocked.has(key)))return c.json({message:'فیلدهای ویرایش معتبر نیستند.'},422);
+   const setParams:unknown[]=[];const set=Object.entries(values).map(([key,value])=>{setParams.push(value??null);return quoteSqlIdentifier(key)+' = $'+setParams.length;}).join(', ');
+   const fp:unknown[]=[];const wherePart=buildFilterSql(filters,columns,fp,setParams.length+1);
+   const rows=await runForUser(c,user.id,'update '+tableName+' set '+set+' where '+wherePart+' returning *',[...setParams,...fp]);
+   return c.json({data:rows,count:rows.length,error:null});
+  }
+  const dp:unknown[]=[];const dw=buildFilterSql(filters,columns,dp,1);
+  const rows=await runForUser(c,user.id,'delete from '+tableName+' where '+dw+' returning *',dp);
+  return c.json({data:rows,count:rows.length,error:null});
+ }catch(error){const db=error as {code?:string};return c.json({message:db.code?'دسترسی یا اعتبارسنجی داده ناموفق بود.':error instanceof Error?error.message:'درخواست داده ناموفق بود.'},400);}
+});
+app.post('/api/rpc/:name',async(c)=>{
+ const user=await requireUser(c);if(user instanceof Response)return user;
+ const name=c.req.param('name');if(!RPC_ALLOWLIST.has(name))return c.json({message:'عملیات سرور مجاز نیست.'},404);
+ const body=await c.req.json<Record<string,unknown>>().catch(()=>null);
+ const args=body?.args&&typeof body.args==='object'&&!Array.isArray(body.args)?body.args as Record<string,unknown>:{};
+ const sql=sqlFor(c);
+ try{
+  const metadata=await sql.query("select p.proargnames[1:p.pronargs] as arg_names,array(select format_type(t,null) from unnest(p.proargtypes::oid[]) with ordinality as a(t,ord) order by ord) as arg_types from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname=$1 order by p.pronargs limit 2",[name]);
+  if(metadata.length!==1)return c.json({message:'عملیات دیتابیس در دسترس نیست یا مبهم است.'},404);
+  const info=metadata[0] as {arg_names:string[];arg_types:string[]};const argNames=info.arg_names??[],argTypes=info.arg_types??[];
+  if(argNames.some(arg=>!Object.prototype.hasOwnProperty.call(args,arg))||Object.keys(args).some(arg=>!argNames.includes(arg)))return c.json({message:'پارامترهای عملیات کامل نیستند یا پارامتر ناشناخته وجود دارد.'},422);
+  if(argTypes.some(t=>!/^[a-zA-Z_][a-zA-Z0-9_ .\\[\\]]*$/.test(t)))return c.json({message:'نوع پارامتر عملیات معتبر نیست.'},500);
+  const holes=argNames.map((arg,i)=>'$'+(i+1)+'::'+argTypes[i]),params=argNames.map(arg=>args[arg]??null);
+  const data=await runForUser(c,user.id,'select * from public.'+quoteSqlIdentifier(name)+'('+holes.join(', ')+')',params);
+  return c.json({data,error:null});
+ }catch(error){const db=error as {code?:string};return c.json({message:db.code?'این عملیات با توجه به نقش یا وضعیت فعلی مجاز نیست.':'اجرای عملیات ناموفق بود.'},400);}
+});
+app.post('/api/access-requests',async(c)=>{
+ const user=await requireUser(c);if(user instanceof Response)return user;
+ return c.json({message:'برای پیوستن به مجموعه باید کد دعوت معتبر وارد کنی.',account:user.username},410);
+});
+const PRIVATE_BUCKET_RULES:Record<string,{maxBytes:number;contentTypes:Set<string>}>={
+ 'delivery-evidence':{maxBytes:10*1024*1024,contentTypes:new Set(['image/jpeg','image/png','image/webp','application/pdf'])},
+ 'operational-evidence':{maxBytes:10*1024*1024,contentTypes:new Set(['image/jpeg','image/png','image/webp','application/pdf'])},
+ 'contract-documents':{maxBytes:20*1024*1024,contentTypes:new Set(['application/pdf','image/jpeg','image/png'])},
+};
+function normalizePrivatePath(value:string):string|null{
+ const segments=value.split('/');
+ if(segments.length<3||segments.length>8||segments.some(part=>!part||part==='.'||part==='..'||part.includes('\\')||part.includes('\0')))return null;
+ if(!/^[0-9a-f-]{36}$/i.test(segments[0])||!/^[0-9a-f-]{36}$/i.test(segments[1])||segments.some(part=>part.length>180||part.trim()!==part))return null;
+ return segments.join('/');
+}
+async function memberRoleForCompany(c:Ctx,userId:string,companyId:string):Promise<string|null>{
+ const sql=sqlFor(c);const rows=await sql.query('select role from public.memberships where user_id=$1::uuid and company_id=$2::uuid and active=true limit 1',[userId,companyId]);
+ return (rows[0] as {role:string}|undefined)?.role??null;
+}
+app.put('/api/storage/:bucket',async(c)=>{
+ const user=await requireUser(c);if(user instanceof Response)return user;
+ if(!c.env.FILE_STORE)return c.json({message:'فضای فایل خصوصی Cloudflare R2 هنوز پیکربندی نشده است.'},503);
+ const bucket=c.req.param('bucket'),rules=PRIVATE_BUCKET_RULES[bucket];if(!rules)return c.json({message:'مخزن فایل مجاز نیست.'},404);
+ const path=normalizePrivatePath(c.req.query('path')??'');if(!path)return c.json({message:'مسیر فایل معتبر نیست.'},422);
+ const companyId=path.split('/')[0],role=await memberRoleForCompany(c,user.id,companyId);
+ if(!role)return c.json({message:'برای این مجموعه دسترسی فعال نداری.'},403);
+ if(bucket==='contract-documents'&&!['owner','admin'].includes(role))return c.json({message:'فقط مالک یا مدیر می‌تواند سند قرارداد را بارگذاری کند.'},403);
+ const contentType=(c.req.header('content-type')??'application/octet-stream').split(';')[0].trim().toLowerCase();
+ if(!rules.contentTypes.has(contentType))return c.json({message:'نوع فایل پشتیبانی نمی‌شود.'},415);
+ if(Number(c.req.header('content-length')??0)>rules.maxBytes)return c.json({message:'حجم فایل از محدودیت مخزن بیشتر است.'},413);
+ const bytes=await c.req.arrayBuffer();if(bytes.byteLength>rules.maxBytes)return c.json({message:'حجم فایل از محدودیت مخزن بیشتر است.'},413);
+ const existing=await runForUser(c,user.id,'select id from public.medar_files where bucket_id=$1 and name=$2 limit 1',[bucket,path]);
+ if(existing.length&&c.req.header('x-upsert')!=='true')return c.json({message:'فایلی با این مسیر قبلاً وجود دارد.'},409);
+ try{
+  await c.env.FILE_STORE.put(bucket+'/'+path,bytes,{httpMetadata:{contentType}});
+  const saved=await runForUser(c,user.id,'insert into public.medar_files(bucket_id,name,company_id,content_type,size_bytes,uploaded_by) values($1,$2,$3::uuid,$4,$5,$6::uuid) on conflict(bucket_id,name) do update set content_type=excluded.content_type,size_bytes=excluded.size_bytes,uploaded_by=excluded.uploaded_by returning id',[bucket,path,companyId,contentType,bytes.byteLength,user.id]);
+  if(!saved.length){await c.env.FILE_STORE.delete(bucket+'/'+path);return c.json({message:'قواعد دسترسی بارگذاری این مدرک را مجاز نمی‌دانند.'},403);}
+  return c.json({data:{path,bucket,size:bytes.byteLength,contentType},error:null},201);
+ }catch{return c.json({message:'ذخیره فایل یا ثبت مشخصات آن ناموفق بود.'},400);}
+});
+app.get('/api/storage/:bucket',async(c)=>{
+ const user=await requireUser(c);if(user instanceof Response)return user;
+ if(!c.env.FILE_STORE)return c.json({message:'فضای فایل خصوصی Cloudflare R2 هنوز پیکربندی نشده است.'},503);
+ const bucket=c.req.param('bucket');if(!PRIVATE_BUCKET_RULES[bucket])return c.json({message:'مخزن فایل مجاز نیست.'},404);
+ const path=normalizePrivatePath(c.req.query('path')??'');if(!path)return c.json({message:'مسیر فایل معتبر نیست.'},422);
+ const metadata=await runForUser(c,user.id,'select content_type from public.medar_files where bucket_id=$1 and name=$2 limit 1',[bucket,path]);
+ if(!metadata.length)return c.json({message:'فایل پیدا نشد یا دسترسی به آن مجاز نیست.'},404);
+ const object=await c.env.FILE_STORE.get(bucket+'/'+path);if(!object)return c.json({message:'فایل در فضای ذخیره‌سازی پیدا نشد.'},404);
+ const headers=new Headers();object.writeHttpMetadata(headers);headers.set('Content-Type',String(metadata[0].content_type??object.httpMetadata?.contentType??'application/octet-stream'));
+ headers.set('Cache-Control','private, no-store');headers.set('X-Content-Type-Options','nosniff');headers.set('Content-Security-Policy',"default-src 'none'; sandbox");
+ return new Response(object.body,{status:200,headers});
+});
+app.post('/api/storage/:bucket/remove',async(c)=>{
+ const user=await requireUser(c);if(user instanceof Response)return user;
+ if(!c.env.FILE_STORE)return c.json({message:'فضای فایل خصوصی Cloudflare R2 هنوز پیکربندی نشده است.'},503);
+ const bucket=c.req.param('bucket');if(!PRIVATE_BUCKET_RULES[bucket])return c.json({message:'مخزن فایل مجاز نیست.'},404);
+ const body=await c.req.json<{paths?:unknown}>().catch(()=>null);
+ if(!Array.isArray(body?.paths)||body.paths.length<1||body.paths.length>50)return c.json({message:'فهرست فایل‌ها معتبر نیست.'},422);
+ const paths=body.paths.map(raw=>typeof raw==='string'?normalizePrivatePath(raw):null);
+ if(paths.some(path=>!path))return c.json({message:'یکی از مسیرهای فایل معتبر نیست.'},422);
+ const validPaths=paths as string[],params:unknown[]=[bucket];
+ const holes=validPaths.map(path=>{params.push(path);return '$'+params.length;});
+ try{
+  const authorized=await runForUser(c,user.id,'select name from public.medar_files where bucket_id=$1 and name in ('+holes.join(',')+')',params);
+  const names=authorized.map(row=>String(row.name));if(!names.length)return c.json({data:[],error:null});
+  await c.env.FILE_STORE.delete(names.map(path=>bucket+'/'+path));
+  const dp:unknown[]=[bucket],dh=names.map(path=>{dp.push(path);return '$'+dp.length;});
+  await runForUser(c,user.id,'delete from public.medar_files where bucket_id=$1 and name in ('+dh.join(',')+') returning id',dp);
+  return c.json({data:names.map(name=>({name})),error:null});
+ }catch{return c.json({message:'حذف فایل یا مشخصات آن ناموفق بود.'},400);}
 });
 
 app.notFound((c) => {
