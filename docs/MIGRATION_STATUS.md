@@ -1,83 +1,58 @@
-# مدار — Migration checkpoint: Cloudflare Workers + Neon
+# مدار — وضعیت مهاجرت Cloudflare Workers + Neon
 
-Updated: 2026-10-16
+**آخرین بازبینی:** ۱۷ اکتبر ۲۰۲۶  
+**شاخه:** `migration/cloudflare-neon-foundation`  
+**PR:** [#25](https://github.com/Ehsanamn1/simorgh/pull/25)  
+**آخرین تغییرات در این مرحله:** قرارداد RPC اختیاری، تست جداسازی شرکت‌ها، دسترسی خواندنی محدود به `access_requests` و کنترل آمادگی استقرار.
 
-## Verified baseline
+## معماری موردنظر و وضعیت کد
 
-- Main HEAD: `1cc5c5413e0d90c430b72162e358d16f57cf06c6`
-- The commit adds self-service signup and `create_company_workspace`, but both are still implemented through Supabase Auth/Postgres.
-- GitHub Actions CI run `38924263909` and Pages deployment run `38924558958` both succeeded for that HEAD.
-- The published application is still GitHub Pages. This is not evidence of a Cloudflare Worker backend.
-- Supabase is still present in the frontend dependency graph and runtime data/auth path.
+`React/Vite SPA → Cloudflare Worker API → Neon PostgreSQL`
 
-## Migration boundary
+- مسیرهای فعال ورود/ثبت‌نام، نشست، عضویت‌ها، دعوت‌ها، دسترسی اعضا، داده، RPC و فایل‌های خصوصی در `worker/index.ts` قرار دارند.
+- رابط ورود با نام کاربری و رمز عبور کار می‌کند. شماره موبایل ایران به‌صورت استاندارد `+98...` ذخیره می‌شود؛ ورود به OTP پیامکی، تأیید ایمیل یا سرویس ایمیل وابسته نیست.
+- نشست با کوکی `HttpOnly` و توکن تصادفیِ هش‌شده در دیتابیس نگهداری می‌شود. رمز عبور با PBKDF2-HMAC-SHA256 هش می‌شود؛ هیچ گذرواژه یا کلید پیش‌فرض در سورس قرار ندارد.
+- ثبت‌نام مستقل، فضای کاری تازه و عضویت `owner` می‌سازد. ثبت‌نام با کد دعوت، عضویت را به شرکت همان دعوت متصل می‌کند. کد دعوت فقط به‌صورت هش ذخیره می‌شود.
+- درخواست‌های داده از مسیر Worker می‌گذرند؛ محدوده‌ی شرکت و نقش از عضویت سمت سرور تعیین می‌شود، نه از `company_id` یا `role` ارسالی مرورگر.
+- `dataClient` و `apiClient` قرارداد فعلی فرانت‌اند با Worker هستند. وابستگی اجرایی `@supabase/supabase-js` و فایل فعال `src/lib/supabase.ts` در این شاخه وجود ندارند. پوشه‌ی `supabase/migrations/` تاریخچه‌ی مهاجرت قبلی است و نباید به‌عنوان مسیر درخواست‌های runtime تعبیر شود.
 
-The target runtime is:
+## بررسی‌های انجام‌شده
 
-`React/Vite SPA -> Cloudflare Worker API -> Neon PostgreSQL`
+- CI مربوط به Worker در آخرین تغییر کد، موفق شده است؛ این workflow بررسی TypeScript، lint، تست‌های واحد و ساخت Worker را اجرا می‌کند.
+- تست‌ها پوشش دارند برای تبدیل شماره‌های فارسی/عربی به E.164، نام کاربری، آرگومان‌های اختیاری RPC، محدودسازی رکوردها به شرکت/مشتری/تأمین‌کننده و حذف فیلدهای مالی از خروجی برخی نقش‌های بیرونی.
+- تطبیق schema در Neon برای ۲۸ جدول و ۱۹۲ ستون/فیلدِ مورد استفاده در انتخاب، فیلتر یا مرتب‌سازی انجام شد؛ ستون و جدول مفقودی در این بررسی دیده نشد.
+- مسیر داشبورد برای `access_requests` اکنون فقط خواندنی است و از محدوده‌ی نقش داخلی و شرکت عبور می‌کند؛ نقش‌های مشتری، تأمین‌کننده و راننده از آن داده نمی‌گیرند.
+- توابع عملیاتی `medar_start_operational_task`, `medar_submit_operational_task` و `medar_review_operational_task` در شاخه‌ی Neon نصب و بررسی شده‌اند. اجرای مستقیم برای `PUBLIC` لغو شده است.
+- نسخه‌های `0007_existing_medar_schema_compat.sql` و `0008_operational_task_actions.sql` در `public.medar_schema_migrations` با checksumهای محاسبه‌شده از فایل‌های فعلی ثبت شده‌اند.
+- کنترل pre-deploy در `.github/workflows/cloudflare-worker.yml` پیش از انتشار، وجود جدول‌ها، توابع RPC و رکوردهای migration را بررسی می‌کند و اگر آماده نباشند deploy را متوقف می‌کند.
+- روی commit پایه‌ی قبلی، CI مرورگر، ساخت APK اندروید و بسته‌ی شبیه‌ساز iOS هم موفق بوده‌اند. برای آخرین commit تست‌ها باید از لینک‌های Actions در بالای PR نتیجه‌ی نهایی گرفته شود.
 
-GitHub remains the source of truth and CI/deployment automation. Vercel is not part of the target architecture.
+## دامنه‌ی واقعی دیتابیس
 
-The migration is intentionally staged. Supabase must remain available until the replacement authentication, authorization, data access and production smoke tests are proven.
+پروژه‌ی Neon: `weathered-shadow-56159151`  
+شاخه‌ی مهاجرت: `br-divine-sun-ba4ib9rw`
 
-## Repository inventory
+این شاخه از دیتابیس جدا از داده‌های اصلی بررسی شده است. در آخرین شمارش، تعداد حساب‌ها، عضویت‌ها، شرکت‌ها، سفارش‌ها و درخواست‌های دسترسی قدیمی همگی صفر بودند. هیچ داده‌ای از Supabase یا محیط اصلی کپی یا حذف نشده است. پیش از استفاده‌ی تجاری باید درباره‌ی انتقال داده‌ی موجود، تهیه‌ی پشتیبان قابل‌بازیابی و تطبیق شمارش رکوردها تصمیم‌گیری و آزمون جداگانه انجام شود.
 
-Known Supabase coupling from the current source:
+## انتشار — هنوز تأیید نشده
 
-- `@supabase/supabase-js` in `package.json`
-- `src/lib/supabase.ts`
-- `src/lib/AuthContext.tsx`
-- direct Supabase data access in `src/App.tsx`, `src/ProductExperience.tsx`, and `src/OperationsPages.tsx`
-- Supabase Auth/metadata signup and workspace provisioning in `src/ProductExperience.tsx`
-- SQL migrations under `supabase/migrations/`
-- policies/functions using `auth.uid()` and Supabase-specific `SECURITY DEFINER` patterns
-- CI/Pages/Cloudflare build configuration containing Supabase browser configuration
+CI سبز معادل deploy نیست. در این مرحله، **انتشار Production به Cloudflare Worker تأیید نشده است**؛ URL زنده‌ی Worker و smoke test ثبت نشده‌اند. Workflow انتشار فقط با `workflow_dispatch` اجرا می‌شود و نیازمند secrets معتبر `MEDAR_DATABASE_URL`, `CLOUDFLARE_API_TOKEN` و `CLOUDFLARE_ACCOUNT_ID` در GitHub است. این فایل باید با دسترسی واقعی به محیط انتشار اجرا شود؛ از این گفتگو ادعای deploy موفق نمی‌شود.
 
-This inventory is not a claim that every SQL migration can be executed unchanged on Neon.
+پس از deploy، این موارد را روی URL واقعی بررسی کن: `/api/health`, ثبت‌نام آزمایشی، ورود/خروج، بازیابی نشست، ساخت شرکت، دعوت و پیوستن، ممنوعیت دسترسی cross-tenant، RPC با/بدون آرگومان اختیاری و خواندن/نوشتن فایل خصوصی در R2.
 
-## First implementation seam
+## محدودیت‌های باقی‌مانده
 
-A small browser API client is introduced separately from the existing Supabase path. It is deliberately not wired into the application yet. This gives the migration a single HTTP boundary for the eventual Worker API without changing current authentication behavior.
+1. جریان ثبت‌نام/ورود روی Neon هنوز با داده‌ی تولیدی و حساب‌های واقعی نقش‌محور end-to-end آزمون نشده است.
+2. انتقال داده‌ی Supabase به Neon انجام نشده؛ migrationهای تاریخی Supabase را نباید یکجا روی Neon اجرا کرد.
+3. پیکربندی secretهای Cloudflare و deploy واقعی از این شاخه تأیید نشده است.
+4. صف نوشتن آفلاین، حل تعارض و همگام‌سازی آفلاین هنوز پیاده‌سازی کامل ندارند.
+5. مسیر کامل از سفارش تا تحویل، صورت‌حساب، تسویه و تطبیق مالی به تست پذیرش تجاری با داده‌ی کنترل‌شده نیاز دارد.
+6. ساخت Android موجودی debug برای آزمون داخلی است؛ انتشار فروشگاهی نیازمند امضای نسخه‌ی انتشار است. خروجی iOS فعلی شبیه‌ساز است، نه اپ امضاشده برای دستگاه واقعی.
 
-The client:
+## قواعد ادامه
 
-- uses same-origin requests by default;
-- sends cookies with `credentials: include`;
-- never accepts or embeds server secrets;
-- parses JSON responses consistently;
-- exposes HTTP errors without leaking response bodies into logs.
-
-The next implementation step should replace the auth/session path behind this boundary, beginning with `/api/health` and `/api/auth/me`, then signup/login/logout and workspace provisioning.
-
-## Safety gates
-
-Do not:
-
-1. remove Supabase before replacement E2E passes;
-2. migrate or delete production data without a verified backup and rollback plan;
-3. trust `company_id` or `role` supplied by the browser;
-4. place Neon credentials, session secrets, email-provider credentials or Cloudflare API credentials in Vite variables;
-5. claim a Cloudflare deployment until a real Worker URL responds and is smoke-tested.
-
-
-## 2026-10-16 implementation checkpoint
-
-- Created Neon project `medar` in `aws-eu-central-1` and enabled Managed Neon Auth (Better Auth).
-- Managed Auth base/JWKS are configured for the new Worker integration; no secret values are committed.
-- Added Worker JWT verification, `/api/auth/me`, workspace membership read, workspace provisioning, and access-request endpoints.
-- Added Worker Assets SPA hosting configuration and a GitHub Actions Cloudflare deployment workflow.
-- Frontend authentication is now routed through Neon Auth; the legacy Supabase data client remains temporarily because operational pages still contain direct table/RPC/storage calls. It must not be removed until the data API migration is complete.
-- The Neon project currently has no application rows. Existing production data has not been copied or deleted.
-- Neon SQL mutation was not applied automatically from this session; schema creation therefore remains a gated migration task and the Worker data endpoints are not production-ready until the schema and Cloudflare secrets are configured and smoke-tested.
-
-- Neon project: `weathered-shadow-56159151` (region `aws-eu-central-1`); migration branch: `br-divine-sun-ba4ib9rw`.
-
-## Latest implementation checkpoint — 2026-10-16
-
-- Neon migration branch `br-divine-sun-ba4ib9rw` was verified as ready.
-- Foundation schema was applied to the isolated Neon migration branch; no production/main data was modified.
-- Signup now requires and normalizes an Iranian mobile number (`09...` / `+98...`) and stores it in the profile metadata path.
-- Neon Auth on the migration branch is Better Auth. Current managed Neon Auth does not expose arbitrary Better Auth plugins/custom server handlers; therefore SMS OTP/phone-only authentication is **not falsely marked complete**. A real Iranian SMS provider credential and a supported server-side OTP integration are required before enabling phone OTP login.
-- The Worker JWKS configuration was corrected to the migration branch's actual Neon Auth endpoint.
-- UI direction remains Persian/RTL, mobile-first, task/action oriented, with operational hierarchy rather than a generic analytics dashboard.
-- Current remaining production gate: migrate operational data access from direct Supabase calls to Worker APIs, then run real multi-tenant E2E tests and deploy with configured Cloudflare secrets.
+- ابتدا CI آخرین HEAD را تأیید کن؛ نتیجه‌ی commit قدیمی را به تغییر جدید تعمیم نده.
+- migrationها باید افزایشی، تکرارپذیر و checksumدار باشند؛ migration ثبت‌شده را درجا ویرایش نکن.
+- هیچ credentialای در متغیر `VITE_*`، log یا سورس قرار نده.
+- داده‌ی واقعی را seed نکن و در صورت نیاز به انتقال، backup، rollback و تطبیق رکوردها را پیش از نوشتن طراحی کن.
+- deploy، احراز هویت واقعی، ذخیره‌سازی R2 و جداسازی شرکت‌ها باید روی محیط واقعی smoke-test شوند؛ build به‌تنهایی اثبات آن‌ها نیست.
