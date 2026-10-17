@@ -1,7 +1,7 @@
 import { HttpError } from './http';
-import { neonAuth } from './neonAuth';
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL?.trim() || '').replace(/\/$/, '');
+export const isApiConfigured = import.meta.env.VITE_DISABLE_API_UI !== 'true';
 
 function apiUrl(path: string): string {
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
@@ -18,29 +18,15 @@ async function parseResponse(response: Response): Promise<unknown> {
   }
 }
 
-export async function apiRequest<T>(
-  path: string,
-  init: RequestInit = {},
-): Promise<T> {
+export async function apiRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers);
-  if (init.body && !headers.has('content-type')) {
-    headers.set('content-type', 'application/json');
-  }
-
-  let authorization = headers.get('authorization');
-  if (!authorization && neonAuth) {
-    const authResult = await neonAuth.getSession();
-    const session = authResult?.data?.session as { access_token?: string } | undefined;
-    if (session?.access_token) authorization = `Bearer ${session.access_token}`;
-  }
-  if (authorization) headers.set('authorization', authorization);
-
+  if (init.body && !headers.has('content-type')) headers.set('content-type', 'application/json');
   const response = await fetch(apiUrl(path), {
     ...init,
     headers,
     credentials: 'include',
+    cache: 'no-store',
   });
-
   const payload = await parseResponse(response);
   if (!response.ok) {
     const message = payload && typeof payload === 'object' && 'message' in payload
@@ -48,7 +34,6 @@ export async function apiRequest<T>(
       : `درخواست با خطای ${response.status} روبه‌رو شد.`;
     throw new HttpError(response.status, message);
   }
-
   return payload as T;
 }
 
@@ -60,6 +45,13 @@ export const api = {
     return apiRequest<T>(path, {
       ...init,
       method: 'POST',
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+  },
+  put<T>(path: string, body?: unknown, init?: RequestInit) {
+    return apiRequest<T>(path, {
+      ...init,
+      method: 'PUT',
       body: body === undefined ? undefined : JSON.stringify(body),
     });
   },
