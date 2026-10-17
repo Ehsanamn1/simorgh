@@ -128,26 +128,25 @@ jobs:
           psql -h 127.0.0.1 -U postgres -d medar_test -v ON_ERROR_STOP=1 <<'SQL'
           DO $ci$
           DECLARE
-            actor_id uuid := '00000000-0000-4000-8000-000000000011';
-            company_id uuid := '00000000-0000-4000-8000-000000000022';
-            product_id uuid := '00000000-0000-4000-8000-000000000033';
-            supplier_id uuid := '00000000-0000-4000-8000-000000000044';
+            v_actor_id uuid := '00000000-0000-4000-8000-000000000011';
+            v_company_id uuid := '00000000-0000-4000-8000-000000000022';
+            v_product_id uuid := '00000000-0000-4000-8000-000000000033';
+            v_supplier_id uuid := '00000000-0000-4000-8000-000000000044';
             po_id uuid;
             line_id uuid;
             status_value text;
             qty_value numeric;
-            item_payload jsonb;
           BEGIN
             po_id := public.medar_create_purchase_order(
-              actor_id,company_id,supplier_id,'CI-PO-0001',
-              jsonb_build_array(jsonb_build_object('product_id',product_id::text,'quantity',10,'unit_cost',125)),
+              v_actor_id,v_company_id,v_supplier_id,'CI-PO-0001',
+              jsonb_build_array(jsonb_build_object('product_id',v_product_id::text,'quantity',10,'unit_cost',125)),
               current_date+7,'CI purchase-order end-to-end test'
             );
             PERFORM public.medar_approve_purchase_order(v_actor_id,v_company_id,po_id);
             SELECT id INTO line_id FROM public.purchase_order_items
-              WHERE company_id=company_id AND purchase_order_id=po_id;
+              WHERE company_id=v_company_id AND purchase_order_id=po_id;
             PERFORM public.medar_receive_purchase_order(
-              actor_id,company_id,po_id,
+              v_actor_id,v_company_id,po_id,
               jsonb_build_array(jsonb_build_object('purchase_order_item_id',line_id::text,'quantity_received',4)),
               'CI-RECEIPT-PARTIAL','CI partial receipt'
             );
@@ -158,7 +157,7 @@ jobs:
               RAISE EXCEPTION 'Partial receipt state incorrect: status %, quantity %',status_value,qty_value;
             END IF;
             PERFORM public.medar_receive_purchase_order(
-              actor_id,company_id,po_id,
+              v_actor_id,v_company_id,po_id,
               jsonb_build_array(jsonb_build_object('purchase_order_item_id',line_id::text,'quantity_received',6)),
               'CI-RECEIPT-FINAL','CI final receipt'
             );
@@ -170,7 +169,7 @@ jobs:
             END IF;
             BEGIN
               PERFORM public.medar_receive_purchase_order(
-                actor_id,company_id,po_id,
+                v_actor_id,v_company_id,po_id,
                 jsonb_build_array(jsonb_build_object('purchase_order_item_id',line_id::text,'quantity_received',1)),
                 'CI-RECEIPT-OVERFLOW','This must be rejected'
               );
@@ -179,7 +178,7 @@ jobs:
               IF SQLERRM='Over-receipt was incorrectly accepted' THEN RAISE; END IF;
             END;
             SELECT quantity_on_hand INTO qty_value FROM public.inventory_balances
-              WHERE company_id=company_id AND product_id=product_id;
+              WHERE company_id=v_company_id AND product_id=v_product_id;
             IF qty_value<>13 THEN RAISE EXCEPTION 'Expected stock 13 after one deduction and ten received units; got %',qty_value; END IF;
           END $ci$;
           SQL
