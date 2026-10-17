@@ -864,27 +864,176 @@ app.post('/api/data/:table',async c=>{
    const inserted=await runForUser(c,user.id,'insert into '+tableName+' ('+keys.map(quoteSqlIdentifier).join(',')+') values '+tuples.join(',')+' returning *',insertParams);
    return c.json({data:sanitizeExternalRows(table,inserted,scopes),count:inserted.length,error:null},201);
   }
-  const mutationScopes=scopes.filter(m=>INTERNAL_ROLES.has(m.role));
-  if(!mutationScopes.length)return c.json({message:'ویرایش یا حذف برای نقش فعلی مجاز نیست.'},403);
-  const values=action==='update'&&body.values&&typeof body.values==='object'&&!Array.isArray(body.values)?body.values as Record<string,unknown>:null;
-  if(action==='update'&&(!values||!Object.keys(values).length||Object.keys(values).some(key=>!columns.has(key)||protectedKeys.has(key)||UPDATE_PROTECTED_FIELDS[table]?.has(key))))return c.json({message:'فیلدهای ویرایش نامعتبر یا محافظت‌شده‌اند.'},422);
-  const params:unknown[]=[];
-  const where=buildFilterSql(filters,columns,params,1);
-  const ors=Array.isArray(body.orFilters)?body.orFilters as DataFilter[]:[];
-  const orWhere=buildFilterSql(ors,columns,params,1,'or');
-  const scope=buildMembershipScopeSql(table,columns,mutationScopes,user.id,params,1);
-  const condition=[scope,where,orWhere].filter(Boolean).map(part=>'('+part+')').join(' and ');
-  if(action==='update'){
-   const setParams:unknown[]=[];
-   const setSql=Object.entries(values??{}).map(([key,value])=>{setParams.push(value??null);return quoteSqlIdentifier(key)+' = $'+setParams.length;}).join(',');
-   const finalParams=[...setParams,...params];
-   const adjusted=condition.replace(/\$(\d+)/g,(_m,n)=>'$'+(Number(n)+setParams.length));
-   const rows=await runForUser(c,user.id,'update '+tableName+' set '+setSql+' where '+adjusted+' returning *',finalParams);
-   return c.json({data:rows,count:rows.length,error:null});
+  const values = action === 'update' && body.values && typeof body.values === 'object' && !Array.isArray(body.values)
+    ? body.values as Record<string, unknown>
+    : null;
+  const transitionField: Record<string, string> = {
+    orders: 'status', shipments: 'stage', invoices: 'status', settlements: 'status',
+  };
+  const stateField = transitionField[table];
+  const requestedState = stateField && values ? values[stateField] : undefined;
+  const isTransition = action === 'update' && typeof requestedState === 'string';
+  const transitionFields = new Set<string>();
+  if (isTransition && stateField) transitionFields.add(stateField);
+  if (isTransition && table === 'shipments' && requestedState === 'failed') transitionFields.add('failure_reason');
+  if (isTransition && table === 'invoices' && requestedState === 'paid') transitionFields.add('payment_reference');
+  if (isTransition && table === 'settlements' && requestedState === 'paid') transitionFields.add('payment_reference');
+
+  const ordinaryProtected = (key: string) =>
+    protectedKeys.has(key) ||
+    (UPDATE_PROTECTED_FIELDS[table]?.has(key) === true && !transitionFields.has(key));
+  if (action === 'update') {
+    if (!values || !Object.keys(values).length || Object.keys(values).some(key => !columns.has(key))) {
+      return c.json({ message: 'فیلدهای ویرایش نامعتبرند.' }, 422);
+    }
+    if (isTransition) {
+      if (Object.keys(values).some(key => !transitionFields.has(key))) {
+        return c.json({ message: 'در تغییر وضعیت فقط فیلدهای مجاز همان گردش‌کار قابل ارسال‌اند.' }, 422);
+      }
+    } else if (Object.keys(values).some(ordinaryProtected)) {
+      return c.json({ message: 'فیلدهای ویرایش محافظت‌شده‌اند؛ از مسیر تأییدشده عملیات استفاده کن.' }, 422);
+    }
   }
-  const rows=await runForUser(c,user.id,'delete from '+tableName+' where '+condition+' returning *',params);
-  return c.json({data:rows,count:rows.length,error:null});
- }catch(error){
+
+  const externalOrderSubmit = isTransition && table === 'orders' &&
+    scopes.some(m => m.role === 'customer' && m.customer_id);
+  const externalDriverUpdate = isTransition && table === 'shipments' &&
+    scopes.some(m => m.role === 'driver');
+  const mutationScopes = isTransition
+    ? scopes.filter(m => INTERNAL_ROLES.has(m.role) ||
+        (externalOrderSubmit && m.role === 'customer') ||
+        (externalDriverUpdate && m.role === 'driver'))
+    : scopes.filter(m => INTERNAL_ROLES.has(m.role));
+  if (!mutationScopes.length) return c.json({ message: 'ویرایش یا حذف برای نقش فعلی مجاز نیست.' }, 403);
+
+  const params: unknown[] = [];
+  const filters = Array.isArray(body.filters) ? body.filters as DataFilter[] : [];
+  const where = buildFilterSql(filters, columns, params, 1);
+  const ors = Array.isArray(body.orFilters) ? body.orFilters as DataFilter[] : [];
+  const orWhere = buildFilterSql(ors, columns, params, 1, 'or');
+  const scope = buildMembershipScopeSql(table, columns, mutationScopes, user.id, params, 1);
+  const condition = [scope, where, orWhere].filter(Boolean).map(part => '(' + part + ')').join(' and ');
+
+  if (action === 'update' && isTransition && stateField) {
+    const currentRows = await runForUser(c, user.id,
+      'select * from ' + tableName + ' where ' + condition + ' limit 501', params);
+    if (!currentRows.length) return c.json({ message: 'رکورد در محدوده دسترسی فعلی پیدا نشد.' }, 404);
+    if (currentRows.length !== 1) return c.json({ message: 'برای جلوگیری از تغییر وضعیت گروهی، هر بار فقط یک رکورد را تغییر بده.' }, 422);
+
+    const current = currentRows[0];
+    const currentState = String(current[stateField] ?? '');
+    const nextState = String(requestedState);
+    const transitions: Record<string, Record<string, string[]>> = {
+      orders: {
+        draft: ['submitted', 'cancelled'],
+        submitted: ['confirmed', 'cancelled'],
+        confirmed: ['allocated', 'cancelled'],
+        allocated: ['in_fulfillment', 'cancelled'],
+        in_fulfillment: ['dispatched', 'cancelled'],
+        dispatched: ['delivered'],
+      },
+      shipments: {
+        planned: ['loading', 'failed'],
+        loading: ['in_transit', 'failed'],
+        in_transit: ['arrived', 'failed'],
+        arrived: ['delivered', 'returned', 'failed'],
+      },
+      invoices: {
+        draft: ['issued', 'void'],
+        issued: ['partially_paid', 'paid', 'overdue', 'void'],
+        partially_paid: ['paid', 'overdue', 'void'],
+        overdue: ['partially_paid', 'paid', 'void'],
+      },
+      settlements: {
+        pending: ['approved', 'disputed'],
+        approved: ['paid', 'disputed'],
+        disputed: ['pending', 'approved'],
+      },
+    };
+    if (!(transitions[table]?.[currentState] ?? []).includes(nextState)) {
+      return c.json({ message: 'این انتقال وضعیت با گردش‌کار فعلی مجاز نیست.' }, 422);
+    }
+    if (table === 'orders' && !mutationScopes.some(m => INTERNAL_ROLES.has(m.role))) {
+      if (!mutationScopes.some(m => m.role === 'customer' && m.customer_id === String(current.customer_id)) ||
+          currentState !== 'draft' || !['submitted', 'cancelled'].includes(nextState)) {
+        return c.json({ message: 'مشتری فقط می‌تواند پیش‌نویس متعلق به خود را ارسال یا لغو کند.' }, 403);
+      }
+    }
+    if (table === 'shipments' && !mutationScopes.some(m => INTERNAL_ROLES.has(m.role))) {
+      if (!mutationScopes.some(m => m.role === 'driver') ||
+          !['loading', 'in_transit', 'arrived', 'delivered', 'failed'].includes(nextState)) {
+        return c.json({ message: 'راننده فقط می‌تواند مرحله محموله تخصیص‌یافته را جلو ببرد.' }, 403);
+      }
+    }
+    const safeValues: Record<string, unknown> = { [stateField]: nextState };
+    if (table === 'orders' && nextState === 'submitted' && columns.has('updated_at')) safeValues.updated_at = new Date().toISOString();
+    if (table === 'shipments') {
+      if (nextState === 'failed') {
+        const reason = typeof values?.failure_reason === 'string' ? values.failure_reason.trim() : '';
+        if (reason.length < 3 || reason.length > 500) return c.json({ message: 'علت ناموفق بودن ارسال را با حداقل ۳ نویسه ثبت کن.' }, 422);
+        safeValues.failure_reason = reason;
+      }
+      if (nextState === 'in_transit' && columns.has('departed_at')) safeValues.departed_at = new Date().toISOString();
+      if (nextState === 'delivered' && columns.has('delivered_at')) safeValues.delivered_at = new Date().toISOString();
+      if (columns.has('updated_at')) safeValues.updated_at = new Date().toISOString();
+    }
+    if (table === 'invoices') {
+      if (nextState === 'issued' && columns.has('issued_at')) safeValues.issued_at = new Date().toISOString();
+      if (nextState === 'paid') {
+        const reference = typeof values?.payment_reference === 'string' ? values.payment_reference.trim() : '';
+        if (reference.length < 2 || reference.length > 120) return c.json({ message: 'مرجع پرداخت واقعی برای تسویه فاکتور الزامی است.' }, 422);
+        safeValues.payment_reference = reference;
+        safeValues.paid_amount = current.amount;
+        safeValues.paid_at = new Date().toISOString();
+        safeValues.paid_by = user.id;
+      }
+      if (nextState === 'overdue' && current.due_date && new Date(String(current.due_date)).getTime() >= Date.now()) {
+        return c.json({ message: 'فاکتور پیش از سررسید قابل علامت‌گذاری به‌عنوان معوق نیست.' }, 422);
+      }
+    }
+    if (table === 'settlements' && nextState === 'paid') {
+      const reference = typeof values?.payment_reference === 'string' ? values.payment_reference.trim() : '';
+      if (reference.length < 2 || reference.length > 120) return c.json({ message: 'مرجع پرداخت واقعی برای تسویه الزامی است.' }, 422);
+      safeValues.payment_reference = reference;
+      safeValues.paid_at = new Date().toISOString();
+      safeValues.paid_by = user.id;
+    }
+    const updateParams: unknown[] = [];
+    const setSql = Object.entries(safeValues).map(([key, value]) => {
+      if (!columns.has(key)) throw new Error('فیلد گردش‌کار در جدول موجود نیست: ' + key);
+      updateParams.push(value);
+      return quoteSqlIdentifier(key) + ' = $' + updateParams.length;
+    }).join(',');
+    updateParams.push(String(current.id));
+    const idParam = updateParams.length;
+    updateParams.push(current[stateField]);
+    const stateParam = updateParams.length;
+    updateParams.push(String(current.company_id));
+    const companyParam = updateParams.length;
+    const updated = await runForUser(c, user.id,
+      'update ' + tableName + ' set ' + setSql +
+      ' where id = $' + idParam + ' and ' + quoteSqlIdentifier(stateField) + ' = $' + stateParam +
+      ' and company_id = $' + companyParam + ' returning *',
+      updateParams);
+    if (!updated.length) return c.json({ message: 'وضعیت رکورد هم‌زمان تغییر کرده است؛ فهرست را تازه‌سازی کن.' }, 409);
+    return c.json({ data: sanitizeExternalRows(table, updated, scopes), count: updated.length, error: null });
+  }
+
+  if (action === 'update') {
+    const updateParams: unknown[] = [];
+    const setSql = Object.entries(values ?? {}).map(([key, value]) => {
+      updateParams.push(value ?? null);
+      return quoteSqlIdentifier(key) + ' = $' + updateParams.length;
+    }).join(',');
+    const finalParams = [...updateParams, ...params];
+    const adjusted = condition.replace(/\$(\d+)/g, (_match, n) => '$' + (Number(n) + updateParams.length));
+    const updated = await runForUser(c, user.id,
+      'update ' + tableName + ' set ' + setSql + ' where ' + adjusted + ' returning *',
+      finalParams);
+    return c.json({ data: sanitizeExternalRows(table, updated, mutationScopes), count: updated.length, error: null });
+  }
+  const deleted = await runForUser(c, user.id, 'delete from ' + tableName + ' where ' + condition + ' returning *', params);
+  return c.json({ data: deleted, count: deleted.length, error: null }); }catch(error){
   const e=error as {code?:string};
   return c.json({message:e.code?'دسترسی یا اعتبارسنجی داده ناموفق بود.':(error instanceof Error?error.message:'درخواست داده ناموفق بود.')},400);
  }
