@@ -876,7 +876,10 @@ app.post('/api/data/:table',async c=>{
   const transitionFields = new Set<string>();
   if (isTransition && stateField) transitionFields.add(stateField);
   if (isTransition && table === 'shipments' && requestedState === 'failed') transitionFields.add('failure_reason');
-  if (isTransition && table === 'invoices' && requestedState === 'paid') transitionFields.add('payment_reference');
+  if (isTransition && table === 'invoices' && ['partially_paid','paid'].includes(String(requestedState))) {
+    transitionFields.add('payment_reference');
+    if (requestedState === 'partially_paid') transitionFields.add('paid_amount');
+  }
   if (isTransition && table === 'settlements' && requestedState === 'paid') transitionFields.add('payment_reference');
 
   const ordinaryProtected = (key: string) =>
@@ -979,11 +982,18 @@ app.post('/api/data/:table',async c=>{
     }
     if (table === 'invoices') {
       if (nextState === 'issued' && columns.has('issued_at')) safeValues.issued_at = new Date().toISOString();
-      if (nextState === 'paid') {
+      if (nextState === 'partially_paid' || nextState === 'paid') {
         const reference = typeof values?.payment_reference === 'string' ? values.payment_reference.trim() : '';
-        if (reference.length < 2 || reference.length > 120) return c.json({ message: 'مرجع پرداخت واقعی برای تسویه فاکتور الزامی است.' }, 422);
+        if (reference.length < 2 || reference.length > 120) return c.json({ message: 'مرجع پرداخت واقعی برای ثبت پرداخت فاکتور الزامی است.' }, 422);
+        const total = Number(current.amount);
+        const alreadyPaid = Number(current.paid_amount ?? 0);
+        const requestedPaid = nextState === 'paid' ? total : Number(values?.paid_amount);
+        if (!Number.isFinite(requestedPaid) || requestedPaid <= alreadyPaid || requestedPaid > total ||
+            (nextState === 'partially_paid' && requestedPaid >= total)) {
+          return c.json({ message: 'مبلغ پرداخت باید از پرداخت قبلی بیشتر و حداکثر برابر مبلغ فاکتور باشد؛ پرداخت جزئی نباید کل مبلغ را پوشش دهد.' }, 422);
+        }
         safeValues.payment_reference = reference;
-        safeValues.paid_amount = current.amount;
+        safeValues.paid_amount = requestedPaid;
         safeValues.paid_at = new Date().toISOString();
         safeValues.paid_by = user.id;
       }
