@@ -223,6 +223,32 @@ async function recordFailedLogin(c: Ctx, keys: string[]): Promise<void> {
   await sql.query("delete from public.medar_rate_limits where updated_at<now()-interval '1 day'");
 }
 
+async function recordSignupFailure(c: Ctx, key: string): Promise<void> {
+  try {
+    await recordFailedLogin(c, [key]);
+  } catch {
+    // A rate-limit storage failure must not mask the primary signup response.
+  }
+}
+
+export const CREATE_OWNER_WORKSPACE_SQL = `
+with new_user as (
+  insert into public.medar_users(username,display_name,password_hash,requested_role,account_status)
+  values($1,$1,$2,'owner','active')
+  returning id,username,username_normalized,display_name
+), new_profile as (
+  insert into public.profiles(id,full_name,phone) select id,display_name,null from new_user
+  on conflict(id) do update set full_name=excluded.full_name returning id
+), new_company as (
+  insert into public.companies(name) select 'مجموعه ' || display_name from new_user returning id
+), new_membership as (
+  insert into public.memberships(company_id,user_id,role,active,created_by)
+  select c.id,u.id,'owner',true,u.id from new_user u cross join new_company c returning company_id
+)
+select u.id,u.username_normalized as username,null::text as phone,u.display_name as full_name,m.company_id as "companyId"
+from new_user u cross join new_membership m
+`;
+
 app.use('/api/*', async (c, next) => {
   c.header('Cache-Control', 'no-store');
   c.header('X-Content-Type-Options', 'nosniff');
@@ -289,9 +315,9 @@ app.post('/api/auth/signup', async (c) => {
   if (!username) return c.json({ message: 'نام کاربری باید ۳ تا ۳۲ نویسه باشد و با نقطه یا خط تیره شروع یا تمام نشود.' }, 422);
   if (password.length < 8 || password.length > 128) return c.json({ message: 'رمز عبور باید بین ۸ تا ۱۲۸ نویسه باشد.' }, 422);
   const signupIp = c.req.header('cf-connecting-ip') ?? 'unknown';
-  const signupBucket = await sha256('signup-ip:' + signupIp);
+  // A new key avoids stale counters created when successful registrations were counted as failures.
+  const signupBucket = await sha256('signup-ip-v2:' + signupIp);
   if (await isRateLimited(c, [signupBucket])) return c.json({ message: 'تلاش‌های ثبت‌نام از این اتصال بیش از حد است؛ ۱۵ دقیقه دیگر دوباره امتحان کن.' }, 429);
-  await recordFailedLogin(c, [signupBucket]);
 
   const sql = sqlFor(c);
   try {
@@ -299,32 +325,28 @@ app.post('/api/auth/signup', async (c) => {
       "select id from public.medar_users where coalesce(username_normalized,lower(username))=$1 limit 1",
       [username],
     );
-    if (conflicts.length) return c.json({ message: 'این نام کاربری قبلاً ثبت شده است.' }, 409);
+    if (conflicts.length) {
+      await recordSignupFailure(c, signupBucket);
+      return c.json({ message: 'این نام کاربری قبلاً ثبت شده است.' }, 409);
+    }
     const passwordHash = await hashPassword(password);
-    const result = await sql.query(
-      "with new_user as (" +
-      " insert into public.medar_users(username,username_normalized,display_name,password_hash,requested_role,account_status) " +
-      " values($1,$1,$1,$2,'owner','active') " +
-      " returning id,username,username_normalized,display_name" +
-      "), new_profile as (" +
-      " insert into public.profiles(id,full_name,phone) select id,display_name,null from new_user " +
-      " on conflict(id) do update set full_name=excluded.full_name returning id" +
-      "), new_company as (" +
-      " insert into public.companies(name) select 'مجموعه ' || display_name from new_user returning id" +
-      "), new_membership as (" +
-      " insert into public.memberships(company_id,user_id,role,active,created_by) " +
-      " select c.id,u.id,'owner',true,u.id from new_user u cross join new_company c returning company_id" +
-      ") select u.id,u.username_normalized as username,null::text as phone,u.display_name as full_name,m.company_id as \"companyId\" " +
-      "from new_user u cross join new_membership m",
-      [username, passwordHash],
-    );
+    const result = await sql.query(CREATE_OWNER_WORKSPACE_SQL, [username, passwordHash]);
     const created = result[0] as (Record<string, unknown> & { id: string; companyId: string }) | undefined;
-    if (!created) return c.json({ message: 'ساخت حساب و فضای کاری انجام نشد. دوباره تلاش کن.' }, 500);
+    if (!created) {
+      await recordSignupFailure(c, signupBucket);
+      return c.json({ message: 'ساخت حساب و فضای کاری انجام نشد. دوباره تلاش کن.' }, 500);
+    }
     await createSession(c, created.id);
-    return c.json({ user: safeUser(created), companyId: created.companyId, memberships: await getMemberships(c, created.id) }, 201);
+    const memberships = await getMemberships(c, created.id);
+    await sql.query("delete from public.medar_rate_limits where key_hash=$1", [signupBucket]);
+    return c.json({ user: safeUser(created), companyId: created.companyId, memberships }, 201);
   } catch (error) {
     const databaseError = error as { code?: string; constraint?: string };
-    if (databaseError.code === '23505') return c.json({ message: 'این نام کاربری قبلاً ثبت شده است.' }, 409);
+    if (databaseError.code === '23505') {
+      await recordSignupFailure(c, signupBucket);
+      return c.json({ message: 'این نام کاربری قبلاً ثبت شده است.' }, 409);
+    }
+    await recordSignupFailure(c, signupBucket);
     throw error;
   }
 });

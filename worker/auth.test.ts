@@ -1,7 +1,18 @@
 import { describe, expect, it } from 'vitest';
-import { DUMMY_PASSWORD_HASH, FAILED_LOGIN_UPSERT_SQL, normalizeUsername, verifyPassword } from './index';
+import { CREATE_OWNER_WORKSPACE_SQL, DUMMY_PASSWORD_HASH, FAILED_LOGIN_UPSERT_SQL, normalizeUsername, verifyPassword } from './index';
 
 describe('server-side username normalization', () => {
+  it('lets PostgreSQL generate username_normalized during owner signup', () => {
+    const columns = CREATE_OWNER_WORKSPACE_SQL.match(/insert into public\.medar_users\(([^)]+)\)/i)?.[1];
+    expect(columns?.split(',').map((column) => column.trim())).toEqual([
+      'username',
+      'display_name',
+      'password_hash',
+      'requested_role',
+      'account_status',
+    ]);
+    expect(CREATE_OWNER_WORKSPACE_SQL).toContain('returning id,username,username_normalized,display_name');
+  });
   it('uses an explicit INSERT alias in the failed-login upsert', () => {
     expect(FAILED_LOGIN_UPSERT_SQL).toContain('INSERT INTO public.medar_rate_limits AS rate_limit');
     expect(FAILED_LOGIN_UPSERT_SQL).toContain('rate_limit.window_started_at');
