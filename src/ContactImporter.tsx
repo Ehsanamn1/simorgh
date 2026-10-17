@@ -3,7 +3,7 @@ import { CheckCircle2, FileUp, FileText, LoaderCircle, Phone, RefreshCw, ShieldC
 import { api } from './lib/apiClient';
 
 type ImportKind = 'customers' | 'suppliers';
-type ContactRow = { name: string; phone: string; city: string; address: string; email?: string; kind: ImportKind };
+type ContactRow = { name: string; phone: string; city: string; address: string; email?: string; kind: ImportKind; kindDetected?: boolean };
 type ImportResult = { imported: number; updated: number; skipped: number; kind?: ImportKind; byKind?: Record<ImportKind, { imported: number; updated: number }> };
 
 function csvRows(input: string): string[][] {
@@ -39,11 +39,15 @@ function westernDigits(value: string): string {
     return String(code - (code >= 0x06f0 && code <= 0x06f9 ? 0x06f0 : 0x0660));
   });
 }
-function detectKind(value: string, fallback: ImportKind): ImportKind {
+function explicitKind(value: string): ImportKind | null {
   const normalized = value.toLocaleLowerCase('fa-IR').replace(/[\s_-]+/g, '');
   if (/supplier|vendor|provider|producer|farm|wholesale|تأمین|تامین|تولیدکننده|تولیدکنندگان|عرضهکننده|پیمانکار/.test(normalized)) return 'suppliers';
   if (/customer|client|buyer|retail|مشتری|مشتریان|خریدار|فروشگاه/.test(normalized)) return 'customers';
-  return fallback;
+  return null;
+}
+function detectKind(value: string, fallback: ImportKind): { kind: ImportKind; kindDetected: boolean } {
+  const found = explicitKind(value);
+  return { kind: found ?? fallback, kindDetected: found !== null };
 }
 function parseVCard(source: string, fallbackKind: ImportKind): ContactRow[] {
   return source.split(/END:VCARD/i).map(block=>{
@@ -54,8 +58,9 @@ function parseVCard(source: string, fallbackKind: ImportKind): ContactRow[] {
     const phone=lines.find(line=>/^TEL(?:;[^:]*)?:/i.test(line))?.split(':').slice(1).join(':').replace(/[\s()-]/g,'')||'';
     const org=get('ORG');
     const address=get('ADR').split(';').filter(Boolean).slice(-2).join('، ');
-    const categoryHint = get('CATEGORIES') + ' ' + get('TITLE') + ' ' + get('NOTE');
-    return name?{name:org?name+' · '+org:name,phone,city:address,address,kind:detectKind(categoryHint,fallbackKind)}:null;
+    const categoryHint = get('CATEGORIES') + ' ' + get('TITLE');
+    const category = detectKind(categoryHint,fallbackKind);
+    return name?{name:org?name+' · '+org:name,phone,city:address,address,...category}:null;
   }).filter((value):value is ContactRow=>Boolean(value));
 }
 function parseContacts(fileName:string,source:string,fallbackKind:ImportKind):ContactRow[] {
@@ -77,15 +82,18 @@ function parseContacts(fileName:string,source:string,fallbackKind:ImportKind):Co
   const ci=hasHeader?cityIndex:2;
   const ai=hasHeader?addressIndex:3;
   const ki=hasHeader?kindIndex:-1;
-  return data.map(row=>({
-    name:(row[ni]||'').trim(),
-    phone:pi>=0?(row[pi]||'').trim():'',
-    city:ci>=0?(row[ci]||'').trim():'',
-    address:ai>=0?(row[ai]||'').trim():'',
-    kind:detectKind(ki>=0?(row[ki]||''):'',fallbackKind),
-  }))
+  return data.map(row=>{
+    const category = detectKind(ki>=0?(row[ki]||''):'',fallbackKind);
+    return {
+      name:(row[ni]||'').trim(),
+      phone:pi>=0?(row[pi]||'').trim():'',
+      city:ci>=0?(row[ci]||'').trim():'',
+      address:ai>=0?(row[ai]||'').trim():'',
+      ...category,
+    };
+  })
     .filter(contact=>contact.name.length>=2)
-    .map(contact=>({...contact,phone:contact.phone.replace(/[\s()-]/g,'').slice(0,40),city:contact.city.slice(0,100),address:contact.address.slice(0,500)}));
+    .map(contact=>({...contact,phone:westernDigits(contact.phone).replace(/[\s()-]/g,'').slice(0,40),city:contact.city.slice(0,100),address:contact.address.slice(0,500)}));
 }
 function phoneKey(value:string){return westernDigits(value).replace(/\D/g,'').replace(/^0098/,'98').replace(/^0(?=9\d{9}$)/,'98');}
 
@@ -99,11 +107,16 @@ export function ContactImporter({companyId}:{companyId:string}) {
   const [error,setError]=useState('');
   const [notice,setNotice]=useState<ImportResult|null>(null);
   const deduplicated=useMemo(()=>{
-    const seen=new Set<string>();
+    const seenNames=new Set<string>(), seenPhones=new Set<string>();
     return contacts.map(contact=>{
-      const key=contact.kind+':'+(phoneKey(contact.phone)||contact.name.trim().toLocaleLowerCase('fa-IR'));
-      if(seen.has(key))return {...contact,duplicate:true};
-      seen.add(key);return {...contact,duplicate:false};
+      const category=contact.kind+':';
+      const nameKey=category+contact.name.trim().toLocaleLowerCase('fa-IR');
+      const phone=phoneKey(contact.phone);
+      const phoneKeyValue=phone?category+phone:'';
+      if(seenNames.has(nameKey)||(phoneKeyValue&&seenPhones.has(phoneKeyValue)))return {...contact,duplicate:true};
+      seenNames.add(nameKey);
+      if(phoneKeyValue)seenPhones.add(phoneKeyValue);
+      return {...contact,duplicate:false};
     });
   },[contacts]);
   const ready=deduplicated.filter(contact=>!contact.duplicate&&contact.name.trim().length>=2);
@@ -123,10 +136,18 @@ export function ContactImporter({companyId}:{companyId:string}) {
   async function importContacts(){
     setSaving(true);setError('');setNotice(null);
     try{
-      const response=await api.post<ImportResult>('/api/contacts/import',{
-        companyId,kind,contacts:ready.slice(0,1000).map(({name,phone,city,address,kind:contactKind})=>({name,phone,city,address,kind:contactKind})),
-      });
-      setNotice(response);
+      const total: ImportResult = { imported: 0, updated: 0, skipped: contacts.length-ready.length,
+        byKind: { customers: { imported: 0, updated: 0 }, suppliers: { imported: 0, updated: 0 } } };
+      for(let start=0;start<ready.length;start+=1000){
+        const chunk=ready.slice(start,start+1000).map(({name,phone,city,address,kind:contactKind})=>({name,phone,city,address,kind:contactKind}));
+        const response=await api.post<ImportResult>('/api/contacts/import',{companyId,kind,contacts:chunk});
+        total.imported+=response.imported;total.updated+=response.updated;total.skipped+=response.skipped;
+        for(const target of ['customers','suppliers'] as const){
+          total.byKind![target].imported+=response.byKind?.[target]?.imported||0;
+          total.byKind![target].updated+=response.byKind?.[target]?.updated||0;
+        }
+      }
+      setNotice(total);
     }catch(caught){setError(caught instanceof Error?caught.message:'واردکردن مخاطبین انجام نشد.');}
     finally{setSaving(false);}
   }
@@ -144,8 +165,8 @@ export function ContactImporter({companyId}:{companyId:string}) {
         </button>
         <input className="sr-only" ref={inputRef} type="file" accept=".vcf,.csv,.txt,text/vcard,text/csv,text/plain" onChange={event=>{const file=event.target.files?.[0];if(file)void handleFile(file);event.currentTarget.value='';}}/>
         <div className="contact-kind-select"><span>دسته‌ی مقصد</span><div>
-          <button type="button" className={kind==='suppliers'?'selected':''} onClick={()=>setKind('suppliers')}><Warehouse size={16}/> تأمین‌کننده</button>
-          <button type="button" className={kind==='customers'?'selected':''} onClick={()=>setKind('customers')}><Users size={16}/> مشتری</button>
+          <button type="button" className={kind==='suppliers'?'selected':''} onClick={()=>{setKind('suppliers');setContacts(current=>current.map(contact=>contact.kindDetected?contact:{...contact,kind:'suppliers'}));}}><Warehouse size={16}/> تأمین‌کننده</button>
+          <button type="button" className={kind==='customers'?'selected':''} onClick={()=>{setKind('customers');setContacts(current=>current.map(contact=>contact.kindDetected?contact:{...contact,kind:'customers'}));}}><Users size={16}/> مشتری</button>
         </div></div>
         <p className="contact-import-tip">راهنما: در CSV از سرستون‌های <code>name,phone,city,address,type</code> استفاده کن. ستون <code>type</code> می‌تواند supplier/suppliers یا customer/customers (یا «تأمین‌کننده»/«مشتری») باشد تا دسته به‌صورت خودکار انتخاب شود؛ اگر ستون نوع نباشد، دسته‌ی انتخابی مبناست.</p>
       </section>
