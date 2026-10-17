@@ -366,22 +366,26 @@ app.post('/api/auth/signup', async (c) => {
 app.post('/api/auth/login', async (c) => {
   const body = await c.req.json<Record<string, unknown>>().catch(() => null);
   if (!body) return c.json({ message: 'اطلاعات ورود معتبر نیست.' }, 400);
-  const username = normalizeUsername(body.username);
+  const rawIdentifier = typeof body.username === 'string' ? body.username : body.phone;
+  const username = normalizeUsername(rawIdentifier);
+  const phone = normalizeIranPhone(rawIdentifier);
   const password = typeof body.password === 'string' ? body.password : '';
-  if (!username || !password || password.length > 128) return c.json({ message: 'نام کاربری یا گذرواژه نادرست است.' }, 401);
-  const keys = await rateLimitKeys(c, username);
+  if ((!username && !phone) || !password || password.length > 128) return c.json({ message: 'شماره موبایل یا نام کاربری، یا گذرواژه نادرست است.' }, 401);
+  // Rate-limit by a canonical identifier so local, +98, and 0098 phone formats share one bucket.
+  const identifierKey = phone ?? username!;
+  const keys = await rateLimitKeys(c, identifierKey);
   if (await isRateLimited(c, keys)) return c.json({ message: 'تلاش‌های ورود بیش از حد است. ۱۵ دقیقه دیگر دوباره امتحان کن.' }, 429);
   const sql = sqlFor(c);
   const rows = await sql.query(
     "select id,username,username_normalized,phone_e164,display_name,password_hash,account_status " +
-    "from public.medar_users where username_normalized=$1 limit 1",
-    [username],
+    "from public.medar_users where username_normalized=$1 or phone_e164=$2 limit 1",
+    [username ?? '', phone ?? ''],
   );
   const account = rows[0] as (Record<string, unknown> & { id: string; password_hash: string; account_status: string }) | undefined;
   const passwordMatches = account ? await verifyPassword(password, account.password_hash) : (await hashPassword(password), false);
   if (!account || !passwordMatches) {
     await recordFailedLogin(c, keys);
-    return c.json({ message: 'نام کاربری یا گذرواژه نادرست است.' }, 401);
+    return c.json({ message: 'شماره موبایل یا نام کاربری، یا گذرواژه نادرست است.' }, 401);
   }
   if (account.account_status !== 'active') return c.json({ message: 'این حساب غیرفعال یا موقتاً مسدود شده است؛ با مدیر سامانه تماس بگیر.' }, 403);
   await sql.query("update public.medar_users set last_login_at=now(),updated_at=now() where id=$1::uuid", [account.id]);
