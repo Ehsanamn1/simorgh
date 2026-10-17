@@ -413,13 +413,17 @@ jobs:
           if [[ "$membership_status" != "401" ]]; then echo "Unauthenticated operational memberships must return 401 (received $membership_status)."; cat "$RUNNER_TEMP/medar-ops-memberships.json"; exit 1; fi
           cors_status="$(curl --silent --show-error --output "$RUNNER_TEMP/medar-ops-cors.json" --write-out '%{http_code}' --request POST --header 'Origin: https://untrusted-origin.invalid' --header 'Content-Type: application/json' --data '{"username":"ab","password":"x"}' "$worker_url/api/auth/login")"
           if [[ "$cors_status" != "403" ]]; then echo "Untrusted-origin operational mutation must return 403 (received $cors_status)."; cat "$RUNNER_TEMP/medar-ops-cors.json"; exit 1; fi
-          direct_status="$(curl --silent --show-error --output "$RUNNER_TEMP/medar-ops-login-direct.json" --write-out '%{http_code}' --request POST --header 'Content-Type: application/json' --data '{"username":"native_smoke_user","password":"invalid-smoke-password"}' "$worker_url/api/auth/login")"
-          if [[ "$direct_status" != "401" ]]; then echo "A valid-format unknown user must return 401 without Origin (received $direct_status)."; cat "$RUNNER_TEMP/medar-ops-login-direct.json"; exit 1; fi
+          # Unknown-user password verification was exercised live on the app-code release,
+          # and is covered by CI regression tests. Do not repeatedly consume the production
+          # per-IP/per-username failed-login budget in every deployment. Test each allowed
+          # native origin with a real CORS preflight instead of submitting another bad password.
           for native_origin in 'capacitor://localhost' 'https://localhost'; do
-            native_status="$(curl --silent --show-error --dump-header "$RUNNER_TEMP/medar-native-headers.txt" --output "$RUNNER_TEMP/medar-native-login.json" --write-out '%{http_code}' --request POST --header "Origin: $native_origin" --header 'Content-Type: application/json' --data '{"username":"native_smoke_user","password":"invalid-smoke-password"}' "$worker_url/api/auth/login")"
-            if [[ "$native_status" != "401" ]]; then echo "Native origin $native_origin should reach credential validation and return 401 (received $native_status)."; cat "$RUNNER_TEMP/medar-native-login.json"; exit 1; fi
+            native_status="$(curl --silent --show-error --dump-header "$RUNNER_TEMP/medar-native-headers.txt" --output "$RUNNER_TEMP/medar-native-preflight.json" --write-out '%{http_code}' --request OPTIONS --header "Origin: $native_origin" --header 'Access-Control-Request-Method: POST' --header 'Access-Control-Request-Headers: Content-Type' "$worker_url/api/auth/login")"
+            if [[ "$native_status" != "204" ]]; then echo "Native CORS preflight for $native_origin must return 204 (received $native_status)."; cat "$RUNNER_TEMP/medar-native-preflight.json"; cat "$RUNNER_TEMP/medar-native-headers.txt"; exit 1; fi
             grep -Fqi "Access-Control-Allow-Origin: $native_origin" "$RUNNER_TEMP/medar-native-headers.txt" || { echo "Missing allow-origin response for $native_origin"; cat "$RUNNER_TEMP/medar-native-headers.txt"; exit 1; }
             grep -Fqi 'Access-Control-Allow-Credentials: true' "$RUNNER_TEMP/medar-native-headers.txt" || { echo "Missing credentialed CORS response for $native_origin"; cat "$RUNNER_TEMP/medar-native-headers.txt"; exit 1; }
+            grep -Fiq 'Access-Control-Allow-Methods: GET,POST,PUT,PATCH,DELETE,OPTIONS' "$RUNNER_TEMP/medar-native-headers.txt" || { echo "Missing allowed methods for $native_origin"; cat "$RUNNER_TEMP/medar-native-headers.txt"; exit 1; }
+            grep -Fiq 'Access-Control-Allow-Headers: Content-Type, X-Upsert, X-Application-Name' "$RUNNER_TEMP/medar-native-headers.txt" || { echo "Missing allowed headers for $native_origin"; cat "$RUNNER_TEMP/medar-native-headers.txt"; exit 1; }
           done
-          echo "Operational API authorization, hostile-origin rejection, and native credentialed CORS protections passed."
+          echo "Operational API authorization, hostile-origin rejection, and native credentialed CORS preflights passed without consuming the failed-login rate limit."
 
