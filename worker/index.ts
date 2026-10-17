@@ -541,6 +541,49 @@ app.post('/api/workspace/members/deactivate', async (c) => {
 });
 
 
+app.post('/api/workspace/members/reset-password', async (c) => {
+  const user = await requireUser(c);
+  if (user instanceof Response) return user;
+  const body = await c.req.json<Record<string, unknown>>().catch(() => null);
+  const companyId = typeof body?.companyId === 'string' ? body.companyId : '';
+  const membershipId = typeof body?.membershipId === 'string' ? body.membershipId : '';
+  const newPassword = typeof body?.newPassword === 'string' ? body.newPassword : '';
+  if (!/^[0-9a-f-]{36}$/i.test(companyId) || !/^[0-9a-f-]{36}$/i.test(membershipId)) {
+    return c.json({ message: 'شناسه مجموعه یا عضویت معتبر نیست.' }, 422);
+  }
+  if (newPassword.length < 12 || newPassword.length > 128) {
+    return c.json({ message: 'گذرواژه موقت باید بین ۱۲ تا ۱۲۸ نویسه باشد.' }, 422);
+  }
+  const sql = sqlFor(c);
+  const actors = await sql.query(
+    "select role::text from public.memberships where user_id=$1::uuid and company_id=$2::uuid and active=true limit 1",
+    [user.id, companyId],
+  );
+  const actorRole = (actors[0] as { role: string } | undefined)?.role;
+  if (!actorRole || !['owner','admin'].includes(actorRole)) {
+    return c.json({ message: 'فقط مالک یا مدیر می‌تواند گذرواژه عضو را بازنشانی کند.' }, 403);
+  }
+  const targets = await sql.query(
+    "select m.user_id::text as user_id,m.role::text as role from public.memberships m " +
+    "where m.id=$1::uuid and m.company_id=$2::uuid and m.active=true limit 1",
+    [membershipId, companyId],
+  );
+  const target = targets[0] as { user_id: string; role: string } | undefined;
+  if (!target) return c.json({ message: 'عضویت فعال در این مجموعه پیدا نشد.' }, 404);
+  if (target.role === 'owner') return c.json({ message: 'گذرواژه مالک از این مسیر بازنشانی نمی‌شود.' }, 403);
+  if (target.role === 'admin' && actorRole !== 'owner') {
+    return c.json({ message: 'فقط مالک می‌تواند گذرواژه مدیر دیگری را بازنشانی کند.' }, 403);
+  }
+  const passwordHash = await hashPassword(newPassword);
+  await sql.query("update public.medar_users set password_hash=$1,updated_at=now() where id=$2::uuid", [passwordHash, target.user_id]);
+  await sql.query("update public.medar_sessions set revoked_at=now() where user_id=$1::uuid and revoked_at is null", [target.user_id]);
+  await sql.query(
+    "insert into public.medar_audit_log(actor_user_id,action,entity_type,entity_id,metadata) values($1::uuid,'member.password_reset','membership',$2::uuid,jsonb_build_object('company_id',$3::text,'target_user_id',$4::text))",
+    [user.id, membershipId, companyId, target.user_id],
+  );
+  return c.json({ ok: true, message: 'گذرواژه بازنشانی شد و نشست‌های قبلی عضو بسته شدند.' });
+});
+
 const DATA_TABLES = new Set([
  'customers','suppliers','products','price_agreements','orders','order_items','capacity_commitments','lots','quality_reviews',
  'shipments','delivery_evidence','invoices','settlements','notifications','audit_events','farm_sites','partnership_agreements',
