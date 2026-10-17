@@ -143,7 +143,7 @@ jobs:
               jsonb_build_array(jsonb_build_object('product_id',product_id::text,'quantity',10,'unit_cost',125)),
               current_date+7,'CI purchase-order end-to-end test'
             );
-            PERFORM public.medar_approve_purchase_order(actor_id,company_id,po_id);
+            PERFORM public.medar_approve_purchase_order(v_actor_id,v_company_id,po_id);
             SELECT id INTO line_id FROM public.purchase_order_items
               WHERE company_id=company_id AND purchase_order_id=po_id;
             PERFORM public.medar_receive_purchase_order(
