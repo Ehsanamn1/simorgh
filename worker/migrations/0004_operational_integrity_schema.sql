@@ -508,7 +508,7 @@ begin
     if new.signed_document_path not like (new.company_id::text || '/' || new.supplier_id::text || '/%') then
       raise exception 'مسیر سند قرارداد باید به همان شرکت و تأمین‌کننده متصل باشد';
     end if;
-    if not exists(select 1 from storage.objects o where o.bucket_id='contract-documents' and o.name=new.signed_document_path) then
+    if not exists(select 1 from public.medar_files o where o.bucket_id='contract-documents' and o.name=new.signed_document_path) then
       raise exception 'فایل قرارداد امضاشده در فضای خصوصی پیدا نشد';
     end if;
     if coalesce(cardinality(new.shared_expense_categories),0)=0 then
@@ -716,7 +716,7 @@ begin
       and ((e.evidence_type='note' and length(trim(coalesce(e.note,'')))>0)
         or (e.evidence_type='measurement' and e.measurement_value is not null)
         or (e.evidence_type in ('photo','document') and e.storage_path like t.company_id::text || '/' || t.id::text || '/%' and exists(
-          select 1 from storage.objects o where o.bucket_id='operational-evidence' and o.name=e.storage_path
+          select 1 from public.medar_files o where o.bucket_id='operational-evidence' and o.name=e.storage_path
         )))
   ) then raise exception 'برای تکمیل این وظیفه مدرک واقعی لازم است'; end if;
   update public.operational_tasks set status='submitted', submitted_at=now(), completion_note=nullif(trim(_completion_note),''), updated_at=now()
@@ -989,18 +989,14 @@ begin
 end $$;
 
 -- The operational evidence bucket is private. Object path: <company_uuid>/<task_uuid>/<filename>.
-insert into storage.buckets(id,name,public,file_size_limit,allowed_mime_types)
-values('operational-evidence','operational-evidence',false,10485760,array['image/jpeg','image/png','image/webp','application/pdf'])
-on conflict(id) do nothing;
+-- The operational-evidence bucket is provisioned as a private Cloudflare R2 bucket.
 
 
 
 
 
 -- Signed agreement files are private; object path: <company_uuid>/<supplier_uuid>/<filename>.
-insert into storage.buckets(id,name,public,file_size_limit,allowed_mime_types)
-values('contract-documents','contract-documents',false,20971520,array['application/pdf','image/jpeg','image/png'])
-on conflict(id) do nothing;
+-- The contract-documents bucket is provisioned as a private Cloudflare R2 bucket.
 
 
 
