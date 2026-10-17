@@ -79,6 +79,15 @@ create table if not exists public.company_invites (
   updated_at timestamptz not null default now()
 );
 create index if not exists company_invites_company_idx on public.company_invites(company_id, expires_at);
+alter table public.company_invites add column if not exists customer_id uuid;
+alter table public.company_invites add column if not exists supplier_id uuid;
+alter table public.company_invites drop constraint if exists company_invites_role_scope;
+alter table public.company_invites add constraint company_invites_role_scope check (
+  (role = 'customer' and customer_id is not null and supplier_id is null) or
+  (role = 'supplier' and supplier_id is not null and customer_id is null) or
+  (role not in ('customer','supplier') and customer_id is null and supplier_id is null)
+);
+
 
 create table if not exists public.auth_audit_events (
   id uuid primary key default gen_random_uuid(),
