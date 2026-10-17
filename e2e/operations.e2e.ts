@@ -358,7 +358,7 @@ test('a signed-in user can change their own password through the protected Worke
   await page.getByRole('button', { name: /تغییر گذرواژه/ }).click();
   await expect(page.getByRole('dialog', { name: 'تغییر گذرواژه' })).toBeVisible();
   await page.getByLabel('گذرواژه فعلی').fill('Old-pass-2026');
-  await page.getByLabel('گذرواژه جدید').fill('New-pass-2026');
+  await page.getByLabel('گذرواژه جدید', { exact: true }).fill('New-pass-2026');
   await page.getByLabel('تکرار گذرواژه جدید').fill('New-pass-2026');
   await page.getByRole('button', { name: 'ذخیره گذرواژه جدید' }).click();
 
