@@ -99,6 +99,28 @@ jobs:
             playwright-report/
             test-results/
           retention-days: 14
+      - name: Build the same-origin Cloudflare Worker frontend with secure sign-in
+        run: npm run build
+        env:
+          VITE_ENABLE_AUTH_UI: 'true'
+      - name: Verify Worker build has auth UI and premium operations styles
+        shell: bash
+        run: |
+          grep -q 'id="root"' dist/index.html
+          if grep -Eq '(src|href)="/simorgh/' dist/index.html; then
+            echo "Cloudflare Worker root build must use domain-root asset URLs, not the GitHub Pages subpath."
+            cat dist/index.html
+            exit 1
+          fi
+          js_file="$(find dist/assets -maxdepth 1 -type f -name '*.js' -print -quit)"
+          css_file="$(find dist/assets -maxdepth 1 -type f -name '*.css' -print -quit)"
+          test -n "$js_file" && test -s "$js_file"
+          test -n "$css_file" && test -s "$css_file"
+          grep -q 'ورود به مدار' "$js_file"
+          grep -q 'simorgh-signin-layer' "$js_file"
+          grep -q 'tower-quick-grid' "$css_file"
+          grep -q 'medar-glass' "$css_file"
+          echo "Worker frontend build includes sign-in, the command-center polish, and root-relative assets."
       - name: Build the Pages production bundle
         run: npm run build:pages
         env:
