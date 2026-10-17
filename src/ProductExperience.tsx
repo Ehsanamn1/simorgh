@@ -1,10 +1,9 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Activity, ArrowLeft, Boxes, Building2, Check, ClipboardCheck, CreditCard, Factory, FileText, Home, LayoutDashboard, ListTodo, MapPin, Menu, Package, ShieldCheck, Target, Truck, Warehouse, X, UserPlus, Eye, EyeOff, KeyRound, RotateCcw } from 'lucide-react';
+import { Activity, ArrowLeft, Boxes, Building2, Check, ClipboardCheck, CreditCard, Factory, FileText, Home, LayoutDashboard, ListTodo, MapPin, Menu, Package, ShieldCheck, Target, Truck, Warehouse, X, UserPlus, Eye, EyeOff } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useAuth } from './lib/AuthContext';
-import { neonAuth } from './lib/neonAuth';
 import { api } from './lib/apiClient';
 import { normalizeIranPhone } from './lib/phone';
 import { MedarLogo } from './MedarLogo';
@@ -12,7 +11,7 @@ import type { AppRole } from './lib/types';
 
 type NavigationEntry = { key: string; label: string };
 type PublicRequestedRole = 'staff' | 'supplier' | 'driver' | 'customer';
-type AuthMode = 'signin' | 'signup' | 'reset' | 'recovery';
+type AuthMode = 'signin' | 'signup';
 const requestedRoles: { value: PublicRequestedRole; label: string; Icon: LucideIcon }[] = [
   { value: 'customer', label: 'خریدار عمده', Icon: Boxes },
   { value: 'supplier', label: 'شریک مزرعه', Icon: Factory },
@@ -51,14 +50,14 @@ function readAllowedLinks(): NavigationEntry[] {
 
 /** Private operational app entry. Public self-registration is intentionally disabled. */
 export default function ProductExperience() {
-  const { user, loading, memberships, membershipsLoading, refreshMemberships } = useAuth();
+  const { user, loading, memberships, membershipsLoading, refreshSession, refreshMemberships } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [appMain, setAppMain] = useState<HTMLElement | null>(null);
   const [waitingScreen, setWaitingScreen] = useState<HTMLElement | null>(null);
   const [allowedLinks, setAllowedLinks] = useState<NavigationEntry[]>([]);
   const [mode, setMode] = useState<AuthMode>('signin');
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [fullName, setFullName] = useState('');
@@ -70,16 +69,12 @@ export default function ProductExperience() {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [requestId, setRequestId] = useState('');
-  const [workspaceProvisionError, setWorkspaceProvisionError] = useState('');
-  const [workspaceProvisioning, setWorkspaceProvisioning] = useState(false);
-  const [workspaceProvisionRetry, setWorkspaceProvisionRetry] = useState(0);
-  const provisionedUserIds = useRef<Set<string>>(new Set());
   const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
   const protectedRoute = location.pathname.includes('/app');
   // Enable secure sign-in by default in web, preview and native builds; only an explicit false disables it.
   // Public self-registration remains disabled independently of this UI flag.
   const authUiEnabled = import.meta.env.VITE_ENABLE_AUTH_UI !== 'false';
-  const signInOpen = authUiEnabled && (mode === 'recovery' || ((location.hash === '#signin' || location.hash === '#signup') && !user && !loading) || (protectedRoute && !user && !loading));
+  const signInOpen = authUiEnabled && (((location.hash === '#signin' || location.hash === '#signup') && !user && !loading) || (protectedRoute && !user && !loading));
   const normalizedPath = location.pathname.startsWith(basePath) ? location.pathname.slice(basePath.length) || '/' : location.pathname;
   const protectedDestination = normalizedPath.startsWith('/app') ? normalizedPath : '/app';
 
@@ -110,54 +105,10 @@ export default function ProductExperience() {
   }, [appMain, location.pathname, user?.id, memberships.length, memberships[0]?.role]);
 
   useEffect(() => {
-    if (!neonAuth) return;
-    const { data: listener } = neonAuth.onAuthStateChange(event => {
-      if (event === 'PASSWORD_RECOVERY') {
-        setMode('recovery'); setError(''); setNotice('گذرواژه جدید را وارد کن تا بازیابی حساب تکمیل شود.');
-        navigate({ pathname: location.pathname, search: location.search, hash: '#signin' }, { replace: true });
-      }
-    });
-    return () => listener.subscription.unsubscribe();
-  }, [navigate, location.pathname, location.search]);
-
-  useEffect(() => {
     if (!user || memberships.length) return;
-    const metadata = user.user_metadata ?? {};
-    if (requestedRoles.some(role => role.value === metadata.requested_role)) setRequestedRole(metadata.requested_role as PublicRequestedRole);
-    if (typeof metadata.full_name === 'string' && metadata.full_name.trim()) setFullName(metadata.full_name);
-    if (typeof metadata.organization_name === 'string') setOrganizationName(metadata.organization_name);
-    if (typeof metadata.phone === 'string') setPhone(metadata.phone);
-  }, [user?.id, user?.user_metadata, memberships.length]);
-
-  useEffect(() => {
-    if (!neonAuth || !user || loading || membershipsLoading || memberships.length > 0) return;
-    const metadata = user.user_metadata ?? {};
-    if (metadata.signup_workspace_pending !== true || provisionedUserIds.current.has(user.id)) return;
-    provisionedUserIds.current.add(user.id);
-    void (async () => {
-      setWorkspaceProvisioning(true);
-      setWorkspaceProvisionError('');
-      const result = await api.post<{ companyId: string }>('/api/workspace/provision', {
-        companyName: typeof metadata.organization_name === 'string' ? metadata.organization_name : '',
-        fullName: typeof metadata.full_name === 'string' ? metadata.full_name : '',
-        phone: typeof metadata.phone === 'string' ? metadata.phone : null,
-      });
-      if (!result?.companyId) {
-        provisionedUserIds.current.delete(user.id);
-        setWorkspaceProvisionError('ساخت فضای کاری انجام نشد. تأیید ایمیل، اتصال و نسخه پایگاه داده را بررسی کن و دوباره تلاش کن.');
-        setWorkspaceProvisioning(false);
-        return;
-      }
-            await refreshMemberships();
-      setWorkspaceProvisioning(false);
-      setWorkspaceProvisionError('');
-      setNotice('فضای کاری اختصاصی آماده شد.');
-    })().catch(() => {
-      provisionedUserIds.current.delete(user.id);
-      setWorkspaceProvisioning(false);
-      setWorkspaceProvisionError('ارتباط برای ساخت فضای کاری قطع شد. دوباره تلاش کن.');
-    });
-  }, [user?.id, user?.user_metadata, loading, membershipsLoading, memberships.length, refreshMemberships, workspaceProvisionRetry]);
+    if (user.full_name) setFullName(user.full_name);
+    if (user.phone) setPhone(user.phone);
+  }, [user?.id, user?.full_name, user?.phone, memberships.length]);
 
   useEffect(() => {
     const canCloseWithEscape: boolean = mode !== 'recovery';
@@ -203,83 +154,72 @@ export default function ProductExperience() {
 
   async function submitAuth(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!neonAuth) { setError('اتصال احراز هویت در این نسخه پیکربندی نشده است. ورود آنلاین در دسترس نیست.'); return; }
+    const cleanUsername = username.trim();
     const normalizedPhone = mode === 'signup' ? normalizeIranPhone(phone) : '';
+    if (cleanUsername.length < 3 || cleanUsername.length > 32 || !/^[\\p{L}\\p{N}._-]+$/u.test(cleanUsername)) {
+      setError('نام کاربری باید ۳ تا ۳۲ نویسه و شامل حروف، عدد، نقطه، خط تیره یا زیرخط باشد.');
+      return;
+    }
     if (mode === 'signup') {
       if (fullName.trim().length < 2 || fullName.trim().length > 160) { setError('نام کامل باید بین ۲ تا ۱۶۰ نویسه باشد.'); return; }
       if (organizationName.trim().length < 2 || organizationName.trim().length > 160) { setError('نام مجموعه باید بین ۲ تا ۱۶۰ نویسه باشد.'); return; }
-      if (password.length < 8) { setError('گذرواژه باید حداقل ۸ نویسه باشد.'); return; }
+      if (password.length < 8 || password.length > 128) { setError('گذرواژه باید بین ۸ تا ۱۲۸ نویسه باشد.'); return; }
       if (!normalizedPhone) { setError('شماره موبایل ایران معتبر وارد کن؛ مثال: 09121234567'); return; }
       if (password !== confirmPassword) { setError('تکرار گذرواژه یکسان نیست.'); return; }
+    } else if (password.length < 1 || password.length > 128) {
+      setError('نام کاربری یا گذرواژه نادرست است.');
+      return;
     }
+
     setBusy(true); setError(''); setNotice('');
     try {
-      if (mode === 'reset') {
-        const redirectUrl = new URL((import.meta.env.BASE_URL || '/') + '#signin', window.location.origin).toString();
-        const { error: resetError } = await neonAuth.resetPasswordForEmail(email.trim(), { redirectTo: redirectUrl });
-        if (resetError) { setError('ارسال ایمیل بازیابی انجام نشد. ایمیل و تنظیمات Auth را بررسی کن.'); return; }
-        setNotice('اگر این ایمیل حساب فعالی داشته باشد، لینک بازیابی برای آن ارسال می‌شود.');
-      } else if (mode === 'signup') {
-        const emailRedirectTo = new URL(basePath + '/#signin', window.location.origin).toString();
-        const { data, error: signUpError } = await neonAuth.signUp({
-          email: email.trim(),
+      if (mode === 'signup') {
+        await api.post('/api/auth/signup', {
+          username: cleanUsername,
           password,
-          options: {
-            emailRedirectTo,
-            data: {
-              full_name: fullName.trim(),
-              organization_name: organizationName.trim(),
-              phone: normalizedPhone,
-              signup_workspace_pending: true,
-            },
-          },
+          fullName: fullName.trim(),
+          companyName: organizationName.trim(),
+          phone: normalizedPhone,
         });
-        if (signUpError) {
-          const message = signUpError.message.toLowerCase();
-          setError(message.includes('signup is disabled') || message.includes('signups not allowed')
-            ? 'ثبت‌نام در تنظیمات Auth پروژه غیرفعال است؛ باید ثبت‌نام ایمیلی در Neon Auth فعال شود.'
-            : 'ساخت حساب انجام نشد. ایمیل را بررسی کن و اگر قبلاً حسابی با آن ساخته‌ای، وارد شو.');
-          return;
-        }
-        if (!data.user) { setError('پاسخ سرویس ثبت‌نام معتبر نبود. دوباره تلاش کن.'); return; }
-        setPassword(''); setConfirmPassword('');
-        if (data.session) {
-          setNotice('حساب ساخته شد؛ فضای کاری اختصاصی در حال آماده‌سازی است.');
-          navigate(protectedDestination, { replace: true });
-        } else {
-          setMode('signin');
-          navigate({ pathname: location.pathname, search: location.search, hash: '#signin' }, { replace: true });
-          setNotice('اگر این ایمیل قابل ثبت‌نام باشد، لینک تأیید برای آن ارسال می‌شود. ایمیل را تأیید کن؛ سپس فضای کاری اختصاصی ساخته می‌شود.');
-        }
-      } else if (mode === 'recovery') {
-        if (password.length < 8) { setError('گذرواژه جدید باید حداقل ۸ نویسه باشد.'); return; }
-        if (password !== confirmPassword) { setError('تکرار گذرواژه یکسان نیست.'); return; }
-        const { error: updateError } = await neonAuth.updateUser({ password });
-        if (updateError) { setError('تغییر گذرواژه انجام نشد. لینک بازیابی ممکن است منقضی شده باشد.'); return; }
-        await neonAuth.signOut();
-        setPassword(''); setConfirmPassword(''); setMode('signin'); setNotice('گذرواژه تغییر کرد. حالا با گذرواژه جدید وارد شو.');
+        await refreshSession();
+        setPassword(''); setConfirmPassword(''); setMode('signin');
+        setNotice('حساب و فضای کاری با موفقیت ساخته شد.');
+        navigate(protectedDestination, { replace: true });
       } else {
-        const { error: authError } = await neonAuth.signInWithPassword({ email: email.trim(), password });
-        if (authError) { setError('ورود انجام نشد. ایمیل و گذرواژه را بررسی کن یا ایمیل حساب را تأیید و دوباره تلاش کن.'); return; }
-        setPassword(''); navigate(protectedDestination, { replace: true });
+        await api.post('/api/auth/login', { username: cleanUsername, password });
+        await refreshSession();
+        setPassword('');
+        navigate(protectedDestination, { replace: true });
       }
-    } catch {
-      setError('ارتباط با سرویس احراز هویت برقرار نشد. اتصال اینترنت را بررسی کن و دوباره تلاش کن.');
-    } finally { setBusy(false); }
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'ارتباط با سرویس مدار برقرار نشد. دوباره تلاش کن.');
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function submitRoleRequest(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!neonAuth || !user) { setError('برای ثبت درخواست ابتدا وارد حساب شو.'); return; }
-    if (['customer', 'supplier'].includes(requestedRole) && organizationName.trim().length < 2) { setError('نام شرکت یا مزرعه برای این نقش ضروری است.'); return; }
+    if (!user) { setError('برای ثبت درخواست ابتدا وارد حساب شو.'); return; }
+    if (['customer', 'supplier'].includes(requestedRole) && organizationName.trim().length < 2) {
+      setError('نام شرکت یا مزرعه برای این نقش ضروری است.');
+      return;
+    }
     setBusy(true); setError(''); setNotice('');
-    const result = await api.post<{ requestId: string }>('/api/access-requests', {
-      role: requestedRole as AppRole, fullName: fullName.trim(), organizationName: organizationName.trim() || null, phone: phone.trim() || null,
-    });
-    const data = result.requestId;
-    setNotice('درخواست دسترسی ثبت شد. پس از بررسی مالک یا مدیر، فضای کاری نقش انتخابی فعال می‌شود.');
-    setError(''); setRequestId(String(data ?? ''));
-    setBusy(false);
+    try {
+      const result = await api.post<{ requestId: string }>('/api/access-requests', {
+        role: requestedRole as AppRole,
+        fullName: fullName.trim(),
+        organizationName: organizationName.trim() || null,
+        phone: phone.trim() || null,
+      });
+      setNotice('درخواست دسترسی ثبت شد. پس از بررسی مالک یا مدیر، فضای کاری نقش انتخابی فعال می‌شود.');
+      setRequestId(result.requestId);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'ثبت درخواست دسترسی ناموفق بود.');
+    } finally {
+      setBusy(false);
+    }
   }
 
   return <>
@@ -294,10 +234,8 @@ export default function ProductExperience() {
       </nav>, appMain)}
     {authUiEnabled && user && waitingScreen && memberships.length === 0 && createPortal(
       <section className="access-request-card" dir="rtl" aria-labelledby="access-request-title">
-        <div className="access-request-heading"><span className="access-request-icon"><UserPlus size={20}/></span><div><span className="obsidian-eyebrow">فضای کاری مدار</span><h2 id="access-request-title">{user.user_metadata?.signup_workspace_pending === true ? 'آماده‌سازی فضای کاری' : 'درخواست فضای کاری'}</h2><p>{user.user_metadata?.signup_workspace_pending === true ? 'پس از تأیید ایمیل، فضای کاری خصوصی مجموعه‌ات ساخته می‌شود.' : 'نقش را مشخص کن؛ مدیر پس از بررسی آن را تأیید یا رد می‌کند.'}</p></div></div>
-        {workspaceProvisioning && <div className="auth-feedback success" role="status">در حال ساخت فضای کاری اختصاصی…</div>}
-        {workspaceProvisionError && <div className="auth-feedback error workspace-provision-error" role="alert"><span>{workspaceProvisionError}</span><button type="button" onClick={() => setWorkspaceProvisionRetry(value => value + 1)}>تلاش دوباره</button></div>}
-        {user.user_metadata?.signup_workspace_pending !== true && <form className="access-request-form" onSubmit={submitRoleRequest}>
+        <div className="access-request-heading"><span className="access-request-icon"><UserPlus size={20}/></span><div><span className="obsidian-eyebrow">فضای کاری مدار</span><h2 id="access-request-title">درخواست فضای کاری</h2><p>نقش را مشخص کن؛ مدیر پس از بررسی آن را تأیید یا رد می‌کند.</p></div></div>
+        <form className="access-request-form" onSubmit={submitRoleRequest}>
           <label>نام و نام خانوادگی<input required minLength={2} maxLength={160} autoComplete="name" value={fullName} onChange={e => setFullName(e.target.value)} placeholder="نام کامل"/></label>
           <label>نوع دسترسی<select value={requestedRole} onChange={e => { setRequestedRole(e.target.value as PublicRequestedRole); setRequestId(''); }}><option value="customer">خریدار عمده</option><option value="supplier">شریک مزرعه</option><option value="driver">راننده / پیمانکار حمل</option><option value="staff">عضو تیم داخلی</option></select></label>
           {['customer', 'supplier'].includes(requestedRole) && <label className="wide">نام شرکت / مزرعه<input required minLength={2} maxLength={160} value={organizationName} onChange={e => setOrganizationName(e.target.value)} placeholder="نام مجموعه"/></label>}
@@ -305,10 +243,10 @@ export default function ProductExperience() {
           {error && <div className="auth-feedback error wide" role="alert">{error}</div>}
           {notice && <div className="auth-feedback success wide" role="status">{notice}</div>}
           <button className="obsidian-primary wide" type="submit" disabled={busy || Boolean(requestId)}>{busy ? 'در حال ارسال…' : requestId ? 'درخواست ثبت شد' : 'ارسال برای تأیید مدیر'} <ArrowLeft size={16}/></button>
-        </form>}
+        </form>
         <p className="access-request-foot"><ShieldCheck size={15}/> انتخاب نقش به‌تنهایی دسترسی نمی‌دهد. مدیر باید درخواست را در پنل کاربران بررسی کند.</p>
       </section>, waitingScreen)}
-    {signInOpen && (!user || mode === 'recovery') && (
+    {signInOpen && !user && (
       <section className="simorgh-signin-layer" role="dialog" aria-modal="true" aria-labelledby="simorgh-signin-title" aria-label="ورود امن مدار">
         <div className="simorgh-signin-brand">
           <div className="simorgh-signin-brand-top"><span className="simorgh-signin-mark"><ShieldCheck size={26}/></span><span><strong>مدار</strong><small>مدیریت یکپارچه عملیات</small></span></div>
@@ -316,31 +254,29 @@ export default function ProductExperience() {
           <div className="signin-brand-foot"><span>عملیات و منابع</span><span>ورود امن</span></div>
         </div>
         <div className="simorgh-signin-form-area">
-          {!protectedRoute && mode !== 'recovery' && <button type="button" className="signin-close" onClick={closeSignIn} aria-label="بستن ورود"><X size={20}/></button>}
+          {!protectedRoute && <button type="button" className="signin-close" onClick={closeSignIn} aria-label="بستن ورود"><X size={20}/></button>}
           <div className="simorgh-signin-form-card" dir="rtl">
-            {mode === 'signin' || mode === 'signup' ? <MedarLogo compact className="signin-form-logo"/> : <span className="signin-form-icon"><KeyRound size={21}/></span>}
-            <span className="signin-overline">{mode === 'signup' ? 'ثبت‌نام مجموعه' : mode === 'reset' ? 'بازیابی گذرواژه' : mode === 'recovery' ? 'تنظیم گذرواژه تازه' : 'ورود امن'}</span>
-            <h2 id="simorgh-signin-title">{mode === 'signup' ? 'ساخت حساب و فضای کاری' : mode === 'reset' ? 'بازیابی گذرواژه' : mode === 'recovery' ? 'گذرواژه جدید' : 'ورود به مدار'}</h2>
-            <p>{mode === 'signup' ? 'حساب بساز، شماره موبایل ایرانی‌ات را ثبت کن و فضای کاری خصوصی مجموعه‌ات را ایجاد کن. داده‌های شرکت‌های دیگر از این حساب جدا می‌ماند.' : mode === 'reset' ? 'ایمیل حساب را وارد کن تا در صورت وجود حساب، لینک بازیابی ارسال شود.' : mode === 'recovery' ? 'یک گذرواژه جدید و قوی برای حساب انتخاب کن.' : 'با ایمیل و گذرواژه وارد فضای کاری‌ات شو. شماره موبایل برای بازیابی و ارتباط عملیاتی حساب ثبت می‌شود.'}</p>
+            <MedarLogo compact className="signin-form-logo"/>
+            <span className="signin-overline">{mode === 'signup' ? 'ثبت‌نام مجموعه' : 'ورود امن'}</span>
+            <h2 id="simorgh-signin-title">{mode === 'signup' ? 'ساخت حساب و فضای کاری' : 'ورود به مدار'}</h2>
+            <p>{mode === 'signup' ? 'حساب بساز، شماره موبایل ایرانی و نام کاربری‌ات را ثبت کن تا فضای کاری مستقل مجموعه‌ات ساخته شود. نقش مالک فقط برای شرکت تازه‌ای است که خودت ایجاد می‌کنی.' : 'با نام کاربری و گذرواژه وارد مدار شو. ایمیل و تأیید پیامکی برای ورود لازم نیست.'}</p>
              <form className="simorgh-signin-form" onSubmit={event => void submitAuth(event)}>
                {mode === 'signup' && <>
                  <label htmlFor="simorgh-signin-full-name">نام و نام خانوادگی</label><input id="simorgh-signin-full-name" className="auth-input" type="text" autoComplete="name" required minLength={2} maxLength={160} value={fullName} onChange={e => setFullName(e.target.value)} placeholder="نام کامل"/>
                  <label htmlFor="simorgh-signin-organization">نام مزرعه یا مجموعه</label><input id="simorgh-signin-organization" className="auth-input" type="text" required minLength={2} maxLength={160} value={organizationName} onChange={e => setOrganizationName(e.target.value)} placeholder="نام مجموعه"/>
                  <label htmlFor="simorgh-signin-phone">شماره موبایل</label><input id="simorgh-signin-phone" className="auth-input" type="tel" autoComplete="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="09121234567" pattern="(?:09\\d{9}|9\\d{9}|\\+989\\d{9})" required dir="ltr"/>
                </>}
-               <label htmlFor="simorgh-signin-email">ایمیل</label><input id="simorgh-signin-email" className="auth-input" type="email" autoComplete="username" inputMode="email" required={mode !== 'recovery'} value={email} onChange={e => setEmail(e.target.value)} placeholder="name@company.com" dir="ltr"/>
-               {mode !== 'reset' && <>
-                 <label htmlFor="simorgh-signin-password">{mode === 'recovery' ? 'گذرواژه جدید' : 'گذرواژه'}</label>
-                 <div className="auth-password-wrap"><input id="simorgh-signin-password" className="auth-input" type={showPassword ? 'text' : 'password'} minLength={8} autoComplete={mode === 'recovery' || mode === 'signup' ? 'new-password' : 'current-password'} required value={password} onChange={e => setPassword(e.target.value)} placeholder="حداقل ۸ نویسه" dir="ltr"/><button type="button" onClick={() => setShowPassword(value => !value)} aria-label={showPassword ? 'پنهان‌کردن گذرواژه' : 'نمایش گذرواژه'}>{showPassword ? <EyeOff size={16}/> : <Eye size={16}/>}</button></div>
-                 {(mode === 'recovery' || mode === 'signup') && <><label htmlFor="simorgh-confirm-password">تکرار گذرواژه</label><input id="simorgh-confirm-password" className="auth-input" type="password" autoComplete="new-password" required minLength={8} value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="گذرواژه را دوباره وارد کن" dir="ltr"/></>}
-               </>}
+               <label htmlFor="simorgh-signin-username">نام کاربری</label><input id="simorgh-signin-username" className="auth-input" type="text" autoComplete="username" required minLength={3} maxLength={32} value={username} onChange={e => setUsername(e.target.value)} placeholder="نام کاربری" dir="ltr"/>
+               <label htmlFor="simorgh-signin-password">گذرواژه</label>
+               <div className="auth-password-wrap"><input id="simorgh-signin-password" className="auth-input" type={showPassword ? 'text' : 'password'} minLength={mode === 'signup' ? 8 : 1} maxLength={128} autoComplete={mode === 'signup' ? 'new-password' : 'current-password'} required value={password} onChange={e => setPassword(e.target.value)} placeholder={mode === 'signup' ? 'حداقل ۸ نویسه' : 'گذرواژه'} dir="ltr"/><button type="button" onClick={() => setShowPassword(value => !value)} aria-label={showPassword ? 'پنهان‌کردن گذرواژه' : 'نمایش گذرواژه'}>{showPassword ? <EyeOff size={16}/> : <Eye size={16}/>}</button></div>
+               {mode === 'signup' && <><label htmlFor="simorgh-confirm-password">تکرار گذرواژه</label><input id="simorgh-confirm-password" className="auth-input" type="password" autoComplete="new-password" required minLength={8} maxLength={128} value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="گذرواژه را دوباره وارد کن" dir="ltr"/>}
                {error && <div className="auth-feedback error" role="alert">{error}</div>}{notice && <div className="auth-feedback success" role="status">{notice}</div>}
-               <button className="signin-submit" type="submit" disabled={busy || (mode !== 'recovery' && !email.trim()) || (mode !== 'reset' && !password) || (mode === 'signup' && (!fullName.trim() || !organizationName.trim() || !confirmPassword))}>
-                 {busy ? <><span className="signin-spinner" aria-hidden="true"/> در حال پردازش…</> : mode === 'reset' ? <>ارسال لینک بازیابی <RotateCcw size={16}/></> : mode === 'recovery' ? <>ذخیره گذرواژه جدید <Check size={17}/></> : mode === 'signup' ? <>ساخت حساب و فضای کاری <ArrowLeft size={17}/></> : <>ورود به فضای کار <ArrowLeft size={17}/></>}
+               <button className="signin-submit" type="submit" disabled={busy || !username.trim() || !password || (mode === 'signup' && (!fullName.trim() || !organizationName.trim() || !phone.trim() || !confirmPassword))}>
+                 {busy ? <><span className="signin-spinner" aria-hidden="true"/> در حال پردازش…</> : mode === 'signup' ? <>ساخت حساب و فضای کاری <ArrowLeft size={17}/></> : <>ورود به فضای کار <ArrowLeft size={17}/></>}
                </button>
              </form>
-             {mode === 'signin' && <><button type="button" className="auth-text-action" onClick={() => {setMode('reset');setError('');setNotice('');}}>گذرواژه‌ات را فراموش کرده‌ای؟</button><div className="signin-registration-cta"><span>برای مجموعه جدید حساب می‌خواهی؟</span><button type="button" onClick={() => {setMode('signup');setError('');setNotice('');navigate({pathname:location.pathname,search:location.search,hash:'#signup'},{replace:true});}}>ساخت حساب و فضای کاری</button></div></>}
-             {(mode === 'reset' || mode === 'signup') && <button type="button" className="auth-text-action" onClick={() => {setMode('signin');setError('');setNotice('');navigate({pathname:location.pathname,search:location.search,hash:'#signin'},{replace:true});}}>بازگشت به ورود</button>}
+             {mode === 'signin' && <><p className="auth-recovery-note">برای بازنشانی امن گذرواژه، با مالک سامانه تماس بگیر؛ بازیابی بدون ایمیل یا عامل تأیید دوم فعلاً فعال نیست.</p><div className="signin-registration-cta"><span>برای مجموعه جدید حساب می‌خواهی؟</span><button type="button" onClick={() => {setMode('signup');setError('');setNotice('');navigate({pathname:location.pathname,search:location.search,hash:'#signup'},{replace:true});}}>ساخت حساب و فضای کاری</button></div></>}
+             {mode === 'signup' && <button type="button" className="auth-text-action" onClick={() => {setMode('signin');setError('');setNotice('');navigate({pathname:location.pathname,search:location.search,hash:'#signin'},{replace:true});}}>بازگشت به ورود</button>}
              <div className="signin-form-foot"><span><Check size={13}/> کنترل دسترسی سمت سرور</span><span>مدار · فضای امن</span></div>
           </div>
         </div>
