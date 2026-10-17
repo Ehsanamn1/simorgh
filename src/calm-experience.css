@@ -346,3 +346,31 @@ html[data-theme="dark"] .guide-backdrop { background: rgb(9 16 12 / 56%); }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
 }
+
+/* Shared, calmer treatments for the public shell, mobile bottom navigation, and first-run screens. */
+html[data-theme="dark"] .mobile-workspace-nav {
+  background: rgb(39 53 45 / 96%) !important; border-color: #455c4d !important;
+  box-shadow: 0 10px 26px rgb(0 0 0 / 17%), inset 0 1px rgb(255 255 255 / 5%) !important;
+}
+html[data-theme="dark"] .mobile-workspace-nav a, html[data-theme="dark"] .mobile-workspace-more { color: #c0d0c5 !important; }
+html[data-theme="dark"] .mobile-workspace-nav a.is-active { background: #405c4a !important; color: #f0f6f0 !important; }
+html[data-theme="dark"] .mobile-workspace-nav a.is-active svg { color: #c2dfcc !important; }
+html[data-theme="light"] .mobile-workspace-nav {
+  background: rgb(255 255 255 / 97%) !important; border-color: #d5e2d6 !important;
+  box-shadow: 0 10px 25px rgb(49 81 57 / 12%), inset 0 1px #fff !important;
+}
+html[data-theme="light"] .mobile-workspace-nav a, html[data-theme="light"] .mobile-workspace-more { color: #667c6b !important; }
+html[data-theme="light"] .mobile-workspace-nav a.is-active { background: #e2efe3 !important; color: #315940 !important; }
+html[data-theme="light"] .mobile-workspace-nav a.is-active svg { color: #477453 !important; }
+html[data-theme="dark"] .mobile-scrim { background: rgb(10 18 13 / 48%) !important; backdrop-filter: blur(5px); }
+html[data-theme="light"] .mobile-scrim { background: rgb(44 69 48 / 24%) !important; backdrop-filter: blur(5px); }
+html[data-theme="dark"] .mobile-access-mark .brand-symbol { background: linear-gradient(145deg, #b5d8c2, #8cbba0) !important; color: #284435 !important; border-color: #567d64 !important; }
+html[data-theme="light"] .mobile-access-mark .brand-symbol { background: linear-gradient(145deg, #d3e5d5, #b7d2bd) !important; color: #355641 !important; border-color: #c6dcc9 !important; }
+html[data-theme="dark"] .portal-header { background: rgb(37 51 44 / 93%) !important; border-color: var(--obs-border) !important; box-shadow: 0 4px 15px rgb(0 0 0 / 8%); }
+html[data-theme="light"] .portal-header { background: rgb(249 252 248 / 94%) !important; border-color: var(--obs-border) !important; box-shadow: 0 3px 12px rgb(49 81 57 / 4%); }
+html[data-theme="dark"] .portal-signin-link { background: #35493b !important; border-color: #526b57 !important; color: var(--obs-text) !important; }
+html[data-theme="dark"] .portal-signin-link:hover { background: #405946 !important; border-color: var(--obs-accent) !important; }
+html[data-theme="light"] .portal-signin-link { background: #e5eee4 !important; border-color: #cbdccb !important; color: #355942 !important; }
+html[data-theme="light"] .portal-signin-link:hover { background: #dce9db !important; border-color: #a9c7ad !important; }
+html[data-theme="dark"] .portal .brand-symbol { background: linear-gradient(145deg, #b5d8c2, #8cbba0) !important; color: #284435 !important; border-color: #567d64 !important; }
+html[data-theme="light"] .portal .brand-symbol { background: linear-gradient(145deg, #779c81, #567e66) !important; color: #f8fbf7 !important; border-color: #b9d0bc !important; }
