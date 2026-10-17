@@ -87,6 +87,12 @@ alter table public.memberships add constraint memberships_company_customer_fk
 alter table public.memberships drop constraint if exists memberships_company_supplier_fk;
 alter table public.memberships add constraint memberships_company_supplier_fk
   foreign key (company_id, supplier_id) references public.suppliers(company_id, id) on delete cascade;
+alter table public.company_invites drop constraint if exists company_invites_customer_fk;
+alter table public.company_invites add constraint company_invites_customer_fk
+  foreign key (company_id, customer_id) references public.customers(company_id, id) on delete cascade;
+alter table public.company_invites drop constraint if exists company_invites_supplier_fk;
+alter table public.company_invites add constraint company_invites_supplier_fk
+  foreign key (company_id, supplier_id) references public.suppliers(company_id, id) on delete cascade;
 alter table public.memberships drop constraint if exists membership_role_scope;
 alter table public.memberships add constraint membership_role_scope check (
   (role = 'customer' and customer_id is not null and supplier_id is null) or
