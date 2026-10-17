@@ -710,13 +710,13 @@ app.post('/api/contacts/import', async (c) => {
   const body = await c.req.json<Record<string, unknown>>().catch(() => null);
   if (!body) return c.json({ message: 'داده واردسازی معتبر نیست.' }, 400);
   const companyId = typeof body.companyId === 'string' ? body.companyId : '';
-  const kind = body.kind === 'customers' || body.kind === 'suppliers' ? body.kind : null;
-  if (!COMPANY_ID_RE.test(companyId) || !kind) return c.json({ message: 'شناسه مجموعه یا دسته مقصد معتبر نیست.' }, 422);
+  const defaultKind = body.kind === 'customers' || body.kind === 'suppliers' ? body.kind : null;
+  if (!COMPANY_ID_RE.test(companyId)) return c.json({ message: 'شناسه مجموعه معتبر نیست.' }, 422);
   const membership = await aiCompanyMembership(c, companyId, user.id);
   if (!membership) return c.json({ message: 'به این فضای کاری دسترسی فعال نداری.' }, 403);
   if (membership.role !== 'owner' && membership.role !== 'admin') return c.json({ message: 'فقط مالک یا مدیر می‌تواند مخاطبین مجموعه را وارد کند.' }, 403);
   if (!Array.isArray(body.contacts) || body.contacts.length < 1 || body.contacts.length > 1000) return c.json({ message: 'تعداد مخاطبین باید بین ۱ تا ۱۰۰۰ باشد.' }, 422);
-  const contacts: Array<{ name: string; phone: string; city: string; address: string }> = [];
+  const contacts: Array<{ name: string; phone: string; city: string; address: string; kind: 'customers' | 'suppliers' }> = [];
   const seen = new Set<string>();
   for (const raw of body.contacts) {
     if (!raw || typeof raw !== 'object') continue;
@@ -725,36 +725,46 @@ app.post('/api/contacts/import', async (c) => {
     const phone = typeof item.phone === 'string' ? item.phone.trim().slice(0, 40) : '';
     const city = typeof item.city === 'string' ? item.city.trim().slice(0, 100) : '';
     const address = typeof item.address === 'string' ? item.address.trim().slice(0, 500) : '';
-    if (name.length < 2 || name.length > 160) continue;
-    const dedupeKey = phone.replace(/\D/g, '') || name.toLocaleLowerCase('fa-IR');
+    const kind = item.kind === 'customers' || item.kind === 'suppliers' ? item.kind : defaultKind;
+    if (!kind || name.length < 2 || name.length > 160) continue;
+    // A contact can legitimately be both a customer and a supplier; de-duplicate within each category.
+    const dedupeKey = kind + ':' + (phone.replace(/\D/g, '') || name.toLocaleLowerCase('fa-IR'));
     if (seen.has(dedupeKey)) continue;
     seen.add(dedupeKey);
-    contacts.push({ name, phone, city, address });
+    contacts.push({ name, phone, city, address, kind });
   }
-  if (!contacts.length) return c.json({ message: 'مخاطب معتبر برای واردسازی باقی نمانده است.' }, 422);
+  if (!contacts.length) return c.json({ message: 'مخاطب معتبر با دسته‌ی مقصد مشخص برای واردسازی باقی نمانده است.' }, 422);
   const sql = sqlFor(c);
-  let imported = 0, updated = 0;
-  for (let start = 0; start < contacts.length; start += 100) {
-    const batch = contacts.slice(start, start + 100);
-    const params: unknown[] = [];
-    const values: string[] = [];
-    batch.forEach(item => {
-      const offset = params.length;
-      if (kind === 'customers') {
-        params.push(companyId, item.name, item.phone || null, item.city || null, item.address || null);
-        values.push('($' + (offset+1) + '::uuid,$' + (offset+2) + ',$' + (offset+3) + ',$' + (offset+4) + ',$' + (offset+5) + ')');
-      } else {
-        params.push(companyId, item.name, item.phone || null, item.city || null);
-        values.push('($' + (offset+1) + '::uuid,$' + (offset+2) + ',$' + (offset+3) + ',$' + (offset+4) + ')');
-      }
-    });
-    const query = kind === 'customers'
-      ? "insert into public.customers(company_id,name,phone,city,address) values " + values.join(',') + " on conflict(company_id,name) do update set phone=coalesce(nullif(excluded.phone,''),customers.phone),city=coalesce(nullif(excluded.city,''),customers.city),address=coalesce(nullif(excluded.address,''),customers.address),updated_at=now() returning (xmax=0) as inserted"
-      : "insert into public.suppliers(company_id,name,phone,city) values " + values.join(',') + " on conflict(company_id,name) do update set phone=coalesce(nullif(excluded.phone,''),suppliers.phone),city=coalesce(nullif(excluded.city,''),suppliers.city),updated_at=now() returning (xmax=0) as inserted";
-    const rows = await sql.query(query, params) as Array<{ inserted: boolean }>;
-    for (const row of rows) if (row.inserted) imported++; else updated++;
+  const byKind: Record<'customers' | 'suppliers', { imported: number; updated: number }> = {
+    customers: { imported: 0, updated: 0 },
+    suppliers: { imported: 0, updated: 0 },
+  };
+  for (const kind of ['customers', 'suppliers'] as const) {
+    const categorized = contacts.filter(contact => contact.kind === kind);
+    for (let start = 0; start < categorized.length; start += 100) {
+      const batch = categorized.slice(start, start + 100);
+      const params: unknown[] = [];
+      const values: string[] = [];
+      batch.forEach(item => {
+        const offset = params.length;
+        if (kind === 'customers') {
+          params.push(companyId, item.name, item.phone || null, item.city || null, item.address || null);
+          values.push('($' + (offset+1) + '::uuid,$' + (offset+2) + ',$' + (offset+3) + ',$' + (offset+4) + ',$' + (offset+5) + ')');
+        } else {
+          params.push(companyId, item.name, item.phone || null, item.city || null);
+          values.push('($' + (offset+1) + '::uuid,$' + (offset+2) + ',$' + (offset+3) + ',$' + (offset+4) + ')');
+        }
+      });
+      const query = kind === 'customers'
+        ? "insert into public.customers(company_id,name,phone,city,address) values " + values.join(',') + " on conflict(company_id,name) do update set phone=coalesce(nullif(excluded.phone,''),customers.phone),city=coalesce(nullif(excluded.city,''),customers.city),address=coalesce(nullif(excluded.address,''),customers.address),updated_at=now() returning (xmax=0) as inserted"
+        : "insert into public.suppliers(company_id,name,phone,city) values " + values.join(',') + " on conflict(company_id,name) do update set phone=coalesce(nullif(excluded.phone,''),suppliers.phone),city=coalesce(nullif(excluded.city,''),suppliers.city),updated_at=now() returning (xmax=0) as inserted";
+      const rows = await sql.query(query, params) as Array<{ inserted: boolean }>;
+      for (const row of rows) if (row.inserted) byKind[kind].imported++; else byKind[kind].updated++;
+    }
   }
-  return c.json({ imported, updated, skipped: Number(body.contacts.length) - contacts.length, kind });
+  const imported = byKind.customers.imported + byKind.suppliers.imported;
+  const updated = byKind.customers.updated + byKind.suppliers.updated;
+  return c.json({ imported, updated, skipped: Number(body.contacts.length) - contacts.length, byKind });
 });
 
 
