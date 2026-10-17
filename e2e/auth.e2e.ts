@@ -95,6 +95,23 @@ test('signup supports an Iranian mobile and username/password without email or O
   expect(signupBody?.password).toBe('Strong-test-pass-2026');
   expect(signupBody).not.toHaveProperty('email');
   await expect(page.locator('.app-frame')).toBeVisible();
+
+  const operationalThemeToggle = page.getByRole('button', { name: 'فعال‌کردن حالت روشن' });
+  await expect(operationalThemeToggle).toBeVisible();
+  await expect(operationalThemeToggle).toHaveAttribute('aria-pressed', 'false');
+  await operationalThemeToggle.click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+  await expect(page.getByRole('button', { name: 'فعال‌کردن حالت تاریک' })).toHaveAttribute('aria-pressed', 'true');
+  await expect.poll(() => page.evaluate(() => localStorage.getItem('simorgh-theme'))).toBe('light');
+  await expect.poll(() => page.locator('.app-frame').evaluate(el => getComputedStyle(el).backgroundColor)).toBe('rgb(244, 247, 247)');
+
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await expect(page.locator('.app-frame')).toBeVisible();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+  await expect(page.getByRole('button', { name: 'فعال‌کردن حالت تاریک' })).toHaveAttribute('aria-pressed', 'true');
+  await page.getByRole('button', { name: 'فعال‌کردن حالت تاریک' }).click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  await expect.poll(() => page.evaluate(() => localStorage.getItem('simorgh-theme'))).toBe('dark');
 });
 
 test('login accepts a username and renders server errors', async ({ page }) => {
