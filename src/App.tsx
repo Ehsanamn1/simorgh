@@ -419,7 +419,7 @@ function Dashboard({ membership }: { membership: Membership }) {
           <small>بر اساس آخرین heartbeat؛ نه صرفاً نصب بودن اپ</small>
         </article>
       </div>
-      {centralStatusError && <div className="medar-system-status-error" role="status">{centralStatusError}</div>}
+      {centralStatusError && <div className="medar-system-status-error" role="alert">{centralStatusError}</div>}
       <div className="medar-client-presence">
         <div className="medar-client-presence-heading"><b>آخرین دستگاه‌ها و نسخه‌های متصل</b><span>به‌روزرسانی خودکار هر ۶۰ ثانیه</span></div>
         {centralStatusLoading && clientPresence.length === 0 ? <div className="medar-presence-empty">در حال دریافت وضعیت دستگاه‌ها…</div>
