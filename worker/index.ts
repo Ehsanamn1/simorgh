@@ -21,6 +21,9 @@ const app = new Hono<AppEnv>();
 const SESSION_COOKIE = 'medar_session';
 const SESSION_DAYS = 14;
 const PASSWORD_ITERATIONS = 310_000;
+// Used only to keep the PBKDF2 verification path consistent when a username does not exist.
+// It is never accepted as an account credential because the account lookup result is still required.
+export const DUMMY_PASSWORD_HASH = 'pbkdf2_sha256$310000$bWVkYXItZHVtbXktc2FsdCE=$Sk8IhZrR9RSBksUm2skm8Ny+NZcnKLgYPWsTBvfWL44=';
 const encoder = new TextEncoder();
 
 function sqlFor(c: Ctx) {
@@ -93,7 +96,7 @@ async function hashPassword(password: string): Promise<string> {
   return `pbkdf2_sha256$${PASSWORD_ITERATIONS}$${bytesToBase64(salt)}$${bytesToBase64(new Uint8Array(derived))}`;
 }
 
-async function verifyPassword(password: string, encoded: string): Promise<boolean> {
+export async function verifyPassword(password: string, encoded: string): Promise<boolean> {
   const [algorithm, rawIterations, saltText, expectedText] = encoded.split('$');
   if (algorithm !== 'pbkdf2_sha256' || !rawIterations || !saltText || !expectedText) return false;
   const iterations = Number(rawIterations);
@@ -408,7 +411,9 @@ app.post('/api/auth/login', async (c) => {
       [identifier.value],
     );
   const account = rows[0] as (Record<string, unknown> & { id: string; password_hash: string; account_status: string }) | undefined;
-  const passwordMatches = account ? await verifyPassword(password, account.password_hash) : (await hashPassword(password), false);
+  // Verify a fixed dummy hash for unknown accounts; do not create a new password hash on the login path.
+  // verifyPassword handles Web Crypto errors as a failed match, so missing users still receive the same 401.
+  const passwordMatches = await verifyPassword(password, account?.password_hash ?? DUMMY_PASSWORD_HASH);
   if (!account || !passwordMatches) {
     await recordFailedLogin(c, keys);
     return c.json({ message: 'شماره موبایل یا نام کاربری، یا گذرواژه نادرست است.' }, 401);
