@@ -76,13 +76,6 @@ test('manager workspace retains operations and captures a real rendered control-
 
 test('manager map shows every saved farm coordinate and allows marker selection', async ({ page }) => {
   await installIsolatedSession(page, 'owner');
-  const headers = {
-    'access-control-allow-origin': '*',
-    'access-control-allow-headers': '*',
-    'access-control-allow-methods': 'GET,HEAD,OPTIONS,POST,PATCH,DELETE,PUT',
-    'content-type': 'application/json',
-    'cache-control': 'no-store',
-  };
   const sites = [
     { id: '00000000-0000-4000-8000-000000000101', name: 'مزرعه تهران', site_type: 'crop', city: 'تهران', province: 'تهران', latitude: 35.6892, longitude: 51.3890, license_expires_on: null, active: true },
     { id: '00000000-0000-4000-8000-000000000102', name: 'واحد کرمان', site_type: 'livestock', city: 'کرمان', province: 'کرمان', latitude: 30.2839, longitude: 57.0834, license_expires_on: null, active: true },
