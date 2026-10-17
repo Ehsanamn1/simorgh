@@ -546,7 +546,8 @@ app.put('/api/ai/providers', async (c) => {
   if (!COMPANY_ID_RE.test(companyId) || !provider) return c.json({ message: 'شناسه مجموعه یا پرووایدر معتبر نیست.' }, 422);
   if (!model || model.length > 120 || !/^[A-Za-z0-9._:/-]+$/.test(model)) return c.json({ message: 'شناسه مدل معتبر نیست.' }, 422);
   if (apiKey.length > 512 || (apiKey && apiKey.length < 12)) return c.json({ message: 'فرمت کلید API معتبر نیست.' }, 422);
-  const role = await aiCompanyRole(c, companyId, user.id);
+  const membership = await aiCompanyMembership(c, companyId, user.id);
+  if (!membership) return c.json({ message: 'به این فضای کاری دسترسی فعال نداری.' }, 403);
   if (membership.role !== 'owner' && membership.role !== 'admin') return c.json({ message: 'فقط مالک یا مدیر مجموعه می‌تواند پرووایدرهای هوش مصنوعی را تنظیم کند.' }, 403);
   const sql = sqlFor(c);
   const existingRows = await sql.query('select encrypted_api_key from public.medar_ai_provider_configs where company_id=$1::uuid and provider=$2 limit 1', [companyId, provider]);
@@ -575,8 +576,9 @@ app.post('/api/ai/chat', async (c) => {
   if (!body) return c.json({ message: 'پیام دستیار معتبر نیست.' }, 400);
   const companyId = typeof body.companyId === 'string' ? body.companyId : '';
   if (!COMPANY_ID_RE.test(companyId)) return c.json({ message: 'شناسه مجموعه معتبر نیست.' }, 422);
-  const role = await aiCompanyRole(c, companyId, user.id);
-  if (!role) return c.json({ message: 'به این فضای کاری دسترسی فعال نداری.' }, 403);
+  const membership = await aiCompanyMembership(c, companyId, user.id);
+  if (!membership) return c.json({ message: 'به این فضای کاری دسترسی فعال نداری.' }, 403);
+  const role = membership.role;
   if (!Array.isArray(body.messages) || body.messages.length < 1 || body.messages.length > 12) return c.json({ message: 'گفتگو باید بین ۱ تا ۱۲ پیام آخر را داشته باشد.' }, 422);
   const messages: AiChatMessage[] = [];
   let inputChars = 0;
@@ -710,8 +712,9 @@ app.post('/api/contacts/import', async (c) => {
   const companyId = typeof body.companyId === 'string' ? body.companyId : '';
   const kind = body.kind === 'customers' || body.kind === 'suppliers' ? body.kind : null;
   if (!COMPANY_ID_RE.test(companyId) || !kind) return c.json({ message: 'شناسه مجموعه یا دسته مقصد معتبر نیست.' }, 422);
-  const role = await aiCompanyRole(c, companyId, user.id);
-  if (role !== 'owner' && role !== 'admin') return c.json({ message: 'فقط مالک یا مدیر می‌تواند مخاطبین مجموعه را وارد کند.' }, 403);
+  const membership = await aiCompanyMembership(c, companyId, user.id);
+  if (!membership) return c.json({ message: 'به این فضای کاری دسترسی فعال نداری.' }, 403);
+  if (membership.role !== 'owner' && membership.role !== 'admin') return c.json({ message: 'فقط مالک یا مدیر می‌تواند مخاطبین مجموعه را وارد کند.' }, 403);
   if (!Array.isArray(body.contacts) || body.contacts.length < 1 || body.contacts.length > 1000) return c.json({ message: 'تعداد مخاطبین باید بین ۱ تا ۱۰۰۰ باشد.' }, 422);
   const contacts: Array<{ name: string; phone: string; city: string; address: string }> = [];
   const seen = new Set<string>();
