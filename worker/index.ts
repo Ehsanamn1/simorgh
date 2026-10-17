@@ -722,9 +722,6 @@ function sanitizeExternalRows(table:string,rows:Record<string,unknown>[],members
 function companyRole(memberships:MembershipScope[],companyId:string):MembershipScope|undefined {
  return memberships.find(m=>m.company_id===companyId);
 }
-function canWriteInternally(membership:MembershipScope|undefined):boolean {
- return Boolean(membership&&INTERNAL_ROLES.has(membership.role));
-}
 const UPDATE_PROTECTED_FIELDS:Record<string,Set<string>>={
  orders:new Set(['status','created_by']),
  shipments:new Set(['stage','departed_at','delivered_at','failure_reason','driver_user_id']),
