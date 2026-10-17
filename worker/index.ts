@@ -174,7 +174,7 @@ async function createSession(c: Ctx, userId: string): Promise<void> {
   const userAgent = (c.req.header('user-agent') ?? '').slice(0, 500);
   const ipHash = ip ? await sha256(ip) : null;
   await sql.query(
-    "insert into public.medar_sessions(user_id,token_hash,expires_at,user_agent,ip_hash) values($1::uuid,$2,now()+interval '14 days',$3,$4)",
+    "insert into public.medar_sessions(user_id,token_hash,expires_at,last_seen_at,user_agent,ip_hash) values($1::uuid,$2,now()+interval '14 days',now(),$3,$4)",
     [userId, tokenHash, userAgent || null, ipHash],
   );
   await sql.query("delete from public.medar_sessions where expires_at<now()-interval '7 days'");
@@ -272,6 +272,10 @@ app.get('/api/auth/me', async (c) => {
 app.post('/api/auth/signup', async (c) => {
   const body = await c.req.json<Record<string, unknown>>().catch(() => null);
   if (!body) return c.json({ message: 'اطلاعات ثبت‌نام معتبر نیست.' }, 400);
+  const signupIp = c.req.header('cf-connecting-ip') ?? 'unknown';
+  const signupBucket = await sha256('signup-ip:' + signupIp);
+  if (await isRateLimited(c, [signupBucket])) return c.json({ message: 'تلاش‌های ثبت‌نام از این اتصال بیش از حد است؛ ۱۵ دقیقه دیگر دوباره امتحان کن.' }, 429);
+  await recordFailedLogin(c, [signupBucket]);
   const username = normalizeUsername(body.username);
   const phone = normalizeIranPhone(body.phone);
   const fullName = typeof body.fullName === 'string' ? body.fullName.trim() : '';
