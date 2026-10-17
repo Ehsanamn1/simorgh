@@ -62,6 +62,8 @@ export default function ProductExperience() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [organizationName, setOrganizationName] = useState('');
+  const [workspaceMode, setWorkspaceMode] = useState<'create' | 'join'>('create');
+  const [inviteCode, setInviteCode] = useState('');
   const [phone, setPhone] = useState('');
   const [requestedRole, setRequestedRole] = useState<PublicRequestedRole>('customer');
   const [busy, setBusy] = useState(false);
@@ -162,7 +164,8 @@ export default function ProductExperience() {
     }
     if (mode === 'signup') {
       if (fullName.trim().length < 2 || fullName.trim().length > 160) { setError('نام کامل باید بین ۲ تا ۱۶۰ نویسه باشد.'); return; }
-      if (organizationName.trim().length < 2 || organizationName.trim().length > 160) { setError('نام مجموعه باید بین ۲ تا ۱۶۰ نویسه باشد.'); return; }
+      if (workspaceMode === 'create' && (organizationName.trim().length < 2 || organizationName.trim().length > 160)) { setError('نام مجموعه باید بین ۲ تا ۱۶۰ نویسه باشد.'); return; }
+      if (workspaceMode === 'join' && !/^[a-f0-9]{64}$/i.test(inviteCode.trim())) { setError('کد دعوت معتبر ۶۴ نویسه‌ای وارد کن.'); return; }
       if (password.length < 8 || password.length > 128) { setError('گذرواژه باید بین ۸ تا ۱۲۸ نویسه باشد.'); return; }
       if (!normalizedPhone) { setError('شماره موبایل ایران معتبر وارد کن؛ مثال: 09121234567'); return; }
       if (password !== confirmPassword) { setError('تکرار گذرواژه یکسان نیست.'); return; }
@@ -178,7 +181,8 @@ export default function ProductExperience() {
           username: cleanUsername,
           password,
           fullName: fullName.trim(),
-          companyName: organizationName.trim(),
+          companyName: workspaceMode === 'create' ? organizationName.trim() : '',
+          inviteCode: workspaceMode === 'join' ? inviteCode.trim().toLowerCase() : undefined,
           phone: normalizedPhone,
         });
         await refreshSession();
@@ -259,11 +263,15 @@ export default function ProductExperience() {
             <MedarLogo compact className="signin-form-logo"/>
             <span className="signin-overline">{mode === 'signup' ? 'ثبت‌نام مجموعه' : 'ورود امن'}</span>
             <h2 id="simorgh-signin-title">{mode === 'signup' ? 'ساخت حساب و فضای کاری' : 'ورود به مدار'}</h2>
-            <p>{mode === 'signup' ? 'حساب بساز، شماره موبایل ایرانی و نام کاربری‌ات را ثبت کن تا فضای کاری مستقل مجموعه‌ات ساخته شود. نقش مالک فقط برای شرکت تازه‌ای است که خودت ایجاد می‌کنی.' : 'با نام کاربری و گذرواژه وارد مدار شو. ایمیل و تأیید پیامکی برای ورود لازم نیست.'}</p>
+            <p>{mode === 'signup' ? 'با نام کاربری، شماره موبایل و گذرواژه ثبت‌نام کن؛ می‌توانی مجموعه جدید بسازی یا با کد دعوت به یک مجموعه بپیوندی.' : 'با نام کاربری و گذرواژه وارد مدار شو. ایمیل و تأیید پیامکی برای ورود لازم نیست.'}</p>
              <form className="simorgh-signin-form" onSubmit={event => void submitAuth(event)}>
                {mode === 'signup' && <>
                  <label htmlFor="simorgh-signin-full-name">نام و نام خانوادگی</label><input id="simorgh-signin-full-name" className="auth-input" type="text" autoComplete="name" required minLength={2} maxLength={160} value={fullName} onChange={e => setFullName(e.target.value)} placeholder="نام کامل"/>
-                 <label htmlFor="simorgh-signin-organization">نام مزرعه یا مجموعه</label><input id="simorgh-signin-organization" className="auth-input" type="text" required minLength={2} maxLength={160} value={organizationName} onChange={e => setOrganizationName(e.target.value)} placeholder="نام مجموعه"/>
+                 <label htmlFor="simorgh-workspace-mode">نحوه اتصال به مجموعه</label>
+                 <select id="simorgh-workspace-mode" className="auth-input" value={workspaceMode} onChange={e => {setWorkspaceMode(e.target.value as 'create' | 'join');setError('');}}><option value="create">ساخت مجموعه جدید</option><option value="join">پیوستن با کد دعوت</option></select>
+                 {workspaceMode === 'create'
+                   ? <><label htmlFor="simorgh-signin-organization">نام مزرعه یا مجموعه</label><input id="simorgh-signin-organization" className="auth-input" type="text" required minLength={2} maxLength={160} value={organizationName} onChange={e => setOrganizationName(e.target.value)} placeholder="نام مجموعه"/></>
+                   : <><label htmlFor="simorgh-signin-invite">کد دعوت</label><input id="simorgh-signin-invite" className="auth-input" type="text" required minLength={64} maxLength={64} value={inviteCode} onChange={e => setInviteCode(e.target.value.toLowerCase())} placeholder="کد دعوت را وارد کن" dir="ltr"/></>}
                  <label htmlFor="simorgh-signin-phone">شماره موبایل</label><input id="simorgh-signin-phone" className="auth-input" type="tel" autoComplete="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="09121234567" pattern="(?:09\\d{9}|9\\d{9}|\\+989\\d{9})" required dir="ltr"/>
                </>}
                <label htmlFor="simorgh-signin-username">نام کاربری</label><input id="simorgh-signin-username" className="auth-input" type="text" autoComplete="username" required minLength={3} maxLength={32} value={username} onChange={e => setUsername(e.target.value)} placeholder="نام کاربری" dir="ltr"/>
@@ -271,7 +279,7 @@ export default function ProductExperience() {
                <div className="auth-password-wrap"><input id="simorgh-signin-password" className="auth-input" type={showPassword ? 'text' : 'password'} minLength={mode === 'signup' ? 8 : 1} maxLength={128} autoComplete={mode === 'signup' ? 'new-password' : 'current-password'} required value={password} onChange={e => setPassword(e.target.value)} placeholder={mode === 'signup' ? 'حداقل ۸ نویسه' : 'گذرواژه'} dir="ltr"/><button type="button" onClick={() => setShowPassword(value => !value)} aria-label={showPassword ? 'پنهان‌کردن گذرواژه' : 'نمایش گذرواژه'}>{showPassword ? <EyeOff size={16}/> : <Eye size={16}/>}</button></div>
                {mode === 'signup' && <><label htmlFor="simorgh-confirm-password">تکرار گذرواژه</label><input id="simorgh-confirm-password" className="auth-input" type="password" autoComplete="new-password" required minLength={8} maxLength={128} value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="گذرواژه را دوباره وارد کن" dir="ltr"/></>}
                {error && <div className="auth-feedback error" role="alert">{error}</div>}{notice && <div className="auth-feedback success" role="status">{notice}</div>}
-               <button className="signin-submit" type="submit" disabled={busy || !username.trim() || !password || (mode === 'signup' && (!fullName.trim() || !organizationName.trim() || !phone.trim() || !confirmPassword))}>
+               <button className="signin-submit" type="submit" disabled={busy || !username.trim() || !password || (mode === 'signup' && (!fullName.trim() || (workspaceMode === 'create' ? !organizationName.trim() : !inviteCode.trim()) || !phone.trim() || !confirmPassword))}>
                  {busy ? <><span className="signin-spinner" aria-hidden="true"/> در حال پردازش…</> : mode === 'signup' ? <>ساخت حساب و فضای کاری <ArrowLeft size={17}/></> : <>ورود به فضای کار <ArrowLeft size={17}/></>}
                </button>
              </form>
