@@ -19,6 +19,7 @@ import { MedarLogo as Logo } from './MedarLogo';
 import type { AppRole, Membership, PageKey, Row } from './lib/types';
 import { dateFa, dateTimeFa, moneyFa, numberFa, orderLabel, roleLabel, statusLabel, statusTone } from './lib/format';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
+import DemoWorkspace from './DemoWorkspace';
 
 const navDefinitions: { key: PageKey; label: string; group: string; icon: typeof LayoutDashboard; roles: AppRole[] }[] = [
   { key: 'command', label: 'مرکز فرمان', group: 'مدیریت', icon: LayoutDashboard, roles: ['owner', 'admin', 'staff'] },
@@ -938,14 +939,25 @@ function WorkspaceGate() {
     if (!membershipsLoading) setResolvedUserId(user.id);
   }, [user?.id, membershipsLoading]);
 
-  // Restore authentication and resolve the first membership before entering the
-  // protected workspace. Guests never receive an operational preview shell.
+  // Auth UI is opt-in for this public showcase build. The API still protects every
+  // operational endpoint; guests are sent to an explicitly read-only demo shell.
+  const authUiEnabled = import.meta.env.VITE_ENABLE_AUTH_UI === 'true';
   if (!user && loading) return <LoadingScreen label="در حال بررسی نشست امن…"/>;
   if (user && resolvedUserId !== user.id) return <LoadingScreen label="در حال بررسی سطح دسترسی…"/>;
-  return user ? <AppShell/> : null;
+  return user ? <AppShell/> : authUiEnabled ? null : <Navigate to="/demo" replace/>;
 }
 
 export default function App() {
+  const authUiEnabled = import.meta.env.VITE_ENABLE_AUTH_UI === 'true';
   if (!isApiConfigured) return <ConfigScreen/>;
-  return <Routes><Route path="/" element={<Navigate to="/app/command" replace/>}/><Route path="/about" element={<Navigate to="/app/command" replace/>}/><Route path="/auth" element={<Navigate to="/app/command" replace/>}/><Route path="/app/*" element={<WorkspaceGate/>}/><Route path="*" element={<Navigate to="/" replace/>}/></Routes>;
+  const home = authUiEnabled ? <Navigate to="/app/command" replace/> : <DemoWorkspace/>;
+  const protectedFallback = authUiEnabled ? <Navigate to="/app/command" replace/> : <Navigate to="/demo" replace/>;
+  return <Routes>
+    <Route path="/" element={home}/>
+    <Route path="/demo" element={<DemoWorkspace/>}/>
+    <Route path="/about" element={protectedFallback}/>
+    <Route path="/auth" element={protectedFallback}/>
+    <Route path="/app/*" element={<WorkspaceGate/>}/>
+    <Route path="*" element={protectedFallback}/>
+  </Routes>;
 }
