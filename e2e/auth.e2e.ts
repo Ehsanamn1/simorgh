@@ -50,35 +50,45 @@ test('the app opens a Persian username/password sign-in without phone or email',
   expect(errors).toEqual([]);
 });
 
-test('signup creates an owner workspace with only username and password', async ({ page }) => {
+test('signup uses only username/password, then offers simple workspace onboarding', async ({ page }) => {
   let authenticated = false;
+  let workspaceCreated = false;
   let signupBody: Record<string, unknown> | undefined;
   await page.route('**/api/auth/me', route => route.fulfill({
     status: 200, contentType: 'application/json',
-    body: JSON.stringify(authenticated ? { user, memberships: [membership] } : { user: null, memberships: [] }),
+    body: JSON.stringify(authenticated ? { user, memberships: workspaceCreated ? [membership] : [] } : { user: null, memberships: [] }),
   }));
   await page.route('**/api/workspace/memberships', route => route.fulfill({
     status: 200, contentType: 'application/json',
-    body: JSON.stringify({ memberships: authenticated ? [membership] : [] }),
+    body: JSON.stringify({ memberships: authenticated && workspaceCreated ? [membership] : [] }),
   }));
+  await page.route('**/api/workspace/create', async route => {
+    workspaceCreated = true;
+    await route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ created: true, memberships: [membership] }) });
+  });
   await page.route('**/api/auth/signup', async route => {
     signupBody = route.request().postDataJSON() as Record<string, unknown>;
     authenticated = true;
     await route.fulfill({
       status: 201, contentType: 'application/json',
       headers: { 'cache-control': 'no-store', 'set-cookie': 'medar_session=test-only; Path=/; HttpOnly; Secure; SameSite=None' },
-      body: JSON.stringify({ user, companyId: membership.company_id, memberships: [membership] }),
+      body: JSON.stringify({ user, memberships: [] }),
     });
   });
   await page.goto('/simorgh/', { waitUntil: 'domcontentloaded' });
   await page.getByRole('button', { name: 'ساخت حساب و فضای کاری' }).click();
   await expect(page).toHaveURL(/#signup$/);
   await expect(page.getByRole('heading', { name: 'ساخت حساب و فضای کاری' })).toBeVisible();
+  await expect(page.getByLabel('نام کاربری')).toBeVisible();
+  await expect(page.getByLabel('گذرواژه', { exact: true })).toBeVisible();
+  await expect(page.locator('#simorgh-signin-phone, #simorgh-signin-full-name, #simorgh-signin-organization, #simorgh-signin-invite, #simorgh-confirm-password')).toHaveCount(0);
   await page.getByLabel('نام کاربری').fill('owner_test');
   await page.getByLabel('گذرواژه', { exact: true }).fill('Strong-test-pass-2026');
-  await expect(page.locator('#simorgh-signin-phone, #simorgh-signin-full-name, #simorgh-signin-organization, #simorgh-signin-invite, #simorgh-confirm-password')).toHaveCount(0);
   await page.getByRole('button', { name: 'ساخت حساب و فضای کاری', exact: true }).click();
+
   await expect.poll(() => signupBody).toEqual({ username: 'owner_test', password: 'Strong-test-pass-2026' });
+  await expect(page.locator('.access-request-card')).toBeVisible();
+  await page.getByRole('button', { name: 'ساخت فضای کاری من' }).click();
   await expect(page.locator('.app-frame')).toBeVisible();
 
   const operationalThemeToggle = page.getByRole('button', { name: 'تغییر حالت نمایش' });
