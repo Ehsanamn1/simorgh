@@ -146,16 +146,24 @@ jobs:
             if (!assetNames.includes(path.split('/').pop())) throw new Error('Published HTML references an asset missing from this build: ' + path);
           }
           const resolve = path => new URL(path, base + '/').toString();
-          const fetchTexts = async paths => Promise.all(paths.map(async path => {
-            const response = await fetch(resolve(path));
-            if (!response.ok) throw new Error('Frontend asset failed: ' + path + ' (' + response.status + ')');
-            return response.text();
+          const fetchTexts = async (paths, expectedType) => Promise.all(paths.map(async path => {
+            const url = resolve(path);
+            const response = await fetch(url, { cache: 'no-store', headers: { 'cache-control': 'no-cache' } });
+            const body = await response.text();
+            const contentType = response.headers.get('content-type') || '';
+            if (!response.ok) throw new Error('Frontend asset failed: ' + path + ' (' + response.status + ', ' + contentType + ')');
+            if (!contentType.toLowerCase().includes(expectedType)) {
+              throw new Error('Frontend asset had the wrong content type: ' + path + ' -> ' + contentType + '; response prefix=' + body.slice(0,120).replace(/\\s+/g,' '));
+            }
+            return { path, url: response.url, contentType, body };
           }));
-          const [jsFiles, cssFiles] = await Promise.all([fetchTexts(jsPaths), fetchTexts(cssPaths)]);
-          const js = jsFiles.join('\n');
-          const css = cssFiles.join('\n');
-          for (const token of ['demo-workspace', 'دموی قابل ارائه', 'عملیات، در یک نگاه.']) if (!js.includes(token)) throw new Error('Live JS bundles missing public demo token: ' + token);
-          for (const token of ['demo-workspace', 'demo-preview-notice']) if (!css.includes(token)) throw new Error('Live CSS bundles missing public demo styles: ' + token);
+          const [jsAssets, cssAssets] = await Promise.all([fetchTexts(jsPaths, 'javascript'), fetchTexts(cssPaths, 'text/css')]);
+          const js = jsAssets.map(asset => asset.body).join('\n');
+          const css = cssAssets.map(asset => asset.body).join('\n');
+          console.log('Live JS assets:', JSON.stringify(jsAssets.map(a => ({path:a.path,url:a.url,type:a.contentType,bytes:a.body.length}))));
+          console.log('Live CSS assets:', JSON.stringify(cssAssets.map(a => ({path:a.path,url:a.url,type:a.contentType,bytes:a.body.length,hasDemoWorkspace:a.body.includes('demo-workspace'),hasPreviewBanner:a.body.includes('demo-preview-notice'),hasOpsLink:a.body.includes('demo-ops-link')}))));
+          for (const token of ['demo-workspace', 'دموی قابل ارائه', 'عملیات، در یک نگاه.']) if (!js.includes(token)) throw new Error('Live JS bundles missing public demo token: ' + token + '; assets=' + JSON.stringify(jsAssets.map(a => ({path:a.path,type:a.contentType,bytes:a.body.length}))));
+          for (const token of ['demo-workspace', 'demo-preview-notice', 'demo-ops-link']) if (!css.includes(token)) throw new Error('Live CSS bundles missing public demo styles: ' + token + '; assets=' + JSON.stringify(cssAssets.map(a => ({path:a.path,url:a.url,type:a.contentType,bytes:a.body.length,hasDemoWorkspace:a.body.includes('demo-workspace'),hasPreviewBanner:a.body.includes('demo-preview-notice'),hasOpsLink:a.body.includes('demo-ops-link'),prefix:a.body.slice(0,120)}))));
           for (const route of ['/demo', '/app/command']) {
             const appRoute = await fetch(base + route);
             if (!appRoute.ok || !(await appRoute.text()).includes('id="root"')) throw new Error('SPA deep-link fallback failed for ' + route);
