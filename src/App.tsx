@@ -1,7 +1,5 @@
 import type * as React from 'react';
-import { Capacitor } from '@capacitor/core';
 import { Geolocation } from '@capacitor/geolocation';
-import { StatusBar, Style } from '@capacitor/status-bar';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import {
@@ -10,6 +8,7 @@ import {
   LogOut, MapPin, Menu, Moon, Package, Plus, RefreshCw, Search, Settings2, ShieldCheck, Sun, Target, Truck, Users, Warehouse, X, Zap,
 } from 'lucide-react';
 import { useAuth } from './lib/AuthContext';
+import { useAppTheme } from './lib/ThemeContext';
 import { dataApi } from './lib/dataClient';
 import { api, isApiConfigured } from './lib/apiClient';
 import { pageSectionLabel } from './lib/pageSections';
@@ -121,24 +120,7 @@ function AppShell() {
       setPasswordBusy(false);
     }
   }
-  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
-    try { return window.localStorage.getItem('simorgh-theme') === 'light' ? 'light' : 'dark'; }
-    catch { return 'dark'; }
-  });
-  useEffect(() => {
-    document.documentElement.dataset.theme = theme;
-    document.documentElement.style.colorScheme = theme;
-    const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
-    if (meta) meta.content = theme === 'dark' ? '#101719' : '#F4F7F7';
-    if (Capacitor.isNativePlatform()) {
-      void StatusBar.setStyle({ style: theme === 'dark' ? Style.Light : Style.Dark }).catch(() => {});
-      void StatusBar.setOverlaysWebView({ overlay: false }).catch(() => {});
-      if (Capacitor.getPlatform() === 'android') {
-        void StatusBar.setBackgroundColor({ color: theme === 'dark' ? '#101719' : '#F4F7F7' }).catch(() => {});
-      }
-    }
-    try { window.localStorage.setItem('simorgh-theme', theme); } catch { /* Private browsing may disable storage. */ }
-  }, [theme]);
+  const { theme, setTheme } = useAppTheme();
   const membership = memberships.find(m => m.id === membershipId) ?? memberships[0];
   const role = membership?.role;
   useEffect(() => { if (membership && membershipId !== membership.id) setMembershipId(membership.id); }, [membership?.id, membershipId]);
