@@ -41,6 +41,7 @@ jobs:
         run: npm run build
         env:
           VITE_API_BASE_URL: ${{ vars.MEDAR_API_BASE_URL || 'https://medar-api.dengxiao445.workers.dev' }}
+          VITE_ENABLE_AUTH_UI: 'false'
 
       - name: Generate iOS project
         run: npx cap add ios

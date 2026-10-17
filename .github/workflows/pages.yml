@@ -1,6 +1,8 @@
 name: Deploy Simorgh to GitHub Pages
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
 permissions:
   contents: read
 
@@ -10,7 +12,7 @@ concurrency:
 
 jobs:
   build:
-    if: ${{ github.event_name == 'workflow_dispatch' }}
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'push' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -40,7 +42,7 @@ jobs:
       - name: Build for GitHub Pages
         run: npm run build:pages
         env:
-          VITE_ENABLE_AUTH_UI: 'true'
+          VITE_ENABLE_AUTH_UI: 'false'
           VITE_API_BASE_URL: ${{ vars.MEDAR_API_BASE_URL || 'https://medar-api.dengxiao445.workers.dev' }}
       - name: Prepare SPA routing fallback
         run: |
@@ -100,10 +102,10 @@ jobs:
           curl --fail --silent --show-error --location --retry 5 --retry-all-errors --retry-delay 2 "$(asset_url "$css_path")" -o "$css_file"
           test -s "$js_file"
           test -s "$css_file"
-          grep -q 'ورود به مدار' "$js_file"
-          grep -q 'simorgh-signin-layer' "$js_file"
-          grep -q 'simorgh-signin-layer' "$css_file"
-          grep -q 'tower-goals-summary' "$css_file"
+          grep -q 'demo-workspace' "$js_file"
+          grep -q 'دموی قابل ارائه' "$js_file"
+          grep -q 'demo-workspace' "$css_file"
+          grep -q 'demo-preview-notice' "$css_file"
           echo "Published app entry, JavaScript bundle, and CSS bundle are reachable."
 
       - name: Checkout source for the browser runtime smoke test
@@ -135,25 +137,30 @@ jobs:
             const page = await browser.newPage({ viewport: { width: 1365, height: 900 } });
             page.on('pageerror', error => errors.push(error.message));
             await page.goto(process.env.SITE_URL, { waitUntil: 'networkidle', timeout: 60000 });
-            if (await page.locator('#app-boot-screen').count()) throw new Error('Startup overlay was not dismissed.');
-            await page.locator('.simorgh-signin-layer').waitFor({ state: 'visible', timeout: 20000 });
-            if (await page.locator('.ops-live-app, .ops-live-bottom-nav, .app-frame').count()) throw new Error('Guest operation preview or protected app rendered behind sign-in.');
-            await page.getByRole('heading', { name: 'ورود به مدار' }).waitFor({ state: 'visible' });
-            if (await page.locator('#simorgh-signin-username').count() !== 1) throw new Error('The username sign-in field did not render.');
-            if (await page.locator('#simorgh-signin-password').count() !== 1) throw new Error('The secure sign-in password field did not render.');
+            await page.locator('#app-boot-screen').waitFor({ state: 'detached', timeout: 20000 });
+            await page.locator('.demo-workspace').waitFor({ state: 'visible', timeout: 20000 });
+            if (await page.locator('.simorgh-signin-layer').count()) throw new Error('Sign-in UI must be disabled on the public showcase.');
+            if (await page.locator('.app-frame, .setup-screen').count()) throw new Error('Protected workspace or setup screen rendered instead of the public demo.');
+            await page.getByRole('heading', { name: 'عملیات، در یک نگاه.' }).waitFor({ state: 'visible' });
+            await page.locator('.demo-nav-item').filter({ hasText: 'سفارش‌ها' }).click();
+            await page.locator('.demo-breadcrumb b').filter({ hasText: 'سفارش‌ها' }).waitFor({ state: 'visible' });
             if (errors.length) throw new Error('Browser runtime error: ' + errors.join(' | '));
 
             await page.setViewportSize({ width: 390, height: 844 });
             await page.reload({ waitUntil: 'networkidle', timeout: 60000 });
-            await page.locator('.simorgh-signin-layer').waitFor({ state: 'visible', timeout: 20000 });
-            if (await page.locator('.ops-live-app, .ops-live-bottom-nav, .app-frame').count()) throw new Error('The mobile guest preview rendered behind sign-in.');
-            if (await page.locator('.simorgh-signin-layer').count() !== 1) throw new Error('The mobile app did not show the secure sign-in gate.');
-            if (await page.locator('#simorgh-signin-username').count() !== 1) throw new Error('The mobile sign-in form is missing.');
+            await page.locator('#app-boot-screen').waitFor({ state: 'detached', timeout: 20000 });
+            await page.locator('.demo-workspace').waitFor({ state: 'visible', timeout: 20000 });
+            if (await page.locator('.simorgh-signin-layer').count() !== 0) throw new Error('The mobile showcase unexpectedly rendered sign-in UI.');
+            if (await page.locator('.demo-preview-notice').count() !== 1) throw new Error('The mobile demo safety notice is missing.');
+            await page.locator('.demo-menu-button').click();
+            if (!(await page.locator('.demo-sidebar').getAttribute('class') || '').includes('is-open')) throw new Error('The mobile navigation drawer did not open.');
+            await page.locator('.demo-nav-item').filter({ hasText: 'سفارش‌ها' }).click();
+            await page.locator('.demo-breadcrumb b').filter({ hasText: 'سفارش‌ها' }).waitFor({ state: 'visible' });
             const widths = await page.evaluate(() => ({ viewport: innerWidth, document: document.documentElement.scrollWidth, body: document.body.scrollWidth }));
             if (widths.document > widths.viewport || widths.body > widths.viewport) throw new Error('Mobile horizontal overflow: ' + JSON.stringify(widths));
             if (errors.length) throw new Error('Browser runtime error after mobile reload: ' + errors.join(' | '));
             await page.screenshot({ path: 'medar-published-mobile.png', fullPage: true });
-            console.log('Published app rendered and passed desktop/mobile runtime checks: ' + process.env.SITE_URL);
+            console.log('Published public demo rendered and passed desktop/mobile runtime checks: ' + process.env.SITE_URL);
           } finally {
             await browser.close();
           }
