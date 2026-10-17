@@ -762,115 +762,119 @@ app.post('/api/data/:table',async c=>{
    const where=buildFilterSql(filters,columns,params,1);
    const ors=Array.isArray(body.orFilters)?body.orFilters as DataFilter[]:[];
    const orWhere=buildFilterSql(ors,columns,params,1,'or');
-   const scopeSql=buildMembershipScopeSql(table,columns,scopes,user.id,params,1);
-   const parts=[scopeSql,where,orWhere].filter(Boolean).map(part=>'('+part+')');
-   const whereSql=' where '+parts.join(' and ');
+   const scope=buildMembershipScopeSql(table,columns,scopes,user.id,params,1);
+   const condition=[scope,where,orWhere].filter(Boolean).map(x=>'('+x+')').join(' and ');
+   const whereSql=' where '+condition;
    const counts=body.count===true?await runForUser(c,user.id,'select count(*)::int as count from '+tableName+whereSql,[...params]):[];
    if(body.head===true)return c.json({data:[],count:counts.length?Number(counts[0].count):null,error:null});
-   const limit=Math.max(1,Math.min(500,Number.isFinite(Number(body.limit))?Math.trunc(Number(body.limit)):200));
    let query='select * from '+tableName+whereSql;
    if(body.order&&typeof body.order==='object'){
     const order=body.order as {column?:string;ascending?:boolean};
     if(order.column&&!columns.has(order.column))throw new Error('ستون مرتب‌سازی معتبر نیست.');
     if(order.column)query+=' order by '+quoteSqlIdentifier(order.column)+(order.ascending===true?' asc':' desc');
    }
-   params.push(limit);query+=' limit $'+params.length;
+   params.push(Math.max(1,Math.min(500,Number.isFinite(Number(body.limit))?Math.trunc(Number(body.limit)):200)));
+   query+=' limit $'+params.length;
    let rows=await runForUser(c,user.id,query,params);
    rows=await expandRelations(c,user.id,table,rows,typeof body.selection==='string'?body.selection:'*');
    rows=sanitizeExternalRows(table,rows,scopes);
    return c.json({data:rows,count:counts.length?Number(counts[0].count):rows.length,error:null});
   }
-  if(RPC_ONLY_TABLES.has(table)||!GENERIC_WRITABLE_TABLES.has(table))return c.json({message:'این عملیات فقط از مسیر عملیاتی مجاز سمت سرور قابل انجام است.'},403);
   const filters=Array.isArray(body.filters)?body.filters as DataFilter[]:[];
   if(!filters.length&&action!=='insert')return c.json({message:'برای ویرایش یا حذف باید فیلتر رکورد مشخص شود.'},422);
-  const blocked=new Set(['id','company_id','password_hash','token_hash','user_id','created_by','updated_by','recorded_by','captured_by','uploaded_by','reported_by','submitted_by','reviewed_by','approved_by','posted_by','paid_by','resolved_by','actor_id','assigned_by']);
+  const writable=GENERIC_WRITABLE_TABLES.has(table)&&!RPC_ONLY_TABLES.has(table);
+  if(!writable)return c.json({message:'این عملیات فقط از مسیر عملیاتی مجاز سمت سرور قابل انجام است.'},403);
+  const protectedKeys=new Set(['id','company_id','password_hash','token_hash','user_id','created_by','updated_by','recorded_by','captured_by','uploaded_by','reported_by','submitted_by','reviewed_by','approved_by','posted_by','paid_by','resolved_by','actor_id','assigned_by']);
   if(action==='insert'){
-   const entries=Array.isArray(body.values)?body.values as Record<string,unknown>[]:[body.values as Record<string,unknown>];
-   if(!entries.length||entries.some(e=>!e||typeof e!=='object'||Array.isArray(e)))return c.json({message:'رکورد ورودی معتبر نیست.'},422);
+   const input=Array.isArray(body.values)?body.values as Record<string,unknown>[]:[body.values as Record<string,unknown>];
+   if(!input.length||input.some(row=>!row||typeof row!=='object'||Array.isArray(row)))return c.json({message:'رکورد ورودی معتبر نیست.'},422);
    const sanitized:Record<string,unknown>[]=[];
-   for(const original of entries){
+   for(const original of input){
     const companyId=typeof original.company_id==='string'?original.company_id:'';
     const membership=companyRole(scopes,companyId);
     if(!membership)return c.json({message:'این شرکت به حساب فعلی تعلق ندارد.'},403);
     const row=applyInsertActorFields(table,original,columns,user.id);
-    if(canWriteInternally(membership)){
-      if(table==='partner_settlement_periods'||table==='inventory_movements'||table==='quality_reviews')return c.json({message:'برای ثبت مالی، موجودی و کنترل کیفیت باید از عملیات تأییدشده استفاده شود.'},403);
-      if(table==='orders'){row.status='draft';row.customer_id=original.customer_id;row.created_by=user.id;}
-      if(table==='shipments'){row.stage='planned';}
-      if(table==='operational_tasks'){row.status='pending';}
-      if(table==='partner_financial_entries'){row.status='submitted';row.submitted_by=user.id;}
-      if(table==='invoices'){row.status='draft';row.paid_amount=0;}
-      sanitized.push(row);
-      continue;
+    if(INTERNAL_ROLES.has(membership.role)){
+     if(RPC_ONLY_TABLES.has(table))return c.json({message:'این رکورد باید از عملیات معتبر سمت سرور ثبت شود.'},403);
+     if(table==='orders'){row.status='draft';row.created_by=user.id;}
+     if(table==='shipments')row.stage='planned';
+     if(table==='operational_tasks')row.status='pending';
+     if(table==='partner_financial_entries'){row.status='submitted';row.submitted_by=user.id;}
+     if(table==='invoices'){row.status='draft';row.paid_amount=0;}
+     sanitized.push(row);continue;
     }
-    if(membership.role==='customer'&&table==='orders'&&membership.customer_id){
-      row.customer_id=membership.customer_id;row.status='draft';row.created_by=user.id;
-      sanitized.push(row);continue;
+    if(membership.role==='customer'&&membership.customer_id&&table==='orders'){
+     row.customer_id=membership.customer_id;row.status='draft';row.created_by=user.id;sanitized.push(row);continue;
     }
-    if(membership.role==='customer'&&table==='order_items'&&membership.customer_id){
-      const orderId=typeof original.order_id==='string'?original.order_id:'';
-      const productId=typeof original.product_id==='string'?original.product_id:'';
-      const orderRows=await sqlFor(c).query("select id from public.orders where id=$1::uuid and company_id=$2::uuid and customer_id=$3::uuid and status='draft' limit 1",[orderId,companyId,membership.customer_id]);
-      if(!orderRows.length)return c.json({message:'اقلام فقط برای سفارش پیش‌نویس متعلق به خودت قابل ثبت‌اند.'},403);
-      const priceRows=await sqlFor(c).query(
-        "select pa.unit_price,pa.min_qty from public.price_agreements pa where pa.company_id=$1::uuid and pa.customer_id=$2::uuid and pa.product_id=$3::uuid and pa.valid_from<=current_date and (pa.valid_to is null or pa.valid_to>=current_date) order by pa.valid_from desc limit 1",
-        [companyId,membership.customer_id,productId]
-      );
-      if(!priceRows.length)return c.json({message:'برای این محصول قرارداد قیمت فعال پیدا نشد.'},422);
-      const agreement=priceRows[0] as {unit_price:string|number;min_qty:string|number};
-      const quantity=Number(original.quantity);
-      if(!Number.isFinite(quantity)||quantity<Number(agreement.min_qty))return c.json({message:'مقدار سفارش از حداقل قرارداد کمتر است.'},422);
-      row.unit_price=Number(agreement.unit_price);row.created_by=user.id;
-      sanitized.push(row);continue;
+    if(membership.role==='customer'&&membership.customer_id&&table==='order_items'){
+     const orderId=String(original.order_id??''),productId=String(original.product_id??'');
+     const sql=sqlFor(c);
+     const owned=await sql.query("select id from public.orders where id=$1::uuid and company_id=$2::uuid and customer_id=$3::uuid and status='draft' limit 1",[orderId,companyId,membership.customer_id]);
+     if(!owned.length)return c.json({message:'اقلام فقط برای سفارش پیش‌نویس خودت قابل ثبت‌اند.'},403);
+     const prices=await sql.query("select unit_price,min_qty from public.price_agreements where company_id=$1::uuid and customer_id=$2::uuid and product_id=$3::uuid and valid_from<=current_date and (valid_to is null or valid_to>=current_date) order by valid_from desc limit 1",[companyId,membership.customer_id,productId]);
+     if(!prices.length)return c.json({message:'برای این محصول قرارداد قیمت فعال پیدا نشد.'},422);
+     const price=prices[0] as {unit_price:string|number;min_qty:string|number};
+     if(!Number.isFinite(Number(original.quantity))||Number(original.quantity)<Number(price.min_qty))return c.json({message:'مقدار سفارش از حداقل قرارداد کمتر است.'},422);
+     row.unit_price=Number(price.unit_price);sanitized.push(row);continue;
     }
-    if(membership.role==='driver'&&['shipment_locations','delivery_evidence'].includes(table)){
-      const shipmentId=typeof original.shipment_id==='string'?original.shipment_id:'';
-      const assigned=await sqlFor(c).query("select id from public.shipments where id=$1::uuid and company_id=$2::uuid and driver_user_id=$3::uuid limit 1",[shipmentId,companyId,user.id]);
-      if(!assigned.length)return c.json({message:'این محموله به راننده فعلی تخصیص داده نشده است.'},403);
-      if(table==='shipment_locations')row.driver_user_id=user.id;
-      if(table==='delivery_evidence'){
-        row.captured_by=user.id;
-        if(typeof row.storage_path==='string'&&row.storage_path){
-          const file=await sqlFor(c).query("select id from public.medar_files where bucket_id='delivery-evidence' and company_id=$1::uuid and name=$2 and split_part(name,'/',2)=$3 limit 1",[companyId,row.storage_path,shipmentId]);
-          if(!file.length)return c.json({message:'مدرک بارگذاری‌شده به این محموله تعلق ندارد.'},422);
-        }
+    if(membership.role==='driver'&&(table==='shipment_locations'||table==='delivery_evidence')){
+     const shipmentId=String(original.shipment_id??'');
+     const sql=sqlFor(c);
+     const assigned=await sql.query("select id from public.shipments where id=$1::uuid and company_id=$2::uuid and driver_user_id=$3::uuid limit 1",[shipmentId,companyId,user.id]);
+     if(!assigned.length)return c.json({message:'این محموله به راننده فعلی تخصیص داده نشده است.'},403);
+     if(table==='shipment_locations')row.driver_user_id=user.id;
+     if(table==='delivery_evidence'){
+      row.captured_by=user.id;
+      if(typeof row.storage_path==='string'&&row.storage_path){
+       const file=await sql.query("select id from public.medar_files where bucket_id='delivery-evidence' and company_id=$1::uuid and name=$2 and split_part(name,'/',2)=$3 limit 1",[companyId,row.storage_path,shipmentId]);
+       if(!file.length)return c.json({message:'مدرک بارگذاری‌شده به این محموله تعلق ندارد.'},422);
       }
-      sanitized.push(row);continue;
+     }
+     sanitized.push(row);continue;
     }
-    if(membership.role==='supplier'&&table==='task_evidence'&&membership.supplier_id){
-      const taskId=typeof original.task_id==='string'?original.task_id:'';
-      const assigned=await sqlFor(c).query("select id from public.operational_tasks where id=$1::uuid and company_id=$2::uuid and assignee_supplier_id=$3::uuid limit 1",[taskId,companyId,membership.supplier_id]);
-      if(!assigned.length)return c.json({message:'مدرک فقط برای وظیفه واگذارشده به تأمین‌کننده فعلی قابل ثبت است.'},403);
-      row.uploaded_by=user.id;sanitized.push(row);continue;
+    if(membership.role==='supplier'&&membership.supplier_id&&table==='task_evidence'){
+     const sql=sqlFor(c),taskId=String(original.task_id??'');
+     const assigned=await sql.query("select id from public.operational_tasks where id=$1::uuid and company_id=$2::uuid and assignee_supplier_id=$3::uuid limit 1",[taskId,companyId,membership.supplier_id]);
+     if(!assigned.length)return c.json({message:'مدرک فقط برای وظیفه واگذارشده به تأمین‌کننده فعلی قابل ثبت است.'},403);
+     row.uploaded_by=user.id;sanitized.push(row);continue;
     }
-    if(membership.role==='supplier'&&table==='operational_incidents'&&membership.supplier_id){
-      if(String(original.reported_supplier_id??'')!==membership.supplier_id)return c.json({message:'گزارش رخداد باید به حساب تأمین‌کننده خودت متصل باشد.'},403);
-      row.reported_by=user.id;sanitized.push(row);continue;
+    if(membership.role==='supplier'&&membership.supplier_id&&table==='operational_incidents'){
+     if(String(original.reported_supplier_id??'')!==membership.supplier_id)return c.json({message:'گزارش رخداد باید به حساب تأمین‌کننده خودت متصل باشد.'},403);
+     row.reported_by=user.id;sanitized.push(row);continue;
     }
     return c.json({message:'نقش فعلی اجازه ایجاد این رکورد را ندارد.'},403);
    }
    const keys=Array.from(new Set(sanitized.flatMap(row=>Object.keys(row).filter(key=>columns.has(key)&&!['password_hash','token_hash','user_id'].includes(key)))));
-   if(!keys.length||keys.some(key=>!columns.has(key)))return c.json({message:'یکی از فیلدهای رکورد غیرمجاز است.'},422);
-   if(sanitized.some(row=>Object.keys(row).some(key=>!columns.has(key))))return c.json({message:'یکی از فیلدهای رکورد با جدول هم‌خوانی ندارد.'},422);
+   if(!keys.length||sanitized.some(row=>Object.keys(row).some(key=>!columns.has(key))))return c.json({message:'یکی از فیلدهای رکورد غیرمجاز است.'},422);
    const insertParams:unknown[]=[];
    const tuples=sanitized.map(row=>'('+keys.map(key=>{insertParams.push(row[key]??null);return '$'+insertParams.length;}).join(',')+')');
    const inserted=await runForUser(c,user.id,'insert into '+tableName+' ('+keys.map(quoteSqlIdentifier).join(',')+') values '+tuples.join(',')+' returning *',insertParams);
-   return c.json({data:inserted,count:inserted.length,error:null},201);
+   return c.json({data:sanitizeExternalRows(table,inserted,scopes),count:inserted.length,error:null},201);
   }
   const mutationScopes=scopes.filter(m=>INTERNAL_ROLES.has(m.role));
-  if(!mutationScopes.length)return c.json({message:'ویرایش یا حذف رکورد برای نقش فعلی مجاز نیست.'},403);
+  if(!mutationScopes.length)return c.json({message:'ویرایش یا حذف برای نقش فعلی مجاز نیست.'},403);
   const values=action==='update'&&body.values&&typeof body.values==='object'&&!Array.isArray(body.values)?body.values as Record<string,unknown>:null;
-  if(action==='update'&&(!values||!Object.keys(values).length||Object.keys(values).some(key=>!columns.has(key)||blocked.has(key)||UPDATE_PROTECTED_FIELDS[table]?.has(key))))return c.json({message:'فیلدهای ویرایش نامعتبر یا محافظت‌شده‌اند.'},422);
-  if(action==='update'&&Object.keys(values??{}).some(key=>key==='company_id'||key==='id'))return c.json({message:'شناسه و محدوده شرکت قابل تغییر نیستند.'},422);
-  const scopedParams:unknown[]=[];
-  const where=buildFilterSql(filters,columns,scopedParams,1);
+  if(action==='update'&&(!values||!Object.keys(values).length||Object.keys(values).some(key=>!columns.has(key)||protectedKeys.has(key)||UPDATE_PROTECTED_FIELDS[table]?.has(key))))return c.json({message:'فیلدهای ویرایش نامعتبر یا محافظت‌شده‌اند.'},422);
+  const params:unknown[]=[];
+  const where=buildFilterSql(filters,columns,params,1);
   const ors=Array.isArray(body.orFilters)?body.orFilters as DataFilter[]:[];
-  const orWhere=buildFilterSql(ors,columns,scopedParams,1,'or');
-  const scope=buildMembershipScopeSql(table,columns,mutationScopes,user.id,scopedParams,1);
+  const orWhere=buildFilterSql(ors,columns,params,1,'or');
+  const scope=buildMembershipScopeSql(table,columns,mutationScopes,user.id,params,1);
   const condition=[scope,where,orWhere].filter(Boolean).map(part=>'('+part+')').join(' and ');
   if(action==='update'){
-    const setParams:unknown[]=[];
-    const setSql=Object.entries(values??{}).map(([key,value])=>{setParams.push(value??null);return quoteSqlIdentifier(key)+' = 
+   const setParams:unknown[]=[];
+   const setSql=Object.entries(values??{}).map(([key,value])=>{setParams.push(value??null);return quoteSqlIdentifier(key)+' = $'+setParams.length;}).join(',');
+   const finalParams=[...setParams,...params];
+   const adjusted=condition.replace(/\$(\d+)/g,(_m,n)=>'$'+(Number(n)+setParams.length));
+   const rows=await runForUser(c,user.id,'update '+tableName+' set '+setSql+' where '+adjusted+' returning *',finalParams);
+   return c.json({data:rows,count:rows.length,error:null});
+  }
+  const rows=await runForUser(c,user.id,'delete from '+tableName+' where '+condition+' returning *',params);
+  return c.json({data:rows,count:rows.length,error:null});
+ }catch(error){
+  const e=error as {code?:string};
+  return c.json({message:e.code?'دسترسی یا اعتبارسنجی داده ناموفق بود.':(error instanceof Error?error.message:'درخواست داده ناموفق بود.')},400);
+ }
 });
 app.post('/api/rpc/:name',async c=>{
  const user=await requireUser(c);if(user instanceof Response)return user;
