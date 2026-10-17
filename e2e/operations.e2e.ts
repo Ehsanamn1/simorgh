@@ -189,9 +189,10 @@ test('generic farm types and daily rejected quantities are validated before writ
 
 test('an existing account must join a workspace using an invitation code', async ({ page }) => {
   await installIsolatedSession(page, 'unprovisioned');
+  const inviteeUserId = '00000000-0000-4000-8000-000000000011';
   let joined = false;
   const user = {
-    id: userId,
+    id: inviteeUserId,
     username: 'unprovisioned_test',
     phone: '+989120000011',
     full_name: 'کاربر بدون عضویت مدار',
@@ -199,8 +200,8 @@ test('an existing account must join a workspace using an invitation code', async
   const joinedMembership = {
     id: '00000000-0000-4000-8000-000000000077',
     company_id: companyId,
-    user_id: userId,
-    role: 'owner',
+    user_id: inviteeUserId,
+    role: 'staff',
     customer_id: null,
     supplier_id: null,
     active: true,
