@@ -376,11 +376,17 @@ app.post('/api/auth/login', async (c) => {
   const keys = await rateLimitKeys(c, identifierKey);
   if (await isRateLimited(c, keys)) return c.json({ message: 'تلاش‌های ورود بیش از حد است. ۱۵ دقیقه دیگر دوباره امتحان کن.' }, 429);
   const sql = sqlFor(c);
-  const rows = await sql.query(
-    "select id,username,username_normalized,phone_e164,display_name,password_hash,account_status " +
-    "from public.medar_users where username_normalized=$1 or phone_e164=$2 limit 1",
-    [username ?? '', phone ?? ''],
-  );
+  const rows = phone
+    ? await sql.query(
+      "select id,username,username_normalized,phone_e164,display_name,password_hash,account_status " +
+      "from public.medar_users where phone_e164=$1 limit 1",
+      [phone],
+    )
+    : await sql.query(
+      "select id,username,username_normalized,phone_e164,display_name,password_hash,account_status " +
+      "from public.medar_users where username_normalized=$1 limit 1",
+      [username],
+    );
   const account = rows[0] as (Record<string, unknown> & { id: string; password_hash: string; account_status: string }) | undefined;
   const passwordMatches = account ? await verifyPassword(password, account.password_hash) : (await hashPassword(password), false);
   if (!account || !passwordMatches) {
