@@ -6,7 +6,6 @@ import type { LucideIcon } from 'lucide-react';
 import { useAuth } from './lib/AuthContext';
 import { useAppTheme } from './lib/ThemeContext';
 import { api } from './lib/apiClient';
-import { normalizeIranPhone } from './lib/phone';
 import { MedarLogo } from './MedarLogo';
 
 type NavigationEntry = { key: string; label: string };
@@ -53,12 +52,6 @@ export default function ProductExperience() {
   const [mode, setMode] = useState<AuthMode>('signin');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [fullName, setFullName] = useState('');
-  const [organizationName, setOrganizationName] = useState('');
-  const [workspaceMode, setWorkspaceMode] = useState<'create' | 'join'>('create');
-  const [inviteCode, setInviteCode] = useState('');
-  const [phone, setPhone] = useState('');
   const [joinInviteCode, setJoinInviteCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -99,12 +92,6 @@ export default function ProductExperience() {
     observer.observe(sideNav, { childList: true, subtree: true, characterData: true, attributes: true });
     return () => observer.disconnect();
   }, [appMain, location.pathname, user?.id, memberships.length, memberships[0]?.role]);
-
-  useEffect(() => {
-    if (!user || memberships.length) return;
-    if (user.full_name) setFullName(user.full_name);
-    if (user.phone) setPhone(user.phone);
-  }, [user?.id, user?.full_name, user?.phone, memberships.length]);
 
   useEffect(() => {
     const canCloseWithEscape = true;
@@ -151,39 +138,30 @@ export default function ProductExperience() {
   async function submitAuth(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const cleanUsername = username.trim();
-    const normalizedPhone = mode === 'signup' ? normalizeIranPhone(phone) : '';
-    const validUsername = cleanUsername.length >= 3 && cleanUsername.length <= 32 && /^[\p{L}\p{N}._-]+$/u.test(cleanUsername);
-    const validLoginPhone = mode === 'signin' ? normalizeIranPhone(cleanUsername) : '';
-    if (mode === 'signup' ? !validUsername : (!validUsername && !validLoginPhone)) {
-      setError(mode === 'signup' ? 'نام کاربری باید ۳ تا ۳۲ نویسه و شامل حروف، عدد، نقطه، خط تیره یا زیرخط باشد.' : 'شماره موبایل ایران یا نام کاربری معتبر وارد کن.');
+    const validUsername = cleanUsername.length >= 3 && cleanUsername.length <= 32
+      && /^[\p{L}\p{N}._-]+$/u.test(cleanUsername);
+    if (!validUsername) {
+      setError('نام کاربری باید ۳ تا ۳۲ نویسه و شامل حروف، عدد، نقطه، خط تیره یا زیرخط باشد.');
       return;
     }
-    if (mode === 'signup') {
-      if (fullName.trim().length < 2 || fullName.trim().length > 160) { setError('نام کامل باید بین ۲ تا ۱۶۰ نویسه باشد.'); return; }
-      if (workspaceMode === 'create' && (organizationName.trim().length < 2 || organizationName.trim().length > 160)) { setError('نام مجموعه باید بین ۲ تا ۱۶۰ نویسه باشد.'); return; }
-      if (workspaceMode === 'join' && !/^[a-f0-9]{64}$/i.test(inviteCode.trim())) { setError('کد دعوت معتبر ۶۴ نویسه‌ای وارد کن.'); return; }
-      if (password.length < 8 || password.length > 128) { setError('گذرواژه باید بین ۸ تا ۱۲۸ نویسه باشد.'); return; }
-      if (!normalizedPhone) { setError('شماره موبایل ایران معتبر وارد کن؛ مثال: 09121234567'); return; }
-      if (password !== confirmPassword) { setError('تکرار گذرواژه یکسان نیست.'); return; }
-    } else if (password.length < 1 || password.length > 128) {
+    if (mode === 'signup' && (password.length < 8 || password.length > 128)) {
+      setError('گذرواژه باید بین ۸ تا ۱۲۸ نویسه باشد.');
+      return;
+    }
+    if (mode === 'signin' && (password.length < 1 || password.length > 128)) {
       setError('نام کاربری یا گذرواژه نادرست است.');
       return;
     }
-
-    setBusy(true); setError(''); setNotice('');
+    setBusy(true);
+    setError('');
+    setNotice('');
     try {
       if (mode === 'signup') {
-        await api.post('/api/auth/signup', {
-          username: cleanUsername,
-          password,
-          fullName: fullName.trim(),
-          companyName: workspaceMode === 'create' ? organizationName.trim() : '',
-          inviteCode: workspaceMode === 'join' ? inviteCode.trim().toLowerCase() : undefined,
-          phone: normalizedPhone,
-        });
+        await api.post('/api/auth/signup', { username: cleanUsername, password });
         await refreshSession();
-        setPassword(''); setConfirmPassword(''); setMode('signin');
-        setNotice('حساب و فضای کاری با موفقیت ساخته شد.');
+        setPassword('');
+        setMode('signin');
+        setNotice('حساب ساخته شد و فضای کاری اختصاصی‌ات آماده است.');
         navigate(protectedDestination, { replace: true });
       } else {
         await api.post('/api/auth/login', { username: cleanUsername, password });
@@ -253,27 +231,22 @@ export default function ProductExperience() {
             </div>
             <span className="signin-overline">{mode === 'signup' ? 'ثبت‌نام مجموعه' : 'ورود امن'}</span>
             <h2 id="simorgh-signin-title">{mode === 'signup' ? 'ساخت حساب و فضای کاری' : 'ورود به مدار'}</h2>
-            <p>{mode === 'signup' ? 'با نام کاربری، شماره موبایل و گذرواژه ثبت‌نام کن؛ می‌توانی مجموعه جدید بسازی یا با کد دعوت به یک مجموعه بپیوندی.' : 'با شماره موبایل ایران یا نام کاربری و گذرواژه وارد مدار شو. ایمیل و تأیید پیامکی برای ورود لازم نیست.'}</p>
+            <p>{mode === 'signup' ? 'فقط نام کاربری و گذرواژه را وارد کن؛ مدار فضای کاری اختصاصی‌ات را خودکار می‌سازد.' : 'برای ورود فقط نام کاربری و گذرواژه لازم است.'}</p>
             {sessionError && <div className="auth-feedback error session-connection-error" role="status">
               <span>{sessionError}</span>
               <button type="button" className="auth-text-action" onClick={() => void refreshSession()} disabled={loading}>تلاش دوباره برای اتصال</button>
             </div>}
              <form className="simorgh-signin-form" onSubmit={event => void submitAuth(event)}>
-               {mode === 'signup' && <>
-                 <label htmlFor="simorgh-signin-full-name">نام و نام خانوادگی</label><input id="simorgh-signin-full-name" className="auth-input" type="text" autoComplete="name" required minLength={2} maxLength={160} value={fullName} onChange={e => setFullName(e.target.value)} placeholder="نام کامل"/>
-                 <label htmlFor="simorgh-workspace-mode">نحوه اتصال به مجموعه</label>
-                 <select id="simorgh-workspace-mode" className="auth-input" value={workspaceMode} onChange={e => {setWorkspaceMode(e.target.value as 'create' | 'join');setError('');}}><option value="create">ساخت مجموعه جدید</option><option value="join">پیوستن با کد دعوت</option></select>
-                 {workspaceMode === 'create'
-                   ? <><label htmlFor="simorgh-signin-organization">نام مزرعه یا مجموعه</label><input id="simorgh-signin-organization" className="auth-input" type="text" required minLength={2} maxLength={160} value={organizationName} onChange={e => setOrganizationName(e.target.value)} placeholder="نام مجموعه"/></>
-                   : <><label htmlFor="simorgh-signin-invite">کد دعوت</label><input id="simorgh-signin-invite" className="auth-input" type="text" required minLength={64} maxLength={64} value={inviteCode} onChange={e => setInviteCode(e.target.value.toLowerCase())} placeholder="کد دعوت را وارد کن" dir="ltr"/></>}
-                 <label htmlFor="simorgh-signin-phone">شماره موبایل</label><input id="simorgh-signin-phone" className="auth-input" type="tel" autoComplete="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="09121234567" required dir="ltr"/>
-               </>}
-               <label htmlFor="simorgh-signin-username">{mode === 'signup' ? 'نام کاربری' : 'شماره موبایل یا نام کاربری'}</label><input id="simorgh-signin-username" className="auth-input" type="text" autoComplete="username" required minLength={3} maxLength={32} value={username} onChange={e => setUsername(e.target.value)} placeholder={mode === 'signup' ? 'نام کاربری' : '09121234567 یا نام کاربری'} dir="ltr"/>
+               <label htmlFor="simorgh-signin-username">نام کاربری</label>
+               <input id="simorgh-signin-username" className="auth-input" type="text" autoComplete="username" required minLength={3} maxLength={32} value={username} onChange={e => setUsername(e.target.value)} placeholder="نام کاربری" dir="ltr"/>
                <label htmlFor="simorgh-signin-password">گذرواژه</label>
-               <div className="auth-password-wrap"><input id="simorgh-signin-password" className="auth-input" type={showPassword ? 'text' : 'password'} minLength={mode === 'signup' ? 8 : 1} maxLength={128} autoComplete={mode === 'signup' ? 'new-password' : 'current-password'} required value={password} onChange={e => setPassword(e.target.value)} placeholder={mode === 'signup' ? 'حداقل ۸ نویسه' : 'گذرواژه'} dir="ltr"/><button type="button" onClick={() => setShowPassword(value => !value)} aria-label={showPassword ? 'پنهان‌کردن گذرواژه' : 'نمایش گذرواژه'}>{showPassword ? <EyeOff size={16}/> : <Eye size={16}/>}</button></div>
-               {mode === 'signup' && <><label htmlFor="simorgh-confirm-password">تکرار گذرواژه</label><input id="simorgh-confirm-password" className="auth-input" type="password" autoComplete="new-password" required minLength={8} maxLength={128} value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="گذرواژه را دوباره وارد کن" dir="ltr"/></>}
-               {error && <div className="auth-feedback error" role="alert">{error}</div>}{notice && <div className="auth-feedback success" role="status">{notice}</div>}
-               <button className="signin-submit" type="submit" disabled={busy || !username.trim() || !password || (mode === 'signup' && (!fullName.trim() || (workspaceMode === 'create' ? !organizationName.trim() : !inviteCode.trim()) || !phone.trim() || !confirmPassword))}>
+               <div className="auth-password-wrap">
+                 <input id="simorgh-signin-password" className="auth-input" type={showPassword ? 'text' : 'password'} minLength={mode === 'signup' ? 8 : 1} maxLength={128} autoComplete={mode === 'signup' ? 'new-password' : 'current-password'} required value={password} onChange={e => setPassword(e.target.value)} placeholder={mode === 'signup' ? 'حداقل ۸ نویسه' : 'گذرواژه'} dir="ltr"/>
+                 <button type="button" onClick={() => setShowPassword(value => !value)} aria-label={showPassword ? 'پنهان‌کردن گذرواژه' : 'نمایش گذرواژه'}>{showPassword ? <EyeOff size={16}/> : <Eye size={16}/>}</button>
+               </div>
+               {error && <div className="auth-feedback error" role="alert">{error}</div>}
+               {notice && <div className="auth-feedback success" role="status">{notice}</div>}
+               <button className="signin-submit" type="submit" disabled={busy || !username.trim() || !password}>
                  {busy ? <><span className="signin-spinner" aria-hidden="true"/> در حال پردازش…</> : mode === 'signup' ? <>ساخت حساب و فضای کاری <ArrowLeft size={17}/></> : <>ورود به فضای کار <ArrowLeft size={17}/></>}
                </button>
              </form>
