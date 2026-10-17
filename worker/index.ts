@@ -52,6 +52,17 @@ export function normalizeUsername(input: unknown): string | null {
   return value;
 }
 
+export type LoginIdentifier =
+  | { kind: 'phone'; value: string }
+  | { kind: 'username'; value: string };
+
+export function normalizeLoginIdentifier(input: unknown): LoginIdentifier | null {
+  const phone = normalizeIranPhone(input);
+  if (phone) return { kind: 'phone', value: phone };
+  const username = normalizeUsername(input);
+  return username ? { kind: 'username', value: username } : null;
+}
+
 function bytesToBase64(bytes: Uint8Array): string {
   let binary = '';
   for (const byte of bytes) binary += String.fromCharCode(byte);
@@ -366,26 +377,26 @@ app.post('/api/auth/signup', async (c) => {
 app.post('/api/auth/login', async (c) => {
   const body = await c.req.json<Record<string, unknown>>().catch(() => null);
   if (!body) return c.json({ message: 'اطلاعات ورود معتبر نیست.' }, 400);
-  const rawIdentifier = typeof body.username === 'string' ? body.username : body.phone;
-  const username = normalizeUsername(rawIdentifier);
-  const phone = normalizeIranPhone(rawIdentifier);
+  const rawIdentifier = typeof body.username === 'string' && body.username.trim()
+    ? body.username
+    : body.phone;
+  const identifier = normalizeLoginIdentifier(rawIdentifier);
   const password = typeof body.password === 'string' ? body.password : '';
-  if ((!username && !phone) || !password || password.length > 128) return c.json({ message: 'شماره موبایل یا نام کاربری، یا گذرواژه نادرست است.' }, 401);
-  // Rate-limit by a canonical identifier so local, +98, and 0098 phone formats share one bucket.
-  const identifierKey = phone ?? username!;
-  const keys = await rateLimitKeys(c, identifierKey);
+  if (!identifier || !password || password.length > 128) return c.json({ message: 'شماره موبایل یا نام کاربری، یا گذرواژه نادرست است.' }, 401);
+  // Rate-limit by the normalized identifier so equivalent phone formats share one bucket.
+  const keys = await rateLimitKeys(c, identifier.value);
   if (await isRateLimited(c, keys)) return c.json({ message: 'تلاش‌های ورود بیش از حد است. ۱۵ دقیقه دیگر دوباره امتحان کن.' }, 429);
   const sql = sqlFor(c);
-  const rows = phone
+  const rows = identifier.kind === 'phone'
     ? await sql.query(
       "select id,username,username_normalized,phone_e164,display_name,password_hash,account_status " +
       "from public.medar_users where phone_e164=$1 limit 1",
-      [phone],
+      [identifier.value],
     )
     : await sql.query(
       "select id,username,username_normalized,phone_e164,display_name,password_hash,account_status " +
       "from public.medar_users where username_normalized=$1 limit 1",
-      [username],
+      [identifier.value],
     );
   const account = rows[0] as (Record<string, unknown> & { id: string; password_hash: string; account_status: string }) | undefined;
   const passwordMatches = account ? await verifyPassword(password, account.password_hash) : (await hashPassword(password), false);
