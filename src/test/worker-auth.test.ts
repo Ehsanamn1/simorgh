@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { canTransitionMedarStatus, normalizeIranPhone, normalizeUsername, resolveRpcArguments } from '../../worker/index';
+import { buildMembershipScopeSql, canTransitionMedarStatus, normalizeIranPhone, normalizeUsername, resolveRpcArguments, sanitizeExternalRows } from '../../worker/index';
 
 describe('Worker authentication input validation', () => {
   it('normalizes Iranian mobile numbers to E.164 using ASCII, Persian and Arabic numerals', () => {
@@ -68,6 +68,59 @@ describe('RPC defaulted argument handling', () => {
       _actor: 'actor-uuid',
       _task: 'task-uuid',
     })).toBeNull();
+  });
+});
+
+describe('Tenant membership isolation', () => {
+  it('restricts customer rows to the linked customer and company', () => {
+    const params: unknown[] = [];
+    const scope = buildMembershipScopeSql('orders', new Set(['company_id', 'customer_id']), [
+      { company_id: 'company-a', role: 'customer', customer_id: 'customer-a', supplier_id: null },
+    ], 'user-a', params);
+    expect(scope).toBe('((company_id = $1 and customer_id = $2))');
+    expect(params).toEqual(['company-a', 'customer-a']);
+  });
+
+  it('keeps each membership constrained to its own company when users belong to multiple workspaces', () => {
+    const params: unknown[] = [];
+    const scope = buildMembershipScopeSql('orders', new Set(['company_id', 'customer_id']), [
+      { company_id: 'company-a', role: 'owner', customer_id: null, supplier_id: null },
+      { company_id: 'company-b', role: 'customer', customer_id: 'customer-b', supplier_id: null },
+    ], 'user-a', params);
+    expect(scope).toBe('((company_id = $1) or (company_id = $2 and customer_id = $3))');
+    expect(params).toEqual(['company-a', 'company-b', 'customer-b']);
+  });
+
+  it('restricts supplier task access to the assigned supplier', () => {
+    const params: unknown[] = [];
+    const scope = buildMembershipScopeSql('operational_tasks', new Set(['company_id', 'assignee_supplier_id']), [
+      { company_id: 'company-a', role: 'supplier', customer_id: null, supplier_id: 'supplier-a' },
+    ], 'user-a', params);
+    expect(scope).toBe('((company_id = $1 and assignee_supplier_id = $2))');
+    expect(params).toEqual(['company-a', 'supplier-a']);
+  });
+
+  it('fails closed for tables not explicitly scoped to an external role', () => {
+    const params: unknown[] = [];
+    expect(buildMembershipScopeSql('partner_financial_entries', new Set(['company_id', 'amount']), [
+      { company_id: 'company-a', role: 'customer', customer_id: 'customer-a', supplier_id: null },
+    ], 'user-a', params)).toBe('((false))');
+    expect(buildMembershipScopeSql('orders', new Set(['customer_id']), [
+      { company_id: 'company-a', role: 'owner', customer_id: null, supplier_id: null },
+    ], 'user-a', [])).toBe('false');
+  });
+
+  it('redacts driver financial data recursively while preserving ordinary operational fields', () => {
+    const rows = sanitizeExternalRows('shipments', [{
+      company_id: 'company-a', id: 'shipment-a', stage: 'in_transit', amount: 4000,
+      payment_reference: 'private-reference', nested: [{ company_id: 'company-a', unit_price: 120, net_result: 10, label: 'safe' }],
+    }], [{ company_id: 'company-a', role: 'driver', customer_id: null, supplier_id: null }]);
+    expect(rows[0]).toMatchObject({ id: 'shipment-a', stage: 'in_transit' });
+    expect(rows[0]).not.toHaveProperty('amount');
+    expect(rows[0]).not.toHaveProperty('payment_reference');
+    expect((rows[0].nested as Record<string, unknown>[])[0]).not.toHaveProperty('unit_price');
+    expect((rows[0].nested as Record<string, unknown>[])[0]).not.toHaveProperty('net_result');
+    expect((rows[0].nested as Record<string, unknown>[])[0]).toHaveProperty('label', 'safe');
   });
 });
 
