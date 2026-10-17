@@ -113,7 +113,7 @@ test('login accepts a username and renders server errors', async ({ page }) => {
     });
   });
   await page.goto('/simorgh/app/command', { waitUntil: 'domcontentloaded' });
-  await page.getByLabel('شماره موبایل یا نام کاربری').fill('missing_user');
+  await page.getByLabel('نام کاربری').fill('missing_user');
   await page.getByLabel('گذرواژه', { exact: true }).fill('incorrect-password');
   await page.getByRole('button', { name: 'ورود به فضای کار' }).click();
   await expect(page.getByRole('alert')).toContainText('نام کاربری یا گذرواژه نادرست است');
