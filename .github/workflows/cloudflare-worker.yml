@@ -13,6 +13,7 @@ jobs:
       MEDAR_DATABASE_URL: ${{ secrets.MEDAR_DATABASE_URL }}
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      MEDAR_AI_ENCRYPTION_KEY: ${{ secrets.MEDAR_AI_ENCRYPTION_KEY }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -115,7 +116,7 @@ jobs:
         shell: bash
         run: printf '%s' "$MEDAR_DATABASE_URL" | npx wrangler@4 secret put DATABASE_URL --name medar-ops
       - name: Configure a dedicated AI encryption key when supplied
-        if: ${{ secrets.MEDAR_AI_ENCRYPTION_KEY != '' }}
+        if: ${{ env.MEDAR_AI_ENCRYPTION_KEY != '' }}
         working-directory: worker
         shell: bash
         env:
