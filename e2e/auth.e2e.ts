@@ -17,7 +17,7 @@ const membership = {
   company: { name: 'مزرعه آزمایشی' },
 };
 
-test('the app opens a Persian username/password sign-in without any email field', async ({ page }) => {
+test('the app opens a Persian phone-or-username/password sign-in without any email field', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.route('**/api/auth/me', route => route.fulfill({
@@ -30,7 +30,7 @@ test('the app opens a Persian username/password sign-in without any email field'
   await expect(page.locator('#app-boot-screen')).toHaveCount(0);
   await expect(page.locator('.simorgh-signin-layer')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'ورود به مدار' })).toBeVisible();
-  await expect(page.getByLabel('نام کاربری')).toBeVisible();
+  await expect(page.getByLabel('شماره موبایل یا نام کاربری')).toBeVisible();
   await expect(page.getByLabel('گذرواژه', { exact: true })).toBeVisible();
   await expect(page.locator('#simorgh-signin-email')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'ساخت حساب و فضای کاری' })).toBeVisible();
@@ -90,7 +90,7 @@ test('signup supports an Iranian mobile and username/password without email or O
   await expect(page.locator('.app-frame')).toBeVisible();
 });
 
-test('login sends only username and password and renders server errors', async ({ page }) => {
+test('login accepts a username and renders server errors', async ({ page }) => {
   let loginBody: Record<string, unknown> | undefined;
   await page.route('**/api/auth/me', route => route.fulfill({
     status: 200, contentType: 'application/json', body: JSON.stringify({ user: null, memberships: [] }),
@@ -104,11 +104,33 @@ test('login sends only username and password and renders server errors', async (
     });
   });
   await page.goto('/simorgh/app/command', { waitUntil: 'domcontentloaded' });
-  await page.getByLabel('نام کاربری').fill('missing_user');
+  await page.getByLabel('شماره موبایل یا نام کاربری').fill('missing_user');
   await page.getByLabel('گذرواژه', { exact: true }).fill('incorrect-password');
   await page.getByRole('button', { name: 'ورود به فضای کار' }).click();
   await expect(page.getByRole('alert')).toContainText('نام کاربری یا گذرواژه نادرست است');
   expect(loginBody).toEqual({ username: 'missing_user', password: 'incorrect-password' });
+  expect(loginBody).not.toHaveProperty('email');
+});
+ 
+test('login accepts Persian-format Iranian mobile numbers as the identifier', async ({ page }) => {
+  let loginBody: Record<string, unknown> | undefined;
+  await page.route('**/api/auth/me', route => route.fulfill({
+    status: 200, contentType: 'application/json', body: JSON.stringify({ user: null, memberships: [] }),
+  }));
+  await page.route('**/api/auth/login', async route => {
+    loginBody = route.request().postDataJSON() as Record<string, unknown>;
+    await route.fulfill({
+      status: 401,
+      contentType: 'application/json',
+      body: JSON.stringify({ message: 'شماره موبایل یا نام کاربری، یا گذرواژه نادرست است.' }),
+    });
+  });
+  await page.goto('/simorgh/app/command', { waitUntil: 'domcontentloaded' });
+  await page.getByLabel('شماره موبایل یا نام کاربری').fill('۰۹۱۲۱۲۳۴۵۶۷');
+  await page.getByLabel('گذرواژه', { exact: true }).fill('incorrect-password');
+  await page.getByRole('button', { name: 'ورود به فضای کار' }).click();
+  await expect(page.getByRole('alert')).toContainText('گذرواژه نادرست است');
+  expect(loginBody).toEqual({ username: '۰۹۱۲۱۲۳۴۵۶۷', password: 'incorrect-password' });
   expect(loginBody).not.toHaveProperty('email');
 });
 
