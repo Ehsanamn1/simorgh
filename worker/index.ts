@@ -223,17 +223,26 @@ async function isRateLimited(c: Ctx, keys: string[]): Promise<boolean> {
   return false;
 }
 
+export const FAILED_LOGIN_UPSERT_SQL = `
+INSERT INTO public.medar_rate_limits AS rate_limit
+  (key_hash, attempts, window_started_at, updated_at)
+VALUES ($1, 1, now(), now())
+ON CONFLICT (key_hash) DO UPDATE SET
+  attempts = CASE
+    WHEN rate_limit.window_started_at < now() - interval '15 minutes' THEN 1
+    ELSE rate_limit.attempts + 1
+  END,
+  window_started_at = CASE
+    WHEN rate_limit.window_started_at < now() - interval '15 minutes' OR rate_limit.attempts = 4 THEN now()
+    ELSE rate_limit.window_started_at
+  END,
+  updated_at = now()
+`;
+
 async function recordFailedLogin(c: Ctx, keys: string[]): Promise<void> {
   const sql = sqlFor(c);
   for (const key of keys) {
-    await sql.query(
-      "insert into public.medar_rate_limits(key_hash,attempts,window_started_at,updated_at) values($1,1,now(),now()) " +
-      "on conflict(key_hash) do update set " +
-      "attempts=case when public.medar_rate_limits.window_started_at<now()-interval '15 minutes' then 1 else public.medar_rate_limits.attempts+1 end, " +
-      "window_started_at=case when public.medar_rate_limits.window_started_at<now()-interval '15 minutes' or public.medar_rate_limits.attempts=4 then now() else public.medar_rate_limits.window_started_at end, " +
-      "updated_at=now()",
-      [key],
-    );
+    await sql.query(FAILED_LOGIN_UPSERT_SQL, [key]);
   }
   await sql.query("delete from public.medar_rate_limits where updated_at<now()-interval '1 day'");
 }
@@ -1329,6 +1338,9 @@ app.notFound((c) => {
 });
 app.onError((error, c) => {
   const requestId = crypto.randomUUID();
+  const path = new URL(c.req.url).pathname;
+  const detail = error instanceof Error ? `${error.name}: ${error.message}`.slice(0, 500) : 'Unknown error';
+  console.error(`[medar:${requestId}] ${c.req.method} ${path} ${detail}`);
   return c.json({ message: 'درخواست انجام نشد. دوباره تلاش کن.', requestId }, 500);
 });
 export default app;
