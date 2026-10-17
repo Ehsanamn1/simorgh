@@ -275,6 +275,22 @@ app.use('/api/*', async (c, next) => {
   await next();
 });
 
+app.onError((error, c) => {
+  const details = error as { name?: string; code?: string; constraint?: string };
+  // Log only safe error metadata; never log request bodies, credentials, or SQL parameters.
+  console.error('Medar API request failed', {
+    method: c.req.method,
+    path: new URL(c.req.url).pathname,
+    name: details?.name ?? 'Error',
+    code: details?.code ?? null,
+    constraint: details?.constraint ?? null,
+  });
+  return c.json(
+    { message: 'سرویس مدار نتوانست درخواست را تکمیل کند؛ چند لحظه بعد دوباره تلاش کن.' },
+    500,
+  );
+});
+
 app.get('/api/health', async (c) => {
   if (!c.env.DATABASE_URL) return c.json({ ok: false, service: 'medar-api', database: false }, 503);
   try {
