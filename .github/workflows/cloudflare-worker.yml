@@ -106,7 +106,7 @@ jobs:
           echo "Bootstrap bundle stays in the read-only showcase mode while the operational database secret is attached."
       - name: Create operational Worker script in safe bootstrap mode
         working-directory: worker
-        run: set -o pipefail; npx wrangler@4 deploy --name medar-ops 2>&1 | tee /tmp/medar-ops-bootstrap.log
+        run: set -o pipefail; npx wrangler@4 deploy --name medar-ops --var MEDAR_MODE:public-demo 2>&1 | tee /tmp/medar-ops-bootstrap.log
       - name: Configure Neon database secret for the operational Worker
         working-directory: worker
         shell: bash
@@ -130,7 +130,7 @@ jobs:
           echo "Operational bundle includes the guarded sign-in and first-owner registration UI."
       - name: Publish operational Worker with database secret
         working-directory: worker
-        run: set -o pipefail; npx wrangler@4 deploy --name medar-ops 2>&1 | tee /tmp/medar-ops-deploy.log
+        run: set -o pipefail; npx wrangler@4 deploy --name medar-ops --var MEDAR_MODE:operational 2>&1 | tee /tmp/medar-ops-deploy.log
       - name: Exercise live username/password registration and login
         shell: bash
         working-directory: worker
@@ -417,7 +417,7 @@ jobs:
         run: printf '%s' "$MEDAR_DATABASE_URL" | npx wrangler@4 secret put DATABASE_URL
       - name: Deploy Worker
         working-directory: worker
-        run: set -o pipefail; npx wrangler@4 deploy --name medar-api 2>&1 | tee /tmp/medar-deploy.log
+        run: set -o pipefail; npx wrangler@4 deploy --name medar-api --var MEDAR_MODE:public-demo 2>&1 | tee /tmp/medar-deploy.log
       - name: Smoke-test the live Worker
         shell: bash
         run: |
@@ -536,13 +536,16 @@ jobs:
           me_response="$(curl --fail --silent --show-error "$worker_url/api/auth/me")"
           printf '%s' "$me_response" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const x=JSON.parse(s);if(x.user!==null||!Array.isArray(x.memberships)){console.error('Unexpected unauthenticated session response:',s);process.exit(1)}console.log('Unauthenticated session shape OK')})"
           membership_status="$(curl --silent --show-error --output "$RUNNER_TEMP/medar-memberships.json" --write-out '%{http_code}' "$worker_url/api/workspace/memberships")"
-          if [[ "$membership_status" != "401" ]]; then echo "Unauthenticated workspace memberships must return 401 (received $membership_status)."; cat "$RUNNER_TEMP/medar-memberships.json"; exit 1; fi
+          if [[ "$membership_status" != "403" ]]; then echo "Public demo must deny workspace memberships (expected 403, received $membership_status)."; cat "$RUNNER_TEMP/medar-memberships.json"; exit 1; fi
           echo "Unauthenticated workspace access correctly denied."
           cors_status="$(curl --silent --show-error --output "$RUNNER_TEMP/medar-cors.json" --write-out '%{http_code}' --request POST --header 'Origin: https://untrusted-origin.invalid' --header 'Content-Type: application/json' --data '{"username":"ab","password":"x"}' "$worker_url/api/auth/login")"
           if [[ "$cors_status" != "403" ]]; then echo "Untrusted-origin mutation must return 403 (received $cors_status)."; cat "$RUNNER_TEMP/medar-cors.json"; exit 1; fi
           echo "Cross-origin mutation guard OK."
           invalid_login_status="$(curl --silent --show-error --output "$RUNNER_TEMP/medar-invalid-login.json" --write-out '%{http_code}' --header 'Content-Type: application/json' --data '{"username":"ab","password":"x"}' "$worker_url/api/auth/login")"
-          if [[ "$invalid_login_status" != "401" ]]; then echo "Malformed login must return 401 (received $invalid_login_status)."; cat "$RUNNER_TEMP/medar-invalid-login.json"; exit 1; fi
-          echo "Malformed login rejected without touching account data."
+          if [[ "$invalid_login_status" != "403" ]]; then echo "Public demo must reject login API calls (expected 403, received $invalid_login_status)."; cat "$RUNNER_TEMP/medar-invalid-login.json"; exit 1; fi
+          echo "Public demo login API is blocked before authentication handling."
+          signup_status="$(curl --silent --show-error --output "$RUNNER_TEMP/medar-public-signup.json" --write-out '%{http_code}' --header 'Content-Type: application/json' --data '{"username":"ab","password":"x"}' "$worker_url/api/auth/signup")"
+          if [[ "$signup_status" != "403" ]]; then echo "Public demo must reject signup API calls (expected 403, received $signup_status)."; cat "$RUNNER_TEMP/medar-public-signup.json"; exit 1; fi
+          echo "Public demo signup API is blocked before account creation."
 
 
