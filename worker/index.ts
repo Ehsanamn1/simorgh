@@ -1143,6 +1143,40 @@ async function memberRoleForCompany(c:Ctx,userId:string,companyId:string):Promis
  const rows=await sql.query("select role from public.memberships where user_id=$1::uuid and company_id=$2::uuid and active=true limit 1",[userId,companyId]);
  return (rows[0] as {role:string}|undefined)?.role??null;
 }
+type PrivateFileAction = 'read' | 'write' | 'delete';
+async function canAccessPrivateFile(c: Ctx, userId: string, bucket: string, path: string, action: PrivateFileAction): Promise<boolean> {
+  const [companyId, resourceId] = path.split('/');
+  const sql = sqlFor(c);
+  const rows = await sql.query(
+    "select case " +
+    "when $4='contract-documents' then (" +
+      "(exists(select 1 from public.memberships m where m.user_id=$1::uuid and m.company_id=$2::uuid and m.active=true and m.role::text in ('owner','admin')" +
+      " and exists(select 1 from public.suppliers su where su.id=$3::uuid and su.company_id=$2::uuid))" +
+      (action === 'read'
+        ? " or exists(select 1 from public.memberships m where m.user_id=$1::uuid and m.company_id=$2::uuid and m.active=true and m.role::text='supplier' and m.supplier_id=$3::uuid)"
+        : "") +
+      ")" +
+    ") " +
+    "when $4='operational-evidence' then (" +
+      "exists(select 1 from public.memberships m where m.user_id=$1::uuid and m.company_id=$2::uuid and m.active=true and m.role::text in ('owner','admin','staff')) " +
+      (action !== 'delete'
+        ? "or exists(select 1 from public.operational_tasks t where t.id=$3::uuid and t.company_id=$2::uuid and (t.assignee_user_id=$1::uuid or exists(select 1 from public.memberships m where m.user_id=$1::uuid and m.company_id=$2::uuid and m.active=true and m.role::text='supplier' and m.supplier_id=t.assignee_supplier_id))) "
+        : "or exists(select 1 from public.medar_files f where f.bucket_id=$4 and f.company_id=$2::uuid and f.name=$5 and f.uploaded_by=$1::uuid) ") +
+    ") " +
+    "when $4='delivery-evidence' then (" +
+      "exists(select 1 from public.memberships m where m.user_id=$1::uuid and m.company_id=$2::uuid and m.active=true and m.role::text in ('owner','admin','staff')) " +
+      (action === 'read'
+        ? "or exists(select 1 from public.shipments s where s.id=$3::uuid and s.company_id=$2::uuid and s.driver_user_id=$1::uuid) " +
+          "or exists(select 1 from public.shipments s join public.orders o on o.id=s.order_id and o.company_id=s.company_id join public.memberships m on m.company_id=o.company_id and m.customer_id=o.customer_id where s.id=$3::uuid and s.company_id=$2::uuid and m.user_id=$1::uuid and m.active=true and m.role::text='customer') "
+        : action === 'write'
+          ? "or exists(select 1 from public.shipments s where s.id=$3::uuid and s.company_id=$2::uuid and s.driver_user_id=$1::uuid) "
+          : "or exists(select 1 from public.medar_files f where f.bucket_id=$4 and f.company_id=$2::uuid and f.name=$5 and f.uploaded_by=$1::uuid) ") +
+    ") else false end as allowed",
+    [userId, companyId, resourceId, bucket, path],
+  );
+  return Boolean((rows[0] as { allowed?: boolean } | undefined)?.allowed);
+}
+
 app.put('/api/storage/:bucket',async c=>{
  const user=await requireUser(c);if(user instanceof Response)return user;
  if(!c.env.FILE_STORE)return c.json({message:'فضای فایل خصوصی Cloudflare R2 هنوز پیکربندی نشده است.'},503);
@@ -1150,7 +1184,7 @@ app.put('/api/storage/:bucket',async c=>{
  const path=normalizePrivatePath(c.req.query('path')??'');if(!path)return c.json({message:'مسیر فایل معتبر نیست.'},422);
  const companyId=path.split('/')[0],role=await memberRoleForCompany(c,user.id,companyId);
  if(!role)return c.json({message:'برای این مجموعه دسترسی فعال نداری.'},403);
- if(bucket==='contract-documents'&&!['owner','admin'].includes(role))return c.json({message:'فقط مالک یا مدیر می‌تواند سند قرارداد را بارگذاری کند.'},403);
+ if(!(await canAccessPrivateFile(c,user.id,bucket,path,'write')))return c.json({message:'نقش فعلی اجازه بارگذاری این مدرک در این مسیر را ندارد.'},403);
  const contentType=(c.req.header('content-type')??'application/octet-stream').split(';')[0].trim().toLowerCase();
  if(!rules.contentTypes.has(contentType))return c.json({message:'نوع فایل پشتیبانی نمی‌شود.'},415);
  const len=Number(c.req.header('content-length')??0);if(len>rules.maxBytes)return c.json({message:'حجم فایل از محدودیت مخزن بیشتر است.'},413);
@@ -1169,6 +1203,7 @@ app.get('/api/storage/:bucket',async c=>{
  if(!c.env.FILE_STORE)return c.json({message:'فضای فایل خصوصی Cloudflare R2 هنوز پیکربندی نشده است.'},503);
  const bucket=c.req.param('bucket');if(!PRIVATE_BUCKET_RULES[bucket])return c.json({message:'مخزن فایل مجاز نیست.'},404);
  const path=normalizePrivatePath(c.req.query('path')??'');if(!path)return c.json({message:'مسیر فایل معتبر نیست.'},422);
+ if(!(await canAccessPrivateFile(c,user.id,bucket,path,'read')))return c.json({message:'فایل پیدا نشد یا دسترسی به آن مجاز نیست.'},404);
  const meta=await runForUser(c,user.id,'select content_type from public.medar_files where bucket_id=$1 and name=$2 limit 1',[bucket,path]);
  if(!meta.length)return c.json({message:'فایل پیدا نشد یا دسترسی به آن مجاز نیست.'},404);
  const object=await c.env.FILE_STORE.get(bucket+'/'+path);if(!object)return c.json({message:'فایل در فضای ذخیره‌سازی پیدا نشد.'},404);
@@ -1186,8 +1221,13 @@ app.post('/api/storage/:bucket/remove',async c=>{
  if(paths.some(path=>!path))return c.json({message:'یکی از مسیرهای فایل معتبر نیست.'},422);
  const validPaths=paths as string[],params:unknown[]=[bucket],marks=validPaths.map(path=>{params.push(path);return '$'+params.length;});
  try{
-  const allowed=await runForUser(c,user.id,'select name from public.medar_files where bucket_id=$1 and name in ('+marks.join(',')+')',params);
-  const names=allowed.map(row=>String(row.name));if(!names.length)return c.json({data:[],error:null});
+  const candidates=await runForUser(c,user.id,'select name from public.medar_files where bucket_id=$1 and name in ('+marks.join(',')+')',params);
+  const candidatesNames=candidates.map(row=>String(row.name));
+  const names:string[]=[];
+  for(const candidate of candidatesNames){
+   if(await canAccessPrivateFile(c,user.id,bucket,candidate,'delete'))names.push(candidate);
+  }
+  if(!names.length)return c.json({data:[],error:null});
   await c.env.FILE_STORE.delete(names.map(name=>bucket+'/'+name));
   const deleteParams:unknown[]=[bucket],deleteMarks=names.map(name=>{deleteParams.push(name);return '$'+deleteParams.length;});
   await runForUser(c,user.id,'delete from public.medar_files where bucket_id=$1 and name in ('+deleteMarks.join(',')+') returning id',deleteParams);
