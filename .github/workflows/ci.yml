@@ -46,7 +46,7 @@ jobs:
             worker/migrations/0007_existing_medar_schema_compat.sql \
             worker/migrations/0008_operational_task_actions.sql \
             worker/migrations/0009_inventory_movement_concurrency_lock.sql \
-            worker/migrations/0010_purchase_order_lifecycle.sql \\
+            worker/migrations/0010_purchase_order_lifecycle.sql  \
             worker/migrations/0011_username_password_only.sql; do
             echo "Applying $migration"
             psql -h 127.0.0.1 -U postgres -d medar_test -v ON_ERROR_STOP=1 -1 -f "$migration"
