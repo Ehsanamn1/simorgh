@@ -31,6 +31,19 @@ create table if not exists public.companies (
 );
 alter table public.companies drop constraint if exists companies_id_name_key;
 alter table public.companies add constraint companies_id_name_key unique (id, name);
+create table if not exists public.medar_files (
+  id uuid primary key default gen_random_uuid(),
+  bucket_id text not null check (bucket_id in ('delivery-evidence','operational-evidence','contract-documents')),
+  name text not null,
+  company_id uuid not null references public.companies(id) on delete cascade,
+  content_type text not null,
+  size_bytes bigint not null check (size_bytes between 0 and 20971520),
+  uploaded_by uuid references public.app_users(id) on delete set null,
+  created_at timestamptz not null default now(),
+  unique(bucket_id, name)
+);
+create index if not exists medar_files_company_bucket_idx on public.medar_files(company_id, bucket_id, created_at desc);
+
 create table if not exists public.profiles (
   id uuid primary key references public.app_users(id) on delete cascade,
   full_name text,
@@ -464,7 +477,7 @@ create policy notifications_internal_insert on public.notifications for insert t
 create policy audit_manager_read on public.audit_events for select to public using(public.is_company_manager(company_id));
 
 -- Storage evidence is private; path = <company_uuid>/<shipment_uuid>/<filename>. Image evidence is not food-safety certification.
-insert into storage.buckets(id,name,public,file_size_limit,allowed_mime_types) values('delivery-evidence','delivery-evidence',false,10485760,array['image/jpeg','image/png','image/webp']) on conflict(id) do nothing;
+-- delivery-evidence is provisioned as a private Cloudflare R2 bucket by the Worker deployment.
 
 
 
