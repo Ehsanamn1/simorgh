@@ -208,6 +208,22 @@ const farmSiteTypeLabels: Record<string,string> = {
   distribution:'توزیع', mixed:'چندمنظوره', other:'سایر',
 };
 
+function farmSiteIcon(siteType: unknown, size = 18) {
+  switch (String(siteType ?? 'mixed')) {
+    case 'warehouse': return <Warehouse size={size}/>;
+    case 'distribution': return <Truck size={size}/>;
+    case 'processing':
+    case 'livestock':
+    case 'poultry':
+    case 'aquaculture':
+    case 'greenhouse':
+    case 'orchard':
+    case 'crop': return <Factory size={size}/>;
+    case 'mixed': return <Building2 size={size}/>;
+    default: return <MapPin size={size}/>;
+  }
+}
+
 function FarmMapPanel({sites,schemaWarning}:{sites:Row[];schemaWarning:string}) {
   const mapped = useMemo(() => sites.filter(site => {
     const lat = site.latitude, lon = site.longitude;
@@ -255,13 +271,13 @@ function FarmMapPanel({sites,schemaWarning}:{sites:Row[];schemaWarning:string}) 
           const y=Math.min(98,Math.max(2,mapY(latitude)));
           const active=String(site.id)===selectedId;
           return <button type="button" key={String(site.id)} className={'farm-map-marker'+(active?' active':'')} style={{left:x+'%',top:y+'%'}} aria-label={'انتخاب '+siteName(site)} aria-pressed={active} title={siteName(site)} onClick={()=>setSelectedId(String(site.id))}>
-            <span className="farm-map-marker-icon"><MapPin size={18}/></span>
+            <span className="farm-map-marker-icon">{farmSiteIcon(site.site_type,18)}</span>
             {active&&<span className="farm-map-marker-label">{siteName(site)}</span>}
             <span className="sr-only">نشانگر {numberFa(index+1)}</span>
           </button>;
         })}
       </div>
-      <div className="farm-map-sites" aria-label="فهرست موقعیت‌های ثبت‌شده">{mapped.map(site=><button type="button" key={String(site.id)} className={'farm-map-site'+(String(site.id)===selectedId?' active':'')} aria-pressed={String(site.id)===selectedId} onClick={()=>setSelectedId(String(site.id))}><span className="farm-map-pin"><MapPin size={16}/></span><span><b>{siteName(site)}</b><small>{[site.city,site.province].filter(Boolean).map(String).join(' · ') || 'نشانی ثبت نشده'}</small><small>{farmSiteTypeLabels[String(site.site_type ?? 'mixed')] ?? 'سایر'}</small></span></button>)}</div>
+      <div className="farm-map-sites" aria-label="فهرست موقعیت‌های ثبت‌شده">{mapped.map(site=><button type="button" key={String(site.id)} className={'farm-map-site'+(String(site.id)===selectedId?' active':'')} aria-pressed={String(site.id)===selectedId} onClick={()=>setSelectedId(String(site.id))}><span className="farm-map-pin">{farmSiteIcon(site.site_type,16)}</span><span><b>{siteName(site)}</b><small>{[site.city,site.province].filter(Boolean).map(String).join(' · ') || 'نشانی ثبت نشده'}</small><small>{farmSiteTypeLabels[String(site.site_type ?? 'mixed')] ?? 'سایر'}</small></span></button>)}</div>
     </div>
     : <EmptyState title="مختصات جغرافیایی ثبت نشده" description="از بخش سایت‌های مزرعه، مختصات واقعی GPS را ذخیره کن تا نقشه‌ی مدیریتی فعال شود. نقطه‌ی آزمایشی یا ساختگی نمایش داده نمی‌شود." icon={MapPin}/>}
     <div className="farm-map-footer"><span>نقشه‌ی پایه: OpenStreetMap</span><Link to="/app/farm-sites">مدیریت سایت‌ها <ArrowLeft size={14}/></Link></div>
