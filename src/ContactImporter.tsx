@@ -10,16 +10,34 @@ function csvRows(input: string): string[][] {
   const rows: string[][] = [];
   let row: string[] = [], field = '', quoted = false;
   const source = input.replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n');
+  const firstLine = source.split('\n', 1)[0] ?? '';
+  const delimiters = [',', ';', '\t'];
+  const counts = delimiters.map(delimiter => {
+    let inQuotes = false, count = 0;
+    for (let index = 0; index < firstLine.length; index++) {
+      if (firstLine[index] === '"' && firstLine[index + 1] === '"') { index++; continue; }
+      if (firstLine[index] === '"') inQuotes = !inQuotes;
+      else if (firstLine[index] === delimiter && !inQuotes) count++;
+    }
+    return count;
+  });
+  const delimiter = delimiters[counts.indexOf(Math.max(...counts))] ?? ',';
   for (let i=0;i<source.length;i++) {
     const char=source[i];
     if (char==='"' && quoted && source[i+1]==='"') { field+='"'; i++; }
     else if (char==='"') quoted=!quoted;
-    else if (char===',' && !quoted) { row.push(field.trim()); field=''; }
+    else if (char===delimiter && !quoted) { row.push(field.trim()); field=''; }
     else if (char==='\n' && !quoted) { row.push(field.trim()); if(row.some(value=>value!==''))rows.push(row); row=[];field=''; }
     else field+=char;
   }
   if(field||row.length){row.push(field.trim());if(row.some(value=>value!==''))rows.push(row);}
   return rows;
+}
+function westernDigits(value: string): string {
+  return value.replace(/[۰-۹٠-٩]/g, digit => {
+    const code = digit.charCodeAt(0);
+    return String(code - (code >= 0x06f0 && code <= 0x06f9 ? 0x06f0 : 0x0660));
+  });
 }
 function detectKind(value: string, fallback: ImportKind): ImportKind {
   const normalized = value.toLocaleLowerCase('fa-IR').replace(/[\s_-]+/g, '');
@@ -69,7 +87,7 @@ function parseContacts(fileName:string,source:string,fallbackKind:ImportKind):Co
     .filter(contact=>contact.name.length>=2)
     .map(contact=>({...contact,phone:contact.phone.replace(/[\s()-]/g,'').slice(0,40),city:contact.city.slice(0,100),address:contact.address.slice(0,500)}));
 }
-function phoneKey(value:string){return value.replace(/\D/g,'').replace(/^0098/,'98').replace(/^0(?=9\d{9}$)/,'98');}
+function phoneKey(value:string){return westernDigits(value).replace(/\D/g,'').replace(/^0098/,'98').replace(/^0(?=9\d{9}$)/,'98');}
 
 export function ContactImporter({companyId}:{companyId:string}) {
   const inputRef=useRef<HTMLInputElement>(null);
