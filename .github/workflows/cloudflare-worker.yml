@@ -40,7 +40,7 @@ jobs:
         shell: bash
         run: |
           psql "$MEDAR_DATABASE_URL" -v ON_ERROR_STOP=1 -c "create table if not exists public.medar_schema_migrations (version text primary key, checksum text not null, applied_at timestamptz not null default now())"
-          for migration in worker/migrations/0007_existing_medar_schema_compat.sql worker/migrations/0008_operational_task_actions.sql worker/migrations/0009_inventory_movement_concurrency_lock.sql worker/migrations/0010_purchase_order_lifecycle.sql worker/migrations/0011_username_password_only.sql worker/migrations/0012_client_presence.sql; do
+          for migration in worker/migrations/0007_existing_medar_schema_compat.sql worker/migrations/0008_operational_task_actions.sql worker/migrations/0009_inventory_movement_concurrency_lock.sql worker/migrations/0010_purchase_order_lifecycle.sql worker/migrations/0011_username_password_only.sql worker/migrations/0012_client_presence.sql worker/migrations/0013_ai_assistant_and_contacts.sql; do
             version="$(basename "$migration")"
             checksum="$(sha256sum "$migration" | awk '{print $1}')"
             applied="$(psql "$MEDAR_DATABASE_URL" -v ON_ERROR_STOP=1 -Atqc "select checksum from public.medar_schema_migrations where version = '$version'")"
@@ -63,6 +63,8 @@ jobs:
             select (
               to_regclass('public.medar_users') is not null and
               to_regclass('public.medar_client_presence') is not null and
+              to_regclass('public.medar_ai_provider_configs') is not null and
+              to_regclass('public.medar_ai_usage_log') is not null and
               to_regclass('public.medar_sessions') is not null and
               to_regclass('public.medar_rate_limits') is not null and
               to_regclass('public.medar_audit_log') is not null and
