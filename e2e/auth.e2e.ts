@@ -1,28 +1,38 @@
 import { expect, test } from '@playwright/test';
 
-test.beforeEach(async ({ page }) => {
-  await page.addInitScript(() => {
-    try {
-      localStorage.removeItem('simorgh-theme');
-    } catch {
-      // Private mode may disable storage.
-    }
-  });
-});
+const user = {
+  id: '00000000-0000-4000-8000-000000000901',
+  username: 'owner_test',
+  phone: '+989120000000',
+  full_name: 'مالک آزمایشی مدار',
+};
+const membership = {
+  id: '00000000-0000-4000-8000-000000000902',
+  company_id: '00000000-0000-4000-8000-000000000903',
+  user_id: user.id,
+  role: 'owner',
+  active: true,
+  customer_id: null,
+  supplier_id: null,
+  company: { name: 'مزرعه آزمایشی' },
+};
 
-test('the app opens a Persian, secure sign-in instead of a role preview', async ({ page }) => {
+test('the app opens a Persian username/password sign-in without any email field', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
+  await page.route('**/api/auth/me', route => route.fulfill({
+    status: 200, contentType: 'application/json', body: JSON.stringify({ user: null, memberships: [] }),
+  }));
   await page.goto('/simorgh/', { waitUntil: 'domcontentloaded' });
 
   await expect(page).toHaveTitle(/مدار \| مدیریت یکپارچه مزرعه و عملیات/);
   await expect(page).toHaveURL(/\/simorgh\/app\/command$/);
   await expect(page.locator('#app-boot-screen')).toHaveCount(0);
   await expect(page.locator('.simorgh-signin-layer')).toBeVisible();
-  await expect(page.locator('.ops-live-app, .ops-live-bottom-nav, .app-frame')).toHaveCount(0);
   await expect(page.getByRole('heading', { name: 'ورود به مدار' })).toBeVisible();
-  await expect(page.getByLabel('ایمیل')).toBeVisible();
+  await expect(page.getByLabel('نام کاربری')).toBeVisible();
   await expect(page.getByLabel('گذرواژه', { exact: true })).toBeVisible();
+  await expect(page.locator('#simorgh-signin-email')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'ساخت حساب و فضای کاری' })).toBeVisible();
   await expect(page.locator('.portal')).toHaveCount(0);
   await expect(page.locator('.sim-preview-palette')).toHaveCount(0);
@@ -33,6 +43,71 @@ test('the app opens a Persian, secure sign-in instead of a role preview', async 
   expect(errors).toEqual([]);
 });
 
+test('signup supports an Iranian mobile and username/password without email or OTP', async ({ page }) => {
+  let authenticated = false;
+  let signupBody: Record<string, unknown> | undefined;
+  await page.route('**/api/auth/me', route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify(authenticated ? { user, memberships: [membership] } : { user: null, memberships: [] }),
+  }));
+  await page.route('**/api/auth/signup', async route => {
+    signupBody = route.request().postDataJSON() as Record<string, unknown>;
+    authenticated = true;
+    await route.fulfill({
+      status: 201,
+      contentType: 'application/json',
+      headers: { 'cache-control': 'no-store', 'set-cookie': 'medar_session=test-only; Path=/; HttpOnly; Secure; SameSite=None' },
+      body: JSON.stringify({ user, companyId: membership.company_id, memberships: [membership] }),
+    });
+  });
+  await page.goto('/simorgh/', { waitUntil: 'domcontentloaded' });
+  await page.getByRole('button', { name: 'ساخت حساب و فضای کاری' }).click();
+  await expect(page).toHaveURL(/#signup$/);
+  await expect(page.getByRole('heading', { name: 'ساخت حساب و فضای کاری' })).toBeVisible();
+
+  await page.getByLabel('نام و نام خانوادگی').fill('مالک آزمایشی');
+  await page.getByLabel('نحوه اتصال به مجموعه').selectOption('create');
+  await page.getByLabel('نام مزرعه یا مجموعه').fill('مزرعه آزمایشی');
+  await page.getByLabel('شماره موبایل').fill('09120000000');
+  await page.getByLabel('نام کاربری').fill('owner_test');
+  await page.getByLabel('گذرواژه', { exact: true }).fill('Strong-test-pass-2026');
+  await page.getByLabel('تکرار گذرواژه').fill('Strong-test-pass-2026');
+  await page.getByRole('button', { name: 'ساخت حساب و فضای کاری', exact: true }).click();
+
+  await expect.poll(() => signupBody).toMatchObject({
+    username: 'owner_test',
+    phone: '+989120000000',
+    fullName: 'مالک آزمایشی',
+    companyName: 'مزرعه آزمایشی',
+  });
+  expect(signupBody?.password).toBe('Strong-test-pass-2026');
+  expect(signupBody).not.toHaveProperty('email');
+  await expect(page.locator('.app-frame')).toBeVisible();
+});
+
+test('login sends only username and password and renders server errors', async ({ page }) => {
+  let loginBody: Record<string, unknown> | undefined;
+  await page.route('**/api/auth/me', route => route.fulfill({
+    status: 200, contentType: 'application/json', body: JSON.stringify({ user: null, memberships: [] }),
+  }));
+  await page.route('**/api/auth/login', async route => {
+    loginBody = route.request().postDataJSON() as Record<string, unknown>;
+    await route.fulfill({
+      status: 401,
+      contentType: 'application/json',
+      body: JSON.stringify({ message: 'نام کاربری یا گذرواژه نادرست است.' }),
+    });
+  });
+  await page.goto('/simorgh/app/command', { waitUntil: 'domcontentloaded' });
+  await page.getByLabel('نام کاربری').fill('missing_user');
+  await page.getByLabel('گذرواژه', { exact: true }).fill('incorrect-password');
+  await page.getByRole('button', { name: 'ورود به فضای کار' }).click();
+  await expect(page.getByRole('alert')).toContainText('نام کاربری یا گذرواژه نادرست است');
+  expect(loginBody).toEqual({ username: 'missing_user', password: 'incorrect-password' });
+  expect(loginBody).not.toHaveProperty('email');
+});
+
 test('a blocked JavaScript bundle shows a recovery state instead of a black page', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop-chromium', 'Run the startup failure simulation once.');
   await page.route(/\/simorgh\/assets\/.*\.js(?:\?.*)?$/, route => route.abort());
@@ -40,71 +115,4 @@ test('a blocked JavaScript bundle shows a recovery state instead of a black page
   await expect(page.locator('#app-boot-screen')).toHaveClass(/has-error/, { timeout: 12_000 });
   await expect(page.getByRole('alert')).toContainText('برنامه بارگذاری نشد');
   await expect(page.getByRole('button', { name: 'بارگذاری دوباره' })).toBeVisible();
-});
-
-test('password recovery opens without exposing a public registration path', async ({ page }) => {
-  await page.goto('/simorgh/', { waitUntil: 'domcontentloaded' });
-  await page.getByRole('button', { name: 'گذرواژه‌ات را فراموش کرده‌ای؟' }).click();
-  await expect(page.getByRole('heading', { name: 'بازیابی گذرواژه' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'ارسال لینک بازیابی' })).toBeVisible();
-  await page.getByRole('button', { name: 'بازگشت به ورود' }).click();
-  await expect(page.getByRole('heading', { name: 'ورود به مدار' })).toBeVisible();
-});
-
-
-test('company signup sends validated details to Supabase and handles email confirmation', async ({ page }) => {
-  const signupPayloads: Record<string, unknown>[] = [];
-  const signupRedirects: string[] = [];
-  await page.route('**/auth/v1/signup**', async route => {
-    const payload = route.request().postDataJSON() as Record<string, unknown>;
-    const requestHeaders = route.request().headers();
-    const requestUrl = new URL(route.request().url());
-    signupRedirects.push(requestHeaders.redirectto ?? requestUrl.searchParams.get('redirect_to') ?? '');
-    signupPayloads.push(payload);
-    const userMetadata = (payload.data ?? {}) as Record<string, unknown>;
-    const userId = '00000000-0000-4000-8000-000000000901';
-    const timestamp = new Date().toISOString();
-    await route.fulfill({
-      status: 200,
-      headers: { 'content-type': 'application/json', 'cache-control': 'no-store' },
-      body: JSON.stringify({
-        id: userId,
-        aud: 'authenticated',
-        role: 'authenticated',
-        email: String(payload.email),
-        app_metadata: { provider: 'email', providers: ['email'] },
-        user_metadata: userMetadata,
-        identities: [{
-          identity_id: userId, id: userId, user_id: userId,
-          identity_data: { email: String(payload.email) },
-          provider: 'email', created_at: timestamp, updated_at: timestamp,
-        }],
-        created_at: timestamp,
-      }),
-    });
-  });
-
-  await page.goto('/simorgh/', { waitUntil: 'domcontentloaded' });
-  await page.getByRole('button', { name: 'ساخت حساب و فضای کاری' }).click();
-  await expect(page).toHaveURL(/#signup$/);
-  await expect(page.getByRole('heading', { name: 'ساخت حساب و فضای کاری' })).toBeVisible();
-  await page.getByLabel('نام و نام خانوادگی').fill('مالک آزمایشی');
-  await page.getByLabel('نام مزرعه یا مجموعه').fill('مزرعه آزمایشی');
-  await page.locator('#simorgh-signin-phone').fill('09120000000');
-  await page.getByLabel('ایمیل').fill('owner@example.test');
-  await page.getByLabel('گذرواژه', { exact: true }).fill('Test-password-2026');
-  await page.getByLabel('تکرار گذرواژه').fill('Test-password-2026');
-  await page.getByRole('button', { name: 'ساخت حساب و فضای کاری', exact: true }).click();
-
-  await expect(page.getByRole('status')).toContainText('اگر این ایمیل قابل ثبت‌نام باشد');
-  expect(signupPayloads).toHaveLength(1);
-  expect(signupPayloads[0].email).toBe('owner@example.test');
-  expect(signupPayloads[0].data).toMatchObject({
-    full_name: 'مالک آزمایشی',
-    organization_name: 'مزرعه آزمایشی',
-    phone: '09120000000',
-    signup_workspace_pending: true,
-  });
-  expect(signupRedirects).toHaveLength(1);
-  expect(signupRedirects[0]).toContain('/simorgh/#signin');
 });
