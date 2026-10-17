@@ -721,7 +721,10 @@ app.post('/api/contacts/import', async (c) => {
     if (!raw || typeof raw !== 'object') continue;
     const item = raw as Record<string, unknown>;
     const name = typeof item.name === 'string' ? item.name.trim().replace(/\s+/g, ' ') : '';
-    const phone = typeof item.phone === 'string' ? item.phone.trim().slice(0, 40) : '';
+    const phone = typeof item.phone === 'string' ? item.phone.trim().replace(/[۰-۹٠-٩]/g, digit => {
+      const code = digit.charCodeAt(0);
+      return String(code - (code >= 0x06f0 && code <= 0x06f9 ? 0x06f0 : 0x0660));
+    }).slice(0, 40) : '';
     const city = typeof item.city === 'string' ? item.city.trim().slice(0, 100) : '';
     const address = typeof item.address === 'string' ? item.address.trim().slice(0, 500) : '';
     const kind = item.kind === 'customers' || item.kind === 'suppliers' ? item.kind : defaultKind;
