@@ -153,7 +153,7 @@ jobs:
             if (await page.locator('.simorgh-signin-layer').count() !== 0) throw new Error('The mobile showcase unexpectedly rendered sign-in UI.');
             if (await page.locator('.demo-preview-notice').count() !== 1) throw new Error('The mobile demo safety notice is missing.');
             await page.locator('.demo-menu-button').click();
-            await page.locator('.demo-sidebar').toHaveClass(/is-open/);
+            if (!(await page.locator('.demo-sidebar').getAttribute('class') || '').includes('is-open')) throw new Error('The mobile navigation drawer did not open.');
             await page.locator('.demo-nav-item').filter({ hasText: 'سفارش‌ها' }).click();
             await page.locator('.demo-breadcrumb b').filter({ hasText: 'سفارش‌ها' }).waitFor({ state: 'visible' });
             const widths = await page.evaluate(() => ({ viewport: innerWidth, document: document.documentElement.scrollWidth, body: document.body.scrollWidth }));
