@@ -1,6 +1,9 @@
 name: Deploy Medar to Cloudflare Workers
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
 permissions:
   contents: read
 jobs:
@@ -98,4 +101,4 @@ jobs:
         run: printf '%s' "$MEDAR_DATABASE_URL" | npx wrangler@4 secret put DATABASE_URL
       - name: Deploy Worker
         working-directory: worker
-        run: npx wrangler@4 deploy --name medar-api-migration
+        run: npx wrangler@4 deploy --name medar-api
