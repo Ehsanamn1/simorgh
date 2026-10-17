@@ -952,27 +952,27 @@ begin
 end $$;
 
 -- Expose only role-checked RPC entry points; no anonymous access.
-revoke all on function public.guard_approved_task_template() from public,anon,authenticated;
-revoke all on function public.guard_partnership_agreement_version() from public,anon,authenticated;
-revoke all on function public.guard_production_batch_scope() from public,anon,authenticated;
-revoke all on function public.guard_partner_financial_relationship() from public,anon,authenticated;
-revoke all on function public.guard_task_status_transition() from public,anon,authenticated;
-revoke all on function public.guard_posted_partner_financial_entry() from public,anon,authenticated;
-revoke all on function public.guard_partner_settlement_period_update() from public,anon,authenticated;
-revoke all on function public.submit_operational_task(uuid,text) from public,anon;
-revoke all on function public.review_operational_task(uuid,text,text) from public,anon;
-revoke all on function public.partner_statement_snapshot(uuid,date,date) from public,anon;
-revoke all on function public.create_partner_settlement_period(uuid,date,date) from public,anon;
-revoke all on function public.refresh_partner_settlement_period(uuid) from public,anon;
-revoke all on function public.approve_partner_settlement_period(uuid) from public,anon;
-revoke all on function public.record_partner_settlement_payment(uuid,numeric,text,timestamptz) from public,anon;
-grant execute on function public.submit_operational_task(uuid,text) to public;
-grant execute on function public.review_operational_task(uuid,text,text) to public;
-grant execute on function public.partner_statement_snapshot(uuid,date,date) to public;
-grant execute on function public.create_partner_settlement_period(uuid,date,date) to public;
-grant execute on function public.refresh_partner_settlement_period(uuid) to public;
-grant execute on function public.approve_partner_settlement_period(uuid) to public;
-grant execute on function public.record_partner_settlement_payment(uuid,numeric,text,timestamptz) to public;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 -- Preserve append-only approved/posted records in the existing audit stream.
 do $$
@@ -1002,16 +1002,11 @@ end $$;
 
 
 -- Explicit grants for the newly-created tables. RLS remains the security boundary.
-revoke all on public.farm_sites,public.partnership_agreements,public.flock_cycles,public.production_batches,
-  public.daily_production_records,public.task_templates,public.operational_tasks,public.task_evidence,
-  public.operational_incidents,public.partner_financial_entries,public.partner_settlement_periods from anon;
-grant select,insert,update,delete on public.farm_sites,public.partnership_agreements,public.flock_cycles,
-  public.production_batches,public.daily_production_records,public.task_templates,public.operational_tasks,
-  public.task_evidence,public.operational_incidents,public.partner_financial_entries,public.partner_settlement_periods
-to public;
+
+
 -- Settlement periods mutate only through the guarded SECURITY DEFINER RPCs.
-revoke insert,update,delete on public.partner_settlement_periods from authenticated;
-grant select on public.partner_settlement_periods to public;
+
+
 
 -- Keep tenant and role policies active for Worker database-owner queries.
 do $$ declare table_name text; begin foreach table_name in array array['farm_sites','partnership_agreements','flock_cycles','production_batches','daily_production_records','task_templates','operational_tasks','task_evidence','operational_incidents','partner_financial_entries','partner_settlement_periods'] loop execute format('alter table public.%I force row level security', table_name); end loop; end $$;
