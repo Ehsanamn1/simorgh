@@ -549,10 +549,22 @@ const DATA_TABLES = new Set([
  'inventory_balances','company_goals'
 ]);
 const RPC_ALLOWLIST = new Set([
- 'allocate_order_item','record_inventory_movement','company_members','start_operational_task','submit_operational_task',
+ 'allocate_order_item','record_inventory_movement','record_quality_review','company_members','start_operational_task','submit_operational_task',
  'review_operational_task','create_partner_settlement_period','refresh_partner_settlement_period','approve_partner_settlement_period',
  'record_partner_settlement_payment'
 ]);
+const RPC_TARGETS: Record<string, string> = {
+  allocate_order_item: 'medar_allocate_order_item',
+  record_inventory_movement: 'medar_record_inventory_movement',
+  record_quality_review: 'medar_record_quality_review',
+  start_operational_task: 'medar_start_operational_task',
+  submit_operational_task: 'medar_submit_operational_task',
+  review_operational_task: 'medar_review_operational_task',
+  create_partner_settlement_period: 'medar_create_partner_settlement_period',
+  refresh_partner_settlement_period: 'medar_refresh_partner_settlement_period',
+  approve_partner_settlement_period: 'medar_approve_partner_settlement_period',
+  record_partner_settlement_payment: 'medar_record_partner_settlement_payment',
+};
 function quoteSqlIdentifier(value: string): string {
  if(!/^[a-z_][a-z0-9_]*$/.test(value)) throw new Error('شناسه دیتابیس معتبر نیست.');
  return '"' + value + '"';
@@ -877,25 +889,75 @@ app.post('/api/data/:table',async c=>{
   return c.json({message:e.code?'دسترسی یا اعتبارسنجی داده ناموفق بود.':(error instanceof Error?error.message:'درخواست داده ناموفق بود.')},400);
  }
 });
-app.post('/api/rpc/:name',async c=>{
- const user=await requireUser(c);if(user instanceof Response)return user;
- const name=c.req.param('name');if(!RPC_ALLOWLIST.has(name))return c.json({message:'عملیات سرور مجاز نیست.'},404);
- const body=await c.req.json<Record<string,unknown>>().catch(()=>null);
- const args=body?.args&&typeof body.args==='object'&&!Array.isArray(body.args)?body.args as Record<string,unknown>:{};
- const sql=sqlFor(c);
- try{
-  const meta=await sql.query("select p.proargnames[1:p.pronargs] as arg_names,array(select format_type(t,null) from unnest(p.proargtypes::oid[]) with ordinality as a(t,ord) order by ord) as arg_types from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname=$1 order by p.pronargs limit 2",[name]);
-  if(meta.length!==1)return c.json({message:'عملیات دیتابیس در دسترس نیست یا مبهم است.'},404);
-  const info=meta[0] as {arg_names:string[];arg_types:string[]},names=info.arg_names??[],types=info.arg_types??[];
-  if(names.some(n=>!Object.prototype.hasOwnProperty.call(args,n))||Object.keys(args).some(n=>!names.includes(n)))return c.json({message:'پارامترهای عملیات کامل نیستند یا پارامتر ناشناخته وجود دارد.'},422);
-  if(types.some(t=>!/^[a-zA-Z_][a-zA-Z0-9_ .]*$/.test(t)))return c.json({message:'نوع پارامتر عملیات معتبر نیست.'},500);
-  const marks=names.map((n,i)=>'$'+(i+1)+'::'+types[i]),values=names.map(n=>args[n]??null);
-  const rows=await runForUser(c,user.id,'select * from public.'+quoteSqlIdentifier(name)+'('+marks.join(',')+')',values);
-  return c.json({data:rows,error:null});
- }catch(error){
-  const caught=error as {code?:string};
-  return c.json({message:caught.code?'این عملیات با توجه به نقش یا وضعیت فعلی مجاز نیست.':'اجرای عملیات ناموفق بود.'},400);
- }
+app.post('/api/rpc/:name', async (c) => {
+  const user = await requireUser(c);
+  if (user instanceof Response) return user;
+  const requestedName = c.req.param('name');
+  if (!RPC_ALLOWLIST.has(requestedName)) return c.json({ message: 'عملیات سرور مجاز نیست.' }, 404);
+  const body = await c.req.json<Record<string, unknown>>().catch(() => null);
+  const args = body?.args && typeof body.args === 'object' && !Array.isArray(body.args)
+    ? body.args as Record<string, unknown>
+    : {};
+  const sql = sqlFor(c);
+  try {
+    if (requestedName === 'company_members') {
+      const companyId = typeof args._company === 'string' ? args._company : '';
+      if (!/^[0-9a-f-]{36}$/i.test(companyId)) return c.json({ message: 'شناسه مجموعه معتبر نیست.' }, 422);
+      const manager = await sql.query(
+        "select role::text from public.memberships where user_id=$1::uuid and company_id=$2::uuid and active=true limit 1",
+        [user.id, companyId],
+      );
+      const role = (manager[0] as { role: string } | undefined)?.role;
+      if (!role || !['owner', 'admin', 'staff'].includes(role)) return c.json({ message: 'برای فهرست اعضای مجموعه دسترسی داخلی لازم است.' }, 403);
+      const members = await sql.query(
+        "select m.id as membership_id,m.company_id,m.user_id,coalesce(u.username_normalized,u.username) as username," +
+        "u.phone_e164 as phone,u.display_name as full_name,m.role::text,m.customer_id,m.supplier_id,m.active,m.created_at " +
+        "from public.memberships m join public.medar_users u on u.id=m.user_id " +
+        "where m.company_id=$1::uuid order by case m.role when 'owner' then 0 when 'admin' then 1 else 2 end,m.created_at",
+        [companyId],
+      );
+      return c.json({ data: members, error: null });
+    }
+
+    const targetName = RPC_TARGETS[requestedName];
+    const suppliedArgs: Record<string, unknown> = { ...args, _actor: user.id };
+    if (requestedName === 'record_partner_settlement_payment' && suppliedArgs._paid_at == null) {
+      suppliedArgs._paid_at = new Date().toISOString();
+    }
+    const metadata = await sql.query(
+      "select p.proargnames[1:p.pronargs] as arg_names," +
+      "array(select format_type(t,null) from unnest(p.proargtypes::oid[]) with ordinality as a(t,ord) order by ord) as arg_types " +
+      "from pg_proc p join pg_namespace n on n.oid=p.pronamespace " +
+      "where n.nspname='public' and p.proname=$1 order by p.pronargs limit 2",
+      [targetName],
+    );
+    if (metadata.length !== 1) return c.json({ message: 'عملیات دیتابیس هنوز نصب نشده یا مبهم است.' }, 503);
+    const info = metadata[0] as { arg_names: string[]; arg_types: string[] };
+    const names = info.arg_names ?? [];
+    const types = info.arg_types ?? [];
+    const allowedCallerArgs = new Set(names.filter(name => name !== '_actor'));
+    if (names.some(name => !Object.prototype.hasOwnProperty.call(suppliedArgs, name)) ||
+        Object.keys(args).some(name => name !== '_actor' && !allowedCallerArgs.has(name))) {
+      return c.json({ message: 'پارامترهای عملیات کامل نیستند یا پارامتر ناشناخته وجود دارد.' }, 422);
+    }
+    if (types.some(type => !/^[a-zA-Z_][a-zA-Z0-9_ .]*$/.test(type))) {
+      return c.json({ message: 'نوع پارامتر عملیات معتبر نیست.' }, 500);
+    }
+    const placeholders = names.map((name, index) => '$' + (index + 1) + '::' + types[index]);
+    const values = names.map(name => suppliedArgs[name] ?? null);
+    const rows = await runForUser(
+      c,
+      user.id,
+      'select * from public.' + quoteSqlIdentifier(targetName) + '(' + placeholders.join(',') + ')',
+      values,
+    );
+    return c.json({ data: rows, error: null });
+  } catch (error) {
+    const caught = error as { code?: string };
+    return c.json({
+      message: caught.code ? 'این عملیات با توجه به نقش یا وضعیت فعلی مجاز نیست.' : 'اجرای عملیات ناموفق بود.',
+    }, caught.code ? 400 : 500);
+  }
 });
 app.post('/api/access-requests',async c=>{
  const user=await requireUser(c);if(user instanceof Response)return user;
