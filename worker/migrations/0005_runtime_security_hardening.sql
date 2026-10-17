@@ -573,66 +573,92 @@ alter table public.operational_incidents enable row level security;
 alter table public.partner_financial_entries enable row level security;
 alter table public.partner_settlement_periods enable row level security;
 
+drop policy if exists farm_sites_internal_all on public.farm_sites;
 create policy farm_sites_internal_all on public.farm_sites for all to public
   using (public.is_company_internal(company_id)) with check (public.is_company_internal(company_id));
+drop policy if exists farm_sites_partner_read on public.farm_sites;
 create policy farm_sites_partner_read on public.farm_sites for select to public
   using (supplier_id in (select public.my_supplier_ids()));
 
+drop policy if exists partnership_agreements_internal_all on public.partnership_agreements;
 create policy partnership_agreements_internal_all on public.partnership_agreements for all to public
   using (public.is_company_manager(company_id)) with check (public.is_company_manager(company_id));
+drop policy if exists partnership_agreements_partner_read on public.partnership_agreements;
 create policy partnership_agreements_partner_read on public.partnership_agreements for select to public
   using (supplier_id in (select public.my_supplier_ids()) and status in ('pending_signature','active','suspended','expired','terminated'));
 
+drop policy if exists flock_cycles_internal_all on public.flock_cycles;
 create policy flock_cycles_internal_all on public.flock_cycles for all to public
   using (public.is_company_internal(company_id)) with check (public.is_company_internal(company_id));
+drop policy if exists flock_cycles_partner_read on public.flock_cycles;
 create policy flock_cycles_partner_read on public.flock_cycles for select to public
   using (exists(select 1 from public.farm_sites fs where fs.company_id=flock_cycles.company_id and fs.id=flock_cycles.farm_site_id and fs.supplier_id in (select public.my_supplier_ids())));
 
+drop policy if exists production_batches_internal_all on public.production_batches;
 create policy production_batches_internal_all on public.production_batches for all to public
   using (public.is_company_internal(company_id)) with check (public.is_company_internal(company_id));
+drop policy if exists production_batches_partner_read on public.production_batches;
 create policy production_batches_partner_read on public.production_batches for select to public
   using (supplier_id in (select public.my_supplier_ids()));
 
+drop policy if exists daily_production_internal_all on public.daily_production_records;
 create policy daily_production_internal_all on public.daily_production_records for all to public
   using (public.is_company_internal(company_id)) with check (public.is_company_internal(company_id));
+drop policy if exists daily_production_partner_read on public.daily_production_records;
 create policy daily_production_partner_read on public.daily_production_records for select to public
   using (exists(select 1 from public.production_batches b where b.company_id=daily_production_records.company_id and b.id=daily_production_records.batch_id and b.supplier_id in (select public.my_supplier_ids())));
+drop policy if exists daily_production_partner_insert on public.daily_production_records;
 create policy daily_production_partner_insert on public.daily_production_records for insert to public
   with check (recorded_by=public.medar_user_id() and exists(select 1 from public.production_batches b where b.company_id=daily_production_records.company_id and b.id=daily_production_records.batch_id and b.supplier_id in (select public.my_supplier_ids())));
 
+drop policy if exists task_templates_internal_all on public.task_templates;
 create policy task_templates_internal_all on public.task_templates for all to public
   using (public.is_company_manager(company_id)) with check (public.is_company_manager(company_id));
 
+drop policy if exists operational_tasks_manager_all on public.operational_tasks;
 create policy operational_tasks_manager_all on public.operational_tasks for all to public
   using (public.is_company_manager(company_id)) with check (public.is_company_manager(company_id));
+drop policy if exists operational_tasks_internal_read on public.operational_tasks;
 create policy operational_tasks_internal_read on public.operational_tasks for select to public
   using (public.is_company_internal(company_id));
+drop policy if exists operational_tasks_assigned_read on public.operational_tasks;
 create policy operational_tasks_assigned_read on public.operational_tasks for select to public
   using (public.is_company_member(company_id) and (assignee_user_id=public.medar_user_id() or assignee_supplier_id in (select public.my_supplier_ids())));
 
+drop policy if exists task_evidence_manager_all on public.task_evidence;
 create policy task_evidence_manager_all on public.task_evidence for all to public
   using (public.is_company_manager(company_id)) with check (public.is_company_manager(company_id));
+drop policy if exists task_evidence_internal_read on public.task_evidence;
 create policy task_evidence_internal_read on public.task_evidence for select to public
   using (public.is_company_internal(company_id));
+drop policy if exists task_evidence_assignee_read on public.task_evidence;
 create policy task_evidence_assignee_read on public.task_evidence for select to public
   using (exists(select 1 from public.operational_tasks t where t.company_id=task_evidence.company_id and t.id=task_evidence.task_id and public.is_company_member(t.company_id) and (t.assignee_user_id=public.medar_user_id() or t.assignee_supplier_id in (select public.my_supplier_ids()))));
+drop policy if exists task_evidence_assignee_insert on public.task_evidence;
 create policy task_evidence_assignee_insert on public.task_evidence for insert to public
   with check (uploaded_by=public.medar_user_id() and exists(select 1 from public.operational_tasks t where t.company_id=task_evidence.company_id and t.id=task_evidence.task_id and public.is_company_member(t.company_id) and (t.assignee_user_id=public.medar_user_id() or t.assignee_supplier_id in (select public.my_supplier_ids()))));
 
+drop policy if exists operational_incidents_internal_all on public.operational_incidents;
 create policy operational_incidents_internal_all on public.operational_incidents for all to public
   using (public.is_company_internal(company_id)) with check (public.is_company_internal(company_id));
+drop policy if exists operational_incidents_partner_read on public.operational_incidents;
 create policy operational_incidents_partner_read on public.operational_incidents for select to public
   using (reported_supplier_id in (select public.my_supplier_ids()) or exists(select 1 from public.farm_sites fs where fs.company_id=operational_incidents.company_id and fs.id=operational_incidents.farm_site_id and fs.supplier_id in (select public.my_supplier_ids())));
+drop policy if exists operational_incidents_partner_insert on public.operational_incidents;
 create policy operational_incidents_partner_insert on public.operational_incidents for insert to public
   with check (reported_by=public.medar_user_id() and farm_site_id is not null and reported_supplier_id in (select public.my_supplier_ids()) and exists(select 1 from public.farm_sites fs where fs.company_id=operational_incidents.company_id and fs.id=operational_incidents.farm_site_id and fs.supplier_id=operational_incidents.reported_supplier_id));
 
+drop policy if exists partner_financial_internal_all on public.partner_financial_entries;
 create policy partner_financial_internal_all on public.partner_financial_entries for all to public
   using (public.is_company_manager(company_id)) with check (public.is_company_manager(company_id));
+drop policy if exists partner_financial_supplier_read on public.partner_financial_entries;
 create policy partner_financial_supplier_read on public.partner_financial_entries for select to public
   using (supplier_id in (select public.my_supplier_ids()) and status in ('approved','posted'));
 
+drop policy if exists partner_settlement_internal_all on public.partner_settlement_periods;
 create policy partner_settlement_internal_all on public.partner_settlement_periods for all to public
   using (public.is_company_manager(company_id)) with check (public.is_company_manager(company_id));
+drop policy if exists partner_settlement_supplier_read on public.partner_settlement_periods;
 create policy partner_settlement_supplier_read on public.partner_settlement_periods for select to public
   using (supplier_id in (select public.my_supplier_ids()) and status in ('approved','settled','disputed'));
 
@@ -641,6 +667,7 @@ create policy partner_settlement_supplier_read on public.partner_settlement_peri
 -- The operational evidence bucket is private. Object path: <company_uuid>/<task_uuid>/<filename>.
 -- Private file buckets are provisioned by the Cloudflare R2 deployment.
 
+drop policy if exists operational_evidence_storage_read on public.medar_files;
 create policy operational_evidence_storage_read on public.medar_files for select to public
 using (
   bucket_id='operational-evidence'
@@ -657,6 +684,7 @@ using (
     )
   )
 );
+drop policy if exists operational_evidence_storage_insert on public.medar_files;
 create policy operational_evidence_storage_insert on public.medar_files for insert to public
 with check (
   bucket_id='operational-evidence'
@@ -678,6 +706,7 @@ with check (
 -- Signed agreement files are private; object path: <company_uuid>/<supplier_uuid>/<filename>.
 -- Private file buckets are provisioned by the Cloudflare R2 deployment.
 
+drop policy if exists contract_documents_storage_read on public.medar_files;
 create policy contract_documents_storage_read on public.medar_files for select to public
 using (
   bucket_id='contract-documents'
@@ -695,6 +724,7 @@ using (
     )
   )
 );
+drop policy if exists contract_documents_storage_insert on public.medar_files;
 create policy contract_documents_storage_insert on public.medar_files for insert to public
 with check (
   bucket_id='contract-documents'
@@ -765,6 +795,7 @@ end loop; end $$;
     )
   )
 );
+drop policy if exists operational_evidence_storage_insert on public.medar_files;
 create policy operational_evidence_storage_insert on public.medar_files for insert to public
 with check (
   bucket_id='operational-evidence'
@@ -786,6 +817,7 @@ with check (
 -- Signed agreement files are private; object path: <company_uuid>/<supplier_uuid>/<filename>.
 -- Private file buckets are provisioned by the Cloudflare R2 deployment.
 
+drop policy if exists contract_documents_storage_read on public.medar_files;
 create policy contract_documents_storage_read on public.medar_files for select to public
 using (
   bucket_id='contract-documents'
@@ -803,6 +835,7 @@ using (
     )
   )
 );
+drop policy if exists contract_documents_storage_insert on public.medar_files;
 create policy contract_documents_storage_insert on public.medar_files for insert to public
 with check (
   bucket_id='contract-documents'
@@ -872,6 +905,7 @@ end loop; end $$;
     )
   )
 );
+drop policy if exists operational_evidence_storage_insert on public.medar_files;
 create policy operational_evidence_storage_insert on public.medar_files for insert to public
 with check (
   bucket_id='operational-evidence'
@@ -893,6 +927,7 @@ with check (
 -- Signed agreement files are private; object path: <company_uuid>/<supplier_uuid>/<filename>.
 -- Private file buckets are provisioned by the Cloudflare R2 deployment.
 
+drop policy if exists contract_documents_storage_read on public.medar_files;
 create policy contract_documents_storage_read on public.medar_files for select to public
 using (
   bucket_id='contract-documents'
@@ -910,6 +945,7 @@ using (
     )
   )
 );
+drop policy if exists contract_documents_storage_insert on public.medar_files;
 create policy contract_documents_storage_insert on public.medar_files for insert to public
 with check (
   bucket_id='contract-documents'
@@ -977,6 +1013,7 @@ end loop; end $$;
     )
   )
 );
+drop policy if exists operational_evidence_storage_insert on public.medar_files;
 create policy operational_evidence_storage_insert on public.medar_files for insert to public
 with check (
   bucket_id='operational-evidence'
@@ -998,6 +1035,7 @@ with check (
 -- Signed agreement files are private; object path: <company_uuid>/<supplier_uuid>/<filename>.
 -- Private file buckets are provisioned by the Cloudflare R2 deployment.
 
+drop policy if exists contract_documents_storage_read on public.medar_files;
 create policy contract_documents_storage_read on public.medar_files for select to public
 using (
   bucket_id='contract-documents'
@@ -1015,6 +1053,7 @@ using (
     )
   )
 );
+drop policy if exists contract_documents_storage_insert on public.medar_files;
 create policy contract_documents_storage_insert on public.medar_files for insert to public
 with check (
   bucket_id='contract-documents'
@@ -1079,6 +1118,7 @@ end loop; end $$;
     )
   )
 );
+drop policy if exists operational_evidence_storage_insert on public.medar_files;
 create policy operational_evidence_storage_insert on public.medar_files for insert to public
 with check (
   bucket_id='operational-evidence'
@@ -1100,6 +1140,7 @@ with check (
 -- Signed agreement files are private; object path: <company_uuid>/<supplier_uuid>/<filename>.
 -- Private file buckets are provisioned by the Cloudflare R2 deployment.
 
+drop policy if exists contract_documents_storage_read on public.medar_files;
 create policy contract_documents_storage_read on public.medar_files for select to public
 using (
   bucket_id='contract-documents'
@@ -1117,6 +1158,7 @@ using (
     )
   )
 );
+drop policy if exists contract_documents_storage_insert on public.medar_files;
 create policy contract_documents_storage_insert on public.medar_files for insert to public
 with check (
   bucket_id='contract-documents'
@@ -1180,6 +1222,7 @@ end loop; end $$;
     )
   )
 );
+drop policy if exists operational_evidence_storage_insert on public.medar_files;
 create policy operational_evidence_storage_insert on public.medar_files for insert to public
 with check (
   bucket_id='operational-evidence'
@@ -1201,6 +1244,7 @@ with check (
 -- Signed agreement files are private; object path: <company_uuid>/<supplier_uuid>/<filename>.
 -- Private file buckets are provisioned by the Cloudflare R2 deployment.
 
+drop policy if exists contract_documents_storage_read on public.medar_files;
 create policy contract_documents_storage_read on public.medar_files for select to public
 using (
   bucket_id='contract-documents'
@@ -1218,6 +1262,7 @@ using (
     )
   )
 );
+drop policy if exists contract_documents_storage_insert on public.medar_files;
 create policy contract_documents_storage_insert on public.medar_files for insert to public
 with check (
   bucket_id='contract-documents'
@@ -1293,6 +1338,7 @@ end loop; end $$;
 -- Signed agreement files are private; object path: <company_uuid>/<supplier_uuid>/<filename>.
 -- Private file buckets are provisioned by the Cloudflare R2 deployment.
 
+drop policy if exists contract_documents_storage_read on public.medar_files;
 create policy contract_documents_storage_read on public.medar_files for select to public
 using (
   bucket_id='contract-documents'
@@ -1310,6 +1356,7 @@ using (
     )
   )
 );
+drop policy if exists contract_documents_storage_insert on public.medar_files;
 create policy contract_documents_storage_insert on public.medar_files for insert to public
 with check (
   bucket_id='contract-documents'
@@ -1384,6 +1431,7 @@ end loop; end $$;
 -- Signed agreement files are private; object path: <company_uuid>/<supplier_uuid>/<filename>.
 -- Private file buckets are provisioned by the Cloudflare R2 deployment.
 
+drop policy if exists contract_documents_storage_read on public.medar_files;
 create policy contract_documents_storage_read on public.medar_files for select to public
 using (
   bucket_id='contract-documents'
@@ -1401,6 +1449,7 @@ using (
     )
   )
 );
+drop policy if exists contract_documents_storage_insert on public.medar_files;
 create policy contract_documents_storage_insert on public.medar_files for insert to public
 with check (
   bucket_id='contract-documents'
@@ -1473,6 +1522,7 @@ end loop; end $$;
 -- Signed agreement files are private; object path: <company_uuid>/<supplier_uuid>/<filename>.
 -- Private file buckets are provisioned by the Cloudflare R2 deployment.
 
+drop policy if exists contract_documents_storage_read on public.medar_files;
 create policy contract_documents_storage_read on public.medar_files for select to public
 using (
   bucket_id='contract-documents'
@@ -1490,6 +1540,7 @@ using (
     )
   )
 );
+drop policy if exists contract_documents_storage_insert on public.medar_files;
 create policy contract_documents_storage_insert on public.medar_files for insert to public
 with check (
   bucket_id='contract-documents'
@@ -1559,6 +1610,7 @@ end loop; end $$;
 -- Signed agreement files are private; object path: <company_uuid>/<supplier_uuid>/<filename>.
 -- Private file buckets are provisioned by the Cloudflare R2 deployment.
 
+drop policy if exists contract_documents_storage_read on public.medar_files;
 create policy contract_documents_storage_read on public.medar_files for select to public
 using (
   bucket_id='contract-documents'
@@ -1576,6 +1628,7 @@ using (
     )
   )
 );
+drop policy if exists contract_documents_storage_insert on public.medar_files;
 create policy contract_documents_storage_insert on public.medar_files for insert to public
 with check (
   bucket_id='contract-documents'
@@ -1644,6 +1697,7 @@ end loop; end $$;
 -- Signed agreement files are private; object path: <company_uuid>/<supplier_uuid>/<filename>.
 -- Private file buckets are provisioned by the Cloudflare R2 deployment.
 
+drop policy if exists contract_documents_storage_read on public.medar_files;
 create policy contract_documents_storage_read on public.medar_files for select to public
 using (
   bucket_id='contract-documents'
@@ -1661,6 +1715,7 @@ using (
     )
   )
 );
+drop policy if exists contract_documents_storage_insert on public.medar_files;
 create policy contract_documents_storage_insert on public.medar_files for insert to public
 with check (
   bucket_id='contract-documents'
@@ -1732,6 +1787,7 @@ end loop; end $$;
     )
   )
 );
+drop policy if exists contract_documents_storage_insert on public.medar_files;
 create policy contract_documents_storage_insert on public.medar_files for insert to public
 with check (
   bucket_id='contract-documents'
@@ -1802,6 +1858,7 @@ end loop; end $$;
     )
   )
 );
+drop policy if exists contract_documents_storage_insert on public.medar_files;
 create policy contract_documents_storage_insert on public.medar_files for insert to public
 with check (
   bucket_id='contract-documents'
@@ -1870,6 +1927,7 @@ end loop; end $$;
     )
   )
 );
+drop policy if exists contract_documents_storage_insert on public.medar_files;
 create policy contract_documents_storage_insert on public.medar_files for insert to public
 with check (
   bucket_id='contract-documents'
@@ -1935,6 +1993,7 @@ end loop; end $$;
     )
   )
 );
+drop policy if exists contract_documents_storage_insert on public.medar_files;
 create policy contract_documents_storage_insert on public.medar_files for insert to public
 with check (
   bucket_id='contract-documents'
@@ -1999,6 +2058,7 @@ end loop; end $$;
     )
   )
 );
+drop policy if exists contract_documents_storage_insert on public.medar_files;
 create policy contract_documents_storage_insert on public.medar_files for insert to public
 with check (
   bucket_id='contract-documents'
