@@ -26,9 +26,16 @@ jobs:
           test -n "$CLOUDFLARE_API_TOKEN" || { echo "CLOUDFLARE_API_TOKEN is missing"; exit 1; }
           test -n "$CLOUDFLARE_ACCOUNT_ID" || { echo "CLOUDFLARE_ACCOUNT_ID is missing"; exit 1; }
           test -n "$MEDAR_DATABASE_URL" || { echo "MEDAR_DATABASE_URL is missing"; exit 1; }
-      - name: Apply Neon foundation schema
+      - name: Apply Medar schema migrations to Neon
         shell: bash
-        run: psql "$MEDAR_DATABASE_URL" -v ON_ERROR_STOP=1 -f worker/migrations/0001_foundation.sql -f worker/migrations/0002_username_password_auth.sql
+        run: |
+          psql "$MEDAR_DATABASE_URL" -v ON_ERROR_STOP=1 \
+            -f worker/migrations/0001_foundation.sql \
+            -f worker/migrations/0002_username_password_auth.sql \
+            -f worker/migrations/0003_core_business_schema.sql \
+            -f worker/migrations/0004_operational_integrity_schema.sql \
+            -f worker/migrations/0005_runtime_security_hardening.sql \
+            -f worker/migrations/0006_additional_operational_modules.sql
       - name: Configure Neon database secret
         working-directory: worker
         shell: bash
