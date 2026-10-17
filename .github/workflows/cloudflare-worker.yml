@@ -137,8 +137,8 @@ jobs:
             return response.text();
           }));
           const [jsFiles, cssFiles] = await Promise.all([fetchTexts(jsPaths), fetchTexts(cssPaths)]);
-          const js = jsFiles.join('\\n');
-          const css = cssFiles.join('\\n');
+          const js = jsFiles.join('\n');
+          const css = cssFiles.join('\n');
           for (const token of ['demo-workspace', 'دموی قابل ارائه']) if (!js.includes(token)) throw new Error('Live JS bundles missing public demo token: ' + token);
           for (const token of ['demo-workspace', 'demo-preview-notice', 'medar-glass']) if (!css.includes(token)) throw new Error('Live CSS bundles missing expected design token: ' + token);
           const appRoute = await fetch(base + '/app/command');
