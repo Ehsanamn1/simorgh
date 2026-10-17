@@ -7,7 +7,7 @@ as $$ select nullif(current_setting('medar.user_id', true), '')::uuid $$;
 
 -- Simorgh core operational schema for Supabase Postgres 15+.
 -- No demo rows are inserted. Apply only after creating a dedicated Supabase project and reviewing this migration.
-create extension if not exists pgcrypto with schema extensions;
+create extension if not exists pgcrypto;
 
 do $$ begin create type public.app_role as enum ('owner','admin','staff','customer','supplier','driver'); exception when duplicate_object then null; end $$;
 do $$ begin create type public.product_kind as enum ('eggs','meat','other'); exception when duplicate_object then null; end $$;
