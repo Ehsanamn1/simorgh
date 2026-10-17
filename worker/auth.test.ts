@@ -9,7 +9,7 @@ describe('server-side login identifier normalization', () => {
   });
 
   it('uses a valid fixed PBKDF2 dummy verifier for missing-account login checks', async () => {
-    expect(DUMMY_PASSWORD_HASH).toMatch(/^pbkdf2_sha256\\$310000\\$/);
+    expect(DUMMY_PASSWORD_HASH).toMatch(/^pbkdf2_sha256\$310000\$/);
     await expect(verifyPassword('medar-invalid-login-dummy-password', DUMMY_PASSWORD_HASH)).resolves.toBe(true);
     await expect(verifyPassword('different-password', DUMMY_PASSWORD_HASH)).resolves.toBe(false);
   });
