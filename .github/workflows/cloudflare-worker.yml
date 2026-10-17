@@ -22,23 +22,6 @@ jobs:
       - run: npm run typecheck
       - run: npm run lint
       - run: npm run test
-      - name: Build Worker app with public read-only demo
-        run: npm run build
-        env:
-          VITE_ENABLE_AUTH_UI: 'false'
-      - name: Verify the Worker bundle includes the interactive demo and showcase styles
-        shell: bash
-        run: |
-          test -f dist/index.html
-          grep -q 'id="root"' dist/index.html
-          test -n "$(find dist/assets -maxdepth 1 -type f -name '*.js' -print -quit)"
-          test -n "$(find dist/assets -maxdepth 1 -type f -name '*.css' -print -quit)"
-          grep -Rqs --include='*.js' 'demo-workspace' dist/assets
-          grep -Rqs --include='*.js' 'دموی قابل ارائه' dist/assets
-          grep -Rqs --include='*.js' 'عملیات، در یک نگاه.' dist/assets
-          grep -Rqs --include='*.css' 'demo-workspace' dist/assets
-          grep -Rqs --include='*.css' 'demo-preview-notice' dist/assets
-          echo "Worker frontend includes the interactive, read-only demo and responsive showcase styles."
       - name: Validate deployment credentials
         shell: bash
         run: |
@@ -107,144 +90,6 @@ jobs:
             echo "Neon schema is missing a required table, versioned migration, or Worker RPC. Refusing deployment."
             exit 1
           fi
-      - name: Keep private file storage disabled until explicitly requested
-        run: echo "R2 setup is intentionally out of scope; file routes remain unavailable without FILE_STORE."
-      - name: Configure Neon database secret
-        working-directory: worker
-        shell: bash
-        run: printf '%s' "$MEDAR_DATABASE_URL" | npx wrangler@4 secret put DATABASE_URL
-      - name: Deploy Worker
-        working-directory: worker
-        run: set -o pipefail; npx wrangler@4 deploy --name medar-api 2>&1 | tee /tmp/medar-deploy.log
-      - name: Smoke-test the live Worker
-        shell: bash
-        run: |
-          worker_url="$(grep -Eo 'https://medar-api\.[a-z0-9-]+\.workers\.dev' /tmp/medar-deploy.log 2>/dev/null | tail -n1 || true)"
-          if [[ -z "$worker_url" ]]; then
-            echo "Could not resolve the deployed workers.dev URL from Wrangler output."
-            exit 1
-          fi
-          response="$(curl --fail --silent --show-error --retry 10 --retry-all-errors --retry-delay 3 "$worker_url/api/health")"
-          printf '%s' "$response" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const x=JSON.parse(s);if(x.status!=='ok' && x.ok!==true && x.healthy!==true){console.error('Unexpected health response:',s);process.exit(1)}console.log('Live Worker health OK:',s)})"
-          name="$(curl --fail --silent --show-error --retry 5 --retry-all-errors --retry-delay 2 "$worker_url/")"
-          printf '%s' "$name" | grep -q 'id="root"' || { echo "The live Worker root is missing the frontend root element."; exit 1; }
-          asset_results="$(WORKER_URL="$worker_url" node --input-type=module <<'NODE'
-          const base = process.env.WORKER_URL;
-          const htmlResponse = await fetch(base + '/');
-          if (!htmlResponse.ok) throw new Error('Root HTML failed: ' + htmlResponse.status);
-          const html = await htmlResponse.text();
-          const linkedJsPaths = [...new Set([...html.matchAll(/(?:src|href)="([^"]+\.js)"/g)].map(match => new URL(match[1], base + '/').pathname))];
-          const linkedCssPaths = [...new Set([...html.matchAll(/href="([^"]+\.css)"/g)].map(match => new URL(match[1], base + '/').pathname))];
-          if (!linkedJsPaths.length || !linkedCssPaths.length) throw new Error('Root HTML is missing JS/CSS assets.');
-          // Vite emits shared and lazy chunks that are not all linked directly from index.html.
-          // Scan every JS/CSS asset emitted by this very build, not only entrypoint tags.
-          const assetNames = await (await import('node:fs/promises')).readdir('dist/assets');
-          const jsPaths = assetNames.filter(name => name.endsWith('.js')).map(name => '/assets/' + name);
-          const cssPaths = assetNames.filter(name => name.endsWith('.css')).map(name => '/assets/' + name);
-          if (!jsPaths.length || !cssPaths.length) throw new Error('The local production build contains no JS/CSS assets.');
-          for (const path of [...linkedJsPaths, ...linkedCssPaths]) {
-            if (!assetNames.includes(path.split('/').pop())) throw new Error('Published HTML references an asset missing from this build: ' + path);
-          }
-          const resolve = path => new URL(path, base + '/').toString();
-          const fetchTexts = async (paths, expectedType) => Promise.all(paths.map(async path => {
-            const url = resolve(path);
-            const response = await fetch(url, { cache: 'no-store', headers: { 'cache-control': 'no-cache' } });
-            const body = await response.text();
-            const contentType = response.headers.get('content-type') || '';
-            if (!response.ok) throw new Error('Frontend asset failed: ' + path + ' (' + response.status + ', ' + contentType + ')');
-            if (!contentType.toLowerCase().includes(expectedType)) {
-              throw new Error('Frontend asset had the wrong content type: ' + path + ' -> ' + contentType + '; response prefix=' + body.slice(0,120).replace(/\\s+/g,' '));
-            }
-            return { path, url: response.url, contentType, body };
-          }));
-          const [jsAssets, cssAssets] = await Promise.all([fetchTexts(jsPaths, 'javascript'), fetchTexts(cssPaths, 'text/css')]);
-          const js = jsAssets.map(asset => asset.body).join('\n');
-          const css = cssAssets.map(asset => asset.body).join('\n');
-          console.log('Live JS assets:', JSON.stringify(jsAssets.map(a => ({path:a.path,url:a.url,type:a.contentType,bytes:a.body.length}))));
-          console.log('Live CSS assets:', JSON.stringify(cssAssets.map(a => ({path:a.path,url:a.url,type:a.contentType,bytes:a.body.length,hasDemoWorkspace:a.body.includes('demo-workspace'),hasPreviewBanner:a.body.includes('demo-preview-notice'),hasOpsLink:a.body.includes('demo-ops-link')}))));
-          for (const token of ['demo-workspace', 'دموی قابل ارائه', 'عملیات، در یک نگاه.']) if (!js.includes(token)) throw new Error('Live JS bundles missing public demo token: ' + token + '; assets=' + JSON.stringify(jsAssets.map(a => ({path:a.path,type:a.contentType,bytes:a.body.length}))));
-          for (const token of ['demo-workspace', 'demo-preview-notice', 'demo-ops-link']) if (!css.includes(token)) throw new Error('Live CSS bundles missing public demo styles: ' + token + '; assets=' + JSON.stringify(cssAssets.map(a => ({path:a.path,url:a.url,type:a.contentType,bytes:a.body.length,hasDemoWorkspace:a.body.includes('demo-workspace'),hasPreviewBanner:a.body.includes('demo-preview-notice'),hasOpsLink:a.body.includes('demo-ops-link'),prefix:a.body.slice(0,120)}))));
-          for (const route of ['/demo', '/app/command']) {
-            const appRoute = await fetch(base + route);
-            if (!appRoute.ok || !(await appRoute.text()).includes('id="root"')) throw new Error('SPA deep-link fallback failed for ' + route);
-          }
-          console.log('Live public demo assets and SPA routes are reachable.');
-          NODE
-          )" || { echo "Live frontend smoke test failed."; exit 1; }
-          echo "$asset_results"
-      - name: Install Chromium for live Worker demo verification
-        run: npx playwright install --with-deps chromium
-      - name: Verify the live public demo, real health status, navigation, and responsive layout
-        shell: bash
-        run: |
-          worker_url="$(grep -Eo 'https://medar-api\.[a-z0-9-]+\.workers\.dev' /tmp/medar-deploy.log 2>/dev/null | tail -n1 || true)"
-          test -n "$worker_url"
-          WORKER_URL="$worker_url" node --input-type=module <<'NODE'
-          import { chromium } from '@playwright/test';
-          const base = process.env.WORKER_URL;
-          const browser = await chromium.launch({ headless: true });
-          const errors = [];
-          try {
-            const page = await browser.newPage({ viewport: { width: 1365, height: 900 } });
-            page.on('pageerror', error => errors.push(error.message));
-            const response = await page.goto(base + '/', { waitUntil: 'networkidle', timeout: 60000 });
-            if (!response?.ok()) throw new Error('Public demo root failed to load.');
-            await page.locator('#app-boot-screen').waitFor({ state: 'detached', timeout: 20000 });
-            await page.locator('.demo-workspace').waitFor({ state: 'visible', timeout: 20000 });
-            await page.getByRole('heading', { name: 'عملیات، در یک نگاه.' }).waitFor({ state: 'visible' });
-            await page.locator('.demo-preview-notice').waitFor({ state: 'visible' });
-            if (await page.locator('.simorgh-signin-layer').count()) throw new Error('Sign-in UI must be hidden in the public demo.');
-            if (await page.locator('.app-frame, .setup-screen').count()) throw new Error('Protected workspace or setup screen rendered instead of the demo.');
-            await page.getByText('سرویس اصلی آنلاین', { exact: true }).waitFor({ state: 'visible', timeout: 20000 });
-            const desktop = await page.evaluate(() => ({ viewport: innerWidth, document: document.documentElement.scrollWidth, body: document.body.scrollWidth }));
-            if (desktop.document > desktop.viewport || desktop.body > desktop.viewport) throw new Error('Desktop horizontal overflow: ' + JSON.stringify(desktop));
-
-            await page.locator('.demo-sidebar .demo-nav-item').filter({ hasText: /^سفارش‌ها$/ }).click();
-            await page.locator('.demo-breadcrumb b').filter({ hasText: 'سفارش‌ها' }).waitFor({ state: 'visible' });
-            if (errors.length) throw new Error('Desktop browser runtime error: ' + errors.join(' | '));
-
-            const deepLink = await page.goto(base + '/app/command', { waitUntil: 'networkidle', timeout: 60000 });
-            if (!deepLink?.ok()) throw new Error('App deep link did not return the application shell.');
-            await page.locator('.demo-workspace').waitFor({ state: 'visible', timeout: 20000 });
-            if (await page.locator('.simorgh-signin-layer').count()) throw new Error('The app deep link rendered sign-in UI.');
-
-            await page.setViewportSize({ width: 390, height: 844 });
-            await page.goto(base + '/', { waitUntil: 'networkidle', timeout: 60000 });
-            await page.locator('#app-boot-screen').waitFor({ state: 'detached', timeout: 20000 });
-            await page.locator('.demo-workspace').waitFor({ state: 'visible', timeout: 20000 });
-            await page.locator('.demo-preview-notice').waitFor({ state: 'visible' });
-            if (await page.locator('.simorgh-signin-layer').count()) throw new Error('The mobile demo unexpectedly rendered sign-in UI.');
-            const mobileNav = page.locator('.demo-mobile-bottom-nav');
-            await mobileNav.waitFor({ state: 'visible', timeout: 10000 });
-            if (await mobileNav.locator('button').count() !== 4) throw new Error('The mobile bottom navigation is incomplete.');
-            await mobileNav.getByRole('button', { name: /سفارش‌ها/ }).click();
-            await page.locator('.demo-breadcrumb b').filter({ hasText: 'سفارش‌ها' }).waitFor({ state: 'visible' });
-            const mobile = await page.evaluate(() => ({ viewport: innerWidth, document: document.documentElement.scrollWidth, body: document.body.scrollWidth }));
-            if (mobile.document > mobile.viewport || mobile.body > mobile.viewport) throw new Error('Mobile horizontal overflow: ' + JSON.stringify(mobile));
-            if (errors.length) throw new Error('Live browser runtime error: ' + errors.join(' | '));
-            console.log('Live Worker demo passed desktop/mobile, navigation, health, and no-login checks.');
-          } finally {
-            await browser.close();
-          }
-          NODE
-
-      - name: Verify unauthenticated Worker API access controls
-        shell: bash
-        run: |
-          worker_url="$(grep -Eo 'https://medar-api\.[a-z0-9-]+\.workers\.dev' /tmp/medar-deploy.log 2>/dev/null | tail -n1 || true)"
-          test -n "$worker_url"
-          me_response="$(curl --fail --silent --show-error "$worker_url/api/auth/me")"
-          printf '%s' "$me_response" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const x=JSON.parse(s);if(x.user!==null||!Array.isArray(x.memberships)){console.error('Unexpected unauthenticated session response:',s);process.exit(1)}console.log('Unauthenticated session shape OK')})"
-          membership_status="$(curl --silent --show-error --output "$RUNNER_TEMP/medar-memberships.json" --write-out '%{http_code}' "$worker_url/api/workspace/memberships")"
-          if [[ "$membership_status" != "401" ]]; then echo "Unauthenticated workspace memberships must return 401 (received $membership_status)."; cat "$RUNNER_TEMP/medar-memberships.json"; exit 1; fi
-          echo "Unauthenticated workspace access correctly denied."
-          cors_status="$(curl --silent --show-error --output "$RUNNER_TEMP/medar-cors.json" --write-out '%{http_code}' --request POST --header 'Origin: https://untrusted-origin.invalid' --header 'Content-Type: application/json' --data '{"username":"ab","password":"x"}' "$worker_url/api/auth/login")"
-          if [[ "$cors_status" != "403" ]]; then echo "Untrusted-origin mutation must return 403 (received $cors_status)."; cat "$RUNNER_TEMP/medar-cors.json"; exit 1; fi
-          echo "Cross-origin mutation guard OK."
-          invalid_login_status="$(curl --silent --show-error --output "$RUNNER_TEMP/medar-invalid-login.json" --write-out '%{http_code}' --header 'Content-Type: application/json' --data '{"username":"ab","password":"x"}' "$worker_url/api/auth/login")"
-          if [[ "$invalid_login_status" != "401" ]]; then echo "Malformed login must return 401 (received $invalid_login_status)."; cat "$RUNNER_TEMP/medar-invalid-login.json"; exit 1; fi
-          echo "Malformed login rejected without touching account data."
-
       # Keep medar-api as the public showcase. The operational app is a separate Worker
       # so enabling its sign-in UI never changes the read-only public demo.
       - name: Build safe bootstrap bundle for the operational Worker
@@ -426,4 +271,160 @@ jobs:
             grep -Fiq 'Access-Control-Allow-Headers: Content-Type, X-Upsert, X-Application-Name' "$RUNNER_TEMP/medar-native-headers.txt" || { echo "Missing allowed headers for $native_origin"; cat "$RUNNER_TEMP/medar-native-headers.txt"; exit 1; }
           done
           echo "Operational API authorization, hostile-origin rejection, and native credentialed CORS preflights passed without consuming the failed-login rate limit."
+
+      - name: Build Worker app with public read-only demo
+        run: npm run build
+        env:
+          VITE_ENABLE_AUTH_UI: 'false'
+      - name: Verify the Worker bundle includes the interactive demo and showcase styles
+        shell: bash
+        run: |
+          test -f dist/index.html
+          grep -q 'id="root"' dist/index.html
+          test -n "$(find dist/assets -maxdepth 1 -type f -name '*.js' -print -quit)"
+          test -n "$(find dist/assets -maxdepth 1 -type f -name '*.css' -print -quit)"
+          grep -Rqs --include='*.js' 'demo-workspace' dist/assets
+          grep -Rqs --include='*.js' 'دموی قابل ارائه' dist/assets
+          grep -Rqs --include='*.js' 'عملیات، در یک نگاه.' dist/assets
+          grep -Rqs --include='*.css' 'demo-workspace' dist/assets
+          grep -Rqs --include='*.css' 'demo-preview-notice' dist/assets
+          echo "Worker frontend includes the interactive, read-only demo and responsive showcase styles."
+      - name: Keep private file storage disabled until explicitly requested
+        run: echo "R2 setup is intentionally out of scope; file routes remain unavailable without FILE_STORE."
+      - name: Configure Neon database secret
+        working-directory: worker
+        shell: bash
+        run: printf '%s' "$MEDAR_DATABASE_URL" | npx wrangler@4 secret put DATABASE_URL
+      - name: Deploy Worker
+        working-directory: worker
+        run: set -o pipefail; npx wrangler@4 deploy --name medar-api 2>&1 | tee /tmp/medar-deploy.log
+      - name: Smoke-test the live Worker
+        shell: bash
+        run: |
+          worker_url="$(grep -Eo 'https://medar-api\.[a-z0-9-]+\.workers\.dev' /tmp/medar-deploy.log 2>/dev/null | tail -n1 || true)"
+          if [[ -z "$worker_url" ]]; then
+            echo "Could not resolve the deployed workers.dev URL from Wrangler output."
+            exit 1
+          fi
+          response="$(curl --fail --silent --show-error --retry 10 --retry-all-errors --retry-delay 3 "$worker_url/api/health")"
+          printf '%s' "$response" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const x=JSON.parse(s);if(x.status!=='ok' && x.ok!==true && x.healthy!==true){console.error('Unexpected health response:',s);process.exit(1)}console.log('Live Worker health OK:',s)})"
+          name="$(curl --fail --silent --show-error --retry 5 --retry-all-errors --retry-delay 2 "$worker_url/")"
+          printf '%s' "$name" | grep -q 'id="root"' || { echo "The live Worker root is missing the frontend root element."; exit 1; }
+          asset_results="$(WORKER_URL="$worker_url" node --input-type=module <<'NODE'
+          const base = process.env.WORKER_URL;
+          const htmlResponse = await fetch(base + '/');
+          if (!htmlResponse.ok) throw new Error('Root HTML failed: ' + htmlResponse.status);
+          const html = await htmlResponse.text();
+          const linkedJsPaths = [...new Set([...html.matchAll(/(?:src|href)="([^"]+\.js)"/g)].map(match => new URL(match[1], base + '/').pathname))];
+          const linkedCssPaths = [...new Set([...html.matchAll(/href="([^"]+\.css)"/g)].map(match => new URL(match[1], base + '/').pathname))];
+          if (!linkedJsPaths.length || !linkedCssPaths.length) throw new Error('Root HTML is missing JS/CSS assets.');
+          // Vite emits shared and lazy chunks that are not all linked directly from index.html.
+          // Scan every JS/CSS asset emitted by this very build, not only entrypoint tags.
+          const assetNames = await (await import('node:fs/promises')).readdir('dist/assets');
+          const jsPaths = assetNames.filter(name => name.endsWith('.js')).map(name => '/assets/' + name);
+          const cssPaths = assetNames.filter(name => name.endsWith('.css')).map(name => '/assets/' + name);
+          if (!jsPaths.length || !cssPaths.length) throw new Error('The local production build contains no JS/CSS assets.');
+          for (const path of [...linkedJsPaths, ...linkedCssPaths]) {
+            if (!assetNames.includes(path.split('/').pop())) throw new Error('Published HTML references an asset missing from this build: ' + path);
+          }
+          const resolve = path => new URL(path, base + '/').toString();
+          const fetchTexts = async (paths, expectedType) => Promise.all(paths.map(async path => {
+            const url = resolve(path);
+            const response = await fetch(url, { cache: 'no-store', headers: { 'cache-control': 'no-cache' } });
+            const body = await response.text();
+            const contentType = response.headers.get('content-type') || '';
+            if (!response.ok) throw new Error('Frontend asset failed: ' + path + ' (' + response.status + ', ' + contentType + ')');
+            if (!contentType.toLowerCase().includes(expectedType)) {
+              throw new Error('Frontend asset had the wrong content type: ' + path + ' -> ' + contentType + '; response prefix=' + body.slice(0,120).replace(/\\s+/g,' '));
+            }
+            return { path, url: response.url, contentType, body };
+          }));
+          const [jsAssets, cssAssets] = await Promise.all([fetchTexts(jsPaths, 'javascript'), fetchTexts(cssPaths, 'text/css')]);
+          const js = jsAssets.map(asset => asset.body).join('\n');
+          const css = cssAssets.map(asset => asset.body).join('\n');
+          console.log('Live JS assets:', JSON.stringify(jsAssets.map(a => ({path:a.path,url:a.url,type:a.contentType,bytes:a.body.length}))));
+          console.log('Live CSS assets:', JSON.stringify(cssAssets.map(a => ({path:a.path,url:a.url,type:a.contentType,bytes:a.body.length,hasDemoWorkspace:a.body.includes('demo-workspace'),hasPreviewBanner:a.body.includes('demo-preview-notice'),hasOpsLink:a.body.includes('demo-ops-link')}))));
+          for (const token of ['demo-workspace', 'دموی قابل ارائه', 'عملیات، در یک نگاه.']) if (!js.includes(token)) throw new Error('Live JS bundles missing public demo token: ' + token + '; assets=' + JSON.stringify(jsAssets.map(a => ({path:a.path,type:a.contentType,bytes:a.body.length}))));
+          for (const token of ['demo-workspace', 'demo-preview-notice', 'demo-ops-link']) if (!css.includes(token)) throw new Error('Live CSS bundles missing public demo styles: ' + token + '; assets=' + JSON.stringify(cssAssets.map(a => ({path:a.path,url:a.url,type:a.contentType,bytes:a.body.length,hasDemoWorkspace:a.body.includes('demo-workspace'),hasPreviewBanner:a.body.includes('demo-preview-notice'),hasOpsLink:a.body.includes('demo-ops-link'),prefix:a.body.slice(0,120)}))));
+          for (const route of ['/demo', '/app/command']) {
+            const appRoute = await fetch(base + route);
+            if (!appRoute.ok || !(await appRoute.text()).includes('id="root"')) throw new Error('SPA deep-link fallback failed for ' + route);
+          }
+          console.log('Live public demo assets and SPA routes are reachable.');
+          NODE
+          )" || { echo "Live frontend smoke test failed."; exit 1; }
+          echo "$asset_results"
+      - name: Install Chromium for live Worker demo verification
+        run: npx playwright install --with-deps chromium
+      - name: Verify the live public demo, real health status, navigation, and responsive layout
+        shell: bash
+        run: |
+          worker_url="$(grep -Eo 'https://medar-api\.[a-z0-9-]+\.workers\.dev' /tmp/medar-deploy.log 2>/dev/null | tail -n1 || true)"
+          test -n "$worker_url"
+          WORKER_URL="$worker_url" node --input-type=module <<'NODE'
+          import { chromium } from '@playwright/test';
+          const base = process.env.WORKER_URL;
+          const browser = await chromium.launch({ headless: true });
+          const errors = [];
+          try {
+            const page = await browser.newPage({ viewport: { width: 1365, height: 900 } });
+            page.on('pageerror', error => errors.push(error.message));
+            const response = await page.goto(base + '/', { waitUntil: 'networkidle', timeout: 60000 });
+            if (!response?.ok()) throw new Error('Public demo root failed to load.');
+            await page.locator('#app-boot-screen').waitFor({ state: 'detached', timeout: 20000 });
+            await page.locator('.demo-workspace').waitFor({ state: 'visible', timeout: 20000 });
+            await page.getByRole('heading', { name: 'عملیات، در یک نگاه.' }).waitFor({ state: 'visible' });
+            await page.locator('.demo-preview-notice').waitFor({ state: 'visible' });
+            if (await page.locator('.simorgh-signin-layer').count()) throw new Error('Sign-in UI must be hidden in the public demo.');
+            if (await page.locator('.app-frame, .setup-screen').count()) throw new Error('Protected workspace or setup screen rendered instead of the demo.');
+            await page.getByText('سرویس اصلی آنلاین', { exact: true }).waitFor({ state: 'visible', timeout: 20000 });
+            const desktop = await page.evaluate(() => ({ viewport: innerWidth, document: document.documentElement.scrollWidth, body: document.body.scrollWidth }));
+            if (desktop.document > desktop.viewport || desktop.body > desktop.viewport) throw new Error('Desktop horizontal overflow: ' + JSON.stringify(desktop));
+
+            await page.locator('.demo-sidebar .demo-nav-item').filter({ hasText: /^سفارش‌ها$/ }).click();
+            await page.locator('.demo-breadcrumb b').filter({ hasText: 'سفارش‌ها' }).waitFor({ state: 'visible' });
+            if (errors.length) throw new Error('Desktop browser runtime error: ' + errors.join(' | '));
+
+            const deepLink = await page.goto(base + '/app/command', { waitUntil: 'networkidle', timeout: 60000 });
+            if (!deepLink?.ok()) throw new Error('App deep link did not return the application shell.');
+            await page.locator('.demo-workspace').waitFor({ state: 'visible', timeout: 20000 });
+            if (await page.locator('.simorgh-signin-layer').count()) throw new Error('The app deep link rendered sign-in UI.');
+
+            await page.setViewportSize({ width: 390, height: 844 });
+            await page.goto(base + '/', { waitUntil: 'networkidle', timeout: 60000 });
+            await page.locator('#app-boot-screen').waitFor({ state: 'detached', timeout: 20000 });
+            await page.locator('.demo-workspace').waitFor({ state: 'visible', timeout: 20000 });
+            await page.locator('.demo-preview-notice').waitFor({ state: 'visible' });
+            if (await page.locator('.simorgh-signin-layer').count()) throw new Error('The mobile demo unexpectedly rendered sign-in UI.');
+            const mobileNav = page.locator('.demo-mobile-bottom-nav');
+            await mobileNav.waitFor({ state: 'visible', timeout: 10000 });
+            if (await mobileNav.locator('button').count() !== 4) throw new Error('The mobile bottom navigation is incomplete.');
+            await mobileNav.getByRole('button', { name: /سفارش‌ها/ }).click();
+            await page.locator('.demo-breadcrumb b').filter({ hasText: 'سفارش‌ها' }).waitFor({ state: 'visible' });
+            const mobile = await page.evaluate(() => ({ viewport: innerWidth, document: document.documentElement.scrollWidth, body: document.body.scrollWidth }));
+            if (mobile.document > mobile.viewport || mobile.body > mobile.viewport) throw new Error('Mobile horizontal overflow: ' + JSON.stringify(mobile));
+            if (errors.length) throw new Error('Live browser runtime error: ' + errors.join(' | '));
+            console.log('Live Worker demo passed desktop/mobile, navigation, health, and no-login checks.');
+          } finally {
+            await browser.close();
+          }
+          NODE
+
+      - name: Verify unauthenticated Worker API access controls
+        shell: bash
+        run: |
+          worker_url="$(grep -Eo 'https://medar-api\.[a-z0-9-]+\.workers\.dev' /tmp/medar-deploy.log 2>/dev/null | tail -n1 || true)"
+          test -n "$worker_url"
+          me_response="$(curl --fail --silent --show-error "$worker_url/api/auth/me")"
+          printf '%s' "$me_response" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const x=JSON.parse(s);if(x.user!==null||!Array.isArray(x.memberships)){console.error('Unexpected unauthenticated session response:',s);process.exit(1)}console.log('Unauthenticated session shape OK')})"
+          membership_status="$(curl --silent --show-error --output "$RUNNER_TEMP/medar-memberships.json" --write-out '%{http_code}' "$worker_url/api/workspace/memberships")"
+          if [[ "$membership_status" != "401" ]]; then echo "Unauthenticated workspace memberships must return 401 (received $membership_status)."; cat "$RUNNER_TEMP/medar-memberships.json"; exit 1; fi
+          echo "Unauthenticated workspace access correctly denied."
+          cors_status="$(curl --silent --show-error --output "$RUNNER_TEMP/medar-cors.json" --write-out '%{http_code}' --request POST --header 'Origin: https://untrusted-origin.invalid' --header 'Content-Type: application/json' --data '{"username":"ab","password":"x"}' "$worker_url/api/auth/login")"
+          if [[ "$cors_status" != "403" ]]; then echo "Untrusted-origin mutation must return 403 (received $cors_status)."; cat "$RUNNER_TEMP/medar-cors.json"; exit 1; fi
+          echo "Cross-origin mutation guard OK."
+          invalid_login_status="$(curl --silent --show-error --output "$RUNNER_TEMP/medar-invalid-login.json" --write-out '%{http_code}' --header 'Content-Type: application/json' --data '{"username":"ab","password":"x"}' "$worker_url/api/auth/login")"
+          if [[ "$invalid_login_status" != "401" ]]; then echo "Malformed login must return 401 (received $invalid_login_status)."; cat "$RUNNER_TEMP/medar-invalid-login.json"; exit 1; fi
+          echo "Malformed login rejected without touching account data."
+
 
