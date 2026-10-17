@@ -281,7 +281,7 @@ export default function DemoWorkspace() {
           </div>
           <div className="demo-topbar-tools">
             <label className="demo-search"><Search size={17}/><input aria-label="جست‌وجو در داده‌های نمونه" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="جست‌وجو در این بخش…"/><kbd>⌘ K</kbd></label>
-            <button className="demo-icon-button demo-theme-toggle" type="button" onClick={() => setTheme(current => current === 'dark' ? 'light' : 'dark')} aria-pressed={theme === 'light'} aria-label={theme === 'dark' ? 'فعال‌کردن حالت روشن' : 'فعال‌کردن حالت تاریک'} title={theme === 'dark' ? 'فعال‌کردن حالت روشن' : 'فعال‌کردن حالت تاریک'}>{theme === 'dark' ? <Sun size={17}/> : <Moon size={17}/>}</button>
+            <button className="demo-icon-button demo-theme-toggle" type="button" onClick={() => setTheme(current => current === 'dark' ? 'light' : 'dark')} aria-pressed={theme === 'light'} aria-label="تغییر حالت نمایش" title={theme === 'dark' ? 'فعال‌کردن حالت روشن' : 'فعال‌کردن حالت تاریک'}>{theme === 'dark' ? <Sun size={17}/> : <Moon size={17}/>}</button>
             <button className="demo-icon-button" onClick={() => void checkHealth()} aria-label="بررسی دوباره اتصال API" title="بررسی اتصال API"><RefreshCw size={17} className={health === 'checking' ? 'demo-spin' : ''}/></button>
             <span className="demo-topbar-divider"/>
             <div className="demo-date"><CalendarDays size={16}/><span>{dateLabel}</span></div>
