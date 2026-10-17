@@ -1,57 +1,49 @@
-# مدار — راه‌اندازی امن حساب مالک
+# مدار — راه‌اندازی حساب مالک و عضویت اعضا
 
-بررسی اولیه نشان داد رکوردی با نام «شبکه سیمرغ» وجود دارد، اما کاربر احراز هویت‌شده و عضویت فعالی ثبت نشده بود. مسیر ثبت‌نام اکنون از فرم فارسیِ ورود فعال است: کاربر نام، نام مجموعه، ایمیل و گذرواژه را وارد می‌کند؛ پس از تأیید ایمیل، یک شرکت مستقل و عضویت مالک برای همان حساب ساخته می‌شود. این مسیر هرگز به شرکت موجود یا داده‌های سازمان دیگر دسترسی نمی‌دهد.
+این راهنما برای شاخه‌ی `migration/cloudflare-neon-foundation` است. مسیر عملیاتی هدف از Cloudflare Worker و Neon استفاده می‌کند. دستورهای قدیمی ایجاد مالک از `auth.users` در Supabase به این معماری تعلق ندارند و نباید برای Neon اجرا شوند.
 
-## مسیر معمول: ثبت‌نام خودکار مجموعه
+## ساخت حساب مالک و فضای کاری
 
-۱. در سایت مدار روی «ساخت حساب و فضای کاری» بزن و نام کامل، نام مزرعه/مجموعه، ایمیل و گذرواژه را وارد کن.
-۲. ایمیل تأیید را باز کن. لینک به آدرس مجاز `/#signin` برمی‌گردد؛ پس از تأیید، فضای کاری خصوصی و نقش مالک به‌صورت خودکار ساخته می‌شود.
-۳. اگر تأیید ایمیل یا ساخت فضای کاری خطا داد، پیام فارسی داخل اپ را دنبال کن؛ دکمه‌ی «تلاش دوباره» برای شکست موقت provisioning وجود دارد.
+1. از نسخه‌ای استفاده کن که واقعاً به Worker منتشرشده وصل است. انتشار فعلی از این شاخه هنوز تأیید نشده؛ صرف وجود build یا CI سبز، به معنی در دسترس بودن سرویس زنده نیست.
+2. در صفحه‌ی ورود، «ساخت حساب و فضای کاری» را انتخاب کن.
+3. نام کاربری، شماره موبایل ایران، نام کامل، نام مجموعه و رمز عبور را وارد کن. نام کاربری ۳ تا ۳۲ نویسه است. شماره موبایل با قالبی مانند `09121234567` یا `+989121234567` پذیرفته می‌شود. رمز عبور باید ۸ تا ۱۲۸ نویسه داشته باشد.
+4. ثبت‌نام مستقل یک شرکت تازه می‌سازد و حساب را با نقش `owner` به همان شرکت وصل می‌کند. این مسیر نباید به شرکت دیگر وصل شود.
+5. پس از پاسخ موفق ثبت‌نام، نشست ایجاد می‌شود و برنامه عضویت را از سرور می‌خواند. برای بررسی مجدد، خارج شو و دوباره وارد شو.
 
-هر ثبت‌نام شرکت مستقلی می‌سازد. برای دسترسی به رکورد قدیمی «شبکه سیمرغ» از مسیر مدیریت امن زیر استفاده کن؛ ثبت‌نام عمومی نباید بتواند یک سازمان موجود را تصاحب کند.
+ورود با **نام کاربری و رمز عبور** انجام می‌شود. شماره موبایل برای شناسایی/ارتباط پروفایل نگه‌داری می‌شود، اما در این نسخه SMS OTP یا تأیید ایمیل وجود ندارد. هیچ رمز عبور پیش‌فرض یا حساب مدیر مخفی وجود ندارد.
 
-## مسیر جایگزین: اتصال مالک به شرکت موجود
+## پیوستن به شرکت موجود با دعوت
 
-۱. داشبورد پروژه‌ی Supabase با شناسه‌ی `aoxerjimfiwusidaparx` را باز کن و به مسیر **Authentication → Users → Add user** برو.
-۲. نخستین کاربر را با ایمیلی که شخصاً کنترل می‌کنی بساز. ایمیل را با دقت بررسی کن؛ گذرواژه‌ای قوی و یکتا بساز و در password manager نگه دار. گذرواژه را در گفتگو نفرست و وارد مخزن نکن.
-۳. در داشبورد پروژه، **SQL Editor** را باز کن. پس از بررسی حساب، مقدار `OWNER_EMAIL_HERE` در SQL زیر را با همان ایمیل دقیق جایگزین و سپس دستور محافظت‌شده را اجرا کن.
+1. مالک یا مدیر مجاز در بخش اعضا، شرکت و نقش موردنظر را انتخاب کند و دعوت بسازد.
+2. برای نقش `customer` یا `supplier` باید حساب مشتری/تأمین‌کننده‌ی همان شرکت مشخص شود. فقط مالک می‌تواند نقش `admin` دعوت کند.
+3. کد دعوت را از مسیر امن به فرد موردنظر برسان. کد خام فقط به هنگام ساخت نمایش داده می‌شود؛ دیتابیس hash آن را ذخیره می‌کند. اعتبار پیش‌فرض هفت روز است.
+4. فرد دعوت‌شده در فرم ساخت حساب گزینه‌ی پیوستن با دعوت را انتخاب کند و کد را وارد کند. Worker در همان مسیر حساب و عضویت را با نقشی که در دعوت ثبت شده ایجاد می‌کند.
+5. عضو فعلی برای ورود بعدی از نام کاربری و رمز عبور خودش استفاده می‌کند. تغییر نقش از سمت مرورگر قابل اعتماد نیست.
 
-```sql
-do $$
-declare
-  trusted_email text := lower(trim('OWNER_EMAIL_HERE'));
-  trusted_user uuid;
-  target_company uuid;
-begin
-  if trusted_email = '' or trusted_email = 'owner_email_here' then raise exception 'Replace OWNER_EMAIL_HERE with the trusted owner email.'; end if;
-  select u.id into trusted_user from auth.users u where lower(u.email) = trusted_email;
-  if trusted_user is null then raise exception 'No Supabase Auth account exists for the specified email.'; end if;
-  select c.id into target_company from public.companies c where c.name = 'شبکه سیمرغ' order by c.created_at limit 1;
-  if target_company is null then raise exception 'The Simorgh company record was not found.'; end if;
-  if exists (select 1 from public.memberships m where m.company_id = target_company and m.role = 'owner' and m.active) then raise exception 'An active owner already exists; stop and use the owner-managed flow.'; end if;
-  insert into public.profiles(id, full_name) values (trusted_user, coalesce((select u.raw_user_meta_data->>'full_name' from auth.users u where u.id = trusted_user), trusted_email)) on conflict (id) do nothing;
-  insert into public.memberships(company_id, user_id, role, created_by) values (target_company, trusted_user, 'owner', trusted_user);
-end
-$$;
-```
+کد دعوت را در ticket عمومی، log یا commit قرار نده. در صورت افشای کد، مسیر لغو دعوت باید پیش از استفاده‌ی واقعی بررسی و در دسترس مالک باشد.
 
-5. Sign out and sign in again so the browser reads the new owner membership.
-6. برای اعضای دیگر شرکت از پنل «دسترسی کاربران» استفاده کن؛ ثبت‌نام عمومی فقط شرکت مستقل خود کاربر را ایجاد می‌کند و به هیچ شرکت دیگری عضویت نمی‌دهد.
+## نقش‌ها و حفاظت از داده‌ها
 
-## وضعیت نسخه‌ی فعلی و پایگاه داده
+- `owner`: مدیریت کامل فضای کاری و دعوت مدیران.
+- `admin`: مدیریت اعضا و عملیات مجاز، بدون امکان دعوت مدیر جدید.
+- `staff`: عملیات داخلی مجاز، بدون دسترسی خودکار به تنظیمات مدیریتی مختص مالک/مدیر.
+- `customer`, `supplier`, `driver`: دسترسی محدود به رکوردهای مرتبط با همان شرکت و نقش.
 
-- نام محصول در رابط کاربری «مدار» است؛ نام رکورد سازمانی فعلی («شبکه سیمرغ») عمداً خودکار تغییر داده نشده تا نام واقعی مجموعه با برند نرم‌افزار اشتباه نشود.
-- مهاجرت `20261016123004_general_farm_management.sql` روی پروژه‌ی Supabase اعمال و ستون‌های جدیدِ دسته‌بندی سایت، مختصات GPS، چرخه‌های عمومی و ثبت روزانه تأیید شده‌اند.
-- برای ظاهرشدن سایت‌ها روی نقشه‌ی مدیریتی، عرض و طول جغرافیایی واقعی را در ماژول «سایت‌های مزرعه» ثبت کن؛ نشانگر ساختگی تولید نمی‌شود.
-- رابط ثبت‌نام با `supabase.auth.signUp` کار می‌کند و برای حساب‌های تأییدنشده، ایجاد شرکت را تا بازگشت نشست معتبر عقب می‌اندازد. تابع `create_company_workspace` در سمت دیتابیس فقط برای کاربر احراز‌شده و ایمیل تأییدشده قابل اجراست، یک شرکت جدید و عضویت `owner` می‌سازد و از ساخت تکراری در retry جلوگیری می‌کند.
+محدوده‌ی رکوردها باید در Worker سمت سرور تعیین شود. هیچ‌گاه صرفاً به مخفی‌کردن دکمه‌ها در رابط کاربری تکیه نکن. قبل از استفاده‌ی تجاری، با حساب‌های آزمایشی جداگانه ثابت کن که مشتری به سفارش مشتری دیگر، تأمین‌کننده به رکوردهای شریک دیگر و راننده به محموله‌ی تخصیص‌نیافته دسترسی ندارد.
+
+## وضعیت دیتابیس و انتشار
+
+شاخه‌ی بررسی‌شده‌ی Neon، `br-divine-sun-ba4ib9rw` در پروژه‌ی `weathered-shadow-56159151` است. در آخرین بررسی هیچ حساب، شرکت، عضویت یا سفارش واقعی در این شاخه وجود نداشت. توابع و جداول پایه‌ی مهاجرت و ledger نسخه‌ها نصب شده‌اند، اما **داده‌ی اصلی Supabase به Neon منتقل نشده و انتشار Worker در Production تأیید نشده است**.
+
+پیش از دعوت افراد واقعی یا ثبت سفارش واقعی:
+- انتشار Worker با secrets امن اجرا شود و `/api/health` از URL واقعی پاسخ سالم بدهد.
+- ثبت‌نام، ورود، خروج، بازیابی نشست و پیوستن از مسیر دعوت end-to-end آزمون شود.
+- جداسازی tenant و role با حساب‌های جداگانه آزمون و ثبت شود.
+- اگر انتقال داده لازم است، ابتدا backup قابل‌بازیابی، نگاشت schema و برنامه‌ی rollback تهیه شود.
 
 ## قواعد اعتبارنامه
 
-- The username is the email created in Supabase Auth; the password is the unique password set for that account.
-- No default password or hidden super-admin credential is shipped in frontend code, GitHub, migrations, or logs.
-- Never put a Supabase service-role key in a `VITE_*` variable or browser bundle.
-- Run the owner SQL only in the trusted Supabase SQL Editor after verifying the target email.
-
-## Supabase Auth configuration
-
-In **Authentication → URL Configuration**, allowlist `https://ehsanamn1.github.io/simorgh/` and `https://ehsanamn1.github.io/simorgh/#signin`. Email invitations and recovery still depend on verified SMTP and the live redirect allowlist.
+- از رمز یکتا و قوی استفاده کن و آن را در password manager نگه‌دار.
+- رمز عبور، کد دعوت و secretهای محیط را در گفتگو یا مخزن ارسال نکن.
+- `DATABASE_URL` و Cloudflare API token فقط در GitHub Actions Secrets / Cloudflare secrets قرار می‌گیرند؛ هرگز در `VITE_*` یا بسته‌ی مرورگر قرار نده.
+- از SQL قدیمیِ افزودن owner بر پایه‌ی `auth.users` برای این نسخه استفاده نکن.
