@@ -146,7 +146,7 @@ jobs:
       - name: Verify the deployed sign-in flow and responsive layout in a real browser
         shell: bash
         run: |
-          worker_url="$(grep -Eo 'https://medar-api\\.[a-z0-9-]+\\.workers\\.dev' /tmp/medar-deploy.log 2>/dev/null | tail -n1 || true)"
+          worker_url="$(grep -Eo 'https://medar-api\.[a-z0-9-]+\.workers\.dev' /tmp/medar-deploy.log 2>/dev/null | tail -n1 || true)"
           test -n "$worker_url"
           WORKER_URL="$worker_url" node --input-type=module <<'NODE'
           import { chromium } from '@playwright/test';
@@ -184,7 +184,7 @@ jobs:
       - name: Verify unauthenticated Worker API access controls
         shell: bash
         run: |
-          worker_url="$(grep -Eo 'https://medar-api\\.[a-z0-9-]+\\.workers\\.dev' /tmp/medar-deploy.log 2>/dev/null | tail -n1 || true)"
+          worker_url="$(grep -Eo 'https://medar-api\.[a-z0-9-]+\.workers\.dev' /tmp/medar-deploy.log 2>/dev/null | tail -n1 || true)"
           test -n "$worker_url"
           me_response="$(curl --fail --silent --show-error "$worker_url/api/auth/me")"
           printf '%s' "$me_response" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const x=JSON.parse(s);if(x.user!==null||!Array.isArray(x.memberships)){console.error('Unexpected unauthenticated session response:',s);process.exit(1)}console.log('Unauthenticated session shape OK')})"
