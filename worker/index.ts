@@ -8,6 +8,7 @@ type PrivateFileStore = {
 };
 type Bindings = {
   DATABASE_URL?: string;
+  MEDAR_MODE?: string;
   ALLOWED_ORIGINS?: string;
   FILE_STORE?: PrivateFileStore;
   ASSETS?: { fetch(request: Request): Promise<Response> };
@@ -18,6 +19,22 @@ type AuthUser = { id: string; username: string; phone: string; full_name: string
 type CurrentSession = { user: AuthUser; sessionId: string; tokenHash: string };
 
 const app = new Hono<AppEnv>();
+
+export type ApiModeAccess = 'allow' | 'anonymous-session' | 'deny';
+
+/**
+ * Fail closed unless the Worker explicitly runs in operational mode.
+ * The public showcase may report service health, but cannot create sessions,
+ * register accounts, read workspace data, or mutate business records.
+ */
+export function resolveApiModeAccess(mode: string | undefined, method: string, path: string): ApiModeAccess {
+  if (mode === 'operational') return 'allow';
+  const verb = method.toUpperCase();
+  if (verb === 'GET' && path === '/api/health') return 'allow';
+  if (verb === 'GET' && path === '/api/auth/me') return 'anonymous-session';
+  return 'deny';
+}
+
 const SESSION_COOKIE = 'medar_session';
 const SESSION_DAYS = 14;
 const PASSWORD_ITERATIONS = 100_000;
@@ -272,6 +289,16 @@ app.use('/api/*', async (c, next) => {
     }
   }
   if (c.req.method === 'OPTIONS') return c.body(null, 204);
+
+  const apiAccess = resolveApiModeAccess(c.env.MEDAR_MODE, c.req.method, c.req.path);
+  if (apiAccess === 'anonymous-session') return c.json({ user: null, memberships: [] });
+  if (apiAccess === 'deny') {
+    return c.json({
+      message: 'این سرویس فقط برای نمایش عمومی است؛ برای عملیات واقعی وارد محیط عملیاتی مدار شو.',
+      code: 'PUBLIC_DEMO_READ_ONLY',
+    }, 403);
+  }
+
   await next();
 });
 
