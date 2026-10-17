@@ -139,9 +139,9 @@ function clearSessionCookie(c: Ctx): void {
 function safeUser(row: Record<string, unknown>): AuthUser {
   return {
     id: String(row.id),
-    username: String(row.username),
+    username: String(row.username_normalized ?? row.username ?? ''),
     phone: String(row.phone ?? row.phone_e164 ?? ''),
-    full_name: String(row.full_name ?? ''),
+    full_name: String(row.full_name ?? row.display_name ?? ''),
   };
 }
 
@@ -150,13 +150,12 @@ async function currentSession(c: Ctx): Promise<CurrentSession | null> {
   if (!token || !/^[a-f0-9]{64}$/.test(token)) return null;
   const tokenHash = await sha256(token);
   const sql = sqlFor(c);
-  const rows = await sql`
-    select s.id as "sessionId", u.id, u.username, u.phone_e164 as phone, u.full_name
-    from public.auth_sessions s
-    join public.app_users u on u.id = s.user_id
-    where s.token_hash = ${tokenHash} and s.expires_at > now()
-    limit 1
-  `;
+  const rows = await sql.query(
+    "select s.id as \"sessionId\", u.id, coalesce(u.username_normalized,u.username) as username, u.phone_e164 as phone, u.display_name as full_name " +
+    "from public.medar_sessions s join public.medar_users u on u.id=s.user_id " +
+    "where s.token_hash=$1 and s.revoked_at is null and s.expires_at>now() and u.account_status='active' limit 1",
+    [tokenHash],
+  );
   const row = rows[0] as (Record<string, unknown> & { sessionId: string }) | undefined;
   if (!row) return null;
   return { user: safeUser(row), sessionId: row.sessionId, tokenHash };
@@ -171,40 +170,44 @@ async function createSession(c: Ctx, userId: string): Promise<void> {
   const sql = sqlFor(c);
   const token = randomToken();
   const tokenHash = await sha256(token);
-  await sql`
-    insert into public.auth_sessions(user_id, token_hash, expires_at)
-    values (${userId}, ${tokenHash}, now() + interval '14 days')
-  `;
-  await sql`delete from public.auth_sessions where expires_at < now() - interval '7 days'`;
+  const ip = c.req.header('cf-connecting-ip') ?? '';
+  const userAgent = (c.req.header('user-agent') ?? '').slice(0, 500);
+  const ipHash = ip ? await sha256(ip) : null;
+  await sql.query(
+    "insert into public.medar_sessions(user_id,token_hash,expires_at,user_agent,ip_hash) values($1::uuid,$2,now()+interval '14 days',$3,$4)",
+    [userId, tokenHash, userAgent || null, ipHash],
+  );
+  await sql.query("delete from public.medar_sessions where expires_at<now()-interval '7 days'");
   setSessionCookie(c, token);
 }
 
 async function getMemberships(c: Ctx, userId: string) {
   const sql = sqlFor(c);
-  return await sql`
-    select m.id, m.company_id, m.user_id, m.role, m.active,
-      m.customer_id, m.supplier_id,
-      json_build_object('name', coalesce(c.name, 'مجموعه مدار')) as company
-    from public.memberships m
-    join public.companies c on c.id = m.company_id
-    where m.user_id = ${userId} and m.active = true
-    order by m.created_at
-  `;
+  return await sql.query(
+    "select m.id,m.company_id,m.user_id,m.role,m.active,m.customer_id,m.supplier_id, " +
+    "json_build_object('name',coalesce(c.name,'مجموعه مدار')) as company " +
+    "from public.memberships m join public.companies c on c.id=m.company_id " +
+    "where m.user_id=$1::uuid and m.active=true order by m.created_at",
+    [userId],
+  );
 }
 
 async function rateLimitKeys(c: Ctx, username: string): Promise<string[]> {
   const ip = c.req.header('cf-connecting-ip') ?? 'unknown';
-  return [
-    await sha256(`username:${username}`),
-    await sha256(`ip:${ip}`),
-  ];
+  return [await sha256('username:' + username), await sha256('ip:' + ip)];
 }
 
 async function isRateLimited(c: Ctx, keys: string[]): Promise<boolean> {
   const sql = sqlFor(c);
   for (const key of keys) {
-    const rows = await sql`select 1 from public.auth_rate_limits where bucket_key = ${key} and blocked_until > now() limit 1`;
-    if (rows.length) return true;
+    const rows = await sql.query(
+      "select attempts,window_started_at from public.medar_rate_limits where key_hash=$1 limit 1",
+      [key],
+    );
+    const row = rows[0] as { attempts: number; window_started_at: string } | undefined;
+    if (row && Number(row.attempts) >= 5 && new Date(row.window_started_at).getTime() > Date.now() - 15 * 60 * 1000) {
+      return true;
+    }
   }
   return false;
 }
@@ -212,30 +215,16 @@ async function isRateLimited(c: Ctx, keys: string[]): Promise<boolean> {
 async function recordFailedLogin(c: Ctx, keys: string[]): Promise<void> {
   const sql = sqlFor(c);
   for (const key of keys) {
-    await sql`delete from public.auth_rate_limits where bucket_key = ${key} and window_started_at < now() - interval '15 minutes'`;
-    await sql`
-      insert into public.auth_rate_limits(bucket_key, attempts, window_started_at)
-      values (${key}, 1, now())
-      on conflict (bucket_key) do update set
-        attempts = case
-          when public.auth_rate_limits.window_started_at < now() - interval '15 minutes' then 1
-          else public.auth_rate_limits.attempts + 1
-        end,
-        window_started_at = case
-          when public.auth_rate_limits.window_started_at < now() - interval '15 minutes' then now()
-          else public.auth_rate_limits.window_started_at
-        end,
-        blocked_until = case
-          when (case
-            when public.auth_rate_limits.window_started_at < now() - interval '15 minutes' then 1
-            else public.auth_rate_limits.attempts + 1
-          end) >= 5 then now() + interval '15 minutes'
-          else null
-        end,
-        updated_at = now()
-    `;
+    await sql.query(
+      "insert into public.medar_rate_limits(key_hash,attempts,window_started_at,updated_at) values($1,1,now(),now()) " +
+      "on conflict(key_hash) do update set " +
+      "attempts=case when public.medar_rate_limits.window_started_at<now()-interval '15 minutes' then 1 else public.medar_rate_limits.attempts+1 end, " +
+      "window_started_at=case when public.medar_rate_limits.window_started_at<now()-interval '15 minutes' or public.medar_rate_limits.attempts=4 then now() else public.medar_rate_limits.window_started_at end, " +
+      "updated_at=now()",
+      [key],
+    );
   }
-  await sql`delete from public.auth_rate_limits where updated_at < now() - interval '1 day'`;
+  await sql.query("delete from public.medar_rate_limits where updated_at<now()-interval '1 day'");
 }
 
 app.use('/api/*', async (c, next) => {
@@ -301,12 +290,11 @@ app.post('/api/auth/signup', async (c) => {
 
   const sql = sqlFor(c);
   try {
-    const conflicts = await sql`
-      select username, phone_e164 from public.app_users
-      where username = ${username} or phone_e164 = ${phone}
-      limit 2
-    `;
-    if (conflicts.some((row) => (row as { username: string }).username === username)) {
+    const conflicts = await sql.query(
+      "select username_normalized,phone_e164 from public.medar_users where username_normalized=$1 or phone_e164=$2 limit 2",
+      [username, phone],
+    );
+    if (conflicts.some((row) => (row as { username_normalized: string }).username_normalized === username)) {
       return c.json({ message: 'این نام کاربری قبلاً ثبت شده است.' }, 409);
     }
     if (conflicts.some((row) => (row as { phone_e164: string }).phone_e164 === phone)) {
@@ -316,61 +304,51 @@ app.post('/api/auth/signup', async (c) => {
     let created: (Record<string, unknown> & { id: string; companyId: string }) | undefined;
     if (inviteCode) {
       const tokenHash = await sha256(inviteCode);
-      const rows = await sql`
-        with valid_invite as (
-          update public.company_invites
-          set uses = uses + 1, updated_at = now()
-          where token_hash = ${tokenHash} and revoked_at is null
-            and expires_at > now() and uses < max_uses
-          returning company_id, role, customer_id, supplier_id
-        ),
-        new_user as (
-          insert into public.app_users(username, phone_e164, full_name, password_hash)
-          select ${username}, ${phone}, ${fullName}, ${passwordHash}
-          from valid_invite
-          returning id, username, phone_e164, full_name
-        ),
-        new_membership as (
-          insert into public.memberships(company_id, user_id, role, active, created_by, customer_id, supplier_id)
-          select i.company_id, u.id, i.role, true, u.id, i.customer_id, i.supplier_id
-          from valid_invite i cross join new_user u
-          returning company_id
-        )
-        select u.id, u.username, u.phone_e164 as phone, u.full_name, m.company_id as "companyId"
-        from new_user u cross join new_membership m
-      `;
-      created = rows[0] as (Record<string, unknown> & { id: string; companyId: string }) | undefined;
-      if (!created) return c.json({ message: 'کد دعوت منقضی، لغوشده یا قبلاً مصرف شده است.' }, 422);
+      const result = await sql.query(
+        "with valid_invite as (" +
+        " update public.company_invites set uses=uses+1,updated_at=now() " +
+        " where token_hash=$1 and revoked_at is null and expires_at>now() and uses<max_uses " +
+        " returning company_id,role,customer_id,supplier_id" +
+        "), new_user as (" +
+        " insert into public.medar_users(username,username_normalized,phone_e164,display_name,password_hash,requested_role,account_status) " +
+        " select $2,$2,$3,$4,$5,case when i.role='admin' then 'staff' else i.role::text end,'active' from valid_invite i " +
+        " returning id,username,username_normalized,phone_e164,display_name" +
+        "), new_profile as (" +
+        " insert into public.profiles(id,full_name,phone) select id,display_name,phone_e164 from new_user " +
+        " on conflict(id) do update set full_name=excluded.full_name,phone=excluded.phone returning id" +
+        "), new_membership as (" +
+        " insert into public.memberships(company_id,user_id,role,active,created_by,customer_id,supplier_id) " +
+        " select i.company_id,u.id,i.role,true,u.id,i.customer_id,i.supplier_id from valid_invite i cross join new_user u " +
+        " returning company_id" +
+        ") select u.id,u.username_normalized as username,u.phone_e164 as phone,u.display_name as full_name,m.company_id as \"companyId\" " +
+        "from new_user u cross join new_membership m",
+        [tokenHash, username, phone, fullName, passwordHash],
+      );
+      created = result[0] as (Record<string, unknown> & { id: string; companyId: string }) | undefined;
+      if (!created) return c.json({ message: 'کد دعوت منقضی، لغوشده یا نامعتبر است.' }, 422);
     } else {
-      const rows = await sql`
-        with new_user as (
-          insert into public.app_users(username, phone_e164, full_name, password_hash)
-          values (${username}, ${phone}, ${fullName}, ${passwordHash})
-          returning id, username, phone_e164, full_name
-        ),
-        new_company as (
-          insert into public.companies(name)
-          select ${companyName} from new_user
-          returning id
-        ),
-        new_membership as (
-          insert into public.memberships(company_id, user_id, role, active, created_by)
-          select c.id, u.id, 'owner', true, u.id
-          from new_user u cross join new_company c
-          returning company_id
-        )
-        select u.id, u.username, u.phone_e164 as phone, u.full_name, m.company_id as "companyId"
-        from new_user u cross join new_membership m
-      `;
-      created = rows[0] as (Record<string, unknown> & { id: string; companyId: string }) | undefined;
+      const result = await sql.query(
+        "with new_user as (" +
+        " insert into public.medar_users(username,username_normalized,phone_e164,display_name,password_hash,requested_role,account_status) " +
+        " values($1,$1,$2,$3,$4,'owner','active') " +
+        " returning id,username,username_normalized,phone_e164,display_name" +
+        "), new_profile as (" +
+        " insert into public.profiles(id,full_name,phone) select id,display_name,phone_e164 from new_user " +
+        " on conflict(id) do update set full_name=excluded.full_name,phone=excluded.phone returning id" +
+        "), new_company as (" +
+        " insert into public.companies(name) select $5 from new_user returning id" +
+        "), new_membership as (" +
+        " insert into public.memberships(company_id,user_id,role,active,created_by) " +
+        " select c.id,u.id,'owner',true,u.id from new_user u cross join new_company c returning company_id" +
+        ") select u.id,u.username_normalized as username,u.phone_e164 as phone,u.display_name as full_name,m.company_id as \"companyId\" " +
+        "from new_user u cross join new_membership m",
+        [username, phone, fullName, passwordHash, companyName],
+      );
+      created = result[0] as (Record<string, unknown> & { id: string; companyId: string }) | undefined;
     }
     if (!created) return c.json({ message: 'ساخت حساب و فضای کاری انجام نشد. دوباره تلاش کن.' }, 500);
     await createSession(c, created.id);
-    return c.json({
-      user: safeUser(created),
-      companyId: created.companyId,
-      memberships: await getMemberships(c, created.id),
-    }, 201);
+    return c.json({ user: safeUser(created), companyId: created.companyId, memberships: await getMemberships(c, created.id) }, 201);
   } catch (error) {
     const databaseError = error as { code?: string; constraint?: string };
     if (databaseError.code === '23505') {
@@ -386,24 +364,24 @@ app.post('/api/auth/login', async (c) => {
   if (!body) return c.json({ message: 'اطلاعات ورود معتبر نیست.' }, 400);
   const username = normalizeUsername(body.username);
   const password = typeof body.password === 'string' ? body.password : '';
-  if (!username || !password || password.length > 128) {
-    return c.json({ message: 'نام کاربری یا گذرواژه نادرست است.' }, 401);
-  }
+  if (!username || !password || password.length > 128) return c.json({ message: 'نام کاربری یا گذرواژه نادرست است.' }, 401);
   const keys = await rateLimitKeys(c, username);
   if (await isRateLimited(c, keys)) return c.json({ message: 'تلاش‌های ورود بیش از حد است. ۱۵ دقیقه دیگر دوباره امتحان کن.' }, 429);
   const sql = sqlFor(c);
-  const rows = await sql`
-    select id, username, phone_e164, full_name, password_hash
-    from public.app_users where username = ${username} limit 1
-  `;
-  const account = rows[0] as (Record<string, unknown> & { id: string; password_hash: string }) | undefined;
-  const encodedHash = account?.password_hash ?? '';
-  const passwordMatches = account ? await verifyPassword(password, encodedHash) : (await hashPassword(password), false);
+  const rows = await sql.query(
+    "select id,username,username_normalized,phone_e164,display_name,password_hash,account_status " +
+    "from public.medar_users where username_normalized=$1 limit 1",
+    [username],
+  );
+  const account = rows[0] as (Record<string, unknown> & { id: string; password_hash: string; account_status: string }) | undefined;
+  const passwordMatches = account ? await verifyPassword(password, account.password_hash) : (await hashPassword(password), false);
   if (!account || !passwordMatches) {
     await recordFailedLogin(c, keys);
     return c.json({ message: 'نام کاربری یا گذرواژه نادرست است.' }, 401);
   }
-  for (const key of keys) await sql`delete from public.auth_rate_limits where bucket_key = ${key}`;
+  if (account.account_status !== 'active') return c.json({ message: 'این حساب غیرفعال یا موقتاً مسدود شده است؛ با مدیر سامانه تماس بگیر.' }, 403);
+  await sql.query("update public.medar_users set last_login_at=now(),updated_at=now() where id=$1::uuid", [account.id]);
+  for (const key of keys) await sql.query("delete from public.medar_rate_limits where key_hash=$1", [key]);
   await createSession(c, account.id);
   return c.json({ user: safeUser(account), memberships: await getMemberships(c, account.id) });
 });
@@ -413,7 +391,7 @@ app.post('/api/auth/logout', async (c) => {
   if (token && /^[a-f0-9]{64}$/.test(token)) {
     const tokenHash = await sha256(token);
     const sql = sqlFor(c);
-    await sql`delete from public.auth_sessions where token_hash = ${tokenHash}`;
+    await sql.query("update public.medar_sessions set revoked_at=now() where token_hash=$1 and revoked_at is null", [tokenHash]);
   }
   clearSessionCookie(c);
   return c.json({ ok: true });
@@ -425,18 +403,14 @@ app.post('/api/auth/password/change', async (c) => {
   const body = await c.req.json<Record<string, unknown>>().catch(() => null);
   const currentPassword = typeof body?.currentPassword === 'string' ? body.currentPassword : '';
   const newPassword = typeof body?.newPassword === 'string' ? body.newPassword : '';
-  if (newPassword.length < 8 || newPassword.length > 128) {
-    return c.json({ message: 'گذرواژه جدید باید بین ۸ تا ۱۲۸ نویسه باشد.' }, 422);
-  }
+  if (newPassword.length < 8 || newPassword.length > 128) return c.json({ message: 'گذرواژه جدید باید بین ۸ تا ۱۲۸ نویسه باشد.' }, 422);
   const sql = sqlFor(c);
-  const rows = await sql`select password_hash from public.app_users where id = ${session.user.id} limit 1`;
+  const rows = await sql.query("select password_hash from public.medar_users where id=$1::uuid limit 1", [session.user.id]);
   const encodedHash = (rows[0] as { password_hash: string } | undefined)?.password_hash ?? '';
-  if (!(await verifyPassword(currentPassword, encodedHash))) {
-    return c.json({ message: 'گذرواژه فعلی نادرست است.' }, 403);
-  }
+  if (!(await verifyPassword(currentPassword, encodedHash))) return c.json({ message: 'گذرواژه فعلی نادرست است.' }, 403);
   const passwordHash = await hashPassword(newPassword);
-  await sql`update public.app_users set password_hash = ${passwordHash}, updated_at = now() where id = ${session.user.id}`;
-  await sql`delete from public.auth_sessions where user_id = ${session.user.id} and id <> ${session.sessionId}`;
+  await sql.query("update public.medar_users set password_hash=$1,updated_at=now() where id=$2::uuid", [passwordHash, session.user.id]);
+  await sql.query("update public.medar_sessions set revoked_at=now() where user_id=$1::uuid and id<>$2::uuid and revoked_at is null", [session.user.id, session.sessionId]);
   return c.json({ ok: true, message: 'گذرواژه تغییر کرد؛ نشست‌های دیگر بسته شدند.' });
 });
 
@@ -524,9 +498,9 @@ app.get('/api/workspace/members', async (c) => {
   }
   const members = await sql`
     select m.id as membership_id, m.company_id, m.user_id, m.role, m.active, m.created_at,
-      u.username, u.phone_e164 as phone, u.full_name
+      u.username, u.phone_e164 as phone, u.display_name as full_name
     from public.memberships m
-    join public.app_users u on u.id = m.user_id
+    join public.medar_users u on u.id = m.user_id
     where m.company_id = ${companyId}
     order by case m.role when 'owner' then 0 when 'admin' then 1 else 2 end, m.created_at
   `;
@@ -562,7 +536,7 @@ app.post('/api/workspace/members/deactivate', async (c) => {
     return c.json({ message: 'فقط مالک می‌تواند دسترسی مدیر را غیرفعال کند.' }, 403);
   }
   await sql`update public.memberships set active = false where id = ${membershipId} and company_id = ${companyId}`;
-  await sql`insert into public.auth_audit_events(user_id,event_type,success) values (${user.id},'membership.deactivated',true)`;
+  await sql.query("insert into public.medar_audit_log(actor_user_id,action,entity_type,entity_id,metadata) values($1::uuid,'membership.deactivated','membership',$2,jsonb_build_object('company_id',$3::text))", [user.id, membershipId, companyId]);
   return c.json({ ok: true });
 });
 
