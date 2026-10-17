@@ -604,7 +604,7 @@ export function resolveRpcArguments(
   if (!Number.isInteger(defaultCount) || defaultCount < 0 || defaultCount > argNames.length ||
       argNames.length !== argTypes.length ||
       argNames.some(name => typeof name !== 'string' || !/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(name)) ||
-      argTypes.some(type => typeof type !== 'string' || !/^[a-zA-Z_][a-zA-Z0-9_ .]*(?:\\[\\])?$/.test(type))) {
+      argTypes.some(type => typeof type !== 'string' || !/^[a-zA-Z_][a-zA-Z0-9_ .]*(?:\[\])?$/.test(type))) {
     return null;
   }
 
