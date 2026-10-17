@@ -962,14 +962,16 @@ app.post('/api/data/:table',async c=>{
     if (!canTransitionMedarStatus(table, currentState, nextState)) {
       return c.json({ message: 'این انتقال وضعیت با گردش‌کار فعلی مجاز نیست.' }, 422);
     }
-        if (table === 'orders' && !mutationScopes.some(m => INTERNAL_ROLES.has(m.role))) {
-      if (!mutationScopes.some(m => m.role === 'customer' && m.customer_id === String(current.customer_id)) ||
+        const rowScopes = mutationScopes.filter(m => m.company_id === String(current.company_id));
+    const rowHasInternalRole = rowScopes.some(m => INTERNAL_ROLES.has(m.role));
+    if (table === 'orders' && !rowHasInternalRole) {
+      if (!rowScopes.some(m => m.role === 'customer' && m.customer_id === String(current.customer_id)) ||
           currentState !== 'draft' || !['submitted', 'cancelled'].includes(nextState)) {
         return c.json({ message: 'مشتری فقط می‌تواند پیش‌نویس متعلق به خود را ارسال یا لغو کند.' }, 403);
       }
     }
-    if (table === 'shipments' && !mutationScopes.some(m => INTERNAL_ROLES.has(m.role))) {
-      if (!mutationScopes.some(m => m.role === 'driver') ||
+    if (table === 'shipments' && !rowHasInternalRole) {
+      if (!rowScopes.some(m => m.role === 'driver') ||
           !['loading', 'in_transit', 'arrived', 'delivered', 'failed'].includes(nextState)) {
         return c.json({ message: 'راننده فقط می‌تواند مرحله محموله تخصیص‌یافته را جلو ببرد.' }, 403);
       }
