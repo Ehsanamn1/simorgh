@@ -227,7 +227,7 @@ td, th { border-color: var(--obs-border); }
 .tower-alert-row:hover { border-color: #465f60; background: #192629; }
 .tower-alert-row.critical { border-right-color: var(--obs-critical); }
 .tower-alert-row.warning { border-right-color: var(--obs-warning); }
-.tower-alert-row.info { border-right-color: var(--obs-info); }
+.tower-alert-row.info { border-right-color: var(--obs-accent-2); }
 .tower-alert-copy b { color: var(--obs-text); line-height: 1.9; }
 .tower-alert-copy small { color: var(--obs-muted); line-height: 1.9; }
 .tower-alert-go { color: var(--obs-accent); }
