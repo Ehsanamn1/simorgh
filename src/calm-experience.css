@@ -872,3 +872,6 @@ html[data-theme="dark"] .ai-primary-button { color: #202a38; background: linear-
   .farm-map-marker.active .farm-map-marker-icon, .ai-spin, .ai-composer-tools button.recording { animation: none !important; }
   .ai-assistant-launcher, .farm-map-marker, .mobile-workspace-nav a { transition: none !important; }
 }
+
+.contact-kind-tag { padding: 4px 7px; border: 1px solid color-mix(in srgb,var(--obs-accent) 25%,var(--obs-border)); border-radius: 8px; background: color-mix(in srgb,var(--obs-accent) 8%,var(--obs-surface)); color: var(--obs-accent); font-size: 8px; white-space: nowrap; }
+html[data-theme="dark"] .contact-kind-tag { background: #343d4b; border-color: #49576b; color: #d0dced; }
