@@ -9,12 +9,60 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: medar_test_password
+          POSTGRES_DB: medar_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d medar_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
           node-version: 22
       - run: npm install
+      - name: Validate the complete migration chain on a clean PostgreSQL 16 database
+        env:
+          PGPASSWORD: medar_test_password
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+          for migration in \
+            worker/migrations/0001_foundation.sql \
+            worker/migrations/0002_identity_foreign_keys.sql \
+            worker/migrations/0003_operational_schema.sql \
+            worker/migrations/0004_operational_integrity.sql \
+            worker/migrations/0005_partner_settlement_functions.sql \
+            worker/migrations/0006_core_data_api.sql \
+            worker/migrations/0007_existing_medar_schema_compat.sql \
+            worker/migrations/0008_operational_task_actions.sql; do
+            echo "Applying $migration"
+            psql -h 127.0.0.1 -U postgres -d medar_test -v ON_ERROR_STOP=1 -1 -f "$migration"
+          done
+          psql -h 127.0.0.1 -U postgres -d medar_test -v ON_ERROR_STOP=1 -Atqc "
+            select (
+              to_regclass('public.medar_users') is not null and
+              to_regclass('public.medar_sessions') is not null and
+              to_regclass('public.companies') is not null and
+              to_regclass('public.memberships') is not null and
+              to_regclass('public.orders') is not null and
+              to_regclass('public.farm_sites') is not null and
+              to_regclass('public.partner_settlement_periods') is not null and
+              to_regclass('public.inventory_balances') is not null and
+              to_regclass('public.company_invites') is not null and
+              to_regprocedure('public.medar_allocate_order_item(uuid,uuid,uuid,uuid)') is not null and
+              to_regprocedure('public.medar_start_operational_task(uuid,uuid)') is not null and
+              to_regprocedure('public.medar_create_partner_settlement_period(uuid,uuid,date,date)') is not null
+            )" | grep -qx t
       - name: Summarize all dependency advisories
         shell: bash
         run: |

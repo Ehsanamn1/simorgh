@@ -1,0 +1,17 @@
+-- Align all identity foreign keys with the canonical Medar username/password tables.
+-- This deliberately fails if legacy rows cannot be mapped; it does not delete or rewrite them.
+ALTER TABLE public.profiles DROP CONSTRAINT IF EXISTS profiles_id_fkey;
+ALTER TABLE public.profiles ADD CONSTRAINT profiles_id_fkey
+  FOREIGN KEY (id) REFERENCES public.medar_users(id) ON DELETE CASCADE;
+
+ALTER TABLE public.memberships DROP CONSTRAINT IF EXISTS memberships_user_id_fkey;
+ALTER TABLE public.memberships ADD CONSTRAINT memberships_user_id_fkey
+  FOREIGN KEY (user_id) REFERENCES public.medar_users(id) ON DELETE CASCADE;
+
+ALTER TABLE public.memberships DROP CONSTRAINT IF EXISTS memberships_created_by_fkey;
+ALTER TABLE public.memberships ADD CONSTRAINT memberships_created_by_fkey
+  FOREIGN KEY (created_by) REFERENCES public.medar_users(id) ON DELETE SET NULL;
+
+ALTER TABLE public.medar_users DROP CONSTRAINT IF EXISTS medar_users_requested_role_check;
+ALTER TABLE public.medar_users ADD CONSTRAINT medar_users_requested_role_check
+  CHECK (requested_role IN ('owner','customer','supplier','driver','staff'));
