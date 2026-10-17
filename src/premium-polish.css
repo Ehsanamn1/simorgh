@@ -925,3 +925,84 @@ html[data-theme="light"] .entity-toolbar { color: var(--obs-text); }
 html[data-theme="light"] .entity-toolbar button,
 html[data-theme="light"] .row-actions button { color: #26786A; }
 html[data-theme="light"] .customer-order-card { background: #FFFFFF; }
+
+
+/* Complete contrast for sign-in states, alert icons and operational submodules in light mode. */
+html[data-theme="light"] .auth-mode-tabs {
+  background: #F0F5F4; border-color: var(--obs-border);
+}
+html[data-theme="light"] .auth-mode-tabs button { color: #52686B; }
+html[data-theme="light"] .auth-mode-tabs button.active {
+  background: #E5F2EE; border-color: #C6E0D8; color: #15594F;
+}
+html[data-theme="light"] .auth-feedback.error {
+  color: #9E302E; background: #FFF0EF; border-color: #F0D0CD;
+}
+html[data-theme="light"] .auth-feedback.success {
+  color: #216849; background: #E7F5EE; border-color: #C5E4D5;
+}
+html[data-theme="light"] .signin-form-icon,
+html[data-theme="light"] .access-request-icon,
+html[data-theme="light"] .request-avatar,
+html[data-theme="light"] .tower-alert-mark,
+html[data-theme="light"] .tower-audit-mark,
+html[data-theme="light"] .farm-map-pin {
+  background: #E5F2EE; border-color: #C6E0D8; color: #26786A;
+}
+html[data-theme="light"] .tower-alert-row.critical .tower-alert-mark {
+  background: #FFF0EF; border-color: #F0D0CD; color: #9E302E;
+}
+html[data-theme="light"] .tower-alert-row.warning .tower-alert-mark {
+  background: #FFF5E3; border-color: #EFDFBE; color: #7A4D0B;
+}
+html[data-theme="light"] .tower-alert-row.info .tower-alert-mark {
+  background: #EAF5F8; border-color: #C9E1E7; color: #376C7C;
+}
+html[data-theme="light"] .tower-alert-foot {
+  background: #F0F5F4; border-color: var(--obs-border); color: #617A78;
+}
+html[data-theme="light"] .farm-map-site.active { background: #E5F2EE; border-color: #77A99E; }
+html[data-theme="light"] .farm-map-marker-label {
+  color: #344B4E; background: rgb(255 255 255 / 97%); border-color: #D6E2E0;
+  box-shadow: 0 5px 14px rgb(20 48 46 / 10%);
+}
+html[data-theme="light"] .signin-registration-cta button {
+  color: #15594F; background: #E5F2EE; border-color: #B5D3CA;
+}
+html[data-theme="light"] .signin-registration-cta button:hover {
+  background: #D9EEE7; border-color: #26786A;
+}
+html[data-theme="light"] .portal-primary-action { background: #26786A; color: #FFFFFF; }
+html[data-theme="light"] .portal-primary-action:hover { background: #15594F; }
+html[data-theme="light"] .portal-art-emblem .brand-symbol,
+html[data-theme="light"] .portal-kicker-mark,
+html[data-theme="light"] .portal-art-emblem,
+html[data-theme="light"] .portal-node-icon,
+html[data-theme="light"] .portal-card-icon,
+html[data-theme="light"] .portal-card-arrow,
+html[data-theme="light"] .portal-selection-symbol,
+html[data-theme="light"] .portal-preview-role-icon,
+html[data-theme="light"] .portal-capability > span,
+html[data-theme="light"] .portal-governance-steps > div > span {
+  background: #E5F2EE; color: #26786A; border-color: #C6E0D8;
+}
+html[data-theme="light"] .portal-signin-link,
+html[data-theme="light"] .portal-selection-button {
+  color: #15594F; background: #FFFFFF; border-color: #C6D9D5;
+}
+html[data-theme="light"] .portal-signin-link:hover,
+html[data-theme="light"] .portal-selection-button:hover { background: #E5F2EE; border-color: #77A99E; }
+html[data-theme="light"] .portal-preview-aside {
+  background: linear-gradient(180deg, #F0F7F5, #FFFFFF); color: var(--obs-text);
+}
+html[data-theme="light"] .portal-preview-nav > div.active {
+  background: #E5F2EE; color: #15594F; border-color: #C6E0D8;
+}
+html[data-theme="light"] .portal-preview-disabled {
+  color: #26786A; background: #E5F2EE; border-color: #C6E0D8;
+}
+html[data-theme="light"] .portal-capability { background: #FFFFFF; border-color: var(--obs-border); }
+html[data-theme="light"] .portal-preview-notice { background: #F0F7F5; border-color: #C8DDD7; color: #52686B; }
+html[data-theme="light"] .portal-role-card:hover { background: #F7FAF9; border-color: #B5D3CA; }
+html[data-theme="light"] .portal-selection-button:focus-visible,
+html[data-theme="light"] .portal-signin-link:focus-visible { outline-color: #26786A; }
