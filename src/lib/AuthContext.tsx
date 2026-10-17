@@ -1,6 +1,7 @@
 import type * as React from 'react';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { api } from './apiClient';
+import { getMedarClientId, MEDAR_APP_VERSION, MEDAR_CLIENT_PLATFORM } from './runtimeConfig';
 import type { Membership } from './types';
 
 export type UserShape = { id: string; username: string; phone: string; full_name: string };
@@ -64,6 +65,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     void refreshSession();
   }, [refreshSession]);
+
+  // Every signed-in browser/native client reports a heartbeat to the same tenant API.
+  // This is operational visibility only; the server still derives access from memberships.
+  const membershipCompanies = useMemo(
+    () => [...new Set(memberships.map(membership => membership.company_id).filter(Boolean))],
+    [memberships],
+  );
+  useEffect(() => {
+    if (!session?.user?.id || membershipCompanies.length === 0) return;
+    let stopped = false;
+    const clientId = getMedarClientId();
+    const reportPresence = () => {
+      if (stopped) return;
+      void Promise.all(membershipCompanies.map(companyId =>
+        api.post('/api/client/heartbeat', {
+          companyId,
+          clientId,
+          platform: MEDAR_CLIENT_PLATFORM,
+          appVersion: MEDAR_APP_VERSION,
+        }).catch(() => undefined),
+      ));
+    };
+    reportPresence();
+    const interval = window.setInterval(reportPresence, 60_000);
+    return () => {
+      stopped = true;
+      window.clearInterval(interval);
+    };
+  }, [session?.user?.id, membershipCompanies]);
 
   const value = useMemo<AuthValue>(() => ({
     session,
