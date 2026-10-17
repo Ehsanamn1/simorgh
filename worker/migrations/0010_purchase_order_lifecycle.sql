@@ -81,10 +81,10 @@ BEGIN
   IF _items IS NULL OR jsonb_typeof(_items)<>'array' THEN RAISE EXCEPTION 'اقلام سفارش باید یک آرایه معتبر باشد'; END IF;
   item_count:=jsonb_array_length(_items);
   IF item_count<1 OR item_count>100 THEN RAISE EXCEPTION 'سفارش خرید باید بین ۱ تا ۱۰۰ قلم داشته باشد'; END IF;
-  IF EXISTS (SELECT 1 FROM jsonb_array_elements(_items) x WHERE jsonb_typeof(x)<>'object') THEN
+  IF EXISTS (SELECT 1 FROM jsonb_array_elements(_items) AS e(value) WHERE jsonb_typeof(value)<>'object') THEN
     RAISE EXCEPTION 'ساختار یکی از اقلام سفارش معتبر نیست';
   END IF;
-  IF (SELECT count(DISTINCT x->>'product_id') FROM jsonb_array_elements(_items) x)
+  IF (SELECT count(DISTINCT value->>'product_id') FROM jsonb_array_elements(_items) AS e(value))
       <> item_count THEN RAISE EXCEPTION 'هر محصول فقط یک بار در فهرست اقلام سفارش وارد شود'; END IF;
 
   INSERT INTO public.purchase_orders(company_id,supplier_id,reference,status,expected_delivery,notes,created_by)
@@ -200,10 +200,10 @@ BEGIN
   IF _items IS NULL OR jsonb_typeof(_items)<>'array' THEN RAISE EXCEPTION 'اقلام رسید باید یک آرایه معتبر باشد'; END IF;
   line_count:=jsonb_array_length(_items);
   IF line_count<1 OR line_count>100 THEN RAISE EXCEPTION 'رسید باید بین ۱ تا ۱۰۰ قلم داشته باشد'; END IF;
-  IF EXISTS (SELECT 1 FROM jsonb_array_elements(_items) x WHERE jsonb_typeof(x)<>'object') THEN
+  IF EXISTS (SELECT 1 FROM jsonb_array_elements(_items) AS e(value) WHERE jsonb_typeof(value)<>'object') THEN
     RAISE EXCEPTION 'ساختار یکی از اقلام رسید معتبر نیست';
   END IF;
-  IF (SELECT count(DISTINCT x->>'purchase_order_item_id') FROM jsonb_array_elements(_items) x)
+  IF (SELECT count(DISTINCT value->>'purchase_order_item_id') FROM jsonb_array_elements(_items) AS e(value))
       <> line_count THEN RAISE EXCEPTION 'هر قلم سفارش فقط یک بار در هر رسید وارد شود'; END IF;
   IF _reference IS NOT NULL AND length(trim(_reference))>120 THEN RAISE EXCEPTION 'مرجع رسید بیش از حد مجاز است'; END IF;
   IF _note IS NOT NULL AND length(_note)>2000 THEN RAISE EXCEPTION 'یادداشت رسید بیش از حد مجاز است'; END IF;
