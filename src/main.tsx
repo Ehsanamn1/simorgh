@@ -4,6 +4,7 @@ import RuntimeErrorBoundary from './RuntimeErrorBoundary';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { AuthProvider } from './lib/AuthContext';
+import { ThemeProvider } from './lib/ThemeContext';
 import App from './App';
 import ProductExperience from './ProductExperience';
 import './styles.css';
@@ -30,11 +31,13 @@ createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <RuntimeErrorBoundary>
       <BrowserRouter basename={import.meta.env.BASE_URL}>
-        <AuthProvider>
-          <BootSignal />
-          <App />
-          <ProductExperience />
-        </AuthProvider>
+        <ThemeProvider>
+          <AuthProvider>
+            <BootSignal />
+            <App />
+            <ProductExperience />
+          </AuthProvider>
+        </ThemeProvider>
       </BrowserRouter>
     </RuntimeErrorBoundary>
   </React.StrictMode>,
