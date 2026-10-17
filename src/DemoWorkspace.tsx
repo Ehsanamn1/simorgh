@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Capacitor } from '@capacitor/core';
+import { StatusBar, Style } from '@capacitor/status-bar';
 import {
   Activity, ArrowLeft, ArrowUpLeft, Boxes, Building2, CalendarDays,
   ChevronLeft, CircleAlert, ClipboardCheck, Clock3, CreditCard, Factory,
   FileText, Gauge, LayoutDashboard, ListChecks, MapPin, Menu, Package, RefreshCw,
-  Search, ShieldCheck, Sparkles, Target, Truck, Users, Warehouse, X,
+  Search, ShieldCheck, Sparkles, Sun, Moon, Target, Truck, Users, Warehouse, X,
   type LucideIcon,
 } from 'lucide-react';
 import { api } from './lib/apiClient';
@@ -209,6 +211,10 @@ export default function DemoWorkspace() {
   const [activePage, setActivePage] = useState('command');
   const [search, setSearch] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
+    try { return window.localStorage.getItem('simorgh-theme') === 'light' ? 'light' : 'dark'; }
+    catch { return 'dark'; }
+  });
   const [health, setHealth] = useState<'checking' | 'online' | 'offline'>('checking');
   const [lastChecked, setLastChecked] = useState<Date | null>(null);
   const page = navItems.find((item) => item.key === activePage) ?? navItems[0];
@@ -227,6 +233,22 @@ export default function DemoWorkspace() {
   }, []);
 
   useEffect(() => { void checkHealth(); }, [checkHealth]);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    document.documentElement.style.colorScheme = theme;
+    const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
+    const themeColor = theme === 'dark' ? '#101719' : '#F4F7F7';
+    if (meta) meta.content = themeColor;
+    try { window.localStorage.setItem('simorgh-theme', theme); } catch { /* Storage may be unavailable in private browsing. */ }
+    if (Capacitor.isNativePlatform()) {
+      void StatusBar.setStyle({ style: theme === 'dark' ? Style.Light : Style.Dark }).catch(() => {});
+      void StatusBar.setOverlaysWebView({ overlay: false }).catch(() => {});
+      if (Capacitor.getPlatform() === 'android') {
+        void StatusBar.setBackgroundColor({ color: themeColor }).catch(() => {});
+      }
+    }
+  }, [theme]);
 
   const visibleRows = useMemo(() => {
     const rows = activePage === 'command' ? orderRows : (rowsByPage[activePage] ?? []);
@@ -279,6 +301,7 @@ export default function DemoWorkspace() {
           </div>
           <div className="demo-topbar-tools">
             <label className="demo-search"><Search size={17}/><input aria-label="جست‌وجو در داده‌های نمونه" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="جست‌وجو در این بخش…"/><kbd>⌘ K</kbd></label>
+            <button className="demo-icon-button demo-theme-toggle" type="button" onClick={() => setTheme(current => current === 'dark' ? 'light' : 'dark')} aria-pressed={theme === 'light'} aria-label={theme === 'dark' ? 'فعال‌کردن حالت روشن' : 'فعال‌کردن حالت تاریک'} title={theme === 'dark' ? 'فعال‌کردن حالت روشن' : 'فعال‌کردن حالت تاریک'}>{theme === 'dark' ? <Sun size={17}/> : <Moon size={17}/>}</button>
             <button className="demo-icon-button" onClick={() => void checkHealth()} aria-label="بررسی دوباره اتصال API" title="بررسی اتصال API"><RefreshCw size={17} className={health === 'checking' ? 'demo-spin' : ''}/></button>
             <span className="demo-topbar-divider"/>
             <div className="demo-date"><CalendarDays size={16}/><span>{dateLabel}</span></div>
