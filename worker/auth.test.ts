@@ -4,6 +4,7 @@ import {
   DUMMY_PASSWORD_HASH,
   FAILED_LOGIN_UPSERT_SQL,
   normalizeUsername,
+  parseClientHeartbeat,
   resolveApiModeAccess,
   verifyPassword,
 } from './index';
@@ -29,6 +30,27 @@ describe('Worker API deployment mode isolation', () => {
   it('does not allow unsafe methods to use public health/session exceptions', () => {
     expect(resolveApiModeAccess('public-demo', 'POST', '/api/health')).toBe('deny');
     expect(resolveApiModeAccess('public-demo', 'POST', '/api/auth/me')).toBe('deny');
+  });
+});
+
+describe('shared web/mobile presence payload validation', () => {
+  const valid = {
+    companyId: '0b9a0d6f-f5a0-4a0f-9a9b-7d8b30d5d482',
+    clientId: 'dd4bd88c-8c1d-4cf5-a9f2-61aafba2bdf1',
+    platform: 'android',
+    appVersion: '0.1.0',
+  };
+
+  it('accepts a validated platform heartbeat for an existing tenant', () => {
+    expect(parseClientHeartbeat(valid)).toEqual(valid);
+  });
+
+  it('rejects unsupported platforms, malformed identifiers, and oversized versions', () => {
+    expect(parseClientHeartbeat({ ...valid, platform: 'unknown' })).toBeNull();
+    expect(parseClientHeartbeat({ ...valid, clientId: 'not-a-uuid' })).toBeNull();
+    expect(parseClientHeartbeat({ ...valid, companyId: 'public' })).toBeNull();
+    expect(parseClientHeartbeat({ ...valid, appVersion: 'v'.repeat(41) })).toBeNull();
+    expect(parseClientHeartbeat(null)).toBeNull();
   });
 });
 
