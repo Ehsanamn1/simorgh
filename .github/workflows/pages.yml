@@ -142,7 +142,7 @@ jobs:
             if (await page.locator('.simorgh-signin-layer').count()) throw new Error('Sign-in UI must be disabled on the public showcase.');
             if (await page.locator('.app-frame, .setup-screen').count()) throw new Error('Protected workspace or setup screen rendered instead of the public demo.');
             await page.getByRole('heading', { name: 'عملیات، در یک نگاه.' }).waitFor({ state: 'visible' });
-            await page.locator('.demo-nav-item').filter({ hasText: 'سفارش‌ها' }).click();
+            await page.locator('.demo-sidebar .demo-nav-item').filter({ hasText: /^سفارش‌ها$/ }).click();
             await page.locator('.demo-breadcrumb b').filter({ hasText: 'سفارش‌ها' }).waitFor({ state: 'visible' });
             if (errors.length) throw new Error('Browser runtime error: ' + errors.join(' | '));
 
@@ -152,9 +152,13 @@ jobs:
             await page.locator('.demo-workspace').waitFor({ state: 'visible', timeout: 20000 });
             if (await page.locator('.simorgh-signin-layer').count() !== 0) throw new Error('The mobile showcase unexpectedly rendered sign-in UI.');
             if (await page.locator('.demo-preview-notice').count() !== 1) throw new Error('The mobile demo safety notice is missing.');
+            const mobileNav = page.locator('.demo-mobile-bottom-nav');
+            await mobileNav.waitFor({ state: 'visible', timeout: 10000 });
+            if (await mobileNav.locator('button').count() !== 4) throw new Error('The mobile bottom navigation must contain exactly four items.');
+            if (await page.locator('.demo-quick-action').count() !== 4) throw new Error('The mobile quick-access panel must contain four actions.');
             await page.locator('.demo-menu-button').click();
             if (!(await page.locator('.demo-sidebar').getAttribute('class') || '').includes('is-open')) throw new Error('The mobile navigation drawer did not open.');
-            await page.locator('.demo-nav-item').filter({ hasText: 'سفارش‌ها' }).click();
+            await page.locator('.demo-sidebar .demo-nav-item').filter({ hasText: /^سفارش‌ها$/ }).click();
             await page.locator('.demo-breadcrumb b').filter({ hasText: 'سفارش‌ها' }).waitFor({ state: 'visible' });
             const widths = await page.evaluate(() => ({ viewport: innerWidth, document: document.documentElement.scrollWidth, body: document.body.scrollWidth }));
             if (widths.document > widths.viewport || widths.body > widths.viewport) throw new Error('Mobile horizontal overflow: ' + JSON.stringify(widths));
