@@ -1,7 +1,6 @@
 name: Deploy Simorgh to GitHub Pages
 on:
   workflow_dispatch:
-
 permissions:
   contents: read
 
@@ -46,7 +45,7 @@ jobs:
           path: dist
 
   deploy:
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ github.event_name == 'workflow_dispatch' }}
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
