@@ -403,7 +403,7 @@ app.post('/api/auth/login', async (c) => {
     await recordFailedLogin(c, keys);
     return c.json({ message: 'نام کاربری یا گذرواژه نادرست است.' }, 401);
   }
-  await sql`delete from public.auth_rate_limits where bucket_key = ${keys[0]}`;
+  for (const key of keys) await sql`delete from public.auth_rate_limits where bucket_key = ${key}`;
   await createSession(c, account.id);
   return c.json({ user: safeUser(account), memberships: await getMemberships(c, account.id) });
 });
