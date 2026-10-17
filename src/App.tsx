@@ -5,7 +5,7 @@ import { Link, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import {
   Activity, AlertTriangle, ArrowLeft, ArrowUpLeft, Boxes, Building2, CalendarDays, CheckCircle2,
   ChevronDown, CircleHelp, ClipboardCheck, CreditCard, Factory, FileCheck2, FileText, LayoutDashboard,
-  LockKeyhole, LogOut, MapPin, Menu, Moon, Package, Plus, RefreshCw, Search, Settings2, ShieldCheck, Sun, Target, Truck, Users, Warehouse, X, Zap,
+  LockKeyhole, LogOut, MapPin, Menu, Monitor, Moon, Package, Plus, RefreshCw, Search, Settings2, ShieldCheck, Smartphone, Sun, Target, Truck, Users, Warehouse, X, Zap,
 } from 'lucide-react';
 import { useAuth } from './lib/AuthContext';
 import { useAppTheme } from './lib/ThemeContext';
@@ -249,6 +249,19 @@ function FarmMapPanel({sites,schemaWarning}:{sites:Row[];schemaWarning:string}) 
   </section>;
 }
 
+type ClientPresenceRow = {
+  clientId: string;
+  platform: 'web' | 'android' | 'ios';
+  appVersion: string;
+  username: string;
+  role: string;
+  firstSeenAt: string;
+  lastSeenAt: string;
+  online: boolean;
+};
+
+type SystemHealthSnapshot = { ok?: boolean; database?: boolean; service?: string };
+
 function Dashboard({ membership }: { membership: Membership }) {
   const [orders, setOrders] = useState<Row[]>([]);
   const [mapSites, setMapSites] = useState<Row[]>([]);
@@ -258,12 +271,42 @@ function Dashboard({ membership }: { membership: Membership }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [lastUpdated, setLastUpdated] = useState('');
+  const [centralHealth, setCentralHealth] = useState<SystemHealthSnapshot | null>(null);
+  const [clientPresence, setClientPresence] = useState<ClientPresenceRow[]>([]);
+  const [centralStatusLoading, setCentralStatusLoading] = useState(false);
+  const [centralStatusError, setCentralStatusError] = useState('');
   const canManage = membership.role === 'owner' || membership.role === 'admin';
+
+  const refreshCentralStatus = async () => {
+    if (!canManage) return;
+    setCentralStatusLoading(true);
+    setCentralStatusError('');
+    const [healthResult, clientsResult] = await Promise.allSettled([
+      api.get<SystemHealthSnapshot>('/api/health'),
+      api.get<{ clients: ClientPresenceRow[]; summary: { knownClients: number; onlineClients: number } }>(
+        '/api/admin/system/clients?companyId=' + encodeURIComponent(membership.company_id),
+      ),
+    ]);
+    const errors: string[] = [];
+    if (healthResult.status === 'fulfilled') setCentralHealth(healthResult.value);
+    else {
+      setCentralHealth(null);
+      errors.push('وضعیت API مرکزی دریافت نشد.');
+    }
+    if (clientsResult.status === 'fulfilled') setClientPresence(clientsResult.value.clients ?? []);
+    else {
+      setClientPresence([]);
+      errors.push('وضعیت اتصال دستگاه‌ها دریافت نشد.');
+    }
+    setCentralStatusError(errors.join(' '));
+    setCentralStatusLoading(false);
+  };
 
   const load = async () => {
     if (!dataApi) return;
     setLoading(true);
     setError('');
+    if (canManage) void refreshCentralStatus();
     const parts = Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Tehran', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date()).map(part => [part.type, part.value]));
     const today = `${parts.year}-${parts.month}-${parts.day}`;
     const horizonParts = Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Tehran', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date(Date.now() + 30 * 86400000)).map(part => [part.type, part.value]));
@@ -349,6 +392,50 @@ function Dashboard({ membership }: { membership: Membership }) {
     <PageHeading eyebrow="مدیریت عملیات" title="مرکز فرمان شبکه" description="نمای عملیاتی بر مبنای رکوردهای واقعی؛ هشدارهای برجسته به محل پیگیری متصل هستند." action={<Button variant="soft" onClick={() => void load()} disabled={loading}><Activity size={15}/> {loading ? 'در حال تازه‌سازی…' : 'تازه‌سازی داده‌ها'}</Button>}/>
     {error && <InlineError error={error} retry={() => void load()}/>}
     <div className="tower-freshness"><span className="tower-live-dot"/><span>آخرین دریافت: {lastUpdated ? dateTimeFa(lastUpdated) : 'در انتظار دریافت'}</span><span>شاخص‌ها بر پایه‌ی رکوردهای ثبت‌شده به‌روز می‌شوند.</span></div>
+    {canManage && <section className="panel medar-system-health" aria-labelledby="medar-system-health-title">
+      <div className="panel-heading">
+        <div><span className="section-number"><Activity size={16}/></span><div><h3 id="medar-system-health-title">مرکز اتصال مدار</h3><p>وضعیت API و دیتابیس مرکزی، به‌همراه آخرین فعالیت وب و اپلیکیشن‌های موبایل همین مجموعه</p></div></div>
+        <Button variant="soft" onClick={() => void refreshCentralStatus()} disabled={centralStatusLoading}><RefreshCw size={14}/>{centralStatusLoading ? 'در حال بررسی…' : 'بررسی اتصال‌ها'}</Button>
+      </div>
+      <div className="medar-system-health-grid">
+        <article className="medar-system-metric">
+          <span className="medar-system-metric-label"><Activity size={15}/> API مرکزی</span>
+          <b className={centralHealth?.ok ? 'is-healthy' : 'is-unhealthy'}>{centralHealth?.ok ? 'پاسخ‌گو' : centralStatusLoading ? 'در حال بررسی…' : 'تأیید نشده'}</b>
+          <small>{centralHealth?.service === 'medar-ops' ? 'محیط عملیاتی مدار' : centralHealth?.service === 'medar-api' ? 'محیط نمایشی' : 'بررسی زنده از سرور'}</small>
+        </article>
+        <article className="medar-system-metric">
+          <span className="medar-system-metric-label"><ShieldCheck size={15}/> دیتابیس مشترک</span>
+          <b className={centralHealth?.database ? 'is-healthy' : 'is-unhealthy'}>{centralHealth?.database ? 'متصل' : centralStatusLoading ? 'در حال بررسی…' : 'تأیید نشده'}</b>
+          <small>سلامت اتصال از Worker بررسی می‌شود</small>
+        </article>
+        <article className="medar-system-metric">
+          <span className="medar-system-metric-label"><Monitor size={15}/> کلاینت‌های شناخته‌شده</span>
+          <b>{centralStatusLoading && clientPresence.length === 0 ? '—' : numberFa(clientPresence.length)}</b>
+          <small>وب، اندروید و iOS که قبلاً به این مجموعه وصل شده‌اند</small>
+        </article>
+        <article className="medar-system-metric">
+          <span className="medar-system-metric-label"><Smartphone size={15}/> فعال در ۳ دقیقه‌ی اخیر</span>
+          <b>{numberFa(clientPresence.filter(client => client.online).length)}</b>
+          <small>بر اساس آخرین heartbeat؛ نه صرفاً نصب بودن اپ</small>
+        </article>
+      </div>
+      {centralStatusError && <div className="medar-system-status-error" role="status">{centralStatusError}</div>}
+      <div className="medar-client-presence">
+        <div className="medar-client-presence-heading"><b>آخرین دستگاه‌ها و نسخه‌های متصل</b><span>به‌روزرسانی خودکار هر ۶۰ ثانیه</span></div>
+        {centralStatusLoading && clientPresence.length === 0 ? <div className="medar-presence-empty">در حال دریافت وضعیت دستگاه‌ها…</div>
+          : clientPresence.length === 0 ? <div className="medar-presence-empty">هنوز دستگاهی وضعیت خود را ثبت نکرده است. پس از ورود کاربر به وب یا اپ موبایل، آخرین اتصال اینجا ثبت می‌شود.</div>
+          : <div className="medar-client-presence-list">{clientPresence.slice(0, 8).map(client => {
+            const DeviceIcon = client.platform === 'web' ? Monitor : Smartphone;
+            const platformLabel = client.platform === 'web' ? 'وب' : client.platform === 'android' ? 'اندروید' : 'iOS';
+            return <div className="medar-client-presence-row" key={client.clientId + ':' + client.username}>
+              <span className={'medar-client-device-icon ' + (client.online ? 'is-online' : '')}><DeviceIcon size={17}/></span>
+              <span className="medar-client-device-main"><b>{client.username}</b><small>{platformLabel} · نسخه {client.appVersion} · {roleLabel[client.role] ?? client.role}</small></span>
+              <span className={'medar-client-online-state ' + (client.online ? 'is-online' : 'is-offline')}><i/>{client.online ? 'متصل' : 'اخیراً فعال بوده'}</span>
+              <time dateTime={client.lastSeenAt}>{dateTimeFa(client.lastSeenAt)}</time>
+            </div>;
+          })}</div>}
+      </div>
+    </section>}
     <section className="stats-grid tower-stats">
       <article className="stat-card"><div className="stat-card-top"><span>سفارش‌ها</span><span className="stat-icon"><FileText size={17}/></span></div><b>{loading ? '—' : numberFa(counts.orders)}</b><small>رکوردهای این مجموعه</small></article>
       <article className="stat-card"><div className="stat-card-top"><span>مشتریان</span><span className="stat-icon"><Users size={17}/></span></div><b>{loading ? '—' : numberFa(counts.customers)}</b><small>حساب‌های ثبت‌شده</small></article>
