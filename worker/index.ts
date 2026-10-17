@@ -426,9 +426,13 @@ const COMPANY_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{
 function aiProvider(value: unknown): AiProvider | null {
   return value === 'openai' || value === 'gemini' || value === 'deepseek' || value === 'anthropic' ? value : null;
 }
-async function aiCompanyRole(c: Ctx, companyId: string, userId: string): Promise<string | null> {
-  const rows = await sqlFor(c).query('select role::text as role from public.memberships where company_id=$1::uuid and user_id=$2::uuid and active=true limit 1', [companyId, userId]);
-  return (rows[0] as { role?: string } | undefined)?.role ?? null;
+type AiCompanyMembership = { role: string; supplierId: string | null; customerId: string | null };
+async function aiCompanyMembership(c: Ctx, companyId: string, userId: string): Promise<AiCompanyMembership | null> {
+  const rows = await sqlFor(c).query(
+    'select role::text as role,supplier_id::text as "supplierId",customer_id::text as "customerId" from public.memberships where company_id=$1::uuid and user_id=$2::uuid and active=true limit 1',
+    [companyId, userId],
+  );
+  return rows[0] as AiCompanyMembership | undefined ?? null;
 }
 async function aiEncryptionKey(c: Ctx): Promise<CryptoKey> {
   const master = c.env.AI_ENCRYPTION_KEY || c.env.DATABASE_URL;
@@ -518,15 +522,15 @@ app.get('/api/ai/providers', async (c) => {
   if (user instanceof Response) return user;
   const companyId = c.req.query('companyId') ?? '';
   if (!COMPANY_ID_RE.test(companyId)) return c.json({ message: 'شناسه مجموعه معتبر نیست.' }, 422);
-  const role = await aiCompanyRole(c, companyId, user.id);
-  if (!role) return c.json({ message: 'به این فضای کاری دسترسی فعال نداری.' }, 403);
+  const membership = await aiCompanyMembership(c, companyId, user.id);
+  if (!membership) return c.json({ message: 'به این فضای کاری دسترسی فعال نداری.' }, 403);
   const rows = await sqlFor(c).query('select provider,model,is_default as "isDefault",updated_at as "updatedAt" from public.medar_ai_provider_configs where company_id=$1::uuid order by is_default desc,provider', [companyId]);
   const byProvider = new Map((rows as Array<{ provider: string; model: string; isDefault: boolean; updatedAt: string }>).map(row => [row.provider, row]));
   const providers = (Object.keys(AI_PROVIDERS) as AiProvider[]).map(provider => {
     const item = byProvider.get(provider);
     return { provider, model: item?.model || AI_PROVIDERS[provider].model, isDefault: Boolean(item?.isDefault), configured: Boolean(item), updatedAt: item?.updatedAt ?? null };
   });
-  return c.json({ companyId, activeProvider: providers.find(item => item.isDefault)?.provider ?? null, providers, canConfigure: role === 'owner' || role === 'admin' });
+  return c.json({ companyId, activeProvider: providers.find(item => item.isDefault)?.provider ?? null, providers, canConfigure: membership.role === 'owner' || membership.role === 'admin' });
 });
 
 app.put('/api/ai/providers', async (c) => {
@@ -543,7 +547,7 @@ app.put('/api/ai/providers', async (c) => {
   if (!model || model.length > 120 || !/^[A-Za-z0-9._:/-]+$/.test(model)) return c.json({ message: 'شناسه مدل معتبر نیست.' }, 422);
   if (apiKey.length > 512 || (apiKey && apiKey.length < 12)) return c.json({ message: 'فرمت کلید API معتبر نیست.' }, 422);
   const role = await aiCompanyRole(c, companyId, user.id);
-  if (role !== 'owner' && role !== 'admin') return c.json({ message: 'فقط مالک یا مدیر مجموعه می‌تواند پرووایدرهای هوش مصنوعی را تنظیم کند.' }, 403);
+  if (membership.role !== 'owner' && membership.role !== 'admin') return c.json({ message: 'فقط مالک یا مدیر مجموعه می‌تواند پرووایدرهای هوش مصنوعی را تنظیم کند.' }, 403);
   const sql = sqlFor(c);
   const existingRows = await sql.query('select encrypted_api_key from public.medar_ai_provider_configs where company_id=$1::uuid and provider=$2 limit 1', [companyId, provider]);
   const existing = existingRows[0] as { encrypted_api_key: string } | undefined;
@@ -600,6 +604,7 @@ app.post('/api/ai/chat', async (c) => {
   } else if (inputChars > 32000) return c.json({ message: 'حجم گفتگو بیش از حد مجاز است.' }, 413);
   if (messages[messages.length - 1]?.role !== 'user') return c.json({ message: 'آخرین پیام باید پیام کاربر باشد.' }, 422);
   const sql = sqlFor(c);
+  const role = membership.role;
   const limits = await sql.query([
     "select (select count(*)::int from public.medar_ai_usage_log where user_id=$1::uuid and created_at>now()-interval '1 minute') as minute_count,",
     "(select count(*)::int from public.medar_ai_usage_log where user_id=$1::uuid and created_at>now()-interval '1 day') as day_count",
@@ -615,33 +620,76 @@ app.post('/api/ai/chat', async (c) => {
   try { providerKey = await decryptAiKey(c, config.encrypted_api_key); }
   catch { return c.json({ message: 'رمزگشایی کلید پرووایدر ناموفق بود؛ کلید را دوباره در تنظیمات ذخیره کن.' }, 503); }
   let context: Record<string, unknown> = {};
+  let recentTasks: unknown[] = [];
+  let recentIncidents: unknown[] = [];
   try {
-    const aggregate = await sql.query([
-      'select',
-      '(select count(*)::int from public.orders where company_id=$1::uuid) as orders_total,',
-      "(select count(*)::int from public.orders where company_id=$1::uuid and requested_delivery<current_date and status not in ('delivered','cancelled')) as late_orders,",
-      '(select count(*)::int from public.customers where company_id=$1::uuid and active=true) as active_customers,',
-      '(select count(*)::int from public.suppliers where company_id=$1::uuid and active=true) as active_suppliers,',
-      "(select count(*)::int from public.shipments where company_id=$1::uuid and stage not in ('delivered','returned','failed')) as open_shipments,",
-      "(select count(*)::int from public.operational_tasks where company_id=$1::uuid and status not in ('approved','cancelled')) as active_tasks,",
-      "(select count(*)::int from public.operational_tasks where company_id=$1::uuid and due_at<now() and status not in ('approved','cancelled')) as overdue_tasks,",
-      "(select count(*)::int from public.operational_incidents where company_id=$1::uuid and status not in ('resolved','closed','cancelled')) as open_incidents,",
-      '(select count(*)::int from public.farm_sites where company_id=$1::uuid and active=true and latitude is not null and longitude is not null) as mapped_sites',
-    ].join(' '), [companyId]);
-    context = aggregate[0] as Record<string, unknown> || {};
+    if (role === 'owner' || role === 'admin' || role === 'staff') {
+      const aggregate = await sql.query([
+        'select',
+        '(select count(*)::int from public.orders where company_id=$1::uuid) as orders_total,',
+        "(select count(*)::int from public.orders where company_id=$1::uuid and requested_delivery<current_date and status not in ('delivered','cancelled')) as late_orders,",
+        '(select count(*)::int from public.customers where company_id=$1::uuid and active=true) as active_customers,',
+        '(select count(*)::int from public.suppliers where company_id=$1::uuid and active=true) as active_suppliers,',
+        "(select count(*)::int from public.shipments where company_id=$1::uuid and stage not in ('delivered','returned','failed')) as open_shipments,",
+        "(select count(*)::int from public.operational_tasks where company_id=$1::uuid and status not in ('approved','cancelled')) as active_tasks,",
+        "(select count(*)::int from public.operational_tasks where company_id=$1::uuid and due_at<now() and status not in ('approved','cancelled')) as overdue_tasks,",
+        "(select count(*)::int from public.operational_incidents where company_id=$1::uuid and status not in ('resolved','closed','cancelled')) as open_incidents,",
+        '(select count(*)::int from public.farm_sites where company_id=$1::uuid and active=true and latitude is not null and longitude is not null) as mapped_sites',
+      ].join(' '), [companyId]);
+      context = aggregate[0] as Record<string, unknown> || {};
+      recentTasks = await sql.query([
+        'select title,status,priority,due_at as due from public.operational_tasks',
+        "where company_id=$1::uuid and status not in ('approved','cancelled')",
+        'order by due_at asc nulls last limit 5',
+      ].join(' '), [companyId]).catch(() => []);
+      recentIncidents = await sql.query([
+        'select title,severity,status from public.operational_incidents',
+        "where company_id=$1::uuid and status not in ('resolved','closed','cancelled')",
+        'order by created_at desc limit 4',
+      ].join(' '), [companyId]).catch(() => []);
+    } else if (role === 'supplier' && membership.supplierId) {
+      const scoped = await sql.query([
+        'select',
+        "(select count(*)::int from public.operational_tasks where company_id=$1::uuid and assignee_supplier_id=$2::uuid and status not in ('approved','cancelled')) as assigned_tasks,",
+        "(select count(*)::int from public.operational_tasks where company_id=$1::uuid and assignee_supplier_id=$2::uuid and due_at<now() and status not in ('approved','cancelled')) as overdue_tasks,",
+        "(select count(*)::int from public.capacity_commitments where company_id=$1::uuid and supplier_id=$2::uuid and status in ('confirmed','committed') and period_end>=current_date) as active_capacity_commitments",
+      ].join(' '), [companyId, membership.supplierId]);
+      context = scoped[0] as Record<string, unknown> || {};
+      recentTasks = await sql.query([
+        'select title,status,priority,due_at as due from public.operational_tasks',
+        "where company_id=$1::uuid and assignee_supplier_id=$2::uuid and status not in ('approved','cancelled')",
+        'order by due_at asc nulls last limit 8',
+      ].join(' '), [companyId, membership.supplierId]).catch(() => []);
+    } else if (role === 'driver') {
+      const scoped = await sql.query([
+        'select',
+        "(select count(*)::int from public.shipments where company_id=$1::uuid and driver_user_id=$2::uuid and stage not in ('delivered','returned','failed')) as assigned_open_shipments,",
+        "(select count(*)::int from public.shipments where company_id=$1::uuid and driver_user_id=$2::uuid and stage='failed') as assigned_failed_shipments",
+      ].join(' '), [companyId, user.id]);
+      context = scoped[0] as Record<string, unknown> || {};
+      recentTasks = await sql.query([
+        'select s.stage,s.planned_departure,s.departed_at,s.delivered_at,o.reference as order_reference',
+        'from public.shipments s join public.orders o on o.company_id=s.company_id and o.id=s.order_id',
+        'where s.company_id=$1::uuid and s.driver_user_id=$2::uuid',
+        'order by s.planned_departure asc nulls last limit 8',
+      ].join(' '), [companyId, user.id]).catch(() => []);
+    } else if (role === 'customer' && membership.customerId) {
+      const scoped = await sql.query([
+        'select',
+        '(select count(*)::int from public.orders where company_id=$1::uuid and customer_id=$2::uuid) as own_orders,',
+        "(select count(*)::int from public.orders where company_id=$1::uuid and customer_id=$2::uuid and requested_delivery<current_date and status not in ('delivered','cancelled')) as own_late_orders",
+      ].join(' '), [companyId, membership.customerId]);
+      context = scoped[0] as Record<string, unknown> || {};
+      recentTasks = await sql.query([
+        'select reference,status,requested_delivery as delivery_due from public.orders',
+        'where company_id=$1::uuid and customer_id=$2::uuid order by created_at desc limit 8',
+      ].join(' '), [companyId, membership.customerId]).catch(() => []);
+    } else {
+      context = { note: 'شناسه‌ی مرتبط برای خواندن جزئیات این نقش تعریف نشده است؛ اطلاعات عمومی محدود است.' };
+    }
   } catch {
-    context = { note: 'برخی شاخص‌های خلاصه در دسترس نیستند؛ فقط درباره داده موجود نتیجه‌گیری کن.' };
+    context = { note: 'برخی شاخص‌های مجاز در دسترس نیستند؛ فقط درباره داده موجود نتیجه‌گیری کن.' };
   }
-  const recentTasks = await sql.query([
-    'select title,status,priority,due_at as due from public.operational_tasks',
-    "where company_id=$1::uuid and status not in ('approved','cancelled')",
-    'order by due_at asc nulls last limit 5',
-  ].join(' '), [companyId]).catch(() => []);
-  const recentIncidents = await sql.query([
-    'select title,severity,status from public.operational_incidents',
-    "where company_id=$1::uuid and status not in ('resolved','closed','cancelled')",
-    'order by created_at desc limit 4',
-  ].join(' '), [companyId]).catch(() => []);
   const systemPrompt = 'تو دستیار عملیاتی مدار هستی. فقط براساس داده‌ی خلاصه‌ی ارائه‌شده و متن کاربر نتیجه بگیر؛ عدد، مشتری، رویداد یا واقعیت ساختگی نساز. اگر داده ناقص است صریح بگو. پیشنهادها را به اقدام‌های اولویت‌دار، مسئول پیشنهادی و موعد تقسیم کن. عملیات مالی، تغییر سفارش، ارسال پیام به افراد یا هر تغییری را خودت اجرا نکن و برای چنین اقداماتی تأیید انسانی لازم بدان. اطلاعات حساس شخصی را بازگو نکن. زبان پاسخ فارسی و واضح باشد. نقش کاربر: ' + role + '. داده خلاصه و محدود همین مجموعه (بدون شماره تلفن و اطلاعات هویتی مخاطبین): ' + JSON.stringify({ metrics: context, activeTasks: recentTasks, openIncidents: recentIncidents });
   try {
     await sql.query('insert into public.medar_ai_usage_log(company_id,user_id,provider,model,input_chars) values($1::uuid,$2::uuid,$3,$4,$5)', [companyId, user.id, provider, config.model, inputChars]);
