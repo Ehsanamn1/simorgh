@@ -132,8 +132,7 @@ class FileBucket {
   constructor(private readonly bucket: string) {}
   async upload(path: string, file: Blob, options?: { upsert?: boolean; contentType?: string }): Promise<ApiResult> {
     try {
-      const safePath = path.split('/').map(encodeURIComponent).join('/');
-      const response = await fetch(API_BASE_URL + '/api/storage/' + encodeURIComponent(this.bucket) + '/' + safePath, {
+      const response = await fetch(API_BASE_URL + '/api/storage/' + encodeURIComponent(this.bucket) + '?path=' + encodeURIComponent(path), {
         method: 'PUT',
         credentials: 'include',
         headers: { 'content-type': options?.contentType || file.type || 'application/octet-stream', 'x-upsert': options?.upsert ? 'true' : 'false' },
@@ -145,6 +144,9 @@ class FileBucket {
     } catch {
       return { data: null, error: { message: 'ارتباط با فضای فایل مدار برقرار نشد.' }, count: null };
     }
+  }
+  getPublicUrl(path: string): { data: { publicUrl: string } } {
+    return { data: { publicUrl: API_BASE_URL + '/api/storage/' + encodeURIComponent(this.bucket) + '?path=' + encodeURIComponent(path) } };
   }
   async remove(paths: string[]): Promise<ApiResult> {
     try {
