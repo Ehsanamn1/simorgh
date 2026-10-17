@@ -581,3 +581,16 @@ html[data-theme="light"] .signin-theme-toggle[aria-pressed="true"] { background:
   .signin-theme-toggle { transition: none; }
   .signin-theme-toggle:hover { transform: none; }
 }
+
+/* Keep the operational entry accessible in the public demo's light theme. */
+
+html[data-theme="light"] .demo-ops-link {
+  background: linear-gradient(135deg, #E5F2EE, #F7FBFA);
+  border-color: #B5D3CA;
+  color: #15594F;
+}
+html[data-theme="light"] .demo-ops-link:hover {
+  background: #D9EEE7;
+  border-color: #26786A;
+  color: #124B42;
+}
