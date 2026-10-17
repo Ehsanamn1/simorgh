@@ -120,6 +120,9 @@ jobs:
           VITE_APP_VERSION: ${{ github.sha }}
       - name: Verify the operational bundle includes sign-in and owner onboarding
         shell: bash
+        env:
+          MEDAR_OPS_API_BASE_URL: ${{ vars.MEDAR_OPS_API_BASE_URL || 'https://medar-ops.dengxiao445.workers.dev' }}
+          MEDAR_APP_VERSION: ${{ github.sha }}
         run: |
           test -f dist/index.html
           grep -q 'id="root"' dist/index.html
@@ -128,7 +131,8 @@ jobs:
           grep -Rqs --include='*.js' 'simorgh-signin-layer' dist/assets
           grep -Rqs --include='*.js' 'ساخت حساب و فضای کاری' dist/assets
           grep -Rqs --include='*.js' 'حداقل ۸ نویسه' dist/assets
-          grep -Rqs --include='*.js' -F '${{ vars.MEDAR_OPS_API_BASE_URL || 'https://medar-ops.dengxiao445.workers.dev' }}' dist/assets
+          grep -Rqs --include='*.js' -F "$MEDAR_OPS_API_BASE_URL" dist/assets
+          grep -Rqs --include='*.js' -F "$MEDAR_APP_VERSION" dist/assets
           grep -Rqs --include='*.css' 'simorgh-signin-layer' dist/assets
           grep -Rqs --include='*.css' 'signin-form-card' dist/assets
           echo "Operational bundle includes the guarded sign-in and first-owner registration UI."
