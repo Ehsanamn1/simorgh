@@ -266,6 +266,10 @@ jobs:
         working-directory: worker
         shell: bash
         run: printf '%s' "$MEDAR_DATABASE_URL" | npx wrangler@4 secret put DATABASE_URL --name medar-ops
+      - name: Allow only Capacitor's native WebView origins for credentialed API calls
+        working-directory: worker
+        shell: bash
+        run: printf '%s' 'capacitor://localhost,https://localhost' | npx wrangler@4 secret put ALLOWED_ORIGINS --name medar-ops
       - name: Build the protected operational app with sign-in enabled
         run: npm run build
         env:
@@ -338,7 +342,7 @@ jobs:
             await page.locator('.simorgh-signin-layer').waitFor({ state: 'visible', timeout: 20000 });
             await page.getByRole('heading', { name: 'ورود به مدار' }).waitFor({ state: 'visible' });
             if (await page.locator('.app-frame').count()) throw new Error(label + ': private workspace appeared before login.');
-            await page.getByLabel('نام کاربری').waitFor({ state: 'visible' });
+            await page.getByLabel('شماره موبایل یا نام کاربری').waitFor({ state: 'visible' });
             await page.getByLabel('گذرواژه', { exact: true }).waitFor({ state: 'visible' });
             if (await page.locator('#simorgh-signin-email').count()) throw new Error(label + ': email input must not appear.');
             await page.getByRole('button', { name: 'ساخت حساب و فضای کاری' }).click();
@@ -371,5 +375,11 @@ jobs:
           if [[ "$membership_status" != "401" ]]; then echo "Unauthenticated operational memberships must return 401 (received $membership_status)."; cat "$RUNNER_TEMP/medar-ops-memberships.json"; exit 1; fi
           cors_status="$(curl --silent --show-error --output "$RUNNER_TEMP/medar-ops-cors.json" --write-out '%{http_code}' --request POST --header 'Origin: https://untrusted-origin.invalid' --header 'Content-Type: application/json' --data '{"username":"ab","password":"x"}' "$worker_url/api/auth/login")"
           if [[ "$cors_status" != "403" ]]; then echo "Untrusted-origin operational mutation must return 403 (received $cors_status)."; cat "$RUNNER_TEMP/medar-ops-cors.json"; exit 1; fi
-          echo "Operational API authorization and cross-origin protections passed."
+          for native_origin in 'capacitor://localhost' 'https://localhost'; do
+            native_status="$(curl --silent --show-error --dump-header "$RUNNER_TEMP/medar-native-headers.txt" --output "$RUNNER_TEMP/medar-native-login.json" --write-out '%{http_code}' --request POST --header "Origin: $native_origin" --header 'Content-Type: application/json' --data '{"username":"native_smoke_user","password":"invalid-smoke-password"}' "$worker_url/api/auth/login")"
+            if [[ "$native_status" != "401" ]]; then echo "Native origin $native_origin should reach credential validation and return 401 (received $native_status)."; cat "$RUNNER_TEMP/medar-native-login.json"; exit 1; fi
+            grep -Fqi "Access-Control-Allow-Origin: $native_origin" "$RUNNER_TEMP/medar-native-headers.txt" || { echo "Missing allow-origin response for $native_origin"; cat "$RUNNER_TEMP/medar-native-headers.txt"; exit 1; }
+            grep -Fqi 'Access-Control-Allow-Credentials: true' "$RUNNER_TEMP/medar-native-headers.txt" || { echo "Missing credentialed CORS response for $native_origin"; cat "$RUNNER_TEMP/medar-native-headers.txt"; exit 1; }
+          done
+          echo "Operational API authorization, hostile-origin rejection, and native credentialed CORS protections passed."
 

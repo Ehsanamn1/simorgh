@@ -4,6 +4,14 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#101719" />
+    <script>
+      try {
+        var savedTheme = localStorage.getItem('simorgh-theme') === 'light' ? 'light' : 'dark';
+        document.documentElement.dataset.theme = savedTheme;
+        document.documentElement.style.colorScheme = savedTheme;
+        document.querySelector('meta[name="theme-color"]').content = savedTheme === 'light' ? '#F4F7F7' : '#101719';
+      } catch (e) { document.documentElement.dataset.theme = 'dark'; }
+    </script>
     <meta name="color-scheme" content="light dark" />
     <meta name="description" content="مدار — سامانه‌ی یکپارچه‌ی مدیریت مزرعه، سفارش، عملیات، مالی و ارسال." />
     <title>مدار | مدیریت یکپارچه مزرعه و عملیات</title>
@@ -28,6 +36,13 @@
       .boot-failure button{width:100%;min-height:44px;border:1px solid #82BDB1;border-radius:11px;background:#82BDB1;color:#071311;font:inherit;font-size:12px;font-weight:850;cursor:pointer}
       #app-boot-screen.has-error .boot-spinner,#app-boot-screen.has-error .boot-wait{display:none}
       #app-boot-screen.has-error .boot-failure{display:block}
+      html[data-theme="light"],html[data-theme="light"] body{background:#F4F7F7;color:#1B2B2C}
+      html[data-theme="light"] #app-boot-screen{background:radial-gradient(ellipse at 50% 20%,rgba(38,120,106,.09),transparent 42%),#F4F7F7}
+      html[data-theme="light"] .boot-card{border-color:#D6E2E0;background:#fff;box-shadow:0 24px 80px rgba(20,48,46,.12)}
+      html[data-theme="light"] .boot-brand-sub{color:#26786A}
+      html[data-theme="light"] .boot-spinner{border-color:#D6E2E0;border-top-color:#26786A}
+      html[data-theme="light"] .boot-wait,html[data-theme="light"] .boot-failure p{color:#52686B}
+      html[data-theme="light"] .boot-failure button{border-color:#26786A;background:#26786A;color:#fff}
       @keyframes boot-spin{to{transform:rotate(360deg)}}
       @media(prefers-reduced-motion:reduce){.boot-spinner{animation:none}#app-boot-screen{transition:none}}
     </style>

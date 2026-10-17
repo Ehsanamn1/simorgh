@@ -1,19 +1,19 @@
 import type * as React from 'react';
-import { Capacitor } from '@capacitor/core';
 import { Geolocation } from '@capacitor/geolocation';
-import { StatusBar, Style } from '@capacitor/status-bar';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import {
   Activity, AlertTriangle, ArrowLeft, ArrowUpLeft, Boxes, Building2, CalendarDays, CheckCircle2,
   ChevronDown, CircleHelp, ClipboardCheck, CreditCard, Factory, FileCheck2, FileText, LayoutDashboard,
-  LogOut, MapPin, Menu, Moon, Package, Plus, RefreshCw, Search, Settings2, ShieldCheck, Sun, Target, Truck, Users, Warehouse, X, Zap,
+  LockKeyhole, LogOut, MapPin, Menu, Moon, Package, Plus, RefreshCw, Search, Settings2, ShieldCheck, Sun, Target, Truck, Users, Warehouse, X, Zap,
 } from 'lucide-react';
 import { useAuth } from './lib/AuthContext';
+import { useAppTheme } from './lib/ThemeContext';
 import { dataApi } from './lib/dataClient';
 import { api, isApiConfigured } from './lib/apiClient';
 import { pageSectionLabel } from './lib/pageSections';
 import { goalProgressPercent, isGoalOverdue } from './lib/goals';
+import { evaluateSetupMilestones, summarizeSetupMilestones } from './lib/achievements';
 import { OperationsWorkspacePage } from './OperationsPages';
 import { MedarLogo as Logo } from './MedarLogo';
 import type { AppRole, Membership, PageKey, Row } from './lib/types';
@@ -121,24 +121,7 @@ function AppShell() {
       setPasswordBusy(false);
     }
   }
-  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
-    try { return window.localStorage.getItem('simorgh-theme') === 'light' ? 'light' : 'dark'; }
-    catch { return 'dark'; }
-  });
-  useEffect(() => {
-    document.documentElement.dataset.theme = theme;
-    document.documentElement.style.colorScheme = theme;
-    const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
-    if (meta) meta.content = theme === 'dark' ? '#101719' : '#F4F7F7';
-    if (Capacitor.isNativePlatform()) {
-      void StatusBar.setStyle({ style: theme === 'dark' ? Style.Light : Style.Dark }).catch(() => {});
-      void StatusBar.setOverlaysWebView({ overlay: false }).catch(() => {});
-      if (Capacitor.getPlatform() === 'android') {
-        void StatusBar.setBackgroundColor({ color: theme === 'dark' ? '#101719' : '#F4F7F7' }).catch(() => {});
-      }
-    }
-    try { window.localStorage.setItem('simorgh-theme', theme); } catch { /* Private browsing may disable storage. */ }
-  }, [theme]);
+  const { theme, setTheme } = useAppTheme();
   const membership = memberships.find(m => m.id === membershipId) ?? memberships[0];
   const role = membership?.role;
   useEffect(() => { if (membership && membershipId !== membership.id) setMembershipId(membership.id); }, [membership?.id, membershipId]);
@@ -352,6 +335,15 @@ function Dashboard({ membership }: { membership: Membership }) {
   alerts.sort((a,b) => a.rank - b.rank);
   const visibleAlerts = alerts.slice(0,12);
   const actionCount = counts.lateOrders + counts.overdueTasks + counts.reviewTasks + counts.incidents + counts.invoices + counts.failedShipments + counts.expiringLicenses + counts.pendingRequests;
+  const setupMilestones = evaluateSetupMilestones({
+    customers: counts.customers,
+    suppliers: counts.suppliers,
+    orders: counts.orders,
+    capacity: counts.capacity,
+    goals: counts.goals,
+  });
+  const setupSummary = summarizeSetupMilestones(setupMilestones);
+  const setupMilestoneIcons = { customers: Users, suppliers: Factory, orders: FileText, capacity: Warehouse, goals: Target };
 
   return <>
     <PageHeading eyebrow="مدیریت عملیات" title="مرکز فرمان شبکه" description="نمای عملیاتی بر مبنای رکوردهای واقعی؛ هشدارهای برجسته به محل پیگیری متصل هستند." action={<Button variant="soft" onClick={() => void load()} disabled={loading}><Activity size={15}/> {loading ? 'در حال تازه‌سازی…' : 'تازه‌سازی داده‌ها'}</Button>}/>
@@ -375,6 +367,37 @@ function Dashboard({ membership }: { membership: Membership }) {
       </div>
     </section>
     {counts.orders === 0 && counts.customers === 0 && counts.suppliers === 0 && <div className="tower-onboarding"><ShieldCheck size={18}/><div><b>داده‌ی عملیاتی هنوز ثبت نشده</b><p>برای شروع، محصولات، تأمین‌کنندگان و مشتریان واقعی را ثبت کن. سامانه تا آن زمان عدد ساختگی نمایش نمی‌دهد.</p></div><div className="tower-onboarding-links"><Link to="/app/products">تعریف محصول</Link><Link to="/app/suppliers">ثبت تأمین‌کننده</Link><Link to="/app/customers">ثبت مشتری</Link></div></div>}
+    <section className="panel tower-achievements" aria-labelledby="tower-achievements-title">
+      <div className="panel-heading">
+        <div><span className="section-number">۰۳</span><div><h3 id="tower-achievements-title">نشان‌های پیشرفت مجموعه</h3><p>هر نشان از روی رکورد واقعی این فضای کاری باز می‌شود؛ امتیاز نمایشی یا پاداش مالی نیست.</p></div></div>
+        <span className="tower-achievement-phase">{loading ? 'در حال بررسی' : setupSummary.phase}</span>
+      </div>
+      <div className="tower-achievement-summary">
+        <div className="tower-achievement-summary-main">
+          <div className="tower-achievement-count"><b>{loading ? '—' : numberFa(String(setupSummary.achieved))}</b><span>از {numberFa(String(setupSummary.total))} نشان</span></div>
+          <div className="tower-achievement-meter" role="progressbar" aria-label="پیشرفت راه‌اندازی مجموعه" aria-valuemin={0} aria-valuemax={100} aria-valuenow={loading ? 0 : setupSummary.percentage} aria-valuetext={loading ? 'در حال دریافت داده‌ها' : numberFa(String(setupSummary.percentage)) + ' درصد'}>
+            <span style={{ width: (loading ? 0 : setupSummary.percentage) + '%' }} />
+          </div>
+          <small>{loading ? 'در حال دریافت داده‌های مجموعه…' : 'پیشرفت راه‌اندازی پایه: ' + numberFa(String(setupSummary.percentage)) + '٪'}</small>
+        </div>
+        <span className="tower-achievement-emblem" aria-hidden="true"><Zap size={20}/></span>
+      </div>
+      <div className="tower-achievement-grid">
+        {setupMilestones.map(milestone => {
+          const MilestoneIcon = setupMilestoneIcons[milestone.id];
+          return <Link
+            key={milestone.id}
+            to={milestone.route}
+            className={'tower-achievement-card ' + (milestone.achieved ? 'is-earned' : 'is-pending')}
+            aria-label={milestone.title + (loading ? '، در حال بررسی' : milestone.achieved ? '، نشان باز شده' : '، گام پیشنهادی بعدی')}
+          >
+            <span className="tower-achievement-icon"><MilestoneIcon size={18}/></span>
+            <span className="tower-achievement-copy"><b>{milestone.title}</b><small>{milestone.description}</small><em>{loading ? 'در حال بررسی' : milestone.achieved ? 'نشان باز شد' : 'گام بعدی'}</em></span>
+            <span className="tower-achievement-state">{loading ? <span className="spinner small"/> : milestone.achieved ? <CheckCircle2 size={16}/> : <span className="tower-achievement-lock" aria-hidden="true"><LockKeyhole size={15}/></span>}</span>
+          </Link>;
+        })}
+      </div>
+    </section>
     <section className="panel tower-goals-summary">
       <div className="panel-heading"><div><span className="section-number">۰۲</span><div><h3>اهداف و مسیر اجرا</h3><p>شاخص فعلی، مقدار هدف، موعد و مسئولیت؛ از دفتر اهداف مجموعه</p></div></div><Link className="tower-panel-link" to="/app/goals">مدیریت اهداف <ArrowLeft size={14}/></Link></div>
       {loading ? <div className="panel-loading"><span className="spinner small"/></div> : signals.goals.length ? <div className="tower-goal-list">{signals.goals.map(goal => {
