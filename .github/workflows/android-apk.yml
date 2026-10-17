@@ -53,19 +53,18 @@ jobs:
         run: npm run build
         env:
           VITE_API_BASE_URL: ${{ vars.MEDAR_API_BASE_URL || 'https://medar-api.dengxiao445.workers.dev' }}
-          VITE_ENABLE_AUTH_UI: 'false'
+          VITE_ENABLE_AUTH_UI: 'true'
 
-      - name: Verify the mobile bundle has the public demo, mobile navigation, and live API endpoint
+      - name: Verify the mobile bundle has operational auth and the live API endpoint
         shell: bash
         run: |
           test -f dist/index.html
-          grep -Rqs --include='*.js' 'demo-workspace' dist/assets
-          grep -Rqs --include='*.js' 'دموی قابل ارائه' dist/assets
-          grep -Rqs --include='*.js' 'demo-mobile-bottom-nav' dist/assets
-          grep -Rqs --include='*.js' 'demo-quick-access' dist/assets
+          grep -Rqs --include='*.js' 'simorgh-signin-layer' dist/assets
+          grep -Rqs --include='*.js' 'ورود به مدار' dist/assets
+          grep -Rqs --include='*.js' 'ساخت حساب و فضای کاری' dist/assets
           grep -Rqs --include='*.js' 'medar-api.dengxiao445.workers.dev' dist/assets
-          grep -Rqs --include='*.css' 'demo-mobile-bottom-nav' dist/assets
-          echo "Android bundle includes public demo mode, four-item mobile navigation, quick actions, and Worker API URL."
+          grep -Rqs --include='*.css' 'simorgh-signin-layer' dist/assets
+          echo "Android bundle includes operational sign-in, owner onboarding, and Worker API URL."
 
 
       - name: Generate Android native project
