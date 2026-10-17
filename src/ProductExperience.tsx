@@ -7,7 +7,6 @@ import { useAuth } from './lib/AuthContext';
 import { api } from './lib/apiClient';
 import { normalizeIranPhone } from './lib/phone';
 import { MedarLogo } from './MedarLogo';
-import type { AppRole } from './lib/types';
 
 type NavigationEntry = { key: string; label: string };
 type AuthMode = 'signin' | 'signup';
