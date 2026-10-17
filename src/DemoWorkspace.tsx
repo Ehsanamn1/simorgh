@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  Activity, ArrowDownLeft, ArrowLeft, ArrowUpLeft, Bell, Boxes, Building2, CalendarDays,
-  CheckCircle2, ChevronLeft, CircleAlert, ClipboardCheck, Clock3, CreditCard, Factory,
-  FileText, Gauge, LayoutDashboard, ListChecks, MapPin, Menu, Package, RefreshCw,
+  Activity, ArrowLeft, ArrowUpLeft, Building2, CalendarDays,
+  ChevronLeft, CircleAlert, ClipboardCheck, Clock3, CreditCard, Factory,
+  FileText, Gauge, LayoutDashboard, ListChecks, MapPin, Menu, RefreshCw,
   Search, ShieldCheck, Sparkles, Target, Truck, Users, Warehouse, X,
   type LucideIcon,
 } from 'lucide-react';
@@ -122,6 +122,7 @@ export default function DemoWorkspace() {
   const [health, setHealth] = useState<'checking' | 'online' | 'offline'>('checking');
   const [lastChecked, setLastChecked] = useState<Date | null>(null);
   const page = navItems.find((item) => item.key === activePage) ?? navItems[0];
+  const PageIcon = page.icon;
 
   const checkHealth = useCallback(async () => {
     setHealth('checking');
@@ -251,11 +252,11 @@ export default function DemoWorkspace() {
                 <span className="demo-read-only-badge"><ShieldCheck size={15}/> فقط‌خواندنی</span>
               </div>
               <div className="demo-module-summary">
-                <div><span className="demo-module-summary-icon"><page.icon size={21}/></span><div><small>بخش انتخاب‌شده</small><b>{page.label}</b><span>نمونه رابط کاربری برای بررسی توسط تیم شما</span></div></div>
+                <div><span className="demo-module-summary-icon"><PageIcon size={21}/></span><div><small>بخش انتخاب‌شده</small><b>{page.label}</b><span>نمونه رابط کاربری برای بررسی توسط تیم شما</span></div></div>
                 <div className="demo-module-summary-side"><span>رکورد قابل مشاهده</span><b>{visibleRows.length.toLocaleString('fa-IR')}</b></div>
               </div>
               <section className="demo-panel demo-orders-panel">
-                <div className="demo-panel-heading"><div><span className="demo-panel-mark"><page.icon size={17}/></span><div><h2>فهرست {page.label}</h2><p>اطلاعات نمونه؛ هیچ رکوردی از شرکت شما در این جدول نیست</p></div></div><span className="demo-sample-chip">داده نمونه</span></div>
+                <div className="demo-panel-heading"><div><span className="demo-panel-mark"><PageIcon size={17}/></span><div><h2>فهرست {page.label}</h2><p>اطلاعات نمونه؛ هیچ رکوردی از شرکت شما در این جدول نیست</p></div></div><span className="demo-sample-chip">داده نمونه</span></div>
                 <DemoTable rows={visibleRows} empty={search ? 'با این عبارت در داده‌های نمونه نتیجه‌ای پیدا نشد.' : 'داده نمونه‌ای برای این بخش تعریف نشده است.'}/>
               </section>
               <div className="demo-info-panel"><ShieldCheck size={18}/><div><b>این بخش در نسخه عملیاتی چگونه کار می‌کند؟</b><p>پس از ورود معتبر و انتخاب فضای کاری، فقط اطلاعات مجاز همان مجموعه از API و پایگاه‌داده خوانده می‌شود. عملیات تغییر اطلاعات تا فعال‌شدن نسخه واقعی در این دموی معرفی خاموش است.</p></div></div>
