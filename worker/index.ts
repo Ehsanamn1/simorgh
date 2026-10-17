@@ -726,7 +726,7 @@ async function loadMembershipScopes(c:Ctx,userId:string):Promise<MembershipScope
  );
  return rows as MembershipScope[];
 }
-function buildMembershipScopeSql(table:string,columns:Set<string>,memberships:MembershipScope[],userId:string,params:unknown[],startAt=1):string {
+export function buildMembershipScopeSql(table:string,columns:Set<string>,memberships:MembershipScope[],userId:string,params:unknown[],startAt=1):string {
  if(!columns.has('company_id')||!memberships.length)return 'false';
  const add=(value:unknown)=>{params.push(value);return '$'+(startAt+params.length-1);};
  const branches=memberships.map(m=>{
@@ -772,7 +772,7 @@ function buildMembershipScopeSql(table:string,columns:Set<string>,memberships:Me
  });
  return '('+branches.join(' or ')+')';
 }
-function sanitizeExternalRows(table:string,rows:Record<string,unknown>[],memberships:MembershipScope[]):Record<string,unknown>[] {
+export function sanitizeExternalRows(table:string,rows:Record<string,unknown>[],memberships:MembershipScope[]):Record<string,unknown>[] {
  const redact=(input:Record<string,unknown>):Record<string,unknown>=>{
   const result={...input};
   const company=String(input.company_id??'');
