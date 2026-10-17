@@ -149,7 +149,7 @@ export default function ProductExperience() {
     event.preventDefault();
     const cleanUsername = username.trim();
     const normalizedPhone = mode === 'signup' ? normalizeIranPhone(phone) : '';
-    if (cleanUsername.length < 3 || cleanUsername.length > 32 || !/^[\\p{L}\\p{N}._-]+$/u.test(cleanUsername)) {
+    if (cleanUsername.length < 3 || cleanUsername.length > 32 || !/^[\p{L}\p{N}._-]+$/u.test(cleanUsername)) {
       setError('نام کاربری باید ۳ تا ۳۲ نویسه و شامل حروف، عدد، نقطه، خط تیره یا زیرخط باشد.');
       return;
     }
