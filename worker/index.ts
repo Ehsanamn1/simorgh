@@ -31,39 +31,12 @@ function sqlFor(c: Ctx) {
   return neon(c.env.DATABASE_URL);
 }
 
-function asciiDigits(input: string): string {
-  return input
-    .replace(/[۰-۹]/g, (digit) => String(digit.charCodeAt(0) - 0x06f0))
-    .replace(/[٠-٩]/g, (digit) => String(digit.charCodeAt(0) - 0x0660));
-}
-
-export function normalizeIranPhone(input: unknown): string | null {
-  if (typeof input !== 'string') return null;
-  const value = asciiDigits(input.trim()).replace(/[\s()-]/g, '');
-  if (/^09\d{9}$/.test(value)) return '+98' + value.slice(1);
-  if (/^9\d{9}$/.test(value)) return '+98' + value;
-  if (/^\+989\d{9}$/.test(value)) return value;
-  if (/^00989\d{9}$/.test(value)) return '+' + value.slice(2);
-  return null;
-}
-
 export function normalizeUsername(input: unknown): string | null {
   if (typeof input !== 'string') return null;
   const value = input.normalize('NFKC').trim().toLocaleLowerCase('en-US');
   if (value.length < 3 || value.length > 32 || !/^[\p{L}\p{N}._-]+$/u.test(value)) return null;
   if (/^[._-]|[._-]$/.test(value)) return null;
   return value;
-}
-
-export type LoginIdentifier =
-  | { kind: 'phone'; value: string }
-  | { kind: 'username'; value: string };
-
-export function normalizeLoginIdentifier(input: unknown): LoginIdentifier | null {
-  const phone = normalizeIranPhone(input);
-  if (phone) return { kind: 'phone', value: phone };
-  const username = normalizeUsername(input);
-  return username ? { kind: 'username', value: username } : null;
 }
 
 function bytesToBase64(bytes: Uint8Array): string {
