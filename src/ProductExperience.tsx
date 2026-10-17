@@ -40,7 +40,7 @@ function readAllowedLinks(): NavigationEntry[] {
   });
 }
 
-/** Private operational app entry. Public self-registration is intentionally disabled. */
+/** Secure operational sign-in. Self-registration creates an isolated owner workspace; joining an existing workspace requires an invitation. */
 export default function ProductExperience() {
   const { user, loading, memberships, refreshSession, error: sessionError } = useAuth();
   const location = useLocation();
@@ -64,8 +64,9 @@ export default function ProductExperience() {
   const [notice, setNotice] = useState('');
   const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
   const protectedRoute = location.pathname.includes('/app');
-  // Enable secure sign-in by default in web, preview and native builds; only an explicit false disables it.
-  // Public self-registration remains disabled independently of this UI flag.
+  // Protected operational routes are only active in builds that explicitly opt in.
+  // The Pages showcase remains read-only; the same-origin Worker build enables this guarded UI.
+  // Creating a workspace grants owner access only to that new tenant; joining an existing tenant requires a server-issued invitation.
   const authUiEnabled = import.meta.env.VITE_ENABLE_AUTH_UI === 'true';
   const signInOpen = authUiEnabled && (((location.hash === '#signin' || location.hash === '#signup') && !user && !loading) || (protectedRoute && !user && !loading));
   const normalizedPath = location.pathname.startsWith(basePath) ? location.pathname.slice(basePath.length) || '/' : location.pathname;
