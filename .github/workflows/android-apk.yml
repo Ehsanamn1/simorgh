@@ -42,29 +42,29 @@ jobs:
       - name: Require a Worker API URL before publishing mobile artifacts
         if: github.event_name != 'pull_request'
         env:
-          MEDAR_API_BASE_URL: ${{ vars.MEDAR_API_BASE_URL || 'https://medar-api.dengxiao445.workers.dev' }}
+          MEDAR_API_BASE_URL: ${{ vars.MEDAR_OPS_API_BASE_URL || 'https://medar-ops.dengxiao445.workers.dev' }}
         run: |
           if [[ -z "$MEDAR_API_BASE_URL" || "$MEDAR_API_BASE_URL" != https://* ]]; then
-            echo "Set the repository variable MEDAR_API_BASE_URL to the deployed Cloudflare Worker URL before building a publishable mobile app."
+            echo "Set MEDAR_OPS_API_BASE_URL to the authenticated medar-ops Worker before building an operational mobile app."
             exit 1
           fi
 
       - name: Build application assets
         run: npm run build
         env:
-          VITE_API_BASE_URL: ${{ vars.MEDAR_API_BASE_URL || 'https://medar-api.dengxiao445.workers.dev' }}
-          VITE_ENABLE_AUTH_UI: 'false'
+          VITE_API_BASE_URL: ${{ vars.MEDAR_OPS_API_BASE_URL || 'https://medar-ops.dengxiao445.workers.dev' }}
+          VITE_ENABLE_AUTH_UI: 'true'
 
       - name: Verify the mobile bundle has the public demo and the live API endpoint
         shell: bash
         run: |
           test -f dist/index.html
-          grep -Rqs --include='*.js' 'demo-workspace' dist/assets
-          grep -Rqs --include='*.js' 'دموی قابل ارائه' dist/assets
-          grep -Rqs --include='*.js' 'medar-api.dengxiao445.workers.dev' dist/assets
-          grep -Rqs --include='*.css' 'demo-workspace' dist/assets
-          grep -Rqs --include='*.css' 'demo-preview-notice' dist/assets
-          echo "Android bundle includes the public read-only demo and Worker API URL."
+          grep -Rqs --include='*.js' 'simorgh-signin-layer' dist/assets
+          grep -Rqs --include='*.js' 'ورود به مدار' dist/assets
+          grep -Rqs --include='*.js' 'ساخت حساب و فضای کاری' dist/assets
+          grep -Rqs --include='*.js' 'medar-ops.dengxiao445.workers.dev' dist/assets
+          grep -Rqs --include='*.css' 'simorgh-signin-layer' dist/assets
+          echo "Android bundle includes the authenticated operational workspace, phone/username sign-in, and medar-ops API URL."
 
 
       - name: Generate Android native project
