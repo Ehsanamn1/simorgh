@@ -29,8 +29,7 @@
     "react-router-dom": "^7.9.4",
     "recharts": "^2.15.4",
     "@neondatabase/serverless": "^1.0.2",
-    "hono": "^4.9.7",
-    "@supabase/supabase-js": "^2.75.0"
+    "hono": "^4.9.7"
   },
   "devDependencies": {
     "@capacitor/cli": "^8.5.0",
