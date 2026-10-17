@@ -1,5 +1,11 @@
 import { expect, test } from '@playwright/test';
 
+test.beforeEach(async ({ page }) => {
+  await page.route('**/api/auth/me', route => route.fulfill({
+    status: 200, contentType: 'application/json', body: JSON.stringify({ user: null, memberships: [] }),
+  }));
+});
+
 test('the default route is a secure Persian entry, not a clickable dashboard preview', async ({ page }, testInfo) => {
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
@@ -30,7 +36,8 @@ test('secure entry remains usable on desktop and mobile with no horizontal overf
   await expect(page.locator('.simorgh-signin-layer')).toBeVisible();
   await expect(page.locator('.ops-live-app, .ops-live-bottom-nav, .app-frame')).toHaveCount(0);
   await expect(page.getByRole('heading', { name: 'ورود به مدار' })).toBeVisible();
-  await expect(page.locator('#simorgh-signin-email')).toBeVisible();
+  await expect(page.getByLabel('نام کاربری')).toBeVisible();
+  await expect(page.locator('#simorgh-signin-email')).toHaveCount(0);
   await expect(page.locator('#simorgh-signin-password')).toBeVisible();
 
   const dimensions = await page.evaluate(() => ({ viewport: innerWidth, document: document.documentElement.scrollWidth, body: document.body.scrollWidth }));

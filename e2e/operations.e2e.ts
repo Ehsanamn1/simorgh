@@ -1,83 +1,42 @@
 import { expect, test, type Page } from '@playwright/test';
 
-const projectUrl = 'https://aoxerjimfiwusidaparx.supabase.co';
-const userId = '00000000-0000-4000-8000-000000000011';
 const companyId = '00000000-0000-4000-8000-000000000022';
-const supplierId = '00000000-0000-4000-8000-000000000033';
-const customerId = '00000000-0000-4000-8000-000000000055';
 
 async function installIsolatedSession(page: Page, role: 'owner' | 'supplier' | 'driver' | 'customer' | 'unprovisioned') {
-  const now = Math.floor(Date.now() / 1000);
-  const expiresAt = now + 60 * 60 * 24 * 365;
-  const email = role + '@example.test';
+  const userId = '00000000-0000-4000-8000-000000000011';
+  const companyId = '00000000-0000-4000-8000-000000000022';
+  const supplierId = '00000000-0000-4000-8000-000000000033';
+  const customerId = '00000000-0000-4000-8000-000000000055';
   const fullName = role === 'owner' ? 'مالک آزمایشی مدار' : role === 'supplier' ? 'تأمین‌کننده آزمایشی مدار' : role === 'driver' ? 'راننده آزمایشی مدار' : role === 'unprovisioned' ? 'کاربر بدون عضویت مدار' : 'مشتری آزمایشی مدار';
-  const encodeBase64Url = (value: Record<string, unknown>) => Buffer.from(JSON.stringify(value)).toString('base64url');
-  const accessToken = [
-    encodeBase64Url({ alg: 'HS256', typ: 'JWT' }),
-    encodeBase64Url({
-      aud: 'authenticated', role: 'authenticated', sub: userId,
-      iat: now, exp: expiresAt, email, iss: projectUrl + '/auth/v1',
-      app_metadata: { provider: 'email', providers: ['email'] },
-      user_metadata: { full_name: fullName },
-    }),
-    Buffer.from('isolated-e2e-signature').toString('base64url'),
-  ].join('.');
-  await page.addInitScript(({ storageKey, session }) => {
-    window.localStorage.setItem(storageKey, JSON.stringify(session));
-  }, {
-    storageKey: 'sb-aoxerjimfiwusidaparx-auth-token',
-    session: {
-      access_token: accessToken,
-      token_type: 'bearer',
-      expires_in: 60 * 60 * 24 * 365,
-      expires_at: expiresAt,
-      refresh_token: 'simorgh-isolated-e2e-refresh-token',
-      user: {
-        id: userId, aud: 'authenticated', role: 'authenticated',
-        email, email_confirmed_at: new Date().toISOString(),
-        app_metadata: { provider: 'email', providers: ['email'] },
-        user_metadata: { full_name: fullName },
-        created_at: new Date().toISOString(),
-      },
-    },
+  const username = role + '_test';
+  const user = { id: userId, username, phone: '+989120000011', full_name: fullName };
+  const memberships = role === 'unprovisioned' ? [] : [{
+    id: '00000000-0000-4000-8000-000000000044',
+    company_id: companyId, user_id: userId, role,
+    customer_id: role === 'customer' ? customerId : null,
+    supplier_id: role === 'supplier' ? supplierId : null,
+    active: true,
+    company: { name: 'شرکت آزمایشی مدار' },
+  }];
+
+  // The application session and workspace reads are simulated at the HTTP boundary.
+  // Tests never write these identities or records to the live database.
+  await page.route('**/api/auth/me', route => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({ user, memberships }),
+  }));
+  await page.route('**/api/workspace/memberships', route => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({ memberships }),
+  }));
+
+  // All business-data reads are isolated at the Worker API boundary; tests never write to a live database.
+  await page.route('**/api/data/**', async route => {
+    const table = new URL(route.request().url()).pathname.split('/').pop() || '';
+    const payload = { data: [], count: 0, error: null, table };
+    await route.fulfill({ status: 200, contentType: 'application/json', headers: { 'cache-control': 'no-store' }, body: JSON.stringify(payload) });
   });
 
-  // Browser-only responses: no test rows are written to the production database.
-  await page.route(projectUrl + '/rest/v1/**', async route => {
-    const request = route.request();
-    const url = new URL(request.url());
-    const table = url.pathname.split('/').pop() || '';
-    const headers: Record<string, string> = {
-      'access-control-allow-origin': '*',
-      'access-control-allow-headers': '*',
-      'access-control-allow-methods': 'GET,HEAD,OPTIONS,POST,PATCH,DELETE,PUT',
-      'content-type': 'application/json',
-      'cache-control': 'no-store',
-    };
-    if (request.method() === 'OPTIONS') {
-      await route.fulfill({ status: 204, headers, body: '' });
-      return;
-    }
-    if (table === 'memberships') {
-      const rows = role === 'unprovisioned' ? [] : [{
-        id: '00000000-0000-4000-8000-000000000044',
-        company_id: companyId, user_id: userId, role,
-        customer_id: role === 'customer' ? customerId : null, supplier_id: role === 'supplier' ? supplierId : null,
-        active: true, companies: { name: 'شرکت آزمایشی مدار' },
-      }];
-      await route.fulfill({
-        status: 200,
-        headers: { ...headers, 'content-range': role === 'unprovisioned' ? '*/0' : '0-0/1' },
-        body: JSON.stringify(rows),
-      });
-      return;
-    }
-    if (request.method() === 'HEAD') {
-      await route.fulfill({ status: 200, headers: { ...headers, 'content-range': '*/0' }, body: '' });
-      return;
-    }
-    await route.fulfill({ status: 200, headers: { ...headers, 'content-range': '*/0' }, body: '[]' });
-  });
 }
 
 test('manager workspace retains operations and captures a real rendered control-tower screen', async ({ page }, testInfo) => {
@@ -117,27 +76,12 @@ test('manager workspace retains operations and captures a real rendered control-
 
 test('manager map shows every saved farm coordinate and allows marker selection', async ({ page }) => {
   await installIsolatedSession(page, 'owner');
-  const headers = {
-    'access-control-allow-origin': '*',
-    'access-control-allow-headers': '*',
-    'access-control-allow-methods': 'GET,HEAD,OPTIONS,POST,PATCH,DELETE,PUT',
-    'content-type': 'application/json',
-    'cache-control': 'no-store',
-  };
   const sites = [
     { id: '00000000-0000-4000-8000-000000000101', name: 'مزرعه تهران', site_type: 'crop', city: 'تهران', province: 'تهران', latitude: 35.6892, longitude: 51.3890, license_expires_on: null, active: true },
     { id: '00000000-0000-4000-8000-000000000102', name: 'واحد کرمان', site_type: 'livestock', city: 'کرمان', province: 'کرمان', latitude: 30.2839, longitude: 57.0834, license_expires_on: null, active: true },
   ];
-  await page.route(projectUrl + '/rest/v1/farm_sites*', async route => {
-    if (route.request().method() === 'OPTIONS') {
-      await route.fulfill({ status: 204, headers, body: '' });
-      return;
-    }
-    if (route.request().method() === 'HEAD') {
-      await route.fulfill({ status: 200, headers: { ...headers, 'content-range': '*/2' }, body: '' });
-      return;
-    }
-    await route.fulfill({ status: 200, headers: { ...headers, 'content-range': '0-1/2' }, body: JSON.stringify(sites) });
+  await page.route('**/api/data/farm_sites', async route => {
+    await route.fulfill({ status: 200, contentType: 'application/json', headers: { 'cache-control': 'no-store' }, body: JSON.stringify({ data: sites, count: sites.length, error: null }) });
   });
 
   await page.goto('/simorgh/app/command', { waitUntil: 'domcontentloaded' });
@@ -213,27 +157,18 @@ test('generic farm types and daily rejected quantities are validated before writ
   }
   await page.locator('.ops-modal').getByRole('button', { name: 'بستن' }).click();
 
-  await page.route(projectUrl + '/rest/v1/production_batches*', async route => {
-    const headers = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': 'GET,HEAD,OPTIONS,POST,PATCH,DELETE,PUT', 'content-type': 'application/json', 'cache-control': 'no-store' };
-    if (route.request().method() === 'OPTIONS') {
-      await route.fulfill({ status: 204, headers, body: '' });
-      return;
-    }
-    if (route.request().method() === 'HEAD') {
-      await route.fulfill({ status: 200, headers: { ...headers, 'content-range': '*/1' }, body: '' });
-      return;
-    }
+  await page.route('**/api/data/production_batches', async route => {
     await route.fulfill({
-      status: 200,
-      headers: { ...headers, 'content-range': '0-0/1' },
-      body: JSON.stringify([{
+      status: 200, contentType: 'application/json', headers: { 'cache-control': 'no-store' },
+      body: JSON.stringify({ data: [{
         id: '00000000-0000-4000-8000-000000000066', company_id: companyId,
         batch_code: 'TEST-BATCH', status: 'planned', production_kind: 'crop', unit: 'کیلوگرم',
         farm_site_id: null, supplier_id: null, planned_quantity: 10, produced_quantity: 0,
         rejected_quantity: 0, quality_status: 'not_inspected',
-      }]),
+      }], count: 1, error: null }),
     });
   });
+
   await page.goto('/simorgh/app/daily-production', { waitUntil: 'domcontentloaded' });
   await page.getByRole('button', { name: 'ثبت رکورد', exact: true }).click();
   await expect(page.locator('#ops-rejected_quantity')).toBeVisible();
@@ -245,36 +180,51 @@ test('generic farm types and daily rejected quantities are validated before writ
   await expect(page.locator('.ops-modal')).toBeVisible();
 });
 
-test('signed-in accounts without membership wait for lookup and stay on the access screen during retries', async ({ page }) => {
+test('an existing account must join a workspace using an invitation code', async ({ page }) => {
   await installIsolatedSession(page, 'unprovisioned');
-  let membershipRequests = 0;
-  await page.route(projectUrl + '/rest/v1/memberships*', async route => {
-    const headers = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': 'GET,HEAD,OPTIONS,POST,PATCH,DELETE,PUT', 'content-type': 'application/json', 'cache-control': 'no-store' };
-    if (route.request().method() === 'OPTIONS') {
-      await route.fulfill({ status: 204, headers, body: '' });
-      return;
-    }
-    if (route.request().method() === 'HEAD') {
-      await route.fulfill({ status: 200, headers: { ...headers, 'content-range': '*/0' }, body: '' });
-      return;
-    }
-    membershipRequests += 1;
-    await new Promise(resolve => setTimeout(resolve, 450));
-    await route.fulfill({ status: 200, headers: { ...headers, 'content-range': '*/0' }, body: '[]' });
+  const inviteeUserId = '00000000-0000-4000-8000-000000000011';
+  let joined = false;
+  const user = {
+    id: inviteeUserId,
+    username: 'unprovisioned_test',
+    phone: '+989120000011',
+    full_name: 'کاربر بدون عضویت مدار',
+  };
+  const joinedMembership = {
+    id: '00000000-0000-4000-8000-000000000077',
+    company_id: companyId,
+    user_id: inviteeUserId,
+    role: 'staff',
+    customer_id: null,
+    supplier_id: null,
+    active: true,
+    company: { name: 'شرکت دعوت آزمایشی' },
+  };
+  await page.route('**/api/auth/me', route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ user, memberships: joined ? [joinedMembership] : [] }),
+  }));
+  await page.route('**/api/workspace/join', async route => {
+    const payload = route.request().postDataJSON() as Record<string, unknown>;
+    expect(payload.inviteCode).toBe('a'.repeat(64));
+    joined = true;
+    await route.fulfill({
+      status: 201,
+      contentType: 'application/json',
+      body: JSON.stringify({ membership: joinedMembership, memberships: [joinedMembership] }),
+    });
   });
 
   await page.goto('/simorgh/app/command', { waitUntil: 'domcontentloaded' });
-  await page.waitForRequest(request => request.url().includes('/rest/v1/memberships'));
-  await expect(page.locator('.waiting-screen')).toHaveCount(0);
-  await expect(page.locator('.waiting-screen')).toBeVisible({ timeout: 8000 });
-  await expect(page.getByRole('heading', { name: 'حساب شما هنوز به مجموعه‌ای متصل نیست.' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'بررسی دوباره دسترسی' })).toBeVisible();
-
-  const beforeRetry = membershipRequests;
-  await page.getByRole('button', { name: 'بررسی دوباره دسترسی' }).click();
-  await expect.poll(() => membershipRequests).toBeGreaterThan(beforeRetry);
-  await expect(page.locator('.waiting-screen')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'خروج از حساب' })).toBeVisible();
+  await expect(page.locator('.access-request-card')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'پیوستن به مجموعه' })).toBeVisible();
+  await expect(page.getByLabel('کد دعوت')).toBeVisible();
+  await page.getByLabel('کد دعوت').fill('a'.repeat(64));
+  await page.getByRole('button', { name: 'پیوستن به مجموعه' }).click();
+  await expect(page.locator('.app-frame')).toBeVisible();
+  expect(joined).toBe(true);
+  await expect(page.locator('.workspace-switch')).toContainText('شرکت دعوت آزمایشی');
 });
 
 test('supplier workspace keeps manager-only routes out of the allowed menu', async ({ page }, testInfo) => {

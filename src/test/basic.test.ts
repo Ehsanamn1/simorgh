@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { moneyFa, orderLabel, roleLabel } from '../lib/format';
 import { pageSectionLabel } from '../lib/pageSections';
+import { normalizeIranPhone } from '../lib/phone';
 
 describe('Simorgh formatting and role labels', () => {
   it('formats Iranian currency with Persian digits and unit', () => {
@@ -23,5 +24,17 @@ describe('Simorgh formatting and role labels', () => {
     expect(pageSectionLabel('audit_events')).toBe('تاریخچه‌ی ممیزی');
     expect(pageSectionLabel('company_goals')).toBe('اهداف مجموعه');
     expect(pageSectionLabel('فضای تازه')).toBe('فضای تازه');
+  });
+  it('normalizes Iranian mobile numbers to E.164 and rejects invalid values', () => {
+    expect(normalizeIranPhone('09121234567')).toBe('+989121234567');
+    expect(normalizeIranPhone('9121234567')).toBe('+989121234567');
+    expect(normalizeIranPhone('+989121234567')).toBe('+989121234567');
+    expect(normalizeIranPhone(' 0912 123 4567 ')).toBe('+989121234567');
+    expect(normalizeIranPhone('۰۹۱۲۱۲۳۴۵۶۷')).toBe('+989121234567');
+    expect(normalizeIranPhone('٠٩١٢١٢٣٤٥٦٧')).toBe('+989121234567');
+    expect(normalizeIranPhone('00989121234567')).toBe('+989121234567');
+    expect(normalizeIranPhone('02112345678')).toBe('');
+    expect(normalizeIranPhone('0912123456')).toBe('');
+    expect(normalizeIranPhone('')).toBe('');
   });
 });

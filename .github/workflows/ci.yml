@@ -34,12 +34,27 @@ jobs:
       - run: npm run test
       - name: Audit production dependencies
         run: npm audit --omit=dev
-      - name: Build the same base path used by GitHub Pages
+      - name: Build test bundle with auth UI enabled
         run: npm run build:pages
         env:
-          VITE_SUPABASE_URL: https://aoxerjimfiwusidaparx.supabase.co
-          VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_oTgVCJWw9BfK-kFUxTcaMQ_aeAUWXC5
           VITE_ENABLE_AUTH_UI: 'true'
+      - name: Install Chromium for responsive browser simulation
+        run: npx playwright install --with-deps chromium
+      - name: Run desktop, mobile, auth and operational browser checks
+        run: npm run test:e2e
+      - name: Upload browser reports and failure artifacts
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: medar-browser-test-results
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 14
+      - name: Build the Pages production bundle
+        run: npm run build:pages
+        env:
+          VITE_ENABLE_AUTH_UI: 'false'
       - name: Verify built assets use the GitHub Pages base path
         shell: bash
         run: |
@@ -53,16 +68,3 @@ jobs:
             cat dist/index.html
             exit 1
           fi
-      - name: Install Chromium for responsive browser simulation
-        run: npx playwright install --with-deps chromium
-      - name: Run desktop and mobile browser checks
-        run: npm run test:e2e
-      - name: Upload browser test report and failure artifacts
-        if: always()
-        uses: actions/upload-artifact@v5
-        with:
-          name: simorgh-browser-test-results
-          path: |
-            playwright-report/
-            test-results/
-          retention-days: 14

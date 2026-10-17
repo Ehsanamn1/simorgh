@@ -1,0 +1,9 @@
+{
+  "name": "medar-api",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "hono": "^4.9.7",
+    "@neondatabase/serverless": "^1.0.2"
+  }
+}

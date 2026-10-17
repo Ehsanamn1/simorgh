@@ -39,11 +39,20 @@ jobs:
       - name: Install JavaScript dependencies
         run: npm install
 
+      - name: Require a Worker API URL before publishing mobile artifacts
+        if: github.event_name != 'pull_request'
+        env:
+          MEDAR_API_BASE_URL: ${{ vars.MEDAR_API_BASE_URL }}
+        run: |
+          if [[ -z "$MEDAR_API_BASE_URL" || "$MEDAR_API_BASE_URL" != https://* ]]; then
+            echo "Set the repository variable MEDAR_API_BASE_URL to the deployed Cloudflare Worker URL before building a publishable mobile app."
+            exit 1
+          fi
+
       - name: Build application assets
         run: npm run build
         env:
-          VITE_SUPABASE_URL: https://aoxerjimfiwusidaparx.supabase.co
-          VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_oTgVCJWw9BfK-kFUxTcaMQ_aeAUWXC5
+          VITE_API_BASE_URL: ${{ vars.MEDAR_API_BASE_URL }}
 
       - name: Generate Android native project
         run: npx cap add android

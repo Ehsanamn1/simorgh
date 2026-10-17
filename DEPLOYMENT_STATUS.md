@@ -69,3 +69,8 @@ These tests verify the public role-screening interface. They are not a security 
 - Optional Cloudflare Pages workflow is retained in `.github/workflows/deploy.yml`; it requires Cloudflare credentials.
 - Do not put a Supabase secret/service-role key in a browser variable or commit a private key to Git.
 - Do not seed mock operational records into the real production database.
+
+
+## Cloudflare/Neon migration
+
+The migration branch contains a Cloudflare Worker API foundation and Neon Managed Auth configuration. Production cutover remains gated on Cloudflare secrets and the complete Neon application schema/data migration. GitHub Pages remains the active production surface until those gates pass.
