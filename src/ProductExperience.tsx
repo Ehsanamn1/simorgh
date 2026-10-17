@@ -111,7 +111,7 @@ export default function ProductExperience() {
   }, [user?.id, user?.full_name, user?.phone, memberships.length]);
 
   useEffect(() => {
-    const canCloseWithEscape: boolean = mode !== 'recovery';
+    const canCloseWithEscape = true;
     if (!signInOpen) return;
     const background = document.querySelector<HTMLElement>('.portal, .app-frame');
     const oldOverflow = document.body.style.overflow;
@@ -269,7 +269,7 @@ export default function ProductExperience() {
                <label htmlFor="simorgh-signin-username">نام کاربری</label><input id="simorgh-signin-username" className="auth-input" type="text" autoComplete="username" required minLength={3} maxLength={32} value={username} onChange={e => setUsername(e.target.value)} placeholder="نام کاربری" dir="ltr"/>
                <label htmlFor="simorgh-signin-password">گذرواژه</label>
                <div className="auth-password-wrap"><input id="simorgh-signin-password" className="auth-input" type={showPassword ? 'text' : 'password'} minLength={mode === 'signup' ? 8 : 1} maxLength={128} autoComplete={mode === 'signup' ? 'new-password' : 'current-password'} required value={password} onChange={e => setPassword(e.target.value)} placeholder={mode === 'signup' ? 'حداقل ۸ نویسه' : 'گذرواژه'} dir="ltr"/><button type="button" onClick={() => setShowPassword(value => !value)} aria-label={showPassword ? 'پنهان‌کردن گذرواژه' : 'نمایش گذرواژه'}>{showPassword ? <EyeOff size={16}/> : <Eye size={16}/>}</button></div>
-               {mode === 'signup' && <><label htmlFor="simorgh-confirm-password">تکرار گذرواژه</label><input id="simorgh-confirm-password" className="auth-input" type="password" autoComplete="new-password" required minLength={8} maxLength={128} value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="گذرواژه را دوباره وارد کن" dir="ltr"/>}
+               {mode === 'signup' && <><label htmlFor="simorgh-confirm-password">تکرار گذرواژه</label><input id="simorgh-confirm-password" className="auth-input" type="password" autoComplete="new-password" required minLength={8} maxLength={128} value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="گذرواژه را دوباره وارد کن" dir="ltr"/></>}
                {error && <div className="auth-feedback error" role="alert">{error}</div>}{notice && <div className="auth-feedback success" role="status">{notice}</div>}
                <button className="signin-submit" type="submit" disabled={busy || !username.trim() || !password || (mode === 'signup' && (!fullName.trim() || !organizationName.trim() || !phone.trim() || !confirmPassword))}>
                  {busy ? <><span className="signin-spinner" aria-hidden="true"/> در حال پردازش…</> : mode === 'signup' ? <>ساخت حساب و فضای کاری <ArrowLeft size={17}/></> : <>ورود به فضای کار <ArrowLeft size={17}/></>}
