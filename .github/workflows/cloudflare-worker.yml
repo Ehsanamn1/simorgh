@@ -166,6 +166,9 @@ jobs:
           if (session.user !== null || !Array.isArray(session.memberships)) throw new Error('Unexpected unauthenticated session payload.');
           console.log('Operational root, live JS/CSS, /app/command deep-link, and unauthenticated session response verified.');
           NODE
+      - name: Install Chromium for live Worker verification
+        run: npx playwright install --with-deps chromium
+
       - name: Verify live operational sign-in and owner registration UI in Chromium
         shell: bash
         run: |
@@ -354,8 +357,6 @@ jobs:
           NODE
           )" || { echo "Live frontend smoke test failed."; exit 1; }
           echo "$asset_results"
-      - name: Install Chromium for live Worker demo verification
-        run: npx playwright install --with-deps chromium
       - name: Verify the live public demo, real health status, navigation, and responsive layout
         shell: bash
         run: |
