@@ -19,6 +19,23 @@ type AuthUser = { id: string; username: string; phone: string; full_name: string
 type CurrentSession = { user: AuthUser; sessionId: string; tokenHash: string };
 
 const app = new Hono<AppEnv>();
+export type MedarClientPlatform = 'web' | 'android' | 'ios';
+export type MedarClientHeartbeat = { companyId: string; clientId: string; platform: MedarClientPlatform; appVersion: string };
+
+export function parseClientHeartbeat(input: unknown): MedarClientHeartbeat | null {
+  if (!input || typeof input !== 'object') return null;
+  const body = input as Record<string, unknown>;
+  const companyId = typeof body.companyId === 'string' ? body.companyId : '';
+  const clientId = typeof body.clientId === 'string' ? body.clientId : '';
+  const platform = body.platform;
+  const appVersion = typeof body.appVersion === 'string' ? body.appVersion.trim() : '';
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(companyId)) return null;
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(clientId)) return null;
+  if (platform !== 'web' && platform !== 'android' && platform !== 'ios') return null;
+  if (appVersion.length < 1 || appVersion.length > 40 || Array.from(appVersion).some(char => char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127)) return null;
+  return { companyId, clientId, platform, appVersion };
+}
+
 
 export type ApiModeAccess = 'allow' | 'anonymous-session' | 'deny';
 
@@ -323,7 +340,7 @@ app.get('/api/health', async (c) => {
   try {
     const sql = sqlFor(c);
     await sql`select 1 as ready`;
-    return c.json({ ok: true, service: 'medar-api', database: true, authentication: 'username-password' });
+    return c.json({ ok: true, service: c.env.MEDAR_MODE === 'operational' ? 'medar-ops' : 'medar-api', database: true, authentication: 'username-password' });
   } catch {
     return c.json({ ok: false, service: 'medar-api', database: false }, 503);
   }
@@ -333,6 +350,66 @@ app.get('/api/auth/me', async (c) => {
   const session = await currentSession(c);
   if (!session) return c.json({ user: null, memberships: [] });
   return c.json({ user: session.user, memberships: await getMemberships(c, session.user.id) });
+});
+
+/** Record a low-sensitivity heartbeat for this authenticated client in an existing company. */
+app.post('/api/client/heartbeat', async (c) => {
+  const user = await requireUser(c);
+  if (user instanceof Response) return user;
+  const raw = await c.req.json<unknown>().catch(() => null);
+  const heartbeat = parseClientHeartbeat(raw);
+  if (!heartbeat) return c.json({ message: 'اطلاعات وضعیت دستگاه معتبر نیست.' }, 422);
+  const sql = sqlFor(c);
+  const rows = await sql.query(
+    `insert into public.medar_client_presence(company_id,user_id,client_id,platform,app_version)
+     select m.company_id,m.user_id,$3::uuid,$4,$5
+     from public.memberships m
+     where m.company_id=$1::uuid and m.user_id=$2::uuid and m.active=true
+     on conflict(company_id,user_id,client_id) do update
+       set platform=excluded.platform,app_version=excluded.app_version,last_seen_at=now()
+     returning last_seen_at`,
+    [heartbeat.companyId, user.id, heartbeat.clientId, heartbeat.platform, heartbeat.appVersion],
+  );
+  if (!rows.length) return c.json({ message: 'این حساب به مجموعه‌ی انتخاب‌شده دسترسی فعال ندارد.' }, 403);
+  return c.json({ ok: true, lastSeenAt: (rows[0] as { last_seen_at: string }).last_seen_at });
+});
+
+/** Central admin view of web/native clients seen in this company. Never accepts a browser-supplied role. */
+app.get('/api/admin/system/clients', async (c) => {
+  const user = await requireUser(c);
+  if (user instanceof Response) return user;
+  const companyId = c.req.query('companyId') ?? '';
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(companyId)) {
+    return c.json({ message: 'شناسه‌ی مجموعه معتبر نیست.' }, 422);
+  }
+  const sql = sqlFor(c);
+  const permissions = await sql.query(
+    `select role::text as role from public.memberships
+     where company_id=$1::uuid and user_id=$2::uuid and active=true`,
+    [companyId, user.id],
+  );
+  if (!(permissions as Array<{ role: string }>).some(row => row.role === 'owner' || row.role === 'admin')) {
+    return c.json({ message: 'فقط مالک یا مدیر مجموعه می‌تواند وضعیت اتصال کاربران را ببیند.' }, 403);
+  }
+  const clients = await sql.query(
+    `select p.client_id::text as "clientId",p.platform,p.app_version as "appVersion",
+      u.username,m.role,p.first_seen_at as "firstSeenAt",p.last_seen_at as "lastSeenAt",
+      (p.last_seen_at > now()-interval '3 minutes') as online
+     from public.medar_client_presence p
+     join public.medar_users u on u.id=p.user_id
+     join lateral (
+       select role::text as role from public.memberships
+       where company_id=p.company_id and user_id=p.user_id and active=true
+       order by case role::text when 'owner' then 0 when 'admin' then 1 when 'staff' then 2 when 'supplier' then 3 when 'driver' then 4 else 5 end
+       limit 1
+     ) m on true
+     where p.company_id=$1::uuid
+     order by p.last_seen_at desc
+     limit 100`,
+    [companyId],
+  );
+  const onlineCount = clients.filter(row => Boolean((row as { online?: boolean }).online)).length;
+  return c.json({ companyId, clients, summary: { knownClients: clients.length, onlineClients: onlineCount, staleAfterSeconds: 180 } });
 });
 
 app.post('/api/auth/signup', async (c) => {

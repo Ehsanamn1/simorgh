@@ -1,4 +1,3 @@
-/* global process, URL */
 import { createServer } from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
 import path from 'node:path';

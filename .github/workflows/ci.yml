@@ -47,13 +47,15 @@ jobs:
             worker/migrations/0008_operational_task_actions.sql \
             worker/migrations/0009_inventory_movement_concurrency_lock.sql \
             worker/migrations/0010_purchase_order_lifecycle.sql   \
-            worker/migrations/0011_username_password_only.sql; do
+            worker/migrations/0011_username_password_only.sql \
+            worker/migrations/0012_client_presence.sql; do
             echo "Applying $migration"
             psql -h 127.0.0.1 -U postgres -d medar_test -v ON_ERROR_STOP=1 -1 -f "$migration"
           done
           psql -h 127.0.0.1 -U postgres -d medar_test -v ON_ERROR_STOP=1 -Atqc "
             select (
               to_regclass('public.medar_users') is not null and
+              to_regclass('public.medar_client_presence') is not null and
               (select is_nullable = 'YES' from information_schema.columns where table_schema='public' and table_name='medar_users' and column_name='phone_e164') and
               (select is_nullable = 'YES' from information_schema.columns where table_schema='public' and table_name='profiles' and column_name='phone') and
               to_regclass('public.medar_sessions') is not null and

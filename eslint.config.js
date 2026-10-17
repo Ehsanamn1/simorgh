@@ -14,6 +14,10 @@ export default tseslint.config(
     rules: { ...reactHooks.configs.recommended.rules, 'react-hooks/exhaustive-deps': 'off', '@typescript-eslint/no-explicit-any': 'off' },
   },
   {
+    files: ['scripts/**/*.{js,mjs,cjs}'],
+    languageOptions: { globals: { ...globals.node } },
+  },
+  {
     files: ['public/sw.js'],
     languageOptions: {
       globals: {

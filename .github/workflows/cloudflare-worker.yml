@@ -40,7 +40,7 @@ jobs:
         shell: bash
         run: |
           psql "$MEDAR_DATABASE_URL" -v ON_ERROR_STOP=1 -c "create table if not exists public.medar_schema_migrations (version text primary key, checksum text not null, applied_at timestamptz not null default now())"
-          for migration in worker/migrations/0007_existing_medar_schema_compat.sql worker/migrations/0008_operational_task_actions.sql worker/migrations/0009_inventory_movement_concurrency_lock.sql worker/migrations/0010_purchase_order_lifecycle.sql worker/migrations/0011_username_password_only.sql; do
+          for migration in worker/migrations/0007_existing_medar_schema_compat.sql worker/migrations/0008_operational_task_actions.sql worker/migrations/0009_inventory_movement_concurrency_lock.sql worker/migrations/0010_purchase_order_lifecycle.sql worker/migrations/0011_username_password_only.sql worker/migrations/0012_client_presence.sql; do
             version="$(basename "$migration")"
             checksum="$(sha256sum "$migration" | awk '{print $1}')"
             applied="$(psql "$MEDAR_DATABASE_URL" -v ON_ERROR_STOP=1 -Atqc "select checksum from public.medar_schema_migrations where version = '$version'")"
@@ -62,6 +62,7 @@ jobs:
           readiness="$(psql "$MEDAR_DATABASE_URL" -v ON_ERROR_STOP=1 -Atqc "
             select (
               to_regclass('public.medar_users') is not null and
+              to_regclass('public.medar_client_presence') is not null and
               to_regclass('public.medar_sessions') is not null and
               to_regclass('public.medar_rate_limits') is not null and
               to_regclass('public.medar_audit_log') is not null and
@@ -83,7 +84,7 @@ jobs:
               to_regprocedure('public.medar_create_purchase_order(uuid,uuid,uuid,text,jsonb,date,text)') is not null and
               to_regprocedure('public.medar_approve_purchase_order(uuid,uuid,uuid)') is not null and
               to_regprocedure('public.medar_receive_purchase_order(uuid,uuid,uuid,jsonb,text,text)') is not null and
-              (select count(*) from public.medar_schema_migrations where version in ('0007_existing_medar_schema_compat.sql','0008_operational_task_actions.sql','0009_inventory_movement_concurrency_lock.sql','0010_purchase_order_lifecycle.sql','0011_username_password_only.sql')) = 5
+              (select count(*) from public.medar_schema_migrations where version in ('0007_existing_medar_schema_compat.sql','0008_operational_task_actions.sql','0009_inventory_movement_concurrency_lock.sql','0010_purchase_order_lifecycle.sql','0011_username_password_only.sql','0012_client_presence.sql')) = 6
             )
           ")"
           if [[ "$readiness" != "t" ]]; then
@@ -111,12 +112,17 @@ jobs:
         working-directory: worker
         shell: bash
         run: printf '%s' "$MEDAR_DATABASE_URL" | npx wrangler@4 secret put DATABASE_URL --name medar-ops
-      - name: Build the protected operational app with sign-in enabled
+      - name: Build the protected operational app with sign-in enabled and shared API
         run: npm run build
         env:
+          VITE_API_BASE_URL: ${{ vars.MEDAR_OPS_API_BASE_URL || 'https://medar-ops.dengxiao445.workers.dev' }}
           VITE_ENABLE_AUTH_UI: 'true'
+          VITE_APP_VERSION: ${{ github.sha }}
       - name: Verify the operational bundle includes sign-in and owner onboarding
         shell: bash
+        env:
+          MEDAR_OPS_API_BASE_URL: ${{ vars.MEDAR_OPS_API_BASE_URL || 'https://medar-ops.dengxiao445.workers.dev' }}
+          MEDAR_APP_VERSION: ${{ github.sha }}
         run: |
           test -f dist/index.html
           grep -q 'id="root"' dist/index.html
@@ -125,6 +131,8 @@ jobs:
           grep -Rqs --include='*.js' 'simorgh-signin-layer' dist/assets
           grep -Rqs --include='*.js' 'ساخت حساب و فضای کاری' dist/assets
           grep -Rqs --include='*.js' 'حداقل ۸ نویسه' dist/assets
+          grep -Rqs --include='*.js' -F "$MEDAR_OPS_API_BASE_URL" dist/assets
+          grep -Rqs --include='*.js' -F "$MEDAR_APP_VERSION" dist/assets
           grep -Rqs --include='*.css' 'simorgh-signin-layer' dist/assets
           grep -Rqs --include='*.css' 'signin-form-card' dist/assets
           echo "Operational bundle includes the guarded sign-in and first-owner registration UI."
@@ -229,6 +237,33 @@ jobs:
             stage = 'signup-session';
             const signupCookie = sessionCookie(signup);
             await expectUserSession(signupCookie, 'Signup');
+
+            stage = 'presence-heartbeat';
+            const clientId = crypto.randomUUID();
+            const heartbeat = await post('/api/client/heartbeat', {
+              companyId: signupBody.companyId,
+              clientId,
+              platform: 'web',
+              appVersion: 'ci-smoke',
+            }, signupCookie);
+            const heartbeatBody = await heartbeat.json();
+            await saveResult({ status: heartbeat.status, body: heartbeatBody });
+            if (heartbeat.status !== 200 || heartbeatBody.ok !== true) {
+              throw new Error('Live client heartbeat failed: HTTP ' + heartbeat.status + ' ' + JSON.stringify(heartbeatBody));
+            }
+
+            stage = 'central-presence-dashboard';
+            const presenceResponse = await fetch(
+              base + '/api/admin/system/clients?companyId=' + encodeURIComponent(signupBody.companyId),
+              { headers: { cookie: signupCookie }, cache: 'no-store' },
+            );
+            const presenceBody = await presenceResponse.json();
+            await saveResult({ status: presenceResponse.status, body: presenceBody });
+            const recordedClient = presenceBody.clients?.find(client => client.clientId === clientId);
+            if (!presenceResponse.ok || !recordedClient || recordedClient.online !== true || recordedClient.platform !== 'web') {
+              throw new Error('Central panel did not show the live client: HTTP ' + presenceResponse.status + ' ' + JSON.stringify(presenceBody));
+            }
+
             stage = 'logout';
             const logout = await post('/api/auth/logout', {}, signupCookie);
             await saveResult({ status: logout.status, body: await logout.json() });

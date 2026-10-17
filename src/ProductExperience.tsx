@@ -5,7 +5,7 @@ import { Activity, ArrowLeft, Boxes, Building2, Check, ClipboardCheck, CreditCar
 import type { LucideIcon } from 'lucide-react';
 import { useAuth } from './lib/AuthContext';
 import { useAppTheme } from './lib/ThemeContext';
-import { api } from './lib/apiClient';
+import { api, isApiConfigured } from './lib/apiClient';
 import { MedarLogo } from './MedarLogo';
 
 type NavigationEntry = { key: string; label: string };
@@ -62,7 +62,7 @@ export default function ProductExperience() {
   // Protected operational routes are only active in builds that explicitly opt in.
   // The Pages showcase remains read-only; the same-origin Worker build enables this guarded UI.
   // Creating a workspace grants owner access only to that new tenant; joining an existing tenant requires a server-issued invitation.
-  const authUiEnabled = import.meta.env.VITE_ENABLE_AUTH_UI === 'true';
+  const authUiEnabled = import.meta.env.VITE_ENABLE_AUTH_UI === 'true' && isApiConfigured;
   const signInOpen = authUiEnabled && (((location.hash === '#signin' || location.hash === '#signup') && !user && !loading) || (protectedRoute && !user && !loading));
   const normalizedPath = location.pathname.startsWith(basePath) ? location.pathname.slice(basePath.length) || '/' : location.pathname;
   const protectedDestination = normalizedPath.startsWith('/app') ? normalizedPath : '/app';

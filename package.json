@@ -4,8 +4,8 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "mobile:build": "npm run build && cap sync",
-    "mobile:android:prepare": "npm run build && cap add android && cap sync android",
+    "mobile:build": "node scripts/build-mobile.mjs",
+    "mobile:android:prepare": "node scripts/build-mobile.mjs android",
     "dev": "vite --host 0.0.0.0",
     "build": "npm run typecheck && vite build",
     "typecheck": "tsc --noEmit --pretty false",
@@ -13,7 +13,8 @@
     "test": "vitest run",
     "build:pages": "npm run typecheck && vite build --base=/simorgh/",
     "test:e2e": "playwright test",
-    "serve:pages:test": "node scripts/serve-pages-simulation.mjs"
+    "serve:pages:test": "node scripts/serve-pages-simulation.mjs",
+    "mobile:ios:prepare": "node scripts/build-mobile.mjs ios"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.0",

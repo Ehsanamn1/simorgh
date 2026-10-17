@@ -1006,3 +1006,53 @@ html[data-theme="light"] .portal-preview-notice { background: #F0F7F5; border-co
 html[data-theme="light"] .portal-role-card:hover { background: #F7FAF9; border-color: #B5D3CA; }
 html[data-theme="light"] .portal-selection-button:focus-visible,
 html[data-theme="light"] .portal-signin-link:focus-visible { outline-color: #26786A; }
+
+
+/* Central live-status bridge: the web workspace and native apps share one API and tenant data. */
+.medar-system-health { padding: clamp(16px, 2.3vw, 24px); margin-bottom: 22px; }
+.medar-system-health .panel-heading { display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; }
+.medar-system-health .panel-heading > div { display: flex; align-items: flex-start; gap: 12px; }
+.medar-system-health .panel-heading h3 { margin: 0 0 4px; }
+.medar-system-health .panel-heading p { margin: 0; font-size: 12px; line-height: 1.9; max-width: 740px; }
+.medar-system-health-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 16px; }
+.medar-system-metric { display: flex; min-width: 0; flex-direction: column; gap: 9px; padding: 14px; border: 1px solid var(--obs-border); border-radius: 14px; background: var(--obs-surface); }
+.medar-system-metric-label { display: flex; align-items: center; gap: 7px; color: var(--obs-muted); font-size: 11px; font-weight: 750; }
+.medar-system-metric-label svg { flex: 0 0 auto; color: var(--obs-accent); }
+.medar-system-metric b { color: var(--obs-text); font-size: clamp(15px, 1.4vw, 20px); line-height: 1.5; }
+.medar-system-metric b.is-healthy { color: var(--obs-positive); }
+.medar-system-metric b.is-unhealthy { color: var(--obs-warning); }
+.medar-system-metric small { color: var(--obs-muted); font-size: 10px; line-height: 1.8; }
+.medar-client-presence { margin-top: 18px; border-top: 1px solid var(--obs-border); padding-top: 16px; }
+.medar-client-presence-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+.medar-client-presence-heading b { color: var(--obs-text); font-size: 12px; }
+.medar-client-presence-heading span { color: var(--obs-muted); font-size: 10px; }
+.medar-client-presence-list { display: flex; flex-direction: column; }
+.medar-client-presence-row { display: grid; grid-template-columns: 38px minmax(100px, 1fr) auto minmax(130px, auto); align-items: center; gap: 12px; padding: 11px 3px; border-bottom: 1px solid var(--medar-line-soft); }
+.medar-client-presence-row:last-child { border-bottom: 0; }
+.medar-client-device-icon { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 11px; color: var(--obs-muted); background: var(--obs-surface-2); border: 1px solid var(--obs-border); }
+.medar-client-device-icon.is-online { color: var(--obs-positive); border-color: color-mix(in srgb, var(--obs-positive) 28%, var(--obs-border)); }
+.medar-client-device-main { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.medar-client-device-main b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--obs-text); font-size: 12px; }
+.medar-client-device-main small { color: var(--obs-muted); font-size: 10px; line-height: 1.8; }
+.medar-client-online-state { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; font-size: 10px; font-weight: 750; }
+.medar-client-online-state i { width: 7px; height: 7px; display: inline-block; border-radius: 50%; background: var(--obs-muted); }
+.medar-client-online-state.is-online { color: var(--obs-positive); }
+.medar-client-online-state.is-online i { background: var(--obs-positive); box-shadow: 0 0 0 3px color-mix(in srgb, var(--obs-positive) 12%, transparent); }
+.medar-client-online-state.is-offline { color: var(--obs-muted); }
+.medar-client-presence-row time { color: var(--obs-muted); text-align: left; font-size: 10px; direction: rtl; }
+.medar-presence-empty { padding: 18px 12px; border: 1px dashed var(--obs-border); border-radius: 12px; color: var(--obs-muted); line-height: 2; font-size: 11px; }
+.medar-system-status-error { margin-top: 12px; border-radius: 10px; padding: 9px 12px; color: var(--obs-warning); background: color-mix(in srgb, var(--obs-warning) 8%, transparent); font-size: 11px; line-height: 1.9; }
+@media (max-width: 1100px) {
+  .medar-system-health-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 680px) {
+  .medar-system-health { padding: 14px; }
+  .medar-system-health-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .medar-system-metric { padding: 11px; }
+  .medar-client-presence-row { grid-template-columns: 34px minmax(0, 1fr) auto; gap: 8px; }
+  .medar-client-device-icon { width: 32px; height: 32px; }
+  .medar-client-presence-row time { grid-column: 2 / -1; text-align: right; margin-top: -4px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .medar-client-presence-row, .medar-system-metric { transition: none; }
+}
