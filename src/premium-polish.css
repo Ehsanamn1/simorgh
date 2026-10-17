@@ -314,3 +314,35 @@ html[data-theme="light"] .panel-heading h3,
 html[data-theme="light"] .panel h2,
 html[data-theme="light"] .panel h3 { color: var(--obs-text); }
 html[data-theme="light"] .tower-onboarding { color: var(--obs-text); }
+
+
+/* Procurement lifecycle cards and compact partial-receipt form */
+.purchase-order-collection { display: grid; gap: 16px; }
+.purchase-order-card { overflow: hidden; }
+.purchase-order-meta {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px;
+  margin: 14px 0; padding: 12px; border: 1px solid var(--obs-border);
+  border-radius: 12px; background: var(--obs-surface-soft);
+}
+.purchase-order-meta > span { display: grid; gap: 5px; color: var(--obs-muted); font-size: 12px; }
+.purchase-order-meta b { color: var(--obs-text); font-size: 13px; overflow-wrap: anywhere; }
+.purchase-order-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 14px; }
+.purchase-order-note { margin: 10px 0; padding: 10px 12px; border-inline-start: 3px solid var(--obs-accent); color: var(--obs-muted); font-size: 13px; white-space: pre-wrap; }
+.purchase-line-editor { display: grid; gap: 12px; min-width: 0; }
+.purchase-line-editor > .panel-heading { align-items: center; }
+.purchase-line-row { display: grid; grid-template-columns: minmax(180px, 2fr) minmax(110px, 1fr) minmax(140px, 1fr) auto; gap: 10px; align-items: end; padding: 12px; border: 1px solid var(--obs-border); border-radius: 12px; background: var(--obs-surface-soft); }
+.purchase-line-row label { min-width: 0; }
+.purchase-receipt-line { display: grid; grid-template-columns: minmax(0, 1fr) minmax(100px, 160px); align-items: center; gap: 12px; }
+.purchase-receipt-line > span { display: grid; gap: 5px; }
+.purchase-receipt-line small { color: var(--obs-muted); font-size: 12px; }
+@media (max-width: 820px) {
+  .purchase-order-meta { grid-template-columns: 1fr 1fr; }
+  .purchase-line-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .purchase-line-row label:first-child { grid-column: 1 / -1; }
+}
+@media (max-width: 520px) {
+  .purchase-order-meta { grid-template-columns: 1fr; }
+  .purchase-line-row { grid-template-columns: minmax(0, 1fr); }
+  .purchase-line-row label:first-child { grid-column: auto; }
+  .purchase-order-actions > button { width: 100%; justify-content: center; }
+}
