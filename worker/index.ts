@@ -591,6 +591,7 @@ app.post('/api/workspace/members/reset-password', async (c) => {
 const DATA_TABLES = new Set([
  'access_requests','customers','suppliers','products','price_agreements','orders','order_items','capacity_commitments','lots','quality_reviews',
  'shipments','delivery_evidence','invoices','settlements','notifications','audit_events','farm_sites','partnership_agreements',
+ 'purchase_orders','purchase_order_items',
  'flock_cycles','production_batches','daily_production_records','task_templates','operational_tasks','task_evidence',
  'operational_incidents','partner_financial_entries','partner_settlement_periods','shipment_locations','inventory_movements',
  'inventory_balances','company_goals'
@@ -612,7 +613,7 @@ export function resolveRpcArguments(
 const RPC_ALLOWLIST = new Set([
  'allocate_order_item','record_inventory_movement','record_quality_review','company_members','start_operational_task','submit_operational_task',
  'review_operational_task','create_partner_settlement_period','refresh_partner_settlement_period','approve_partner_settlement_period',
- 'record_partner_settlement_payment'
+ 'record_partner_settlement_payment','create_purchase_order','approve_purchase_order','receive_purchase_order'
 ]);
 const RPC_TARGETS: Record<string, string> = {
   allocate_order_item: 'medar_allocate_order_item',
@@ -625,6 +626,9 @@ const RPC_TARGETS: Record<string, string> = {
   refresh_partner_settlement_period: 'medar_refresh_partner_settlement_period',
   approve_partner_settlement_period: 'medar_approve_partner_settlement_period',
   record_partner_settlement_payment: 'medar_record_partner_settlement_payment',
+  create_purchase_order: 'medar_create_purchase_order',
+  approve_purchase_order: 'medar_approve_purchase_order',
+  receive_purchase_order: 'medar_receive_purchase_order',
 };
 function quoteSqlIdentifier(value: string): string {
  if(!/^[a-z_][a-z0-9_]*$/.test(value)) throw new Error('شناسه دیتابیس معتبر نیست.');
@@ -645,6 +649,8 @@ async function listTableColumns(c: Ctx,table: string): Promise<Set<string>> {
 }
 const RELATIONS:Record<string,Record<string,{target:string;local:string;foreign:string;many?:boolean}>>={
  orders:{customers:{target:'customers',local:'customer_id',foreign:'id'},order_items:{target:'order_items',local:'id',foreign:'order_id',many:true}},
+ purchase_orders:{suppliers:{target:'suppliers',local:'supplier_id',foreign:'id'},purchase_order_items:{target:'purchase_order_items',local:'id',foreign:'purchase_order_id',many:true}},
+ purchase_order_items:{products:{target:'products',local:'product_id',foreign:'id'}},
  order_items:{products:{target:'products',local:'product_id',foreign:'id'},suppliers:{target:'suppliers',local:'supplier_id',foreign:'id'},capacity_commitments:{target:'capacity_commitments',local:'capacity_commitment_id',foreign:'id'}},
  invoices:{customers:{target:'customers',local:'customer_id',foreign:'id'},orders:{target:'orders',local:'order_id',foreign:'id'}},
  settlements:{suppliers:{target:'suppliers',local:'supplier_id',foreign:'id'}},
@@ -717,7 +723,7 @@ const GENERIC_WRITABLE_TABLES = new Set([
  'production_batches','daily_production_records','task_templates','operational_tasks','task_evidence',
  'operational_incidents','partner_financial_entries','company_goals','shipment_locations'
 ]);
-const RPC_ONLY_TABLES = new Set(['inventory_movements','quality_reviews','partner_settlement_periods','inventory_balances','audit_events','notifications']);
+const RPC_ONLY_TABLES = new Set(['inventory_movements','quality_reviews','partner_settlement_periods','inventory_balances','audit_events','notifications','purchase_orders','purchase_order_items']);
 async function loadMembershipScopes(c:Ctx,userId:string):Promise<MembershipScope[]> {
  const sql=sqlFor(c);
  const rows=await sql.query(
