@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { Activity, ArrowDown, ArrowUp, Check, ChevronDown, FileText, Headphones, KeyRound, LoaderCircle, Mic, MicOff, Plus, Send, Settings2, ShieldCheck, Sparkles, Volume2, VolumeX, X } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ArrowDown, Check, FileText, KeyRound, LoaderCircle, Mic, MicOff, Plus, Send, Settings2, ShieldCheck, Sparkles, Volume2, VolumeX, X } from 'lucide-react';
 import type { AppRole } from './lib/types';
 import { api } from './lib/apiClient';
 
@@ -11,8 +11,8 @@ type AIAssistantProps = { companyId: string; role: AppRole; userName?: string };
 const providerMeta: Record<ProviderId, { label: string; brand: string; defaultModel: string; detail: string }> = {
   openai: { label: 'OpenAI · GPT', brand: 'GPT', defaultModel: 'gpt-6-luna', detail: 'پاسخ‌گویی و تحلیل عمومی' },
   gemini: { label: 'Google · Gemini', brand: 'G', defaultModel: 'gemini-4-argon', detail: 'تحلیل چندمرحله‌ای و فایل' },
-  deepseek: { label: 'DeepSeek', brand: 'DS', defaultModel: 'deepseek-v4-flash', detail: 'تحلیل اقتصادی و متنی' },
-  anthropic: { label: 'Anthropic · Claude', brand: 'C', defaultModel: 'claude-sonnet-5-5', detail: 'برنامه‌ریزی و بررسی اسناد' },
+  deepseek: { label: 'DeepSeek', brand: 'DS', defaultModel: 'deepseek-flash', detail: 'تحلیل اقتصادی و متنی' },
+  anthropic: { label: 'Anthropic · Claude', brand: 'C', defaultModel: 'claude-sonnet-5', detail: 'برنامه‌ریزی و بررسی اسناد' },
 };
 
 const roleTitles: Record<AppRole, string> = {
@@ -70,7 +70,7 @@ export function AIAssistant({ companyId, role, userName }: AIAssistantProps) {
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) window.speechSynthesis.cancel();
   }, []);
 
-  async function loadProviders() {
+  const loadProviders = useCallback(async () => {
     setLoadingConfigs(true);
     setError('');
     try {
@@ -90,12 +90,11 @@ export function AIAssistant({ companyId, role, userName }: AIAssistantProps) {
     } finally {
       setLoadingConfigs(false);
     }
-  }
+  }, [companyId]);
 
   useEffect(() => {
-    if (open && configs.length === 0 && !loadingConfigs) void loadProviders();
-    // Configs load once per opening; provider save refreshes them explicitly.
-  }, [open]);
+    if (open && configs.length === 0 && !loadingConfigs && !error) void loadProviders();
+  }, [open, configs.length, loadingConfigs, error, loadProviders]);
 
   function openPanel() {
     setOpen(true);
@@ -103,7 +102,7 @@ export function AIAssistant({ companyId, role, userName }: AIAssistantProps) {
     setNotice('');
   }
 
-  async function saveProvider(makeDefault: boolean) {
+  async function saveProvider() {
     setSavingKey(true);
     setError('');
     setNotice('');
@@ -113,10 +112,10 @@ export function AIAssistant({ companyId, role, userName }: AIAssistantProps) {
       if (apiKey && apiKey.length < 12) throw new Error('کلید API کوتاه به نظر می‌رسد؛ مقدار کامل کلید را وارد کن.');
       await api.put('/api/ai/providers', {
         companyId, provider: selectedProvider, model: model.trim() || providerMeta[selectedProvider].defaultModel,
-        ...(apiKey.trim() ? { apiKey: apiKey.trim() } : {}), isDefault: makeDefault,
+        ...(apiKey.trim() ? { apiKey: apiKey.trim() } : {}), isDefault: true,
       });
       setApiKey('');
-      setNotice(makeDefault ? 'پرووایدر ذخیره و فعال شد.' : 'تنظیمات پرووایدر ذخیره شد.');
+      setNotice('پرووایدر ذخیره و فعال شد.');
       await loadProviders();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'ذخیره‌ی تنظیمات ناموفق بود.');
@@ -255,7 +254,7 @@ export function AIAssistant({ companyId, role, userName }: AIAssistantProps) {
                 <span className="ai-provider-brand">{meta.brand}</span><span><b>{meta.label}</b><small>{config?.configured?'کلید ذخیره شده':meta.detail}</small></span>{config?.isDefault&&<span className="ai-default-mark"><Check size={13}/> فعال</span>}
               </button>;
             })}</div>
-            <form className="ai-provider-form" onSubmit={event => { event.preventDefault(); void saveProvider(true); }}>
+            <form className="ai-provider-form" onSubmit={event => { event.preventDefault(); void saveProvider(); }}>
               <label>مدل
                 <input dir="ltr" value={model} onChange={event => setModel(event.target.value)} maxLength={120} placeholder={providerMeta[selectedProvider].defaultModel}/>
               </label>
@@ -263,7 +262,7 @@ export function AIAssistant({ companyId, role, userName }: AIAssistantProps) {
                 <input dir="ltr" type="password" autoComplete="new-password" value={apiKey} onChange={event => setApiKey(event.target.value)} maxLength={512} placeholder={configs.some(item=>item.provider===selectedProvider&&item.configured)?'کلید ذخیره شده است':'API key را وارد کن'} />
               </label>
               <button className="ai-primary-button" type="submit" disabled={savingKey || loadingConfigs}>{savingKey?<LoaderCircle size={16} className="ai-spin"/>:<KeyRound size={16}/>} ذخیره و فعال‌سازی</button>
-              {configs.some(item=>item.provider===selectedProvider&&item.configured)&&<button type="button" className="ai-secondary-button" onClick={()=>void saveProvider(false)} disabled={savingKey}>ذخیره مدل بدون تغییر پرووایدر فعال</button>}
+              
             </form>
           </>}
           <p className="ai-privacy-note"><ShieldCheck size={15}/> کلیدها رمزنگاری‌شده در سمت سرور نگهداری می‌شوند. متن گفتگو و فایل‌های پیوست برای ارائه‌دهنده‌ی مدل انتخابی ارسال می‌شوند؛ اطلاعات حساس را فقط در صورت مجاز بودن به‌اشتراک بگذار.</p>
