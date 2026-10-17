@@ -82,8 +82,8 @@ async function verifyPassword(password: string, encoded: string): Promise<boolea
   const iterations = Number(rawIterations);
   if (!Number.isInteger(iterations) || iterations < 100_000 || iterations > 600_000) return false;
   try {
-    const salt = base64ToBytes(saltText);
-    const expected = base64ToBytes(expectedText);
+    const salt = new Uint8Array(base64ToBytes(saltText));
+    const expected = new Uint8Array(base64ToBytes(expectedText));
     const key = await crypto.subtle.importKey('raw', encoder.encode(password), 'PBKDF2', false, ['deriveBits']);
     const derived = new Uint8Array(await crypto.subtle.deriveBits(
       { name: 'PBKDF2', salt, iterations, hash: 'SHA-256' },
