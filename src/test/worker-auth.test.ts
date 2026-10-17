@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { canTransitionMedarStatus, normalizeIranPhone, normalizeUsername } from '../../worker/index';
+import { canTransitionMedarStatus, normalizeIranPhone, normalizeUsername, resolveRpcArguments } from '../../worker/index';
 
 describe('Worker authentication input validation', () => {
   it('normalizes Iranian mobile numbers to E.164 using ASCII, Persian and Arabic numerals', () => {
@@ -20,6 +20,54 @@ describe('Worker authentication input validation', () => {
     expect(normalizeUsername('_owner')).toBeNull();
     expect(normalizeUsername('owner!')).toBeNull();
     expect(normalizeUsername('')).toBeNull();
+  });
+});
+
+describe('RPC defaulted argument handling', () => {
+  const names = ['_actor', '_task', '_completion_note'];
+  const types = ['uuid', 'uuid', 'text'];
+
+  it('omits an absent optional note so PostgreSQL applies its declared default', () => {
+    expect(resolveRpcArguments(names, types, 1, {
+      _actor: 'actor-uuid',
+      _task: 'task-uuid',
+    })).toEqual({
+      names: ['_actor', '_task'],
+      types: ['uuid', 'uuid'],
+      values: ['actor-uuid', 'task-uuid'],
+    });
+  });
+
+  it('preserves an explicitly supplied optional argument', () => {
+    expect(resolveRpcArguments(names, types, 1, {
+      _actor: 'actor-uuid',
+      _task: 'task-uuid',
+      _completion_note: 'completed safely',
+    })).toEqual({
+      names,
+      types,
+      values: ['actor-uuid', 'task-uuid', 'completed safely'],
+    });
+  });
+
+  it('rejects missing required args and caller-supplied unknown args', () => {
+    expect(resolveRpcArguments(names, types, 1, { _actor: 'actor-uuid' })).toBeNull();
+    expect(resolveRpcArguments(names, types, 1, {
+      _actor: 'actor-uuid',
+      _task: 'task-uuid',
+      _admin: true,
+    })).toBeNull();
+  });
+
+  it('allows safe array type metadata but rejects malformed SQL type metadata', () => {
+    expect(resolveRpcArguments(['_actor', '_ids'], ['uuid', 'text[]'], 0, {
+      _actor: 'actor-uuid',
+      _ids: ['one', 'two'],
+    })?.types).toEqual(['uuid', 'text[]']);
+    expect(resolveRpcArguments(['_actor', '_task'], ['uuid', 'uuid); drop table public.companies; --'], 0, {
+      _actor: 'actor-uuid',
+      _task: 'task-uuid',
+    })).toBeNull();
   });
 });
 
