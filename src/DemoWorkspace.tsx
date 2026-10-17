@@ -1,6 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Capacitor } from '@capacitor/core';
-import { StatusBar, Style } from '@capacitor/status-bar';
 import {
   Activity, ArrowLeft, ArrowUpLeft, Boxes, Building2, CalendarDays,
   ChevronLeft, CircleAlert, ClipboardCheck, Clock3, CreditCard, Factory,
@@ -9,6 +7,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { api } from './lib/apiClient';
+import { useAppTheme } from './lib/ThemeContext';
 import { MedarLogo } from './MedarLogo';
 import './demo-workspace.css';
 
@@ -208,13 +207,10 @@ const chartValues = [
 ];
 
 export default function DemoWorkspace() {
+  const { theme, setTheme } = useAppTheme();
   const [activePage, setActivePage] = useState('command');
   const [search, setSearch] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
-    try { return window.localStorage.getItem('simorgh-theme') === 'light' ? 'light' : 'dark'; }
-    catch { return 'dark'; }
-  });
   const [health, setHealth] = useState<'checking' | 'online' | 'offline'>('checking');
   const [lastChecked, setLastChecked] = useState<Date | null>(null);
   const page = navItems.find((item) => item.key === activePage) ?? navItems[0];
@@ -234,21 +230,6 @@ export default function DemoWorkspace() {
 
   useEffect(() => { void checkHealth(); }, [checkHealth]);
 
-  useEffect(() => {
-    document.documentElement.dataset.theme = theme;
-    document.documentElement.style.colorScheme = theme;
-    const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
-    const themeColor = theme === 'dark' ? '#101719' : '#F4F7F7';
-    if (meta) meta.content = themeColor;
-    try { window.localStorage.setItem('simorgh-theme', theme); } catch { /* Storage may be unavailable in private browsing. */ }
-    if (Capacitor.isNativePlatform()) {
-      void StatusBar.setStyle({ style: theme === 'dark' ? Style.Light : Style.Dark }).catch(() => {});
-      void StatusBar.setOverlaysWebView({ overlay: false }).catch(() => {});
-      if (Capacitor.getPlatform() === 'android') {
-        void StatusBar.setBackgroundColor({ color: themeColor }).catch(() => {});
-      }
-    }
-  }, [theme]);
 
   const visibleRows = useMemo(() => {
     const rows = activePage === 'command' ? orderRows : (rowsByPage[activePage] ?? []);
