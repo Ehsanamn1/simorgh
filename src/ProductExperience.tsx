@@ -220,7 +220,7 @@ export default function ProductExperience() {
             && (!anchor || location.hash === '#' + anchor);
           return <Link key={key} to={{ pathname: '/app/' + route, hash: anchor ? '#' + anchor : '' }} className={current ? 'is-active' : ''} aria-current={current ? 'page' : undefined}><Icon size={20} strokeWidth={current ? 2.3 : 1.8} aria-hidden="true"/><span>{label}</span></Link>;
         })}
-        <button type="button" className="mobile-workspace-more" onClick={() => document.querySelector<HTMLButtonElement>('.mobile-menu')?.click()} aria-label="بازکردن منوی کامل"><Menu size={20} aria-hidden="true"/><span>بیشتر</span></button>
+        <button type="button" className="mobile-workspace-more" onClick={() => document.querySelector<HTMLButtonElement>('.mobile-menu')?.click()} aria-label="بازکردن فهرست ماژول‌ها"><Menu size={20} aria-hidden="true"/><span>ماژول‌ها</span></button>
       </nav>, appMain)}
     {authUiEnabled && user && waitingScreen && memberships.length === 0 && createPortal(
       <section className="access-request-card" dir="rtl" aria-labelledby="access-request-title">
