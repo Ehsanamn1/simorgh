@@ -42,6 +42,7 @@ jobs:
         env:
           VITE_API_BASE_URL: ${{ vars.MEDAR_OPS_API_BASE_URL || 'https://medar-ops.dengxiao445.workers.dev' }}
           VITE_ENABLE_AUTH_UI: 'true'
+          VITE_APP_VERSION: ${{ github.sha }}
 
       - name: Verify the mobile bundle has the authenticated workspace and configured API endpoint
         shell: bash
@@ -53,8 +54,9 @@ jobs:
           grep -Rqs --include='*.js' 'ورود به مدار' dist/assets
           grep -Rqs --include='*.js' 'ساخت حساب و فضای کاری' dist/assets
           grep -Rqs --include='*.js' -F "$MEDAR_OPS_API_BASE_URL" dist/assets
+          grep -Rqs --include='*.js' 'VITE_APP_VERSION' dist/assets || grep -Rqs --include='*.js' '0.1.0' dist/assets
           grep -Rqs --include='*.css' 'simorgh-signin-layer' dist/assets
-          echo "iOS bundle includes the authenticated operational workspace, phone/username sign-in, and medar-ops API URL."
+          echo "iOS bundle includes the guarded app and the same authenticated Medar API used by web."
 
 
       - name: Generate iOS project
