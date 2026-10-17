@@ -589,7 +589,7 @@ app.post('/api/workspace/members/reset-password', async (c) => {
 });
 
 const DATA_TABLES = new Set([
- 'customers','suppliers','products','price_agreements','orders','order_items','capacity_commitments','lots','quality_reviews',
+ 'access_requests','customers','suppliers','products','price_agreements','orders','order_items','capacity_commitments','lots','quality_reviews',
  'shipments','delivery_evidence','invoices','settlements','notifications','audit_events','farm_sites','partnership_agreements',
  'flock_cycles','production_batches','daily_production_records','task_templates','operational_tasks','task_evidence',
  'operational_incidents','partner_financial_entries','partner_settlement_periods','shipment_locations','inventory_movements',
