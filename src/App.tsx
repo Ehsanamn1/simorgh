@@ -650,7 +650,7 @@ function PurchaseOrdersPage({membership,search}:{membership:Membership;search:st
             {key:'unit_cost',label:'بهای واحد',render:line=>moneyFa(Number(line.unit_cost??0))},
             {key:'line_total',label:'ارزش ردیف',render:line=>moneyFa(Number(line.ordered_quantity??0)*Number(line.unit_cost??0))},
           ]}/></div>:<EmptyState title="سفارش فاقد اقلام است" description="برای این سفارش قلمی پیدا نشد." icon={Package}/>}
-          {order.notes&&<p className="purchase-order-note">{String(order.notes)}</p>}
+          {typeof order.notes==='string'&&order.notes.length>0&&<p className="purchase-order-note">{order.notes}</p>}
           <div className="purchase-order-actions">
             {canApprove&&order.status==='draft'&&<Button disabled={busy} onClick={()=>void approve(order)}><CheckCircle2 size={15}/> تأیید سفارش</Button>}
             {internal&&['approved','partially_received'].includes(String(order.status))&&<Button disabled={busy||remaining<=0} onClick={()=>openReceipt(order)}><Package size={15}/> ثبت رسید انبار</Button>}
