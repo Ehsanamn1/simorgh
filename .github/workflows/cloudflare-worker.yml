@@ -175,7 +175,7 @@ jobs:
             exit "$status"
           }
           trap finish_smoke EXIT
-          npx wrangler@4 tail medar-ops --format json --sampling-rate 1 > "$tail_log" 2>&1 &
+          npx wrangler@4 tail medar-ops --format json > "$tail_log" 2>&1 &
           tail_pid=$!
           sleep 8
           if ! kill -0 "$tail_pid" >/dev/null 2>&1; then
