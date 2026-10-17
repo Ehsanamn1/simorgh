@@ -310,22 +310,17 @@ app.post('/api/auth/signup', async (c) => {
       "), new_profile as (" +
       " insert into public.profiles(id,full_name,phone) select id,display_name,null from new_user " +
       " on conflict(id) do update set full_name=excluded.full_name,phone=null returning id" +
-      "), new_company as (" +
-      " insert into public.companies(name) select 'فضای کاری ' || username from new_user returning id" +
-      "), new_membership as (" +
-      " insert into public.memberships(company_id,user_id,role,active,created_by) " +
-      " select c.id,u.id,'owner',true,u.id from new_user u cross join new_company c returning company_id" +
       "), new_session as (" +
       " insert into public.medar_sessions(user_id,token_hash,expires_at,last_seen_at,user_agent,ip_hash) " +
       " select u.id,$3,now()+interval '14 days',now(),$4,$5 from new_user u returning id" +
-      ") select u.id,u.username_normalized as username,u.phone_e164 as phone,u.display_name as full_name,m.company_id as \"companyId\" " +
-      "from new_user u cross join new_membership m cross join new_session",
+      ") select u.id,u.username_normalized as username,u.phone_e164 as phone,u.display_name as full_name " +
+      "from new_user u cross join new_profile p cross join new_session",
       [username, await hashPassword(password), sessionHash, userAgent || null, ipHash],
     );
-    const created = result[0] as (Record<string, unknown> & { id: string; companyId: string }) | undefined;
+    const created = result[0] as Record<string, unknown> | undefined;
     if (!created) return c.json({ message: 'ساخت حساب انجام نشد؛ دوباره تلاش کن.' }, 500);
     setSessionCookie(c, sessionToken);
-    return c.json({ user: safeUser(created), companyId: created.companyId, memberships: await getMemberships(c, created.id) }, 201);
+    return c.json({ user: safeUser(created), memberships: [] }, 201);
   } catch (error) {
     const databaseError = error as { code?: string; constraint?: string };
     if (databaseError.code === '23505') return c.json({ message: 'این نام کاربری قبلاً ثبت شده است.' }, 409);
@@ -430,6 +425,44 @@ app.post('/api/workspace/invites', async (c) => {
     returning id, expires_at
   `;
   return c.json({ inviteCode: code, inviteId: (rows[0] as { id: string }).id, expiresAt: (rows[0] as { expires_at: string }).expires_at }, 201);
+});
+
+app.post('/api/workspace/create', async (c) => {
+  const user = await requireUser(c);
+  if (user instanceof Response) return user;
+  const existing = await getMemberships(c, user.id);
+  if (existing.length) return c.json({ created: false, memberships: existing });
+  const sql = sqlFor(c);
+  try {
+    const created = await sql.query(
+      "with actor as (" +
+      " select id,username_normalized from public.medar_users where id=$1::uuid" +
+      "), new_company as (" +
+      " insert into public.companies(name) " +
+      " select 'فضای کاری ' || actor.username_normalized from actor " +
+      " where not exists (select 1 from public.memberships where user_id=actor.id and active=true) " +
+      " returning id" +
+      "), new_membership as (" +
+      " insert into public.memberships(company_id,user_id,role,active,created_by) " +
+      " select c.id,a.id,'owner',true,a.id from actor a cross join new_company c " +
+      " returning company_id" +
+      ") select company_id from new_membership",
+      [user.id],
+    );
+    if (!created.length) {
+      const current = await getMemberships(c, user.id);
+      if (current.length) return c.json({ created: false, memberships: current });
+      return c.json({ message: 'فضای کاری ساخته نشد؛ دوباره تلاش کن.' }, 500);
+    }
+    return c.json({ created: true, memberships: await getMemberships(c, user.id) }, 201);
+  } catch (error) {
+    const databaseError = error as { code?: string };
+    if (databaseError.code === '23505') {
+      const current = await getMemberships(c, user.id);
+      if (current.length) return c.json({ created: false, memberships: current });
+    }
+    throw error;
+  }
 });
 
 app.post('/api/workspace/join', async (c) => {
