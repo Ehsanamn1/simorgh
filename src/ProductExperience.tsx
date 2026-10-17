@@ -66,7 +66,7 @@ export default function ProductExperience() {
   const protectedRoute = location.pathname.includes('/app');
   // Enable secure sign-in by default in web, preview and native builds; only an explicit false disables it.
   // Public self-registration remains disabled independently of this UI flag.
-  const authUiEnabled = import.meta.env.VITE_ENABLE_AUTH_UI !== 'false';
+  const authUiEnabled = import.meta.env.VITE_ENABLE_AUTH_UI === 'true';
   const signInOpen = authUiEnabled && (((location.hash === '#signin' || location.hash === '#signup') && !user && !loading) || (protectedRoute && !user && !loading));
   const normalizedPath = location.pathname.startsWith(basePath) ? location.pathname.slice(basePath.length) || '/' : location.pathname;
   const protectedDestination = normalizedPath.startsWith('/app') ? normalizedPath : '/app';
