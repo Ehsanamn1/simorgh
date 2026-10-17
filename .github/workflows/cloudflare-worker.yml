@@ -133,9 +133,18 @@ jobs:
           const htmlResponse = await fetch(base + '/');
           if (!htmlResponse.ok) throw new Error('Root HTML failed: ' + htmlResponse.status);
           const html = await htmlResponse.text();
-          const jsPaths = [...new Set([...html.matchAll(/(?:src|href)="([^"]+\.js)"/g)].map(match => match[1]))];
-          const cssPaths = [...new Set([...html.matchAll(/href="([^"]+\.css)"/g)].map(match => match[1]))];
-          if (!jsPaths.length || !cssPaths.length) throw new Error('Root HTML is missing JS/CSS assets.');
+          const linkedJsPaths = [...new Set([...html.matchAll(/(?:src|href)="([^"]+\.js)"/g)].map(match => new URL(match[1], base + '/').pathname))];
+          const linkedCssPaths = [...new Set([...html.matchAll(/href="([^"]+\.css)"/g)].map(match => new URL(match[1], base + '/').pathname))];
+          if (!linkedJsPaths.length || !linkedCssPaths.length) throw new Error('Root HTML is missing JS/CSS assets.');
+          // Vite emits shared and lazy chunks that are not all linked directly from index.html.
+          // Scan every JS/CSS asset emitted by this very build, not only entrypoint tags.
+          const assetNames = await (await import('node:fs/promises')).readdir('dist/assets');
+          const jsPaths = assetNames.filter(name => name.endsWith('.js')).map(name => '/assets/' + name);
+          const cssPaths = assetNames.filter(name => name.endsWith('.css')).map(name => '/assets/' + name);
+          if (!jsPaths.length || !cssPaths.length) throw new Error('The local production build contains no JS/CSS assets.');
+          for (const path of [...linkedJsPaths, ...linkedCssPaths]) {
+            if (!assetNames.includes(path.split('/').pop())) throw new Error('Published HTML references an asset missing from this build: ' + path);
+          }
           const resolve = path => new URL(path, base + '/').toString();
           const fetchTexts = async paths => Promise.all(paths.map(async path => {
             const response = await fetch(resolve(path));
