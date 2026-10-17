@@ -24,7 +24,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setTheme] = useState<AppTheme>(savedTheme);
 
   useEffect(() => {
-    const documentThemeColor = theme === 'dark' ? '#101719' : '#F4F7F7';
+    const documentThemeColor = theme === 'dark' ? '#192320' : '#F3F6F2';
     document.documentElement.dataset.theme = theme;
     document.documentElement.style.colorScheme = theme;
     const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
