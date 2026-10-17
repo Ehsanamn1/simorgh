@@ -655,7 +655,7 @@ app.post('/api/data/:table', async (c) => {
     if (action === 'insert') {
       const entries = Array.isArray(rawValues) ? rawValues as Record<string, unknown>[] : [rawValues as Record<string, unknown>];
       if (!entries.length || entries.some((entry) => !entry || typeof entry !== 'object' || Array.isArray(entry))) return c.json({ message: 'رکورد ورودی معتبر نیست.' }, 422);
-      const keys = Array.from(new Set(entries.flatMap((entry) => Object.keys(entry).filter((key) => !blocked.has(key))));
+      const keys = Array.from(new Set(entries.flatMap((entry) => Object.keys(entry).filter((key) => !blocked.has(key)))));
       if (!keys.length || keys.some((key) => !columns.has(key))) return c.json({ message: 'یکی از فیلدهای رکورد غیرمجاز است.' }, 422);
       const insertParameters: unknown[] = [];
       const tuples = entries.map((entry) => '(' + keys.map((key) => { insertParameters.push(entry[key] ?? null); return '$' + insertParameters.length; }).join(', ') + ')');
