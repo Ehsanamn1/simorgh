@@ -824,8 +824,8 @@ app.post('/api/data/:table',async c=>{
    rows=sanitizeExternalRows(table,rows,scopes);
    return c.json({data:rows,count:counts.length?Number(counts[0].count):rows.length,error:null});
   }
-  const filters=Array.isArray(body.filters)?body.filters as DataFilter[]:[];
-  if(!filters.length&&action!=='insert')return c.json({message:'برای ویرایش یا حذف باید فیلتر رکورد مشخص شود.'},422);
+  const mutationFilters=Array.isArray(body.filters)?body.filters as DataFilter[]:[];
+  if(!mutationFilters.length&&action!=='insert')return c.json({message:'برای ویرایش یا حذف باید فیلتر رکورد مشخص شود.'},422);
   const writable=GENERIC_WRITABLE_TABLES.has(table)&&!RPC_ONLY_TABLES.has(table);
   if(!writable)return c.json({message:'این عملیات فقط از مسیر عملیاتی مجاز سمت سرور قابل انجام است.'},403);
   const protectedKeys=new Set(['id','company_id','password_hash','token_hash','user_id','created_by','updated_by','recorded_by','captured_by','uploaded_by','reported_by','submitted_by','reviewed_by','approved_by','posted_by','paid_by','resolved_by','actor_id','assigned_by']);
