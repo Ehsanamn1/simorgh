@@ -10,6 +10,7 @@ import ProductExperience from './ProductExperience';
 import './styles.css';
 import './design-system.css';
 import './premium-polish.css';
+import './calm-experience.css';
 
 if (import.meta.env.PROD && !Capacitor.isNativePlatform() && 'serviceWorker' in navigator) {
   window.addEventListener('load', () => {
