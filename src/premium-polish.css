@@ -169,3 +169,87 @@ td, th { border-color: var(--obs-border); }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
+
+/* Operations dashboard: make the real-data hierarchy scannable at a glance. */
+.tower-freshness {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 9px 14px;
+  margin: -8px 0 18px; padding: 10px 13px;
+  border: 1px solid var(--obs-border); border-radius: 12px;
+  background: linear-gradient(90deg, rgb(110 185 172 / 7%), rgb(17 25 28 / 50%));
+  color: var(--obs-muted); font-size: 11px;
+}
+.tower-live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--obs-positive); box-shadow: 0 0 0 4px rgb(142 200 180 / 9%); }
+.tower-stats { gap: 13px; margin-bottom: 18px; }
+.tower-stats .stat-card {
+  position: relative; overflow: hidden; padding: 18px 19px;
+  border: 1px solid var(--obs-border); border-radius: 16px;
+  background: linear-gradient(145deg, #192629 0%, #11191c 85%);
+}
+.tower-stats .stat-card::after {
+  content: ""; position: absolute; width: 92px; height: 92px; border-radius: 50%;
+  inset: auto auto -52px -28px; background: rgb(110 185 172 / 5%); pointer-events: none;
+}
+.tower-stats .stat-card-top { color: var(--obs-muted); font-size: 12px; }
+.tower-stats .stat-card > b { display: block; margin: 11px 0 3px; color: var(--obs-text); font-size: clamp(25px, 2.2vw, 32px); font-variant-numeric: tabular-nums; letter-spacing: -.04em; }
+.tower-stats .stat-card > small { color: var(--obs-subtle); font-size: 10px; }
+.tower-stats .stat-icon { width: 36px; height: 36px; border: 1px solid #34514e; border-radius: 11px; background: #1b3031; color: var(--obs-accent); }
+.tower-quick-access { margin-bottom: 18px; padding: 20px; border: 1px solid var(--obs-border); border-radius: 18px; background: linear-gradient(145deg, #172326, #11191c); }
+.tower-quick-head > div { display: flex; align-items: center; gap: 12px; }
+.tower-quick-head h3 { margin: 0; color: var(--obs-text); font-size: 15px; }
+.tower-quick-head p { margin: 2px 0 0; color: var(--obs-subtle); font-size: 11px; }
+.tower-quick-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; margin-top: 17px; }
+.tower-quick-grid > a {
+  display: grid; grid-template-columns: 37px minmax(0,1fr) 14px; grid-template-rows: auto auto;
+  align-items: center; column-gap: 9px; padding: 13px;
+  border: 1px solid #2d4144; border-radius: 13px; background: rgb(12 19 21 / 42%);
+  transition: transform var(--sim-motion-fast), border-color var(--sim-motion-fast), background var(--sim-motion-fast);
+}
+.tower-quick-grid > a:hover { transform: translateY(-2px); border-color: #456a64; background: #1b2c2f; }
+.tower-quick-grid > a > span { grid-row: 1 / span 2; display: grid; place-items: center; width: 37px; height: 37px; border: 1px solid #355450; border-radius: 11px; background: #1b3031; color: var(--obs-accent); }
+.tower-quick-grid > a > b { color: var(--obs-text); font-size: 11px; line-height: 1.7; }
+.tower-quick-grid > a > small { color: var(--obs-subtle); font-size: 9px; line-height: 1.7; }
+.tower-quick-grid > a > svg { grid-column: 3; grid-row: 1 / span 2; color: var(--obs-accent-2); }
+.tower-onboarding { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 18px; padding: 17px; border: 1px solid rgb(213 174 115 / 25%); border-radius: 15px; background: rgb(213 174 115 / 5%); }
+.tower-onboarding > svg { flex: none; color: var(--obs-warning); }
+.tower-onboarding > div:first-of-type { flex: 1; min-width: 220px; }
+.tower-onboarding b { color: var(--obs-text); font-size: 12px; }
+.tower-onboarding p { margin: 3px 0 0; color: var(--obs-muted); font-size: 11px; }
+.tower-onboarding-links { display: flex; flex-wrap: wrap; gap: 8px; }
+.tower-onboarding-links a, .tower-panel-link { color: var(--obs-accent); font-size: 11px; font-weight: 750; }
+.tower-onboarding-links a { border: 1px solid #3b5551; border-radius: 9px; padding: 7px 10px; background: #19292b; }
+.tower-panel-link { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; }
+.tower-goal-row, .tower-alert-row, .tower-order-row, .tower-audit-row { border-color: var(--obs-border); }
+.tower-goal-row { min-height: 68px; padding: 12px 4px; }
+.tower-goal-row:hover, .tower-order-row:hover { background: rgb(110 185 172 / 4%); }
+.tower-goal-progress i { overflow: hidden; background: #263638; border-radius: 999px; }
+.tower-goal-progress i span { border-radius: 999px; background: linear-gradient(90deg, #5c9f96, #8ec8b4); }
+.tower-alert-row { border-radius: 12px; padding: 13px; margin-bottom: 7px; background: rgb(10 16 18 / 22%); }
+.tower-alert-row:hover { border-color: #465f60; background: #192629; }
+.tower-alert-row.critical { border-right-color: var(--obs-critical); }
+.tower-alert-row.warning { border-right-color: var(--obs-warning); }
+.tower-alert-row.info { border-right-color: var(--obs-info); }
+.tower-alert-copy b { color: var(--obs-text); line-height: 1.9; }
+.tower-alert-copy small { color: var(--obs-muted); line-height: 1.9; }
+.tower-alert-go { color: var(--obs-accent); }
+.tower-audit-row { padding-block: 12px; }
+.tower-audit-mark, .tower-goal-dot, .tower-alert-mark { border-radius: 11px; }
+.chart-wrap { min-height: 250px; }
+@media (max-width: 1150px) {
+  .tower-quick-grid { grid-template-columns: repeat(3, minmax(0,1fr)); }
+}
+@media (max-width: 720px) {
+  .tower-stats { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .tower-quick-access { padding: 15px; }
+  .tower-quick-grid { grid-template-columns: repeat(2, minmax(0,1fr)); gap: 8px; }
+  .tower-quick-grid > a { padding: 10px; grid-template-columns: 32px minmax(0,1fr) 12px; column-gap: 7px; }
+  .tower-quick-grid > a > span { width: 32px; height: 32px; }
+  .tower-freshness { align-items: flex-start; }
+}
+@media (max-width: 390px) {
+  .tower-stats { gap: 8px; }
+  .tower-stats .stat-card { padding: 13px; }
+  .tower-quick-grid > a { grid-template-columns: 28px minmax(0,1fr); }
+  .tower-quick-grid > a > span { width: 28px; height: 28px; }
+  .tower-quick-grid > a > svg { display: none; }
+  .tower-quick-grid > a > b { font-size: 10px; }
+}
