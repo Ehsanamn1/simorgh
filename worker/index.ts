@@ -32,7 +32,7 @@ export function parseClientHeartbeat(input: unknown): MedarClientHeartbeat | nul
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(companyId)) return null;
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(clientId)) return null;
   if (platform !== 'web' && platform !== 'android' && platform !== 'ios') return null;
-  if (appVersion.length < 1 || appVersion.length > 40 || /[\u0000-\u001f]/.test(appVersion)) return null;
+  if (appVersion.length < 1 || appVersion.length > 40 || Array.from(appVersion).some(char => char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127)) return null;
   return { companyId, clientId, platform, appVersion };
 }
 
