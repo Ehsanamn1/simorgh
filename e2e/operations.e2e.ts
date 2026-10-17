@@ -7,42 +7,34 @@ const supplierId = '00000000-0000-4000-8000-000000000033';
 const customerId = '00000000-0000-4000-8000-000000000055';
 
 async function installIsolatedSession(page: Page, role: 'owner' | 'supplier' | 'driver' | 'customer' | 'unprovisioned') {
-  const now = Math.floor(Date.now() / 1000);
-  const expiresAt = now + 60 * 60 * 24 * 365;
-  const email = role + '@example.test';
+  const userId = '00000000-0000-4000-8000-000000000011';
+  const companyId = '00000000-0000-4000-8000-000000000022';
+  const supplierId = '00000000-0000-4000-8000-000000000033';
+  const customerId = '00000000-0000-4000-8000-000000000055';
   const fullName = role === 'owner' ? 'مالک آزمایشی مدار' : role === 'supplier' ? 'تأمین‌کننده آزمایشی مدار' : role === 'driver' ? 'راننده آزمایشی مدار' : role === 'unprovisioned' ? 'کاربر بدون عضویت مدار' : 'مشتری آزمایشی مدار';
-  const encodeBase64Url = (value: Record<string, unknown>) => Buffer.from(JSON.stringify(value)).toString('base64url');
-  const accessToken = [
-    encodeBase64Url({ alg: 'HS256', typ: 'JWT' }),
-    encodeBase64Url({
-      aud: 'authenticated', role: 'authenticated', sub: userId,
-      iat: now, exp: expiresAt, email, iss: projectUrl + '/auth/v1',
-      app_metadata: { provider: 'email', providers: ['email'] },
-      user_metadata: { full_name: fullName },
-    }),
-    Buffer.from('isolated-e2e-signature').toString('base64url'),
-  ].join('.');
-  await page.addInitScript(({ storageKey, session }) => {
-    window.localStorage.setItem(storageKey, JSON.stringify(session));
-  }, {
-    storageKey: 'sb-aoxerjimfiwusidaparx-auth-token',
-    session: {
-      access_token: accessToken,
-      token_type: 'bearer',
-      expires_in: 60 * 60 * 24 * 365,
-      expires_at: expiresAt,
-      refresh_token: 'simorgh-isolated-e2e-refresh-token',
-      user: {
-        id: userId, aud: 'authenticated', role: 'authenticated',
-        email, email_confirmed_at: new Date().toISOString(),
-        app_metadata: { provider: 'email', providers: ['email'] },
-        user_metadata: { full_name: fullName },
-        created_at: new Date().toISOString(),
-      },
-    },
-  });
+  const username = role + '_test';
+  const user = { id: userId, username, phone: '+989120000011', full_name: fullName };
+  const memberships = role === 'unprovisioned' ? [] : [{
+    id: '00000000-0000-4000-8000-000000000044',
+    company_id: companyId, user_id: userId, role,
+    customer_id: role === 'customer' ? customerId : null,
+    supplier_id: role === 'supplier' ? supplierId : null,
+    active: true,
+    company: { name: 'شرکت آزمایشی مدار' },
+  }];
 
-  // Browser-only responses: no test rows are written to the production database.
+  // The application session and workspace reads are simulated at the HTTP boundary.
+  // Tests never write these identities or records to the live database.
+  await page.route('**/api/auth/me', route => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({ user, memberships }),
+  }));
+  await page.route('**/api/workspace/memberships', route => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({ memberships }),
+  }));
+
+  // Legacy business-data endpoints remain mocked while their server API migration is in progress.
   await page.route(projectUrl + '/rest/v1/**', async route => {
     const request = route.request();
     const url = new URL(request.url());
@@ -59,15 +51,14 @@ async function installIsolatedSession(page: Page, role: 'owner' | 'supplier' | '
       return;
     }
     if (table === 'memberships') {
-      const rows = role === 'unprovisioned' ? [] : [{
-        id: '00000000-0000-4000-8000-000000000044',
-        company_id: companyId, user_id: userId, role,
-        customer_id: role === 'customer' ? customerId : null, supplier_id: role === 'supplier' ? supplierId : null,
-        active: true, companies: { name: 'شرکت آزمایشی مدار' },
-      }];
+      const rows = memberships.map(m => ({
+        id: m.id, company_id: m.company_id, user_id: m.user_id, role: m.role,
+        customer_id: m.customer_id, supplier_id: m.supplier_id, active: m.active,
+        companies: { name: 'شرکت آزمایشی مدار' },
+      }));
       await route.fulfill({
         status: 200,
-        headers: { ...headers, 'content-range': role === 'unprovisioned' ? '*/0' : '0-0/1' },
+        headers: { ...headers, 'content-range': rows.length ? '0-0/1' : '*/0' },
         body: JSON.stringify(rows),
       });
       return;
