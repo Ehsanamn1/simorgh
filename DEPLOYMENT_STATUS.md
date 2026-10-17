@@ -7,7 +7,7 @@ Checked: 2026-10-17.
 - **Operational app with sign-in and owner self-registration:** https://medar-api.dengxiao445.workers.dev/
 - **Public read-only showcase (not the operational tenant):** https://ehsanamn1.github.io/simorgh/
 - **Worker health endpoint:** https://medar-api.dengxiao445.workers.dev/api/health
-- **Current verified application-code release:** `ea09183d5165ee1176423c722e47b11483df5574`.
+- **Current verified application-code release:** `0dd1fa068f5e08be27194976e498544a7236c81a`.
 
 The Cloudflare Worker serves the operational UI with `VITE_ENABLE_AUTH_UI=true`. Sign-in uses an Iranian mobile number/username identity and password; it does not ask for email or SMS OTP. Public self-registration creates a separate workspace with the registrant as its initial owner. Joining an existing workspace still requires an invitation issued by that workspace's owner/admin. The browser tests verify that sign-in and the registration form render on desktop and mobile, but do not create a real production user account.
 
@@ -15,12 +15,12 @@ GitHub Pages intentionally remains `VITE_ENABLE_AUTH_UI=false` and shows the rea
 
 ## Verified automation for the current release
 
-- **CI — green:** [Run 39032794233](https://github.com/Ehsanamn1/simorgh/actions/runs/39032794233)
-- **GitHub Pages publish and live browser smoke — green:** [Run 39032794268](https://github.com/Ehsanamn1/simorgh/actions/runs/39032794268)
-- **Cloudflare Worker deploy and live sign-in/API smoke — green:** [Run 39032794220](https://github.com/Ehsanamn1/simorgh/actions/runs/39032794220)
-- **Android debug APK with operational auth bundle — green:** [Run 39032794227](https://github.com/Ehsanamn1/simorgh/actions/runs/39032794227)
-- **iOS Simulator app with operational auth bundle — green:** [Run 39032794199](https://github.com/Ehsanamn1/simorgh/actions/runs/39032794199)
-- **Complete source snapshot — green:** [Run 39032794204](https://github.com/Ehsanamn1/simorgh/actions/runs/39032794204)
+- **CI — green:** [Run 39035424341](https://github.com/Ehsanamn1/simorgh/actions/runs/39035424341)
+- **GitHub Pages publish and live browser smoke — green:** [Run 39035424336](https://github.com/Ehsanamn1/simorgh/actions/runs/39035424336)
+- **Cloudflare Worker deploy and live sign-in/API smoke — green:** [Run 39035424329](https://github.com/Ehsanamn1/simorgh/actions/runs/39035424329)
+- **Android debug APK with operational auth bundle — green:** [Run 39035424337](https://github.com/Ehsanamn1/simorgh/actions/runs/39035424337)
+- **iOS Simulator app with operational auth bundle — green:** [Run 39035424353](https://github.com/Ehsanamn1/simorgh/actions/runs/39035424353)
+- **Complete source snapshot — green:** [Run 39035424436](https://github.com/Ehsanamn1/simorgh/actions/runs/39035424436)
 
 The current CI pipeline checks TypeScript, ESLint, unit tests, production dependency audit, the canonical migration chain against clean PostgreSQL 16, the concurrent stock-deduction invariant, purchase-order approval/partial/final receipt and over-receipt rejection, the auth-enabled build, Pages subpath build, and desktop/mobile browser checks.
 
