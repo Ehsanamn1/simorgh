@@ -153,6 +153,10 @@ jobs:
           finish_smoke() {
             status=$?
             set +e
+            if [[ "$status" -ne 0 ]]; then
+              # Give the live Worker tail a moment to deliver the exception log for this request.
+              sleep 4
+            fi
             if [[ -n "$tail_pid" ]]; then
               kill "$tail_pid" >/dev/null 2>&1
               wait "$tail_pid" >/dev/null 2>&1
@@ -175,6 +179,8 @@ jobs:
             exit "$status"
           }
           trap finish_smoke EXIT
+          echo "Signup database schema (generated-field check):"
+          psql "$MEDAR_DATABASE_URL" -v ON_ERROR_STOP=1 -Atqc "select column_name || ':' || is_generated || ':' || is_nullable || ':' || coalesce(column_default,'<none>') from information_schema.columns where table_schema='public' and table_name='medar_users' and column_name in ('username','username_normalized','display_name','password_hash','phone_e164') order by ordinal_position"
           npx wrangler@4 tail medar-ops --format json > "$tail_log" 2>&1 &
           tail_pid=$!
           sleep 8
