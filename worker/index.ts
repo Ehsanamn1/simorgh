@@ -657,41 +657,39 @@ function buildMembershipScopeSql(table:string,columns:Set<string>,memberships:Me
  if(!columns.has('company_id')||!memberships.length)return 'false';
  const add=(value:unknown)=>{params.push(value);return '$'+(startAt+params.length-1);};
  const branches=memberships.map(m=>{
-  const company=add(m.company_id);
-  const base='company_id = '+company;
+  const company=add(m.company_id),base='company_id = '+company;
   if(INTERNAL_ROLES.has(m.role))return '('+base+')';
-  const actor=add(userId);
-  if(table==='notifications'&&columns.has('user_id'))return '('+base+' and user_id = '+actor+')';
   if(m.role==='customer'&&m.customer_id){
-   const customer=add(m.customer_id);
-   if(table==='customers')return '('+base+' and id = '+customer+')';
-   if(table==='orders'||table==='invoices'||table==='price_agreements')return '('+base+' and customer_id = '+customer+')';
+   if(table==='notifications'&&columns.has('user_id'))return '('+base+' and user_id = '+add(userId)+')';
+   if(table==='customers')return '('+base+' and id = '+add(m.customer_id)+')';
+   if(table==='orders'||table==='invoices'||table==='price_agreements')return '('+base+' and customer_id = '+add(m.customer_id)+')';
    if(table==='products')return '('+base+' and active = true)';
-   const customerOrders='select o.id from public.orders o where o.company_id = '+company+' and o.customer_id = '+customer;
+   const customerOrders='select o.id from public.orders o where o.company_id = '+company+' and o.customer_id = '+add(m.customer_id);
    if(table==='order_items')return '('+base+' and order_id in ('+customerOrders+'))';
-   const customerShipments='select s.id from public.shipments s join public.orders o on o.company_id=s.company_id and o.id=s.order_id where s.company_id = '+company+' and o.customer_id = '+customer;
    if(table==='shipments')return '('+base+' and order_id in ('+customerOrders+'))';
+   const customerShipments='select s.id from public.shipments s join public.orders o on o.company_id=s.company_id and o.id=s.order_id where s.company_id = '+company+' and o.customer_id = '+add(m.customer_id);
    if(table==='delivery_evidence'||table==='shipment_locations')return '('+base+' and shipment_id in ('+customerShipments+'))';
    return '(false)';
   }
   if(m.role==='supplier'&&m.supplier_id){
-   const supplier=add(m.supplier_id);
-   if(table==='suppliers')return '('+base+' and id = '+supplier+')';
+   if(table==='notifications'&&columns.has('user_id'))return '('+base+' and user_id = '+add(userId)+')';
    if(table==='products')return '('+base+' and active = true)';
-   if(columns.has('supplier_id'))return '('+base+' and supplier_id = '+supplier+')';
-   if(table==='operational_tasks')return '('+base+' and assignee_supplier_id = '+supplier+')';
-   if(table==='task_evidence')return '('+base+' and task_id in (select t.id from public.operational_tasks t where t.company_id = '+company+' and t.assignee_supplier_id = '+supplier+'))';
-   if(table==='daily_production_records')return '('+base+' and batch_id in (select b.id from public.production_batches b where b.company_id = '+company+' and b.supplier_id = '+supplier+'))';
-   if(table==='flock_cycles')return '('+base+' and farm_site_id in (select f.id from public.farm_sites f where f.company_id = '+company+' and f.supplier_id = '+supplier+'))';
-   if(table==='operational_incidents')return '('+base+' and (reported_supplier_id = '+supplier+' or batch_id in (select b.id from public.production_batches b where b.company_id = '+company+' and b.supplier_id = '+supplier+')))'; 
+   if(table==='suppliers')return '('+base+' and id = '+add(m.supplier_id)+')';
+   if(columns.has('supplier_id'))return '('+base+' and supplier_id = '+add(m.supplier_id)+')';
+   if(table==='operational_tasks')return '('+base+' and assignee_supplier_id = '+add(m.supplier_id)+')';
+   if(table==='task_evidence')return '('+base+' and task_id in (select t.id from public.operational_tasks t where t.company_id = '+company+' and t.assignee_supplier_id = '+add(m.supplier_id)+'))';
+   if(table==='daily_production_records')return '('+base+' and batch_id in (select b.id from public.production_batches b where b.company_id = '+company+' and b.supplier_id = '+add(m.supplier_id)+'))';
+   if(table==='flock_cycles')return '('+base+' and farm_site_id in (select f.id from public.farm_sites f where f.company_id = '+company+' and f.supplier_id = '+add(m.supplier_id)+'))';
+   if(table==='operational_incidents')return '('+base+' and (reported_supplier_id = '+add(m.supplier_id)+' or batch_id in (select b.id from public.production_batches b where b.company_id = '+company+' and b.supplier_id = '+add(m.supplier_id)+')))'; 
    return '(false)';
   }
   if(m.role==='driver'){
+   if(table==='notifications'&&columns.has('user_id'))return '('+base+' and user_id = '+add(userId)+')';
    if(table==='products')return '('+base+' and active = true)';
-   if(table==='shipments')return '('+base+' and driver_user_id = '+actor+')';
-   if(table==='shipment_locations')return '('+base+' and driver_user_id = '+actor+')';
-   if(table==='delivery_evidence')return '('+base+' and shipment_id in (select s.id from public.shipments s where s.company_id = '+company+' and s.driver_user_id = '+actor+'))';
-   const assignedOrders='select s.order_id from public.shipments s where s.company_id = '+company+' and s.driver_user_id = '+actor;
+   if(table==='shipments')return '('+base+' and driver_user_id = '+add(userId)+')';
+   if(table==='shipment_locations')return '('+base+' and driver_user_id = '+add(userId)+')';
+   if(table==='delivery_evidence')return '('+base+' and shipment_id in (select s.id from public.shipments s where s.company_id = '+company+' and s.driver_user_id = '+add(userId)+'))';
+   const assignedOrders='select s.order_id from public.shipments s where s.company_id = '+company+' and s.driver_user_id = '+add(userId);
    if(table==='orders')return '('+base+' and id in ('+assignedOrders+'))';
    if(table==='order_items')return '('+base+' and order_id in ('+assignedOrders+'))';
    if(table==='customers')return '('+base+' and id in (select o.customer_id from public.orders o where o.company_id = '+company+' and o.id in ('+assignedOrders+')))';
