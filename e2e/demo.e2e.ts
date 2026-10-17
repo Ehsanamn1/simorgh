@@ -24,7 +24,7 @@ test('public demo is navigable, searchable and clearly read-only', async ({ page
   if (await page.locator('.demo-menu-button').isVisible()) {
     await page.locator('.demo-menu-button').click();
   }
-  await page.locator('.demo-nav-item').filter({ hasText: 'سفارش‌ها' }).click();
+  await page.locator('.demo-sidebar .demo-nav-item').filter({ hasText: /^سفارش‌ها$/ }).click();
   await expect(page.getByRole('heading', { name: 'سفارش‌ها', exact: true })).toBeVisible();
   await page.locator('.demo-search').click();
   await page.locator('.demo-search').click();
