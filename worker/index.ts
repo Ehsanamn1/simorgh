@@ -595,6 +595,35 @@ const DATA_TABLES = new Set([
  'operational_incidents','partner_financial_entries','partner_settlement_periods','shipment_locations','inventory_movements',
  'inventory_balances','company_goals'
 ]);
+export function resolveRpcArguments(
+  argNames: string[],
+  argTypes: string[],
+  defaultCount: number,
+  suppliedArgs: Record<string, unknown>,
+): { names: string[]; types: string[]; values: unknown[] } | null {
+  if (!Number.isInteger(defaultCount) || defaultCount < 0 || defaultCount > argNames.length ||
+      argNames.length !== argTypes.length ||
+      argNames.some(name => typeof name !== 'string' || !/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(name)) ||
+      argTypes.some(type => typeof type !== 'string' || !/^[a-zA-Z_][a-zA-Z0-9_ .]*(?:\\[\\])?$/.test(type))) {
+    return null;
+  }
+
+  const requiredCount = argNames.length - defaultCount;
+  const allowedCallerArgs = new Set(argNames.filter(name => name !== '_actor'));
+  if (argNames.some((name, index) => index < requiredCount && !Object.prototype.hasOwnProperty.call(suppliedArgs, name)) ||
+      Object.keys(suppliedArgs).some(name => name !== '_actor' && !allowedCallerArgs.has(name))) {
+    return null;
+  }
+
+  const names = argNames.filter((name, index) =>
+    index < requiredCount || Object.prototype.hasOwnProperty.call(suppliedArgs, name));
+  return {
+    names,
+    types: names.map(name => argTypes[argNames.indexOf(name)]),
+    values: names.map(name => suppliedArgs[name] ?? null),
+  };
+}
+
 const RPC_ALLOWLIST = new Set([
  'allocate_order_item','record_inventory_movement','record_quality_review','company_members','start_operational_task','submit_operational_task',
  'review_operational_task','create_partner_settlement_period','refresh_partner_settlement_period','approve_partner_settlement_period',
@@ -1140,30 +1169,162 @@ app.post('/api/rpc/:name', async (c) => {
     }
     const metadata = await sql.query(
       "select p.proargnames[1:p.pronargs] as arg_names," +
-      "array(select format_type(t,null) from unnest(p.proargtypes::oid[]) with ordinality as a(t,ord) order by ord) as arg_types " +
+      "array(select format_type(t,null) from unnest(p.proargtypes::oid[]) with ordinality as a(t,ord) order by ord) as arg_types," +
+      "p.pronargdefaults as default_count " +
       "from pg_proc p join pg_namespace n on n.oid=p.pronamespace " +
       "where n.nspname='public' and p.proname=$1 order by p.pronargs limit 2",
       [targetName],
     );
     if (metadata.length !== 1) return c.json({ message: 'عملیات دیتابیس هنوز نصب نشده یا مبهم است.' }, 503);
-    const info = metadata[0] as { arg_names: string[]; arg_types: string[] };
-    const names = info.arg_names ?? [];
-    const types = info.arg_types ?? [];
-    const allowedCallerArgs = new Set(names.filter(name => name !== '_actor'));
-    if (names.some(name => !Object.prototype.hasOwnProperty.call(suppliedArgs, name)) ||
-        Object.keys(args).some(name => name !== '_actor' && !allowedCallerArgs.has(name))) {
-      return c.json({ message: 'پارامترهای عملیات کامل نیستند یا پارامتر ناشناخته وجود دارد.' }, 422);
-    }
-    if (types.some(type => !/^[a-zA-Z_][a-zA-Z0-9_ .]*$/.test(type))) {
-      return c.json({ message: 'نوع پارامتر عملیات معتبر نیست.' }, 500);
-    }
-    const placeholders = names.map((name, index) => '$' + (index + 1) + '::' + types[index]);
-    const values = names.map(name => suppliedArgs[name] ?? null);
+    const info = metadata[0] as { arg_names: string[]; arg_types: string[]; default_count: number };
+    const resolved = resolveRpcArguments(
+      info.arg_names ?? [],
+      info.arg_types ?? [],
+      Number(info.default_count ?? 0),
+      suppliedArgs,
+    );
+    if (!resolved) return c.json({ message: 'پارامترهای عملیات کامل نیستند، نامعتبرند یا پارامتر ناشناخته وجود دارد.' }, 422);
+    const placeholders = resolved.names.map((name, index) => name + ' => 
+    return c.json({ data: rows, error: null });
+  } catch (error) {
+    const caught = error as { code?: string };
+    return c.json({
+      message: caught.code ? 'این عملیات با توجه به نقش یا وضعیت فعلی مجاز نیست.' : 'اجرای عملیات ناموفق بود.',
+    }, caught.code ? 400 : 500);
+  }
+});
+app.post('/api/access-requests',async c=>{
+ const user=await requireUser(c);if(user instanceof Response)return user;
+ return c.json({message:'درخواست نقش عمومی فعال نیست؛ با کد دعوت به یک مجموعه بپیوند.',account:user.username},410);
+});
+const PRIVATE_BUCKET_RULES:Record<string,{maxBytes:number;contentTypes:Set<string>}>={
+ 'delivery-evidence':{maxBytes:10*1024*1024,contentTypes:new Set(['image/jpeg','image/png','image/webp','application/pdf'])},
+ 'operational-evidence':{maxBytes:10*1024*1024,contentTypes:new Set(['image/jpeg','image/png','image/webp','application/pdf'])},
+ 'contract-documents':{maxBytes:20*1024*1024,contentTypes:new Set(['application/pdf','image/jpeg','image/png'])}
+};
+function normalizePrivatePath(value:string):string|null{
+ const parts=value.split('/');
+ if(parts.length<3||parts.length>8||parts.some(p=>!p||p==='.'||p==='..'||p.includes('\\')||p.includes('\0')))return null;
+ if(!/^[0-9a-f-]{36}$/i.test(parts[0])||!/^[0-9a-f-]{36}$/i.test(parts[1]))return null;
+ if(parts.some(p=>p.length>180||p.trim()!==p))return null;
+ return parts.join('/');
+}
+async function memberRoleForCompany(c:Ctx,userId:string,companyId:string):Promise<string|null>{
+ const sql=sqlFor(c);
+ const rows=await sql.query("select role from public.memberships where user_id=$1::uuid and company_id=$2::uuid and active=true limit 1",[userId,companyId]);
+ return (rows[0] as {role:string}|undefined)?.role??null;
+}
+type PrivateFileAction = 'read' | 'write' | 'delete';
+async function canAccessPrivateFile(c: Ctx, userId: string, bucket: string, path: string, action: PrivateFileAction): Promise<boolean> {
+  const [companyId, resourceId] = path.split('/');
+  const sql = sqlFor(c);
+  if (action === 'delete') {
+    const manager = await sql.query(
+      "select exists(select 1 from public.memberships m where m.user_id=$1::uuid and m.company_id=$2::uuid and m.active=true and m.role::text in ('owner','admin')) as allowed",
+      [userId, companyId],
+    );
+    return Boolean((manager[0] as {allowed?:boolean}|undefined)?.allowed);
+  }
+  const rows = await sql.query(
+    "select case " +
+    "when $4='contract-documents' then (" +
+      "(exists(select 1 from public.memberships m where m.user_id=$1::uuid and m.company_id=$2::uuid and m.active=true and m.role::text in ('owner','admin')" +
+      " and exists(select 1 from public.suppliers su where su.id=$3::uuid and su.company_id=$2::uuid))" +
+      (action === 'read'
+        ? " or exists(select 1 from public.memberships m where m.user_id=$1::uuid and m.company_id=$2::uuid and m.active=true and m.role::text='supplier' and m.supplier_id=$3::uuid)"
+        : "") +
+      ")" +
+    ") " +
+    "when $4='operational-evidence' then (" +
+      "exists(select 1 from public.memberships m where m.user_id=$1::uuid and m.company_id=$2::uuid and m.active=true and m.role::text in ('owner','admin','staff')) " +
+      "or exists(select 1 from public.operational_tasks t where t.id=$3::uuid and t.company_id=$2::uuid and (t.assignee_user_id=$1::uuid or exists(select 1 from public.memberships m where m.user_id=$1::uuid and m.company_id=$2::uuid and m.active=true and m.role::text='supplier' and m.supplier_id=t.assignee_supplier_id))) " +
+    ") " +
+    "when $4='delivery-evidence' then (" +
+      "exists(select 1 from public.memberships m where m.user_id=$1::uuid and m.company_id=$2::uuid and m.active=true and m.role::text in ('owner','admin','staff')) " +
+      (action === 'read'
+        ? "or exists(select 1 from public.shipments s where s.id=$3::uuid and s.company_id=$2::uuid and s.driver_user_id=$1::uuid) " +
+          "or exists(select 1 from public.shipments s join public.orders o on o.id=s.order_id and o.company_id=s.company_id join public.memberships m on m.company_id=o.company_id and m.customer_id=o.customer_id where s.id=$3::uuid and s.company_id=$2::uuid and m.user_id=$1::uuid and m.active=true and m.role::text='customer') "
+        : "or exists(select 1 from public.shipments s where s.id=$3::uuid and s.company_id=$2::uuid and s.driver_user_id=$1::uuid) ") +
+    ") else false end as allowed",
+    [userId, companyId, resourceId, bucket, path],
+  );
+  return Boolean((rows[0] as { allowed?: boolean } | undefined)?.allowed);
+}
+
+app.put('/api/storage/:bucket',async c=>{
+ const user=await requireUser(c);if(user instanceof Response)return user;
+ if(!c.env.FILE_STORE)return c.json({message:'فضای فایل خصوصی Cloudflare R2 هنوز پیکربندی نشده است.'},503);
+ const bucket=c.req.param('bucket'),rules=PRIVATE_BUCKET_RULES[bucket];if(!rules)return c.json({message:'مخزن فایل مجاز نیست.'},404);
+ const path=normalizePrivatePath(c.req.query('path')??'');if(!path)return c.json({message:'مسیر فایل معتبر نیست.'},422);
+ const companyId=path.split('/')[0],role=await memberRoleForCompany(c,user.id,companyId);
+ if(!role)return c.json({message:'برای این مجموعه دسترسی فعال نداری.'},403);
+ if(!(await canAccessPrivateFile(c,user.id,bucket,path,'write')))return c.json({message:'نقش فعلی اجازه بارگذاری این مدرک در این مسیر را ندارد.'},403);
+ const contentType=(c.req.header('content-type')??'application/octet-stream').split(';')[0].trim().toLowerCase();
+ if(!rules.contentTypes.has(contentType))return c.json({message:'نوع فایل پشتیبانی نمی‌شود.'},415);
+ const len=Number(c.req.header('content-length')??0);if(len>rules.maxBytes)return c.json({message:'حجم فایل از محدودیت مخزن بیشتر است.'},413);
+ const bytes=await c.req.arrayBuffer();if(bytes.byteLength>rules.maxBytes)return c.json({message:'حجم فایل از محدودیت مخزن بیشتر است.'},413);
+ const existing=await runForUser(c,user.id,'select id from public.medar_files where bucket_id=$1 and name=$2 limit 1',[bucket,path]);
+ if(existing.length&&c.req.header('x-upsert')!=='true')return c.json({message:'فایلی با این مسیر قبلاً وجود دارد.'},409);
+ try{
+  await c.env.FILE_STORE.put(bucket+'/'+path,bytes,{httpMetadata:{contentType}});
+  const metadata=await runForUser(c,user.id,'insert into public.medar_files(bucket_id,name,company_id,content_type,size_bytes,uploaded_by) values($1,$2,$3::uuid,$4,$5,$6::uuid) on conflict(bucket_id,name) do update set content_type=excluded.content_type,size_bytes=excluded.size_bytes,uploaded_by=excluded.uploaded_by returning id',[bucket,path,companyId,contentType,bytes.byteLength,user.id]);
+  if(!metadata.length){await c.env.FILE_STORE.delete(bucket+'/'+path);return c.json({message:'قواعد دسترسی بارگذاری این مدرک را مجاز نمی‌دانند.'},403);}
+  return c.json({data:{path,bucket,size:bytes.byteLength,contentType},error:null},201);
+ }catch{return c.json({message:'ذخیره فایل یا ثبت مشخصات آن ناموفق بود.'},400);}
+});
+app.get('/api/storage/:bucket',async c=>{
+ const user=await requireUser(c);if(user instanceof Response)return user;
+ if(!c.env.FILE_STORE)return c.json({message:'فضای فایل خصوصی Cloudflare R2 هنوز پیکربندی نشده است.'},503);
+ const bucket=c.req.param('bucket');if(!PRIVATE_BUCKET_RULES[bucket])return c.json({message:'مخزن فایل مجاز نیست.'},404);
+ const path=normalizePrivatePath(c.req.query('path')??'');if(!path)return c.json({message:'مسیر فایل معتبر نیست.'},422);
+ if(!(await canAccessPrivateFile(c,user.id,bucket,path,'read')))return c.json({message:'فایل پیدا نشد یا دسترسی به آن مجاز نیست.'},404);
+ const meta=await runForUser(c,user.id,'select content_type from public.medar_files where bucket_id=$1 and name=$2 limit 1',[bucket,path]);
+ if(!meta.length)return c.json({message:'فایل پیدا نشد یا دسترسی به آن مجاز نیست.'},404);
+ const object=await c.env.FILE_STORE.get(bucket+'/'+path);if(!object)return c.json({message:'فایل در فضای ذخیره‌سازی پیدا نشد.'},404);
+ const headers=new Headers();object.writeHttpMetadata(headers);headers.set('Content-Type',String(meta[0].content_type??object.httpMetadata?.contentType??'application/octet-stream'));
+ headers.set('Cache-Control','private, no-store');headers.set('X-Content-Type-Options','nosniff');headers.set('Content-Security-Policy',"default-src 'none'; sandbox");
+ return new Response(object.body,{status:200,headers});
+});
+app.post('/api/storage/:bucket/remove',async c=>{
+ const user=await requireUser(c);if(user instanceof Response)return user;
+ if(!c.env.FILE_STORE)return c.json({message:'فضای فایل خصوصی Cloudflare R2 هنوز پیکربندی نشده است.'},503);
+ const bucket=c.req.param('bucket');if(!PRIVATE_BUCKET_RULES[bucket])return c.json({message:'مخزن فایل مجاز نیست.'},404);
+ const body=await c.req.json<{paths?:unknown}>().catch(()=>null);
+ if(!Array.isArray(body?.paths)||body.paths.length<1||body.paths.length>50)return c.json({message:'فهرست فایل‌ها معتبر نیست.'},422);
+ const paths=body.paths.map(raw=>typeof raw==='string'?normalizePrivatePath(raw):null);
+ if(paths.some(path=>!path))return c.json({message:'یکی از مسیرهای فایل معتبر نیست.'},422);
+ const validPaths=paths as string[],params:unknown[]=[bucket],marks=validPaths.map(path=>{params.push(path);return '$'+params.length;});
+ try{
+  const candidates=await runForUser(c,user.id,'select name from public.medar_files where bucket_id=$1 and name in ('+marks.join(',')+')',params);
+  const candidatesNames=candidates.map(row=>String(row.name));
+  const names:string[]=[];
+  for(const candidate of candidatesNames){
+   if(await canAccessPrivateFile(c,user.id,bucket,candidate,'delete'))names.push(candidate);
+  }
+  if(!names.length)return c.json({data:[],error:null});
+  await c.env.FILE_STORE.delete(names.map(name=>bucket+'/'+name));
+  const deleteParams:unknown[]=[bucket],deleteMarks=names.map(name=>{deleteParams.push(name);return '$'+deleteParams.length;});
+  await runForUser(c,user.id,'delete from public.medar_files where bucket_id=$1 and name in ('+deleteMarks.join(',')+') returning id',deleteParams);
+  return c.json({data:names.map(name=>({name})),error:null});
+ }catch{return c.json({message:'حذف فایل یا مشخصات آن ناموفق بود.'},400);}
+});
+
+
+app.notFound((c) => {
+  if (c.req.path.startsWith('/api/')) return c.json({ message: 'مسیر API پیدا نشد.' }, 404);
+  return c.env.ASSETS ? c.env.ASSETS.fetch(c.req.raw) : c.json({ message: 'مسیر پیدا نشد.' }, 404);
+});
+app.onError((error, c) => {
+  const requestId = crypto.randomUUID();
+  return c.json({ message: 'درخواست انجام نشد. دوباره تلاش کن.', requestId }, 500);
+});
+export default app;
+ + (index + 1) + '::' + resolved.types[index]);
     const rows = await runForUser(
       c,
       user.id,
       'select * from public.' + quoteSqlIdentifier(targetName) + '(' + placeholders.join(',') + ')',
-      values,
+      resolved.values,
     );
     return c.json({ data: rows, error: null });
   } catch (error) {
