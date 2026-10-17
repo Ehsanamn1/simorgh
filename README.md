@@ -40,7 +40,7 @@ Worker به `DATABASE_URL` در محیط سرور نیاز دارد. مقدار 
 
 شاخه‌ی فعلی مهاجرت `migration/cloudflare-neon-foundation` است: [PR #25](https://github.com/Ehsanamn1/simorgh/pull/25). CI، ساخت Worker، تست‌های مرورگر، خروجی debug اندروید و بسته‌ی شبیه‌ساز iOS باید برای آخرین commit بررسی شوند.
 
-Workflow انتشار پس از ادغام روی `main` اجرا می‌شود و secrets امن `MEDAR_DATABASE_URL`, `CLOUDFLARE_API_TOKEN` و `CLOUDFLARE_ACCOUNT_ID` می‌خواهد. تلاش اول در ۱۷ اکتبر ۲۰۲۶ به‌علت غیرفعال‌بودن R2 در حساب Cloudflare (خطای 10042) متوقف شد. برای اینکه API اصلی بتواند منتشر شود، binding مربوط به R2 موقتاً از Worker حذف شده است؛ endpointهای فایل در این وضعیت HTTP 503 می‌دهند. پس از فعال‌کردن R2 باید binding برگردد و بارگذاری/خواندن فایل خصوصی smoke-test شود. موفقیت Production فقط با سبزشدن workflow و آزمون زنده‌ی `/api/health` تأیید می‌شود.
+Workflow انتشار پس از ادغام روی `main` اجرا می‌شود و secrets امن `MEDAR_DATABASE_URL`, `CLOUDFLARE_API_TOKEN` و `CLOUDFLARE_ACCOUNT_ID` می‌خواهد. انتشار Worker در ۱۷ اکتبر ۲۰۲۶ با موفقیت انجام شد و `/api/health` اتصال Neon را تأیید کرد. تلاش اول به‌علت غیرفعال‌بودن R2 (خطای 10042) متوقف شده بود؛ سپس انتشار اصلی بدون binding فایل موفق شد. برای اینکه API اصلی بتواند منتشر شود، binding مربوط به R2 موقتاً از Worker حذف شده است؛ endpointهای فایل در این وضعیت HTTP 503 می‌دهند. پس از فعال‌کردن R2 باید binding برگردد و بارگذاری/خواندن فایل خصوصی smoke-test شود. موفقیت Production فقط با سبزشدن workflow و آزمون زنده‌ی `/api/health` تأیید می‌شود.
 
 شاخه‌ی جداگانه‌ی Neon که بررسی شده، فعلاً فاقد حساب، شرکت، عضویت و سفارش واقعی است. انتقال داده از دیتابیس قبلی هنوز انجام نشده؛ قبل از انتقال، backup قابل‌بازیابی، تطبیق تعداد رکوردها و برنامه‌ی rollback الزامی است.
 

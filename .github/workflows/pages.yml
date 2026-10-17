@@ -31,7 +31,7 @@ jobs:
         run: npm audit --omit=dev
       - name: Require the API URL for the static-hosted frontend
         env:
-          MEDAR_API_BASE_URL: ${{ vars.MEDAR_API_BASE_URL }}
+          MEDAR_API_BASE_URL: ${{ vars.MEDAR_API_BASE_URL || 'https://medar-api.dengxiao445.workers.dev' }}
         run: |
           if [[ -z "$MEDAR_API_BASE_URL" || "$MEDAR_API_BASE_URL" != https://* ]]; then
             echo "Set the repository variable MEDAR_API_BASE_URL to the deployed Cloudflare Worker URL before publishing the static frontend."
@@ -41,7 +41,7 @@ jobs:
         run: npm run build:pages
         env:
           VITE_ENABLE_AUTH_UI: 'true'
-          VITE_API_BASE_URL: ${{ vars.MEDAR_API_BASE_URL }}
+          VITE_API_BASE_URL: ${{ vars.MEDAR_API_BASE_URL || 'https://medar-api.dengxiao445.workers.dev' }}
       - name: Prepare SPA routing fallback
         run: |
           cp dist/index.html dist/404.html

@@ -36,7 +36,7 @@
 
 ## انتشار — هنوز تأیید نشده
 
-انتشار روی `main` پس از رفع مانع R2 دوباره اجرا می‌شود. Workflow به‌صورت دستی و با push به `main` اجرا می‌شود و secrets معتبر `MEDAR_DATABASE_URL`, `CLOUDFLARE_API_TOKEN` و `CLOUDFLARE_ACCOUNT_ID` را بررسی می‌کند. اولین تلاش واقعی انتشار در ۱۷ اکتبر ۲۰۲۶ به‌علت غیرفعال‌بودن R2 در حساب Cloudflare در مرحله‌ی ساخت bucket با خطای 10042 متوقف شد؛ در آن تلاش هنوز Worker منتشر نشده بود.
+انتشار روی `main` انجام شد؛ Worker در `https://medar-api.dengxiao445.workers.dev` با پاسخ سلامت `ok: true` و `database: true` تأیید شد. Workflow به‌صورت دستی و با push به `main` اجرا می‌شود و secrets معتبر `MEDAR_DATABASE_URL`, `CLOUDFLARE_API_TOKEN` و `CLOUDFLARE_ACCOUNT_ID` را بررسی می‌کند. اولین تلاش واقعی انتشار در ۱۷ اکتبر ۲۰۲۶ به‌علت غیرفعال‌بودن R2 در حساب Cloudflare در مرحله‌ی ساخت bucket با خطای 10042 متوقف شد؛ در آن تلاش هنوز Worker منتشر نشده بود.
 
 پس از deploy، این موارد را روی URL واقعی بررسی کن: `/api/health`, ثبت‌نام آزمایشی، ورود/خروج، بازیابی نشست، ساخت شرکت، دعوت و پیوستن، ممنوعیت دسترسی cross-tenant و RPC با/بدون آرگومان اختیاری. فضای فایل R2 هنوز فعال نیست؛ endpointهای فایل به‌صورت امن HTTP 503 برمی‌گردانند تا R2 فعال و binding اضافه شود.
 
