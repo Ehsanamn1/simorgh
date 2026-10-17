@@ -253,3 +253,64 @@ td, th { border-color: var(--obs-border); }
   .tower-quick-grid > a > svg { display: none; }
   .tower-quick-grid > a > b { font-size: 10px; }
 }
+
+/* Keep the optional light theme legible after the premium dark-surface treatment. */
+html[data-theme="light"] input:not([type=checkbox]):not([type=radio]),
+html[data-theme="light"] select,
+html[data-theme="light"] textarea {
+  background-color: #FFFFFF;
+  border-color: var(--obs-border);
+  color: var(--obs-text);
+}
+html[data-theme="light"] .tower-freshness {
+  background: linear-gradient(90deg, #EFF7F4, #FFFFFF);
+  color: var(--obs-muted);
+}
+html[data-theme="light"] .tower-stats .stat-card {
+  background: linear-gradient(145deg, #FFFFFF 0%, #F5F9F8 100%);
+  border-color: var(--obs-border);
+  box-shadow: 0 8px 24px rgb(20 48 46 / 5%);
+}
+html[data-theme="light"] .tower-stats .stat-card::after { background: rgb(38 120 106 / 5%); }
+html[data-theme="light"] .tower-stats .stat-card-top,
+html[data-theme="light"] .tower-stats .stat-card > small { color: var(--obs-muted); }
+html[data-theme="light"] .tower-stats .stat-card > b { color: var(--obs-text); }
+html[data-theme="light"] .tower-stats .stat-icon,
+html[data-theme="light"] .tower-quick-head .section-number {
+  color: #26786A; background: #E5F2EE; border-color: #C6E0D8;
+}
+html[data-theme="light"] .tower-quick-access {
+  background: linear-gradient(145deg, #FFFFFF, #F4F8F7);
+  border-color: var(--obs-border);
+}
+html[data-theme="light"] .tower-quick-head h3,
+html[data-theme="light"] .tower-quick-grid > a > b { color: var(--obs-text); }
+html[data-theme="light"] .tower-quick-head p,
+html[data-theme="light"] .tower-quick-grid > a > small { color: var(--obs-muted); }
+html[data-theme="light"] .tower-quick-grid > a {
+  background: #FFFFFF; border-color: var(--obs-border);
+  box-shadow: 0 4px 14px rgb(20 48 46 / 3%);
+}
+html[data-theme="light"] .tower-quick-grid > a:hover { background: #F0F7F5; border-color: #B5D3CA; }
+html[data-theme="light"] .tower-quick-grid > a > span {
+  background: #E5F2EE; border-color: #C6E0D8; color: #26786A;
+}
+html[data-theme="light"] .tower-quick-grid > a > svg { color: #376C7C; }
+html[data-theme="light"] .empty-state {
+  background: linear-gradient(140deg, #FFFFFF, #F7FAF9);
+  border-color: #CADBDA; color: var(--obs-text);
+}
+html[data-theme="light"] .empty-state > span {
+  background: #E5F2EE; border-color: #C6E0D8; color: #26786A;
+}
+html[data-theme="light"] .metric-card,
+html[data-theme="light"] .data-panel,
+html[data-theme="light"] .summary-card,
+html[data-theme="light"] .table-panel {
+  background: #FFFFFF; color: var(--obs-text); border-color: var(--obs-border);
+}
+html[data-theme="light"] .panel-heading h2,
+html[data-theme="light"] .panel-heading h3,
+html[data-theme="light"] .panel h2,
+html[data-theme="light"] .panel h3 { color: var(--obs-text); }
+html[data-theme="light"] .tower-onboarding { color: var(--obs-text); }
