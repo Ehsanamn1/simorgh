@@ -20,7 +20,11 @@
 
 ## معماری
 
-`React/Vite SPA → Cloudflare Worker API → Neon PostgreSQL`
+`React/Vite SPA / Capacitor mobile app → same authenticated Cloudflare Worker → same Neon PostgreSQL`
+
+- وب و Android/iOS یک codebase و قرارداد runtime مشترک در `src/lib/runtimeConfig.ts` دارند. API عملیاتی با `MEDAR_OPS_API_BASE_URL` در workflow موبایل تنظیم می‌شود؛ داده‌ها بین دستگاه‌ها از سرور واحد همگام می‌شوند، نه از local storage دستگاه.
+- پس از ورود، کلاینت‌ها heartbeat کم‌حساسیت ارسال می‌کنند. پنل مالک/مدیر در «مرکز فرمان شبکه» سلامت زنده‌ی API/دیتابیس و آخرین فعالیت کلاینت‌های وب و موبایل را از `GET /api/admin/system/clients` می‌خواند. داده‌ی قدیمی با برچسب آخرین فعالیت نشان داده می‌شود و آنلاین بودن صرفاً یعنی heartbeat در سه دقیقه‌ی اخیر.
+- migration `0012_client_presence.sql` جدول حضور کلاینت‌ها را اضافه می‌کند؛ این جدول فقط مانیتورینگ است و منبع احراز هویت یا مجوز نقش نیست.
 
 - API و نشست‌ها در `worker/index.ts`
 - کلاینت HTTP در `src/lib/apiClient.ts`
