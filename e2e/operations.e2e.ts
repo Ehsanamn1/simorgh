@@ -1,10 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 
 const projectUrl = 'https://aoxerjimfiwusidaparx.supabase.co';
-const userId = '00000000-0000-4000-8000-000000000011';
 const companyId = '00000000-0000-4000-8000-000000000022';
-const supplierId = '00000000-0000-4000-8000-000000000033';
-const customerId = '00000000-0000-4000-8000-000000000055';
 
 async function installIsolatedSession(page: Page, role: 'owner' | 'supplier' | 'driver' | 'customer' | 'unprovisioned') {
   const userId = '00000000-0000-4000-8000-000000000011';
