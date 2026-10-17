@@ -436,50 +436,93 @@ $;
 -- RLS on every application table in public schema.
 do $$ declare t text; begin foreach t in array array['companies','profiles','customers','suppliers','memberships','products','price_agreements','orders','order_items','capacity_commitments','lots','quality_reviews','shipments','delivery_evidence','invoices','settlements','notifications','audit_events'] loop execute format('alter table public.%I enable row level security',t); end loop; end $$;
 -- Companies and profiles
+drop policy if exists companies_read_member on public.companies;
 create policy companies_read_member on public.companies for select to public using(public.is_company_member(id));
+drop policy if exists profiles_read_self_or_colleague on public.profiles;
 create policy profiles_read_self_or_colleague on public.profiles for select to public using(id=public.medar_user_id() or exists(select 1 from public.memberships mine join public.memberships theirs on theirs.company_id=mine.company_id where mine.user_id=public.medar_user_id() and mine.active and theirs.user_id=profiles.id and theirs.active and public.is_company_manager(mine.company_id)));
+drop policy if exists profiles_update_self on public.profiles;
 create policy profiles_update_self on public.profiles for update to public using(id=public.medar_user_id()) with check(id=public.medar_user_id());
 -- Membership: users see own memberships; managers see company roster; only grant_membership can insert roles.
+drop policy if exists memberships_read_own_or_managed on public.memberships;
 create policy memberships_read_own_or_managed on public.memberships for select to public using(user_id=public.medar_user_id() or public.is_company_manager(company_id));
+drop policy if exists memberships_manager_update on public.memberships;
 create policy memberships_manager_update on public.memberships for update to public using(public.is_company_manager(company_id) and not (role='owner' and user_id<>public.medar_user_id())) with check(public.is_company_manager(company_id));
 -- Business entities: internal roles administer; clients/suppliers see only bound records.
+drop policy if exists customers_internal_all on public.customers;
 create policy customers_internal_all on public.customers for all to public using(public.is_company_internal(company_id)) with check(public.is_company_internal(company_id));
+drop policy if exists customers_customer_read on public.customers;
 create policy customers_customer_read on public.customers for select to public using(id in (select public.my_customer_ids()));
+drop policy if exists suppliers_internal_all on public.suppliers;
 create policy suppliers_internal_all on public.suppliers for all to public using(public.is_company_internal(company_id)) with check(public.is_company_internal(company_id));
+drop policy if exists suppliers_supplier_read on public.suppliers;
 create policy suppliers_supplier_read on public.suppliers for select to public using(id in (select public.my_supplier_ids()));
+drop policy if exists products_internal_all on public.products;
 create policy products_internal_all on public.products for all to public using(public.is_company_internal(company_id)) with check(public.is_company_internal(company_id));
+drop policy if exists products_customer_catalog on public.products;
 create policy products_customer_catalog on public.products for select to public using(active and exists(select 1 from public.price_agreements pa where pa.company_id=products.company_id and pa.product_id=products.id and pa.customer_id in (select public.my_customer_ids()) and pa.valid_from<=current_date and (pa.valid_to is null or pa.valid_to>=current_date)));
+drop policy if exists price_agreements_internal_all on public.price_agreements;
 create policy price_agreements_internal_all on public.price_agreements for all to public using(public.is_company_internal(company_id)) with check(public.is_company_internal(company_id));
+drop policy if exists price_agreements_customer_read on public.price_agreements;
 create policy price_agreements_customer_read on public.price_agreements for select to public using(customer_id in (select public.my_customer_ids()) and valid_from<=current_date and (valid_to is null or valid_to>=current_date));
+drop policy if exists orders_internal_all on public.orders;
 create policy orders_internal_all on public.orders for all to public using(public.is_company_internal(company_id)) with check(public.is_company_internal(company_id));
+drop policy if exists orders_customer_read on public.orders;
 create policy orders_customer_read on public.orders for select to public using(customer_id in (select public.my_customer_ids()));
+drop policy if exists orders_customer_insert_draft on public.orders;
 create policy orders_customer_insert_draft on public.orders for insert to public with check(status='draft' and customer_id in (select public.my_customer_ids()) and created_by=public.medar_user_id());
+drop policy if exists orders_customer_update_draft on public.orders;
 create policy orders_customer_update_draft on public.orders for update to public using(customer_id in (select public.my_customer_ids()) and status in ('draft','submitted')) with check(customer_id in (select public.my_customer_ids()));
+drop policy if exists order_items_internal_all on public.order_items;
 create policy order_items_internal_all on public.order_items for all to public using(public.is_company_internal(company_id)) with check(public.is_company_internal(company_id));
+drop policy if exists order_items_customer_read on public.order_items;
 create policy order_items_customer_read on public.order_items for select to public using(exists(select 1 from public.orders o where o.id=order_items.order_id and o.company_id=order_items.company_id and o.customer_id in (select public.my_customer_ids())));
+drop policy if exists order_items_customer_insert on public.order_items;
 create policy order_items_customer_insert on public.order_items for insert to public with check(exists(select 1 from public.orders o where o.id=order_items.order_id and o.company_id=order_items.company_id and o.status='draft' and o.customer_id in (select public.my_customer_ids())));
+drop policy if exists order_items_supplier_read on public.order_items;
 create policy order_items_supplier_read on public.order_items for select to public using(supplier_id in (select public.my_supplier_ids()));
+drop policy if exists capacity_internal_all on public.capacity_commitments;
 create policy capacity_internal_all on public.capacity_commitments for all to public using(public.is_company_internal(company_id)) with check(public.is_company_internal(company_id));
+drop policy if exists capacity_supplier_read on public.capacity_commitments;
 create policy capacity_supplier_read on public.capacity_commitments for select to public using(supplier_id in (select public.my_supplier_ids()));
+drop policy if exists capacity_supplier_insert on public.capacity_commitments;
 create policy capacity_supplier_insert on public.capacity_commitments for insert to public with check(supplier_id in (select public.my_supplier_ids()) and status='declared' and confirmed_qty is null and committed_qty is null);
+drop policy if exists capacity_supplier_update_declared on public.capacity_commitments;
 create policy capacity_supplier_update_declared on public.capacity_commitments for update to public using(supplier_id in (select public.my_supplier_ids()) and status='declared') with check(supplier_id in (select public.my_supplier_ids()));
+drop policy if exists lots_internal_all on public.lots;
 create policy lots_internal_all on public.lots for all to public using(public.is_company_internal(company_id)) with check(public.is_company_internal(company_id));
+drop policy if exists lots_supplier_read on public.lots;
 create policy lots_supplier_read on public.lots for select to public using(supplier_id in (select public.my_supplier_ids()));
+drop policy if exists quality_internal_read on public.quality_reviews;
 create policy quality_internal_read on public.quality_reviews for select to public using(public.is_company_internal(company_id));
+drop policy if exists quality_internal_insert on public.quality_reviews;
 create policy quality_internal_insert on public.quality_reviews for insert to public with check(public.is_company_internal(company_id) and reviewer_id=public.medar_user_id());
+drop policy if exists shipments_internal_all on public.shipments;
 create policy shipments_internal_all on public.shipments for all to public using(public.is_company_internal(company_id)) with check(public.is_company_internal(company_id));
+drop policy if exists shipments_driver_read on public.shipments;
 create policy shipments_driver_read on public.shipments for select to public using(driver_user_id=public.medar_user_id());
+drop policy if exists shipments_driver_update on public.shipments;
 create policy shipments_driver_update on public.shipments for update to public using(driver_user_id=public.medar_user_id()) with check(driver_user_id=public.medar_user_id());
+drop policy if exists evidence_internal_all on public.delivery_evidence;
 create policy evidence_internal_all on public.delivery_evidence for all to public using(public.is_company_internal(company_id)) with check(public.is_company_internal(company_id));
+drop policy if exists evidence_driver_read on public.delivery_evidence;
 create policy evidence_driver_read on public.delivery_evidence for select to public using(exists(select 1 from public.shipments s where s.id=delivery_evidence.shipment_id and s.company_id=delivery_evidence.company_id and s.driver_user_id=public.medar_user_id()));
+drop policy if exists evidence_driver_insert on public.delivery_evidence;
 create policy evidence_driver_insert on public.delivery_evidence for insert to public with check(exists(select 1 from public.shipments s where s.id=delivery_evidence.shipment_id and s.company_id=delivery_evidence.company_id and s.driver_user_id=public.medar_user_id()) and captured_by=public.medar_user_id());
+drop policy if exists invoices_internal_all on public.invoices;
 create policy invoices_internal_all on public.invoices for all to public using(public.is_company_internal(company_id)) with check(public.is_company_internal(company_id));
+drop policy if exists invoices_customer_read on public.invoices;
 create policy invoices_customer_read on public.invoices for select to public using(customer_id in (select public.my_customer_ids()));
+drop policy if exists settlements_manager_all on public.settlements;
 create policy settlements_manager_all on public.settlements for all to public using(public.is_company_manager(company_id)) with check(public.is_company_manager(company_id));
+drop policy if exists settlements_supplier_read on public.settlements;
 create policy settlements_supplier_read on public.settlements for select to public using(supplier_id in (select public.my_supplier_ids()));
+drop policy if exists notifications_own_read on public.notifications;
 create policy notifications_own_read on public.notifications for select to public using(user_id=public.medar_user_id());
+drop policy if exists notifications_own_update on public.notifications;
 create policy notifications_own_update on public.notifications for update to public using(user_id=public.medar_user_id()) with check(user_id=public.medar_user_id());
+drop policy if exists notifications_internal_insert on public.notifications;
 create policy notifications_internal_insert on public.notifications for insert to public with check(public.is_company_internal(company_id));
+drop policy if exists audit_manager_read on public.audit_events;
 create policy audit_manager_read on public.audit_events for select to public using(public.is_company_manager(company_id));
 
 -- Storage evidence is private; path = <company_uuid>/<shipment_uuid>/<filename>. Image evidence is not food-safety certification.
@@ -489,8 +532,11 @@ create policy audit_manager_read on public.audit_events for select to public usi
 
 
 -- Role-specific read paths needed by the customer/supplier portals.
+drop policy if exists products_supplier_read on public.products;
 create policy products_supplier_read on public.products for select to public using(active and exists(select 1 from public.memberships m where m.company_id=products.company_id and m.user_id=public.medar_user_id() and m.active and m.role='supplier'));
+drop policy if exists orders_supplier_read on public.orders;
 create policy orders_supplier_read on public.orders for select to public using(exists(select 1 from public.order_items oi where oi.order_id=orders.id and oi.company_id=orders.company_id and oi.supplier_id in (select public.my_supplier_ids())));
+drop policy if exists shipments_customer_read on public.shipments;
 create policy shipments_customer_read on public.shipments for select to public using(exists(select 1 from public.orders o where o.id=shipments.order_id and o.company_id=shipments.company_id and o.customer_id in (select public.my_customer_ids())));
 
 -- Least-privilege database grants: RLS remains the row-level boundary.
