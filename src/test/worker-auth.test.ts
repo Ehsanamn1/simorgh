@@ -91,6 +91,18 @@ describe('Tenant membership isolation', () => {
     expect(params).toEqual(['company-a', 'company-b', 'customer-b']);
   });
 
+  it('allows same-company internal reads of legacy access requests but denies external roles', () => {
+    const internalParams: unknown[] = [];
+    const internalScope = buildMembershipScopeSql('access_requests', new Set(['company_id']), [
+      { company_id: 'company-a', role: 'owner', customer_id: null, supplier_id: null },
+    ], 'owner-a', internalParams);
+    expect(internalScope).toBe('((company_id = $1))');
+    expect(internalParams).toEqual(['company-a']);
+    const externalScope = buildMembershipScopeSql('access_requests', new Set(['company_id']), [
+      { company_id: 'company-a', role: 'supplier', customer_id: null, supplier_id: 'supplier-a' },
+    ], 'supplier-user', []);
+    expect(externalScope).toBe('((false))');
+  });
   it('restricts supplier task access to the assigned supplier', () => {
     const params: unknown[] = [];
     const scope = buildMembershipScopeSql('operational_tasks', new Set(['company_id', 'assignee_supplier_id']), [
