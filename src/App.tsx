@@ -168,9 +168,25 @@ function AppShell() {
     return query ? navItems.filter(item => (item.label + ' ' + item.group).toLocaleLowerCase('fa-IR').includes(query)) : navItems;
   }, [navItems, navSearch]);
   const navGroups = useMemo(() => {
+    // Keep the full feature set, but present it through a small set of predictable
+    // user-facing destinations instead of exposing every backend domain as a menu group.
+    const groupFor = (key: PageKey): string => {
+      if (key === 'home') return 'خانه';
+      if (key === 'command' || key === 'agents') return 'فرمان و دستیار';
+      if (['goals', 'task-templates', 'operational-tasks', 'incidents'].includes(key)) return 'کارها و پیگیری';
+      if (['orders', 'purchase-orders', 'contacts', 'customers', 'suppliers', 'contacts-import', 'products', 'catalog', 'my-orders', 'my-account'].includes(key)) return 'سفارش و مخاطبین';
+      if (['inventory', 'capacity', 'quality', 'shipments', 'driver-work', 'farm-sites', 'flock-cycles', 'production-batches', 'daily-production', 'supplier-work', 'supplier-capacity'].includes(key)) return 'عملیات و تولید';
+      return 'مالی و دسترسی';
+    };
+    const order = ['خانه', 'فرمان و دستیار', 'کارها و پیگیری', 'سفارش و مخاطبین', 'عملیات و تولید', 'مالی و دسترسی'];
     const grouped = new Map<string, typeof navItems>();
-    for (const item of filteredNavItems) grouped.set(item.group, [...(grouped.get(item.group) ?? []), item]);
-    return [...grouped.entries()].map(([label, items]) => ({ label, items }));
+    for (const item of filteredNavItems) {
+      const label = groupFor(item.key);
+      grouped.set(label, [...(grouped.get(label) ?? []), item]);
+    }
+    return [...grouped.entries()]
+      .map(([label, items]) => ({ label, items }))
+      .sort((a, b) => order.indexOf(a.label) - order.indexOf(b.label));
   }, [filteredNavItems]);
   useEffect(() => { if (mobileSearchOpen) searchInputRef.current?.focus(); }, [mobileSearchOpen]);
   useEffect(() => { setMobileSearchOpen(false); }, [location.pathname]);
