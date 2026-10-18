@@ -54,14 +54,14 @@ const navDefinitions: { key: PageKey; label: string; group: string; icon: typeof
   { key: 'goals', label: 'اهداف و برنامه', group: 'مدیریت', icon: Target, roles: ['owner', 'admin', 'staff'] },
   { key: 'contacts', label: 'دفترچه مخاطبین', group: 'مخاطبین', icon: Users, roles: ['owner', 'admin'] },
   { key: 'customers', label: 'مشتریان', group: 'فروش و تأمین', icon: Users, roles: ['owner', 'admin', 'staff'] },
-  { key: 'suppliers', label: 'تأمین‌کنندگان', group: 'فروش و تأمین', icon: Factory, roles: ['owner', 'admin', 'staff'] },
+  { key: 'suppliers', label: 'شبکه تأمین‌کنندگان', group: 'زنجیره تأمین', icon: Factory, roles: ['owner', 'admin', 'staff'] },
   { key: 'contacts-import', label: 'ورود فایل مخاطبین', group: 'مخاطبین', icon: FileCheck2, roles: ['owner', 'admin'] },
   { key: 'products', label: 'کاتالوگ و قیمت', group: 'فروش و تأمین', icon: Package, roles: ['owner', 'admin', 'staff'] },
   { key: 'purchase-orders', label: 'سفارش خرید و رسید', group: 'فروش و تأمین', icon: FileText, roles: ['owner', 'admin', 'staff'] },
   { key: 'inventory', label: 'موجودی و ثبت خرید', group: 'عملیات', icon: Warehouse, roles: ['owner', 'admin', 'staff'] },
-  { key: 'capacity', label: 'برنامه ظرفیت', group: 'عملیات', icon: Warehouse, roles: ['owner', 'admin', 'staff'] },
+  { key: 'capacity', label: 'برنامه ظرفیت', group: 'زنجیره تأمین', icon: Warehouse, roles: ['owner', 'admin', 'staff'] },
   { key: 'quality', label: 'کیفیت و محموله', group: 'عملیات', icon: ClipboardCheck, roles: ['owner', 'admin', 'staff'] },
-  { key: 'shipments', label: 'ارسال و تحویل', group: 'عملیات', icon: Truck, roles: ['owner', 'admin', 'staff'] },
+  { key: 'shipments', label: 'حمل‌ونقل و رانندگان', group: 'زنجیره تأمین', icon: Truck, roles: ['owner', 'admin', 'staff'] },
   { key: 'finance', label: 'مالی و تسویه', group: 'کنترل', icon: CreditCard, roles: ['owner', 'admin', 'staff', 'supplier', 'customer'] },
   { key: 'members', label: 'دسترسی کاربران', group: 'کنترل', icon: ShieldCheck, roles: ['owner', 'admin'] },
   { key: 'audit', label: 'تاریخچه تغییرات', group: 'کنترل', icon: Activity, roles: ['owner', 'admin'] },
@@ -137,7 +137,7 @@ function AppShell() {
     return () => { active = false; };
   }, [membership?.id, membership?.company_id]);
   // Keep the first release focused on daily operations. Advanced/AI pages remain in the codebase
-  // but are removed from normal navigation until the supplier network is operational.
+  // but are removed from the active release and their routes redirect to the role home.
   const navItems = useMemo(() => navDefinitions.filter(n =>
     !DEFERRED_NAV_KEYS.has(n.key) && Boolean(role && n.roles.includes(role)) &&
     (n.key === 'settings' || moduleReadPermissions === null || moduleReadPermissions[PAGE_PERMISSION_MODULE[n.key]] !== false)
@@ -151,12 +151,11 @@ function AppShell() {
     // specialist tools stay discoverable inside Operations or Management.
     const groupFor = (key: PageKey): string => {
       if (['home', 'command', 'connect', 'exceptions', 'goals', 'agents', 'operational-tasks', 'incidents'].includes(key)) return 'خانه و کارهای من';
-      if (['orders', 'purchase-orders', 'customers', 'suppliers', 'products', 'inventory', 'capacity', 'quality', 'shipments', 'catalog', 'my-orders', 'my-account', 'supplier-work', 'supplier-capacity', 'driver-work', 'farm-sites', 'flock-cycles', 'production-batches', 'daily-production'].includes(key)) return 'عملیات و سفارش‌ها';
-      if (['finance', 'supplier-settlement', 'partner-finance', 'partner-settlements'].includes(key)) return 'مالی و تسویه';
-      if (['members', 'contacts', 'contacts-import', 'partnership-agreements'].includes(key)) return 'افراد و قراردادها';
+      if (['suppliers', 'capacity', 'shipments', 'supplier-work', 'supplier-capacity', 'driver-work', 'farm-sites', 'flock-cycles', 'production-batches', 'daily-production'].includes(key)) return 'زنجیره تأمین';
+      if (['members', 'contacts', 'contacts-import', 'partnership-agreements'].includes(key)) return 'افراد و دسترسی';
       return 'مدیریت و تنظیمات';
     };
-    const order = ['خانه و کارهای من', 'عملیات و سفارش‌ها', 'مالی و تسویه', 'افراد و قراردادها', 'مدیریت و تنظیمات'];
+    const order = ['خانه و کارهای من', 'زنجیره تأمین', 'افراد و دسترسی', 'مدیریت و تنظیمات'];
     const grouped = new Map<string, typeof navItems>();
     for (const item of filteredNavItems) {
       const label = groupFor(item.key);
@@ -172,8 +171,8 @@ function AppShell() {
   const homeKey: PageKey = 'home';
   const homeDestination = navItems.some(n => n.key === homeKey) ? homeKey : (navItems[0]?.key ?? 'command');
   const routeKey = location.pathname.split('/').pop() as PageKey;
-  // Hidden specialist pages remain reachable by an explicit owner/admin URL while they are being phased out.
-  const allowed = navItems.some(n => n.key === routeKey) || (routeKey !== 'agents' && ['owner', 'admin'].includes(String(role)) && DEFERRED_NAV_KEYS.has(routeKey));
+  // Deferred modules are not only hidden from navigation; their routes are disabled until explicitly re-enabled.
+  const allowed = navItems.some(n => n.key === routeKey);
   const active = navItems.find(n => n.key === location.pathname.split('/').pop()) ?? navItems[0];
   if (!user) return <MobileAccessScreen/>;
   if (loading) return <LoadingScreen label="در حال بررسی نشست و دسترسی…"/>;
