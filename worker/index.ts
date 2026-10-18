@@ -2153,6 +2153,86 @@ app.get('/api/workspace/members', async (c) => {
   return c.json({ members });
 });
 
+app.post('/api/workspace/members/create', async (c) => {
+  const user = await requireUser(c);
+  if (user instanceof Response) return user;
+  const body = await c.req.json<Record<string, unknown>>().catch(() => null);
+  if (!body) return c.json({ message: 'اطلاعات حساب معتبر نیست.' }, 400);
+  const companyId = typeof body.companyId === 'string' ? body.companyId : '';
+  const username = normalizeUsername(body.username);
+  const fullName = typeof body.fullName === 'string' ? body.fullName.normalize('NFKC').trim() : '';
+  const password = typeof body.password === 'string' ? body.password : '';
+  const role = typeof body.role === 'string' ? body.role : '';
+  const customerId = typeof body.customerId === 'string' && body.customerId ? body.customerId : null;
+  const supplierId = typeof body.supplierId === 'string' && body.supplierId ? body.supplierId : null;
+  const allowedRoles = ['admin', 'staff', 'customer', 'supplier', 'driver'];
+  if (!COMPANY_ID_RE.test(companyId) || !username || !allowedRoles.includes(role)) {
+    return c.json({ message: 'شناسه مجموعه، نام کاربری یا نقش معتبر نیست.' }, 422);
+  }
+  if (!fullName || fullName.length > 100 || Array.from(fullName).some(char => char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127)) {
+    return c.json({ message: 'نام و نام خانوادگی باید بین ۱ تا ۱۰۰ نویسه باشد.' }, 422);
+  }
+  if (password.length < 12 || password.length > 128) {
+    return c.json({ message: 'رمز عبور اولیه باید بین ۱۲ تا ۱۲۸ نویسه باشد.' }, 422);
+  }
+  if ((role === 'customer' && (!customerId || supplierId)) ||
+      (role === 'supplier' && (!supplierId || customerId)) ||
+      (!['customer', 'supplier'].includes(role) && (customerId || supplierId))) {
+    return c.json({ message: 'برای نقش مشتری یا تأمین‌کننده، حساب مرتبط همان مجموعه را انتخاب کن.' }, 422);
+  }
+
+  const sql = sqlFor(c);
+  const actors = await sql`
+    select role::text as role from public.memberships
+    where user_id = ${user.id} and company_id = ${companyId} and active = true limit 1
+  `;
+  const actorRole = (actors[0] as { role: string } | undefined)?.role;
+  if (!actorRole || !['owner', 'admin'].includes(actorRole)) {
+    return c.json({ message: 'فقط مالک یا مدیر می‌تواند حساب بسازد.' }, 403);
+  }
+  if (role === 'admin' && actorRole !== 'owner') {
+    return c.json({ message: 'فقط مالک می‌تواند حساب مدیر بسازد.' }, 403);
+  }
+  if (customerId) {
+    const found = await sql`select 1 from public.customers where id = ${customerId} and company_id = ${companyId} limit 1`;
+    if (!found.length) return c.json({ message: 'حساب مشتری به این مجموعه تعلق ندارد.' }, 422);
+  }
+  if (supplierId) {
+    const found = await sql`select 1 from public.suppliers where id = ${supplierId} and company_id = ${companyId} limit 1`;
+    if (!found.length) return c.json({ message: 'حساب تأمین‌کننده به این مجموعه تعلق ندارد.' }, 422);
+  }
+
+  try {
+    const passwordHash = await hashPassword(password);
+    const rows = await sql.query(
+      "with new_user as (" +
+        "insert into public.medar_users(username,display_name,password_hash,requested_role,account_status) " +
+        "values($1,$2,$3,$4,'active') returning id,username,username_normalized,display_name" +
+      "), new_profile as (" +
+        "insert into public.profiles(id,full_name,phone) select id,display_name,null from new_user " +
+        "on conflict(id) do update set full_name=excluded.full_name returning id" +
+      "), new_membership as (" +
+        "insert into public.memberships(company_id,user_id,role,active,created_by,customer_id,supplier_id) " +
+        "select $5::uuid,u.id,$4::public.app_role,true,$6::uuid,$7::uuid,$8::uuid from new_user u " +
+        "returning id,company_id,role" +
+      ") select u.id,u.username_normalized as username,u.display_name as full_name," +
+      "m.id as membership_id,m.company_id,m.role from new_user u cross join new_membership m",
+      [username, fullName, passwordHash, role, companyId, user.id, customerId, supplierId],
+    );
+    const created = rows[0] as { id: string; username: string; full_name: string; membership_id: string; company_id: string; role: string } | undefined;
+    if (!created) return c.json({ message: 'حساب ساخته نشد؛ اطلاعات را بررسی و دوباره تلاش کن.' }, 500);
+    await sql.query(
+      "insert into public.medar_audit_log(actor_user_id,action,entity_type,entity_id,metadata) values($1::uuid,'membership.account_created','membership',$2::text,jsonb_build_object('company_id',$3::text,'role',$4::text,'username',$5::text))",
+      [user.id, created.membership_id, companyId, role, username],
+    );
+    return c.json({ member: created }, 201);
+  } catch (error) {
+    const databaseError = error as { code?: string };
+    if (databaseError.code === '23505') return c.json({ message: 'این نام کاربری قبلاً ثبت شده است.' }, 409);
+    throw error;
+  }
+});
+
 app.post('/api/workspace/members/deactivate', async (c) => {
   const user = await requireUser(c);
   if (user instanceof Response) return user;

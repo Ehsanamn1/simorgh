@@ -1,6 +1,8 @@
 import type * as React from 'react';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { api } from './apiClient';
+import { HttpError } from './http';
+import { setOfflineCachePartition } from './offlineCache';
 import { getMedarClientId, MEDAR_APP_VERSION, MEDAR_CLIENT_PLATFORM } from './runtimeConfig';
 import type { Membership } from './types';
 
@@ -33,11 +35,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const result = await api.get<SessionResponse>('/api/auth/me');
       setSession(result.user ? { user: result.user } : null);
       setMemberships(result.user ? (result.memberships ?? []) : []);
+      if (result.user) {
+        setOfflineCachePartition(result.user.id);
+        try { window.sessionStorage.setItem('medar-offline-session-v1', JSON.stringify({ user: result.user, memberships: result.memberships ?? [], savedAt: Date.now() })); } catch { /* Offline support is optional when storage is blocked. */ }
+      } else {
+        setOfflineCachePartition(null);
+        try { window.sessionStorage.removeItem('medar-offline-session-v1'); } catch { /* Ignore unavailable storage. */ }
+      }
       setError(null);
     } catch (caught) {
-      setSession(null);
-      setMemberships([]);
-      setError(caught instanceof Error ? caught.message : 'ارتباط با سرویس مدار برقرار نشد.');
+      let restored = false;
+      const serverRejectedSession = caught instanceof HttpError && (caught.status === 401 || caught.status === 403);
+      try {
+        const raw = serverRejectedSession ? null : window.sessionStorage.getItem('medar-offline-session-v1');
+        const cached = raw ? JSON.parse(raw) as { user?: UserShape; memberships?: Membership[]; savedAt?: number } : null;
+        if (cached?.user?.id && cached.user.username && Array.isArray(cached.memberships) &&
+            typeof cached.savedAt === 'number' && Date.now() - cached.savedAt < 7 * 24 * 60 * 60 * 1000) {
+          setSession({ user: cached.user });
+          setMemberships(cached.memberships);
+          setOfflineCachePartition(cached.user.id);
+          setError('حالت آفلاین: آخرین هویت و دسترسی شناخته‌شده بارگذاری شد؛ عملیات جدید تا اتصال مجدد تأیید نمی‌شوند.');
+          restored = true;
+        }
+      } catch { /* No local session is available; require a live server session. */ }
+      if (!restored) {
+        setSession(null);
+        setMemberships([]);
+        setOfflineCachePartition(null);
+        if (serverRejectedSession) {
+          try { window.sessionStorage.removeItem('medar-offline-session-v1'); } catch { /* Ignore unavailable storage. */ }
+        }
+        setError(caught instanceof Error ? caught.message : 'ارتباط با سرویس مدار برقرار نشد.');
+      }
     } finally {
       setLoading(false);
     }
@@ -55,7 +84,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setMemberships(data.memberships ?? []);
       setError(null);
     } catch (caught) {
-      setMemberships([]);
+      if (typeof navigator === 'undefined' || navigator.onLine) setMemberships([]);
       setError(caught instanceof Error ? caught.message : 'خواندن سطح دسترسی ناموفق بود.');
     } finally {
       setMembershipsLoading(false);
@@ -113,6 +142,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setSession(null);
         setMemberships([]);
         setMembershipsLoading(false);
+        setOfflineCachePartition(null);
+        try { window.sessionStorage.removeItem('medar-offline-session-v1'); } catch { /* Ignore unavailable storage. */ }
         setError(null);
       }
     },

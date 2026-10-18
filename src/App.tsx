@@ -3,7 +3,7 @@ import { Geolocation } from '@capacitor/geolocation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import {
-  Activity, AlertTriangle, ArrowLeft, ArrowUpLeft, Bot, Boxes, Building2, CalendarDays, CheckCircle2,
+  Activity, AlertTriangle, ArrowLeft, ArrowUpLeft, Boxes, Building2, CalendarDays, CheckCircle2,
   ChevronDown, CircleHelp, ClipboardCheck, CreditCard, Factory, FileCheck2, FileText, House, LayoutDashboard,
   LockKeyhole, LogOut, MapPin, Menu, Monitor, Moon, Package, Plus, RefreshCw, Search, Settings2, ShieldCheck, Smartphone, Sun, Target, Truck, Users, Warehouse, X, Zap, MessageCircle,
 } from 'lucide-react';
@@ -17,8 +17,6 @@ import { evaluateSetupMilestones, summarizeSetupMilestones } from './lib/achieve
 import { OperationsWorkspacePage } from './OperationsPages';
 import { MedarLogo as Logo } from './MedarLogo';
 import { HelpGuide } from './HelpGuide';
-import { AIAssistant } from './AIAssistant';
-import { AgentControlCenter } from './AgentControlCenter';
 import { BankReconciliationPanel } from './BankReconciliationPanel';
 import { ContactImporter } from './ContactImporter';
 import { ContactsHub } from './ContactsHub';
@@ -44,13 +42,14 @@ const PAGE_PERMISSION_MODULE: Record<PageKey, string> = {
   'partner-settlements': 'partner-settlements', 'contacts-import': 'contacts', goals: 'goals',
 };
 
+const DEFERRED_NAV_KEYS = new Set<PageKey>(['agents', 'goals', 'audit', 'contacts-import', 'exceptions', 'command', 'capacity', 'quality', 'task-templates', 'incidents', 'partnership-agreements', 'partner-finance', 'partner-settlements', 'supplier-capacity']);
+
 const navDefinitions: { key: PageKey; label: string; group: string; icon: typeof LayoutDashboard; roles: AppRole[] }[] = [
   { key: 'home', label: 'صفحه من', group: 'شروع', icon: LayoutDashboard, roles: ['owner', 'admin', 'staff', 'supplier', 'driver', 'customer'] },
   { key: 'settings', label: 'تنظیمات', group: 'مدیریت و تنظیمات', icon: Settings2, roles: ['owner', 'admin', 'staff', 'supplier', 'driver', 'customer'] },
   { key: 'connect', label: 'مرکز ارتباطات', group: 'وظایف و رخدادها', icon: MessageCircle, roles: ['owner', 'admin', 'staff', 'supplier', 'driver', 'customer'] },
   { key: 'exceptions', label: 'صندوق مسائل', group: 'وظایف و رخدادها', icon: AlertTriangle, roles: ['owner', 'admin', 'staff'] },
   { key: 'command', label: 'مرکز فرمان', group: 'مدیریت', icon: LayoutDashboard, roles: ['owner', 'admin', 'staff'] },
-  { key: 'agents', label: 'مرکز ایجنت‌ها', group: 'هوش عملیاتی', icon: Bot, roles: ['owner', 'admin', 'staff'] },
   { key: 'orders', label: 'سفارش‌ها', group: 'مدیریت', icon: FileText, roles: ['owner', 'admin', 'staff'] },
   { key: 'goals', label: 'اهداف و برنامه', group: 'مدیریت', icon: Target, roles: ['owner', 'admin', 'staff'] },
   { key: 'contacts', label: 'دفترچه مخاطبین', group: 'مخاطبین', icon: Users, roles: ['owner', 'admin'] },
@@ -108,7 +107,23 @@ function AppShell() {
   const location = useLocation();
   const [membershipId, setMembershipId] = useState(''); const [mobileNav, setMobileNav] = useState(false); const [search, setSearch] = useState(''); const [guideOpen, setGuideOpen] = useState(false); const [mobileSearchOpen, setMobileSearchOpen] = useState(false); const [navSearch, setNavSearch] = useState(''); const searchInputRef = useRef<HTMLInputElement>(null);
   const [moduleReadPermissions, setModuleReadPermissions] = useState<Record<string, boolean> | null>(null);
+  const [isOnline, setIsOnline] = useState(() => typeof navigator === 'undefined' || navigator.onLine);
   const { theme, setTheme } = useAppTheme();
+  useEffect(() => {
+    const updateNetworkState = () => setIsOnline(navigator.onLine);
+    const markApiOnline = () => setIsOnline(true);
+    const markApiOffline = () => setIsOnline(false);
+    window.addEventListener('online', updateNetworkState);
+    window.addEventListener('offline', updateNetworkState);
+    window.addEventListener('medar:api-online', markApiOnline);
+    window.addEventListener('medar:api-offline', markApiOffline);
+    return () => {
+      window.removeEventListener('online', updateNetworkState);
+      window.removeEventListener('offline', updateNetworkState);
+      window.removeEventListener('medar:api-online', markApiOnline);
+      window.removeEventListener('medar:api-offline', markApiOffline);
+    };
+  }, []);
   const membership = memberships.find(m => m.id === membershipId) ?? memberships[0];
   const role = membership?.role;
   useEffect(() => { if (membership && membershipId !== membership.id) setMembershipId(membership.id); }, [membership?.id, membershipId]);
@@ -121,8 +136,10 @@ function AppShell() {
       .catch(() => { if (active) setModuleReadPermissions(null); });
     return () => { active = false; };
   }, [membership?.id, membership?.company_id]);
+  // Keep the first release focused on daily operations. Advanced/AI pages remain in the codebase
+  // but are removed from normal navigation until the supplier network is operational.
   const navItems = useMemo(() => navDefinitions.filter(n =>
-    Boolean(role && n.roles.includes(role)) &&
+    !DEFERRED_NAV_KEYS.has(n.key) && Boolean(role && n.roles.includes(role)) &&
     (n.key === 'settings' || moduleReadPermissions === null || moduleReadPermissions[PAGE_PERMISSION_MODULE[n.key]] !== false)
   ), [role, moduleReadPermissions]);
   const filteredNavItems = useMemo(() => {
@@ -154,7 +171,9 @@ function AppShell() {
   // Every role lands on a compact, role-specific home with only its authorized shortcuts.
   const homeKey: PageKey = 'home';
   const homeDestination = navItems.some(n => n.key === homeKey) ? homeKey : (navItems[0]?.key ?? 'command');
-  const allowed = navItems.some(n => n.key === location.pathname.split('/').pop());
+  const routeKey = location.pathname.split('/').pop() as PageKey;
+  // Hidden specialist pages remain reachable by an explicit owner/admin URL while they are being phased out.
+  const allowed = navItems.some(n => n.key === routeKey) || (routeKey !== 'agents' && ['owner', 'admin'].includes(String(role)) && DEFERRED_NAV_KEYS.has(routeKey));
   const active = navItems.find(n => n.key === location.pathname.split('/').pop()) ?? navItems[0];
   if (!user) return <MobileAccessScreen/>;
   if (loading) return <LoadingScreen label="در حال بررسی نشست و دسترسی…"/>;
@@ -163,11 +182,10 @@ function AppShell() {
   return <div className="app-frame" dir="rtl">
     <aside className={`app-sidebar ${mobileNav ? 'open' : ''}`}><div className="sidebar-brand"><Logo/><button className="sidebar-close" onClick={() => setMobileNav(false)}><X size={17}/></button></div><button className="workspace-switch" disabled={memberships.length <= 1} onClick={() => memberships.length > 1 && setMembershipId(memberships[(memberships.findIndex(m => m.id === membership?.id) + 1) % memberships.length].id)}><span className="workspace-avatar">{companyName.slice(0,1)}</span><span><b>{companyName}</b><small>{roleLabel[role ?? '']}</small></span>{memberships.length > 1 ? <ChevronDown size={15}/> : <span className="workspace-lock"><ShieldCheck size={14}/></span>}</button><div className="nav-caption">فضای کاری</div>
       <label className="sidebar-search"><Search size={16}/><input value={navSearch} onChange={event => setNavSearch(event.target.value)} placeholder="جست‌وجوی بخش‌ها…" aria-label="جست‌وجو در فهرست بخش‌ها"/>{navSearch && <button type="button" onClick={() => setNavSearch('')} aria-label="پاک‌کردن جست‌وجوی بخش‌ها"><X size={14}/></button>}</label>
-      <div className="nav-tools-box"><div className="nav-tools-box-heading"><span><Boxes size={15}/> همه امکانات و ابزارها</span><small>{filteredNavItems.length.toLocaleString('fa-IR')}</small></div><div className="nav-groups">{navGroups.map(group => <details className="nav-group" key={group.label} open={Boolean(navSearch.trim()) || group.items.some(item => item.key === active?.key)}><summary><span>{group.label}</span><small>{group.items.length.toLocaleString('fa-IR')}</small></summary><nav className="side-nav">{group.items.map(item => {const Icon = item.icon; const current = active?.key === item.key; return <Link to={'/app/' + item.key} key={item.key} onClick={() => setMobileNav(false)} className={current ? 'selected' : ''}><Icon size={17}/><span>{item.label}</span>{item.key === 'orders' && <small className="nav-marker">↗</small>}</Link>;})}</nav></details>)}</div></div><div className="sidebar-bottom"><Link to="/app/settings" onClick={() => setMobileNav(false)} className="sidebar-settings-link"><Settings2 size={16}/><span><b>تنظیمات مدار</b><small>اتصال، امنیت و نمایش</small></span><ArrowLeft size={14}/></Link><button className="profile-row" onClick={() => void signOut()}><span className="profile-avatar">{(user.username ?? 'U').slice(0,1).toUpperCase()}</span><span><b>{String(user.full_name || user.username || '')}</b><small dir="ltr">@{user.username} · خروج از حساب</small></span><LogOut size={15}/></button></div></aside>
+      <div className="nav-tools-box"><div className="nav-tools-box-heading"><span><Boxes size={15}/> بخش‌های اصلی</span><small>{filteredNavItems.length.toLocaleString('fa-IR')}</small></div><div className="nav-groups">{navGroups.map(group => <details className="nav-group" key={group.label} open={Boolean(navSearch.trim()) || group.items.some(item => item.key === active?.key)}><summary><span>{group.label}</span><small>{group.items.length.toLocaleString('fa-IR')}</small></summary><nav className="side-nav">{group.items.map(item => {const Icon = item.icon; const current = active?.key === item.key; return <Link to={'/app/' + item.key} key={item.key} onClick={() => setMobileNav(false)} className={current ? 'selected' : ''}><Icon size={17}/><span>{item.label}</span>{item.key === 'orders' && <small className="nav-marker">↗</small>}</Link>;})}</nav></details>)}</div></div></aside>
         {guideOpen && <HelpGuide role={role} onClose={() => setGuideOpen(false)}/>}
-    <AIAssistant companyId={membership!.company_id} role={role ?? 'staff'} userName={String(user.full_name || user.username || '')}/>
     {mobileNav && <button aria-label="بستن منو" className="mobile-scrim" onClick={() => setMobileNav(false)}/>} 
-    <main className="app-main"><header className="app-topbar"><button className="mobile-menu" onClick={() => setMobileNav(true)} aria-label="بازکردن منو"><Menu size={19}/></button><div className="breadcrumbs"><span>مدار</span><i>/</i><b>{active?.label ?? 'مرکز فرمان'}</b></div><Link to={'/app/' + homeDestination} className="topbar-home-link" aria-label="بازگشت به صفحه اصلی" title="صفحه اصلی"><House size={17}/><span>صفحه اصلی</span></Link><div className="topbar-tools"><button type="button" className="icon-action mobile-search-toggle" onClick={() => setMobileSearchOpen(open => !open)} aria-label={mobileSearchOpen ? "بستن جست‌وجو" : "بازکردن جست‌وجو"} aria-expanded={mobileSearchOpen}>{mobileSearchOpen ? <X size={17}/> : <Search size={17}/>}</button><label className={"global-search" + (mobileSearchOpen ? " mobile-open" : "")}><Search size={16}/><input ref={searchInputRef} placeholder="جست‌وجو در بخش فعلی…" value={search} onChange={e => setSearch(e.target.value)} aria-label="جست‌وجو در بخش فعلی"/></label><button className="icon-action theme-toggle" type="button" onClick={() => setTheme(current => current === 'dark' ? 'light' : 'dark')} title={theme === 'dark' ? 'فعال‌کردن حالت روشن' : 'فعال‌کردن حالت تاریک'} aria-label="تغییر حالت نمایش" aria-pressed={theme === 'light'}>{theme === 'dark' ? <Sun size={17}/> : <Moon size={17}/>}</button><button type="button" className="icon-action" title="راهنمای مدار" aria-label="راهنمای مدار" onClick={() => setGuideOpen(true)}><CircleHelp size={17}/></button><span className="topbar-sep"/><span className="topbar-user"><b>{companyName}</b><small><span className="topbar-role">{roleLabel[role ?? '']}</span><span> · {new Intl.DateTimeFormat('fa-IR',{dateStyle:'medium'}).format(new Date())}</span></small></span></div></header><div className="page-container">{!allowed ? <Navigate to={`/app/${homeDestination}`} replace/> : <Routes><Route path="home" element={(['owner','admin'].includes(String(role)) ? <OperationsRoleExperience role="manager" membership={membership!}><WorkspaceHome membership={membership!} userName={String(user.full_name || user.username || '')}/></OperationsRoleExperience> : <WorkspaceHome membership={membership!} userName={String(user.full_name || user.username || '')}/>)}/><Route path="settings" element={<SettingsPage membership={membership!}/>}/><Route path="connect" element={<MedarConnect membership={membership!}/>}/><Route path="exceptions" element={<OperationalExceptionInbox membership={membership!}/>}/><Route path="agents" element={<AgentControlCenter membership={membership!}/>}/><Route path="command" element={<Dashboard membership={membership!}/>}/><Route path="orders" element={<OrdersPage membership={membership!} search={search}/>}/><Route path="goals" element={<GoalsPage membership={membership!} search={search}/>}/><Route path="customers" element={<EntityPage membership={membership!} table="customers" title="مشتریان" description="حساب‌های سازمانی، اطلاعات تماس و شرایط همکاری." fields={[{name:'name',label:'نام مشتری',required:true},{name:'city',label:'شهر'},{name:'phone',label:'شماره تماس',type:'tel'},{name:'segment',label:'نوع مشتری'},{name:'address',label:'نشانی'},{name:'credit_limit',label:'سقف اعتبار (تومان)',type:'number'}]} columns={[{key:'name',label:'مشتری'},{key:'city',label:'شهر'},{key:'phone',label:'تلفن'},{key:'segment',label:'بخش'},{key:'credit_limit',label:'سقف اعتبار'}]} search={search}/>}/><Route path="suppliers" element={<EntityPage membership={membership!} table="suppliers" title="شبکه تأمین" description="اطلاعات تولیدکنندگان و تأمین‌کنندگان تأییدشده." fields={[{name:'name',label:'نام تأمین‌کننده',required:true},{name:'city',label:'شهر'},{name:'phone',label:'شماره تماس',type:'tel'},{name:'farm_registration',label:'شناسه یا مجوز مزرعه'}]} columns={[{key:'name',label:'تأمین‌کننده'},{key:'city',label:'شهر'},{key:'phone',label:'تلفن'},{key:'farm_registration',label:'شناسه مزرعه'},{key:'active',label:'وضعیت'}]} search={search}/>}/><Route path="products" element={<ProductsPage membership={membership!} search={search}/>}/><Route path="purchase-orders" element={<PurchaseOrdersPage membership={membership!} search={search}/>}/><Route path="inventory" element={<InventoryPage membership={membership!} search={search}/>}/><Route path="capacity" element={<CapacityPage membership={membership!} search={search}/>}/><Route path="quality" element={<QualityPage membership={membership!} search={search}/>}/><Route path="shipments" element={<ShipmentsPage membership={membership!} search={search}/>}/><Route path="finance" element={<FinancePage membership={membership!} search={search}/>}/><Route path="members" element={<MembersPage membership={membership!} search={search}/>}/><Route path="audit" element={<AuditPage membership={membership!} search={search}/>}/><Route path="contacts" element={<ContactsHub membership={membership!} search={search}/>}/><Route path="contacts-import" element={<ContactImporter companyId={membership!.company_id}/>}/><Route path="catalog" element={<CustomerCatalog membership={membership!}/>}/><Route path="my-orders" element={<CustomerOrders membership={membership!} search={search}/>}/><Route path="my-account" element={<CustomerAccount membership={membership!}/>}/><Route path="supplier-work" element={<OperationsRoleExperience role="supplier" membership={membership!}><SupplierWork membership={membership!} search={search}/></OperationsRoleExperience>}/><Route path="supplier-capacity" element={<SupplierCapacityPage membership={membership!} search={search}/>}/><Route path="supplier-settlement" element={<SupplierSettlementPage membership={membership!} search={search}/>}/><Route path="driver-work" element={<OperationsRoleExperience role="driver" membership={membership!}><ShipmentsPage membership={membership!} search={search} driverMode/></OperationsRoleExperience>}/><Route path="farm-sites" element={<OperationsWorkspacePage kind="farm-sites" membership={membership!} search={search}/>}/><Route path="flock-cycles" element={<OperationsWorkspacePage kind="flock-cycles" membership={membership!} search={search}/>}/><Route path="production-batches" element={<OperationsWorkspacePage kind="production-batches" membership={membership!} search={search}/>}/><Route path="daily-production" element={<OperationsWorkspacePage kind="daily-production" membership={membership!} search={search}/>}/><Route path="task-templates" element={<OperationsWorkspacePage kind="task-templates" membership={membership!} search={search}/>}/><Route path="operational-tasks" element={<OperationsWorkspacePage kind="operational-tasks" membership={membership!} search={search}/>}/><Route path="incidents" element={<OperationsWorkspacePage kind="incidents" membership={membership!} search={search}/>}/><Route path="partnership-agreements" element={<OperationsWorkspacePage kind="partnership-agreements" membership={membership!} search={search}/>}/><Route path="partner-finance" element={<OperationsWorkspacePage kind="partner-finance" membership={membership!} search={search}/>}/><Route path="partner-settlements" element={<OperationsWorkspacePage kind="partner-settlements" membership={membership!} search={search}/>}/><Route path="*" element={<Navigate to={`/app/${homeDestination}`} replace/>}/></Routes>}</div><footer className="app-footer"><span><Logo compact/> <b>مدار</b> · مدیریت مزرعه و عملیات</span><span>تاریخچه تغییرات فعال <i/> داده‌های واقعی پایگاه داده</span></footer></main>
+    <main className="app-main"><header className="app-topbar"><button className="mobile-menu" onClick={() => setMobileNav(true)} aria-label="بازکردن منو"><Menu size={19}/></button><div className="breadcrumbs"><span>مدار</span><i>/</i><b>{active?.label ?? 'مرکز فرمان'}</b></div><Link to={'/app/' + homeDestination} className="topbar-home-link" aria-label="بازگشت به صفحه اصلی" title="صفحه اصلی"><House size={17}/><span>صفحه اصلی</span></Link><div className="topbar-tools"><button type="button" className="icon-action mobile-search-toggle" onClick={() => setMobileSearchOpen(open => !open)} aria-label={mobileSearchOpen ? "بستن جست‌وجو" : "بازکردن جست‌وجو"} aria-expanded={mobileSearchOpen}>{mobileSearchOpen ? <X size={17}/> : <Search size={17}/>}</button><label className={"global-search" + (mobileSearchOpen ? " mobile-open" : "")}><Search size={16}/><input ref={searchInputRef} placeholder="جست‌وجو در بخش فعلی…" value={search} onChange={e => setSearch(e.target.value)} aria-label="جست‌وجو در بخش فعلی"/></label><span className={`network-status ${isOnline ? 'is-online' : 'is-offline'}`} aria-label="وضعیت اتصال" aria-live="polite"><i/>{isOnline ? 'آنلاین' : 'آفلاین'}</span><button className="icon-action theme-toggle" type="button" onClick={() => setTheme(current => current === 'dark' ? 'light' : 'dark')} title={theme === 'dark' ? 'فعال‌کردن حالت روشن' : 'فعال‌کردن حالت تاریک'} aria-label="تغییر حالت نمایش" aria-pressed={theme === 'light'}>{theme === 'dark' ? <Sun size={17}/> : <Moon size={17}/>}</button><button type="button" className="icon-action" title="راهنمای مدار" aria-label="راهنمای مدار" onClick={() => setGuideOpen(true)}><CircleHelp size={17}/></button><button type="button" className="icon-action topbar-logout" title="خروج از حساب" aria-label="خروج از حساب" onClick={() => void signOut()}><LogOut size={17}/></button><span className="topbar-sep"/><span className="topbar-user"><b>{companyName}</b><small><span className="topbar-role">{roleLabel[role ?? '']}</span><span> · {new Intl.DateTimeFormat('fa-IR',{dateStyle:'medium'}).format(new Date())}</span></small></span></div></header>{!isOnline&&<div className="offline-notice" role="status"><AlertTriangle size={17}/><span><b>حالت آفلاین</b> آخرین داده‌های ذخیره‌شده برای مشاهده در دسترس‌اند؛ ثبت یا تغییرات جدید تا تأیید سرور قطعی نیستند. پس از اتصال دوباره، وضعیت را تازه‌سازی کن.</span></div>}<div className="page-container">{!allowed ? <Navigate to={`/app/${homeDestination}`} replace/> : <Routes><Route path="home" element={(['owner','admin'].includes(String(role)) ? <OperationsRoleExperience role="manager" membership={membership!}><WorkspaceHome membership={membership!} userName={String(user.full_name || user.username || '')}/></OperationsRoleExperience> : <WorkspaceHome membership={membership!} userName={String(user.full_name || user.username || '')}/>)}/><Route path="settings" element={<SettingsPage membership={membership!}/>}/><Route path="connect" element={<MedarConnect membership={membership!}/>}/><Route path="exceptions" element={<OperationalExceptionInbox membership={membership!}/>}/><Route path="command" element={<Dashboard membership={membership!}/>}/><Route path="orders" element={<OrdersPage membership={membership!} search={search}/>}/><Route path="goals" element={<GoalsPage membership={membership!} search={search}/>}/><Route path="customers" element={<EntityPage membership={membership!} table="customers" title="مشتریان" description="حساب‌های سازمانی، اطلاعات تماس و شرایط همکاری." fields={[{name:'name',label:'نام مشتری',required:true},{name:'city',label:'شهر'},{name:'phone',label:'شماره تماس',type:'tel'},{name:'segment',label:'نوع مشتری'},{name:'address',label:'نشانی'},{name:'credit_limit',label:'سقف اعتبار (تومان)',type:'number'}]} columns={[{key:'name',label:'مشتری'},{key:'city',label:'شهر'},{key:'phone',label:'تلفن'},{key:'segment',label:'بخش'},{key:'credit_limit',label:'سقف اعتبار'}]} search={search}/>}/><Route path="suppliers" element={<EntityPage membership={membership!} table="suppliers" title="شبکه تأمین" description="اطلاعات تولیدکنندگان و تأمین‌کنندگان تأییدشده." fields={[{name:'name',label:'نام تأمین‌کننده',required:true},{name:'city',label:'شهر'},{name:'phone',label:'شماره تماس',type:'tel'},{name:'farm_registration',label:'شناسه یا مجوز مزرعه'}]} columns={[{key:'name',label:'تأمین‌کننده'},{key:'city',label:'شهر'},{key:'phone',label:'تلفن'},{key:'farm_registration',label:'شناسه مزرعه'},{key:'active',label:'وضعیت'}]} search={search}/>}/><Route path="products" element={<ProductsPage membership={membership!} search={search}/>}/><Route path="purchase-orders" element={<PurchaseOrdersPage membership={membership!} search={search}/>}/><Route path="inventory" element={<InventoryPage membership={membership!} search={search}/>}/><Route path="capacity" element={<CapacityPage membership={membership!} search={search}/>}/><Route path="quality" element={<QualityPage membership={membership!} search={search}/>}/><Route path="shipments" element={<ShipmentsPage membership={membership!} search={search}/>}/><Route path="finance" element={<FinancePage membership={membership!} search={search}/>}/><Route path="members" element={<MembersPage membership={membership!} search={search}/>}/><Route path="audit" element={<AuditPage membership={membership!} search={search}/>}/><Route path="contacts" element={<ContactsHub membership={membership!} search={search}/>}/><Route path="contacts-import" element={<ContactImporter companyId={membership!.company_id}/>}/><Route path="catalog" element={<CustomerCatalog membership={membership!}/>}/><Route path="my-orders" element={<CustomerOrders membership={membership!} search={search}/>}/><Route path="my-account" element={<CustomerAccount membership={membership!}/>}/><Route path="supplier-work" element={<OperationsRoleExperience role="supplier" membership={membership!}><SupplierWork membership={membership!} search={search}/></OperationsRoleExperience>}/><Route path="supplier-capacity" element={<SupplierCapacityPage membership={membership!} search={search}/>}/><Route path="supplier-settlement" element={<SupplierSettlementPage membership={membership!} search={search}/>}/><Route path="driver-work" element={<OperationsRoleExperience role="driver" membership={membership!}><ShipmentsPage membership={membership!} search={search} driverMode/></OperationsRoleExperience>}/><Route path="farm-sites" element={<OperationsWorkspacePage kind="farm-sites" membership={membership!} search={search}/>}/><Route path="flock-cycles" element={<OperationsWorkspacePage kind="flock-cycles" membership={membership!} search={search}/>}/><Route path="production-batches" element={<OperationsWorkspacePage kind="production-batches" membership={membership!} search={search}/>}/><Route path="daily-production" element={<OperationsWorkspacePage kind="daily-production" membership={membership!} search={search}/>}/><Route path="task-templates" element={<OperationsWorkspacePage kind="task-templates" membership={membership!} search={search}/>}/><Route path="operational-tasks" element={<OperationsWorkspacePage kind="operational-tasks" membership={membership!} search={search}/>}/><Route path="incidents" element={<OperationsWorkspacePage kind="incidents" membership={membership!} search={search}/>}/><Route path="partnership-agreements" element={<OperationsWorkspacePage kind="partnership-agreements" membership={membership!} search={search}/>}/><Route path="partner-finance" element={<OperationsWorkspacePage kind="partner-finance" membership={membership!} search={search}/>}/><Route path="partner-settlements" element={<OperationsWorkspacePage kind="partner-settlements" membership={membership!} search={search}/>}/><Route path="*" element={<Navigate to={`/app/${homeDestination}`} replace/>}/></Routes>}</div><footer className="app-footer"><span><Logo compact/> <b>مدار</b> · مدیریت مزرعه و عملیات</span><span>تاریخچه تغییرات فعال <i/> داده‌های واقعی پایگاه داده</span></footer></main>
   </div>;
 }
 
@@ -1296,9 +1314,17 @@ function MembersPage({membership,search}:{membership:Membership;search:string}) 
  const [error,setError]=useState('');
  const [notice,setNotice]=useState('');
  const [open,setOpen]=useState(false);
+ const [accountOpen,setAccountOpen]=useState(false);
  const [busy,setBusy]=useState(false);
+ const [accountName,setAccountName]=useState('');
+ const [accountUsername,setAccountUsername]=useState('');
+ const [accountPassword,setAccountPassword]=useState('');
+ const [accountRole,setAccountRole]=useState<AppRole>('supplier');
+ const [accountCustomerId,setAccountCustomerId]=useState('');
+ const [accountSupplierId,setAccountSupplierId]=useState('');
  const [inviteRole,setInviteRole]=useState<AppRole>('staff');
  const [inviteCode,setInviteCode]=useState('');
+ const [inviteLink,setInviteLink]=useState('');
  const [customers,setCustomers]=useState<Row[]>([]);const [suppliers,setSuppliers]=useState<Row[]>([]);
  const [inviteCustomerId,setInviteCustomerId]=useState('');const [inviteSupplierId,setInviteSupplierId]=useState('');const [resetSecret,setResetSecret]=useState('');
  const [permissionsMember,setPermissionsMember]=useState<Row|null>(null);
@@ -1326,7 +1352,7 @@ function MembersPage({membership,search}:{membership:Membership;search:string}) 
  };
  useEffect(()=>{void load();},[membership.company_id]);
  const createInvite=async()=>{
-  setBusy(true);setError('');setNotice('');setInviteCode('');
+  setBusy(true);setError('');setNotice('');setInviteCode('');setInviteLink('');
   try {
    const result=await api.post<{inviteCode:string;expiresAt:string}>('/api/workspace/invites',{
     companyId:membership.company_id,role:inviteRole,
@@ -1334,11 +1360,33 @@ function MembersPage({membership,search}:{membership:Membership;search:string}) 
     supplierId:inviteRole==='supplier'?inviteSupplierId:null,
    });
    setInviteCode(result.inviteCode);
-   setNotice('کد دعوت ساخته شد. آن را فقط با فرد موردنظر به اشتراک بگذار؛ کد پس از ۷ روز منقضی می‌شود.');
+   const basePath = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL : import.meta.env.BASE_URL + '/';
+   setInviteLink(new URL(basePath + 'app/home?invite=' + encodeURIComponent(result.inviteCode) + '#signup', window.location.origin).toString());
+   setNotice('لینک دعوت ساخته شد؛ فرد با بازکردن آن مستقیماً فرم ساخت حساب را با دعوت آماده‌شده می‌بیند. لینک تا ۷ روز معتبر است.');
    setOpen(false);
   } catch(caught) {
    setError(caught instanceof Error?caught.message:'ساخت کد دعوت ناموفق بود.');
   } finally {setBusy(false);}
+ };
+ const createAccount=async()=>{
+  setBusy(true);setError('');setNotice('');setResetSecret('');
+  try{
+   await api.post<{member:Row}>('/api/workspace/members/create',{
+    companyId:membership.company_id,
+    fullName:accountName,
+    username:accountUsername,
+    password:accountPassword,
+    role:accountRole,
+    customerId:accountRole==='customer'?accountCustomerId:null,
+    supplierId:accountRole==='supplier'?accountSupplierId:null,
+   });
+   setResetSecret('@'+accountUsername.trim().toLowerCase()+' : '+accountPassword);
+   setNotice('حساب ساخته شد. اطلاعات ورود را کپی کن و حضوری یا از مسیر امن به صاحب حساب بده.');
+   setAccountOpen(false);setAccountPassword('');
+   await load();
+  }catch(caught){
+   setError(caught instanceof Error?caught.message:'ساخت حساب کاربری ناموفق بود.');
+  }finally{setBusy(false);}
  };
  const resetMemberPassword=async(row:Row)=>{
   const name=String(row.username??row.full_name??'این کاربر');
@@ -1398,11 +1446,11 @@ function MembersPage({membership,search}:{membership:Membership;search:string}) 
  const visible=rows.filter(r=>!search||[r.username,r.full_name,r.phone,r.role].some(v=>String(v??'').toLowerCase().includes(search.toLowerCase())));
  const options:AppRole[]=membership.role==='owner'?['admin','staff','customer','supplier','driver']:['staff','customer','supplier','driver'];
  return <>
-  <PageHeading eyebrow="ACCESS / MEMBERSHIPS" title="دسترسی کاربران" description="عضویت‌ها در سمت سرور و در محدوده همین مجموعه مدیریت می‌شوند. نقش مالک از مسیر دعوت عمومی قابل واگذاری نیست." action={<Button onClick={()=>{setOpen(true);setInviteCode('');setError('');setNotice('');}}><Plus size={16}/> ساخت کد دعوت</Button>}/>
+  <PageHeading eyebrow="ACCESS / MEMBERSHIPS" title="دسترسی کاربران" description="حساب تأمین‌کننده، راننده یا همکار را خودت بساز و اطلاعات ورود را تحویل بده؛ یا برای ثبت‌نام مستقل کد دعوت بساز." action={<><Button variant="soft" onClick={()=>{setOpen(true);setInviteCode('');setError('');setNotice('');}}><Plus size={15}/> کد دعوت</Button><Button onClick={()=>{setAccountOpen(true);setError('');setNotice('');setAccountName('');setAccountUsername('');setAccountPassword('');setAccountRole('supplier');setAccountCustomerId('');setAccountSupplierId('');}}><Plus size={15}/> ساخت حساب</Button></>}/>
   {error&&<InlineError error={error} retry={()=>void load()}/>}
   {notice&&<div className="form-success notice-wide"><CheckCircle2 size={17}/>{notice}</div>}
-  {resetSecret&&<section className="panel invite-code-panel"><div className="panel-heading"><div><span className="section-number">TEMP PASSWORD</span><div><h3>گذرواژه موقت عضو</h3><p>این گذرواژه فقط یک بار نمایش داده می‌شود؛ آن را امن به صاحب حساب تحویل بده.</p></div></div><Button variant="soft" onClick={()=>void navigator.clipboard?.writeText(resetSecret)}>کپی</Button></div><code className="invite-code-value" dir="ltr">{resetSecret}</code></section>}
-  {inviteCode&&<section className="panel invite-code-panel"><div className="panel-heading"><div><span className="section-number">INVITE</span><div><h3>کد دعوت یک‌بارمصرف</h3><p>کد زیر را با عضو جدید به‌صورت امن به اشتراک بگذار.</p></div></div><Button variant="soft" onClick={()=>void navigator.clipboard?.writeText(inviteCode)}>کپی کد</Button></div><code className="invite-code-value" dir="ltr">{inviteCode}</code><small>این کد تا ۷ روز معتبر است و فقط برای نقش انتخاب‌شده مجوز می‌سازد.</small></section>}
+  {resetSecret&&<section className="panel invite-code-panel"><div className="panel-heading"><div><span className="section-number">LOGIN DETAILS</span><div><h3>اطلاعات ورود</h3><p>این اطلاعات را کپی کن و فقط به صاحب حساب تحویل بده.</p></div></div><Button variant="soft" onClick={()=>void navigator.clipboard?.writeText(resetSecret)}>کپی اطلاعات</Button></div><code className="invite-code-value" dir="ltr">{resetSecret}</code></section>}
+  {inviteCode&&<section className="panel invite-code-panel"><div className="panel-heading"><div><span className="section-number">INVITE</span><div><h3>لینک دعوت یک‌بارمصرف</h3><p>این لینک فرم ساخت حساب را با نقش تعیین‌شده باز می‌کند.</p></div></div><Button variant="soft" onClick={()=>void navigator.clipboard?.writeText(inviteLink)}>کپی لینک</Button></div><code className="invite-code-value" dir="ltr">{inviteLink}</code><div className="invite-link-code"><small>کد پشتیبان دعوت</small><code dir="ltr">{inviteCode}</code><Button variant="ghost" onClick={()=>void navigator.clipboard?.writeText(inviteCode)}>کپی کد</Button></div><small>پس از استفادهٔ موفق، دعوت یک‌بارمصرف مصرف می‌شود؛ لینک تا ۷ روز معتبر است.</small></section>}
   <div className="rule-banner"><ShieldCheck size={18}/><p><b>کنترل دسترسی سمت سرور</b><span>کاربران تنها پس از ثبت‌نام و ارائه کد دعوت معتبر به مجموعه متصل می‌شوند. مدیر نمی‌تواند مالک جدید تعیین کند؛ فقط مالک می‌تواند نقش مدیر را دعوت کند.</span></p></div>
   <section className="panel entity-panel members-list-panel"><div className="entity-toolbar"><div><b>{numberFa(visible.length)} عضویت</b><small>فهرست واقعی عضویت‌های مجموعه</small></div><Button variant="soft" onClick={()=>void load()}>تازه‌سازی</Button></div>
    {loading?<div className="panel-loading"><span className="spinner small"/></div>:visible.length?<DataTable rows={visible} columns={[
@@ -1435,6 +1483,16 @@ function MembersPage({membership,search}:{membership:Membership;search:string}) 
     </div>
    </div>}
   </Modal>}
+  {accountOpen&&<Modal title="ساخت حساب کاربری" subtitle="حساب فوراً ساخته می‌شود؛ نام کاربری و رمز اولیه را به خود فرد تحویل بده." onClose={()=>{if(!busy)setAccountOpen(false);}}><form className="record-form" onSubmit={e=>{e.preventDefault();void createAccount();}}>
+   <label className="full-span">نام و نام خانوادگی<input required maxLength={100} value={accountName} onChange={e=>setAccountName(e.target.value)} autoComplete="off"/></label>
+   <label>نام کاربری<input required minLength={3} maxLength={32} pattern="[A-Za-z0-9._-]+" value={accountUsername} onChange={e=>setAccountUsername(e.target.value.toLowerCase())} dir="ltr" autoComplete="off"/><small>۳ تا ۳۲ نویسه؛ بدون فاصله</small></label>
+   <label>رمز عبور اولیه<input required minLength={12} maxLength={128} type="password" value={accountPassword} onChange={e=>setAccountPassword(e.target.value)} dir="ltr" autoComplete="new-password"/><small>حداقل ۱۲ نویسه؛ پس از ورود قابل تغییر است</small></label>
+   <label className="full-span">نقش کاربر<select value={accountRole} onChange={e=>{setAccountRole(e.target.value as AppRole);setAccountCustomerId('');setAccountSupplierId('');}}>{options.map(r=><option value={r} key={r}>{roleLabel[r]}</option>)}</select></label>
+   {accountRole==='customer'&&<label className="full-span">حساب مشتری<select required value={accountCustomerId} onChange={e=>setAccountCustomerId(e.target.value)}><option value="">انتخاب مشتری همین مجموعه…</option>{customers.map(row=><option key={String(row.id)} value={String(row.id)}>{String(row.name)}</option>)}</select></label>}
+   {accountRole==='supplier'&&<label className="full-span">حساب تأمین‌کننده<select required value={accountSupplierId} onChange={e=>setAccountSupplierId(e.target.value)}><option value="">انتخاب تأمین‌کننده همین مجموعه…</option>{suppliers.map(row=><option key={String(row.id)} value={String(row.id)}>{String(row.name)}</option>)}</select></label>}
+   {error&&<div className="form-error full-span">{error}</div>}
+   <div className="modal-actions"><Button variant="soft" onClick={()=>setAccountOpen(false)} disabled={busy}>انصراف</Button><Button type="submit" disabled={busy||accountName.trim().length<1||accountUsername.trim().length<3||accountPassword.length<12||(accountRole==='customer'&&!accountCustomerId)||(accountRole==='supplier'&&!accountSupplierId)}>{busy?'در حال ساخت حساب…':'ساخت حساب و نمایش اطلاعات ورود'}</Button></div>
+  </form></Modal>}
   {open&&<Modal title="ساخت کد دعوت" subtitle="این کد اجازه ثبت‌نام و اتصال به همین مجموعه را با نقش تعیین‌شده می‌دهد؛ کد نقش مالک تولید نمی‌کند." onClose={()=>setOpen(false)}><form className="record-form" onSubmit={e=>{e.preventDefault();void createInvite();}}>
    <label className="full-span">نقش دسترسی<select value={inviteRole} onChange={e=>{setInviteRole(e.target.value as AppRole);setInviteCustomerId('');setInviteSupplierId('');}}>{options.map(r=><option value={r} key={r}>{roleLabel[r]}</option>)}</select></label>
    {inviteRole==='customer'&&<label className="full-span">حساب مشتری<select required value={inviteCustomerId} onChange={e=>setInviteCustomerId(e.target.value)}><option value="">انتخاب مشتری همان مجموعه…</option>{customers.map(row=><option key={String(row.id)} value={String(row.id)}>{String(row.name)}</option>)}</select></label>}

@@ -322,6 +322,107 @@ test('an existing account must join a workspace using an invitation code', async
   await expect(page.locator('.workspace-switch')).toContainText('شرکت دعوت آزمایشی');
 });
 
+test('owner can create a supplier login and copy the one-time credentials', async ({ page }) => {
+  await installIsolatedSession(page, 'owner');
+  const supplierId = '00000000-0000-4000-8000-000000000033';
+  let submitted: Record<string, unknown> | undefined;
+  await page.route('**/api/workspace/members?*', route => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({ members: [] }),
+  }));
+  await page.route('**/api/data/**', async route => {
+    const table = new URL(route.request().url()).pathname.split('/').pop() || '';
+    const data = table === 'suppliers' ? [{ id: supplierId, name: 'تأمین‌کننده محلی آزمایشی' }] : [];
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data, count: data.length, error: null, table }) });
+  });
+  await page.route('**/api/workspace/members/create', async route => {
+    submitted = route.request().postDataJSON() as Record<string, unknown>;
+    expect(submitted).toMatchObject({
+      companyId,
+      fullName: 'تأمین‌کننده محلی',
+      username: 'supplier_local',
+      password: 'Local-Supplier-2026!',
+      role: 'supplier',
+      supplierId,
+      customerId: null,
+    });
+    await route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ member: { membership_id: '00000000-0000-4000-8000-000000000078', username: 'supplier_local', role: 'supplier' } }) });
+  });
+  await page.goto('/simorgh/app/members', { waitUntil: 'domcontentloaded' });
+  await page.getByRole('button', { name: 'ساخت حساب' }).click();
+  await page.getByLabel('نام و نام خانوادگی').fill('تأمین‌کننده محلی');
+  await page.getByLabel('نام کاربری').fill('supplier_local');
+  await page.getByLabel('رمز عبور اولیه').fill('Local-Supplier-2026!');
+  await page.getByLabel('حساب تأمین‌کننده').selectOption(supplierId);
+  await page.getByRole('button', { name: 'ساخت حساب و نمایش اطلاعات ورود' }).click();
+  await expect(page.locator('.invite-code-panel')).toContainText('@supplier_local : Local-Supplier-2026!');
+  await expect(page.getByRole('button', { name: 'کپی اطلاعات' })).toBeVisible();
+  expect(submitted?.role).toBe('supplier');
+});
+
+test('owner can generate a shareable invitation link for a new supplier or driver', async ({ page }) => {
+  await installIsolatedSession(page, 'owner');
+  const code = 'a'.repeat(64);
+  await page.route('**/api/workspace/members?*', route => route.fulfill({
+    status: 200, contentType: 'application/json', body: JSON.stringify({ members: [] }),
+  }));
+  await page.route('**/api/workspace/invites', async route => {
+    expect(route.request().method()).toBe('POST');
+    expect(route.request().postDataJSON()).toMatchObject({ companyId, role: 'staff', customerId: null, supplierId: null });
+    await route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ inviteCode: code, inviteId: '00000000-0000-4000-8000-000000000079', expiresAt: '2026-10-26T00:00:00.000Z' }) });
+  });
+  await page.goto('/simorgh/app/members', { waitUntil: 'domcontentloaded' });
+  await page.getByRole('button', { name: 'کد دعوت' }).click();
+  await page.getByRole('button', { name: 'ساخت کد دعوت' }).click();
+  const link = page.locator('.invite-code-panel .invite-code-value');
+  await expect(link).toContainText('/simorgh/app/home?invite=' + code + '#signup');
+  await expect(page.getByRole('button', { name: 'کپی لینک' })).toBeVisible();
+  const inviteUrl = (await link.innerText()).trim();
+  expect(inviteUrl).toMatch(/^https?:\/\//);
+  expect(inviteUrl).toContain('/simorgh/app/home?invite=' + code + '#signup');
+});
+
+test('operations can show cached order reads after the browser goes offline', async ({ page }) => {
+  await installIsolatedSession(page, 'owner');
+  let apiReachable = true;
+  await page.route('**/api/data/**', async route => {
+    if (!apiReachable) {
+      await route.abort('failed');
+      return;
+    }
+    const table = new URL(route.request().url()).pathname.split('/').pop() || '';
+    const data = table === 'orders' ? [{
+      id: '00000000-0000-4000-8000-000000000088',
+      reference: 'ORD-OFF-001',
+      status: 'submitted',
+      requested_delivery: '2026-10-20',
+      delivery_address: 'نشانی آزمایشی',
+      notes: '',
+      created_at: '2026-10-18T12:00:00.000Z',
+      customers: { name: 'خریدار آفلاین' },
+    }] : [];
+    await route.fulfill({ status: 200, contentType: 'application/json', headers: { 'cache-control': 'no-store' }, body: JSON.stringify({ data, count: data.length, error: null, table }) });
+  });
+  await page.goto('/simorgh/app/orders', { waitUntil: 'domcontentloaded' });
+  await expect(page.getByText('ORD-OFF-001')).toBeVisible();
+  await expect(page.getByText('خریدار آفلاین')).toBeVisible();
+  apiReachable = false;
+  await page.context().setOffline(true);
+  await page.evaluate(() => {
+    window.history.pushState({}, '', '/simorgh/app/home');
+    window.dispatchEvent(new PopStateEvent('popstate', { state: {} }));
+  });
+  await expect(page).toHaveURL(/home$/);
+  await page.evaluate(() => {
+    window.history.pushState({}, '', '/simorgh/app/orders');
+    window.dispatchEvent(new PopStateEvent('popstate', { state: {} }));
+  });
+  await expect(page.locator('.offline-notice')).toBeVisible();
+  await expect(page.getByText('ORD-OFF-001')).toBeVisible();
+  await page.context().setOffline(false);
+  apiReachable = true;
+});
+
 test('supplier workspace keeps manager-only routes out of the allowed menu', async ({ page }, testInfo) => {
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
@@ -386,7 +487,7 @@ test('mobile navigation is role-specific and only mirrors permitted real routes'
     await expect(mobileNav).toBeVisible();
     await expect(mobileNav.getByRole('link', { name: 'وظایف' })).toBeVisible();
     await expect(mobileNav.getByRole('link', { name: 'ثبت تولید' })).toBeVisible();
-    await expect(mobileNav.getByRole('link', { name: 'ظرفیت' })).toBeVisible();
+    await expect(mobileNav.getByRole('link', { name: 'تسویه' })).toBeVisible();
     await expect(mobileNav.getByRole('button', { name: 'بازکردن فهرست ماژول‌ها' })).toBeVisible();
     await expect(mobileNav.locator('a,button')).toHaveCount(4);
     await expect(mobileNav.getByRole('link', { name: 'دفتر شریک' })).toHaveCount(0);
@@ -461,169 +562,25 @@ test('driver lands in assigned shipments and does not get customer or manager na
   expect(errors).toEqual([]);
 });
 
-test('manager AI assistant opens in-panel with provider settings but no client key disclosure', async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== 'desktop-chromium', 'The assistant layout is responsive; verify key configuration flow once.');
+test('AI assistant is hidden while the core operations release is simplified', async ({ page }) => {
   await installIsolatedSession(page, 'owner');
-  const companyId = '00000000-0000-4000-8000-000000000022';
-  await page.route('**/api/ai/providers*', async route => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        companyId,
-        activeProvider: null,
-        canConfigure: true,
-        providers: [
-          { provider: 'openai', model: 'gpt-6-luna', configured: false, isDefault: false, updatedAt: null },
-          { provider: 'gemini', model: 'gemini-4-argon', configured: false, isDefault: false, updatedAt: null },
-          { provider: 'deepseek', model: 'deepseek-flash', configured: false, isDefault: false, updatedAt: null },
-          { provider: 'anthropic', model: 'claude-sonnet-5', configured: false, isDefault: false, updatedAt: null },
-        ],
-      }),
-    });
-  });
-  await page.goto('/simorgh/app/command', { waitUntil: 'domcontentloaded' });
-  await page.getByRole('button', { name: 'بازکردن دستیار هوش مصنوعی' }).click();
-  const dialog = page.getByRole('dialog', { name: 'دستیار مدار' });
-  await expect(dialog).toBeVisible();
-  await page.getByRole('button', { name: 'تنظیمات اتصال هوش مصنوعی' }).click();
-  await expect(page.getByText('اتصال مدل‌های هوش مصنوعی')).toBeVisible();
-  await expect(dialog.locator('input[type="password"][autocomplete="new-password"]')).toBeVisible();
-  await expect(dialog.getByRole('button', { name: /Gemini/ })).toBeVisible();
-  await expect(dialog.getByRole('button', { name: /DeepSeek/ })).toBeVisible();
-  await expect(page.getByText(/کلید فقط به API امن مدار فرستاده می‌شود/)).toBeVisible();
-  await dialog.locator('input[type="password"][autocomplete="new-password"]').fill('sk-test-provider-key-0000000000');
-  let testPayload: Record<string, unknown> | undefined;
-  await page.route('**/api/ai/provider-test', async route => {
-    testPayload = route.request().postDataJSON() as Record<string, unknown>;
-    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
-      ok: true, provider: 'openai', model: 'gpt-6-luna', message: 'اتصال به OpenAI موفق بود. این تست کلید جدید را ذخیره نکرد.',
-    }) });
-  });
-  await dialog.getByRole('button', { name: /تست اتصال بدون ذخیره/ }).click();
-  await expect(dialog.getByRole('status')).toContainText('اتصال به OpenAI موفق بود');
-  expect(testPayload?.apiKey).toBe('sk-test-provider-key-0000000000');
+  await page.goto('/simorgh/app/home', { waitUntil: 'domcontentloaded' });
+  await expect(page.getByRole('button', { name: 'بازکردن دستیار هوش مصنوعی' })).toHaveCount(0);
+  await expect(page.getByRole('textbox', { name: 'پیام به دستیار' })).toHaveCount(0);
 });
 
-test('AI assistant sends a PDF attachment through the selected provider boundary', async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== 'desktop-chromium', 'Validate binary PDF packaging once; responsive layout is covered in all viewport projects.');
+test('AI attachment controls are hidden in the core operations release', async ({ page }) => {
   await installIsolatedSession(page, 'owner');
-  const companyId = '00000000-0000-4000-8000-000000000022';
-  await page.route('**/api/ai/providers*', async route => route.fulfill({
-    status: 200,
-    contentType: 'application/json',
-    body: JSON.stringify({
-      companyId, activeProvider: 'openai', canConfigure: true,
-      providers: [
-        { provider: 'openai', model: 'gpt-6-luna', configured: true, isDefault: true, updatedAt: null },
-        { provider: 'gemini', model: 'gemini-4-argon', configured: false, isDefault: false, updatedAt: null },
-        { provider: 'deepseek', model: 'deepseek-flash', configured: false, isDefault: false, updatedAt: null },
-        { provider: 'anthropic', model: 'claude-sonnet-5', configured: false, isDefault: false, updatedAt: null },
-      ],
-    }),
-  }));
-  const pdf = Buffer.from('%PDF-1.7\n1 0 obj\n<< /Type /Catalog >>\nendobj\n%%EOF', 'utf8');
-  let submitted: Record<string, unknown> | undefined;
-  await page.route('**/api/ai/chat', async route => {
-    submitted = route.request().postDataJSON() as Record<string, unknown>;
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({ content: 'تحلیل آزمایشی فایل انجام شد.', provider: 'openai', model: 'gpt-6-luna' }),
-    });
-  });
-  await page.goto('/simorgh/app/command', { waitUntil: 'domcontentloaded' });
-  await page.getByRole('button', { name: 'بازکردن دستیار هوش مصنوعی' }).click();
-  const dialog = page.getByRole('dialog', { name: 'دستیار مدار' });
-  await expect(dialog).toBeVisible();
-  await expect(dialog.locator('.ai-composer-actions small')).toContainText('OpenAI');
-  await dialog.locator('input[type="file"]').setInputFiles({
-    name: 'operations.pdf', mimeType: 'application/pdf', buffer: pdf,
-  });
-  await expect(dialog.locator('.ai-attachment-chip')).toContainText('operations.pdf');
-  await dialog.getByRole('textbox', { name: 'پیام به دستیار' }).fill('این سند را خلاصه کن.');
-  await dialog.getByRole('button', { name: 'ارسال پیام' }).click();
-  await expect(dialog.locator('.ai-message.assistant')).toContainText('تحلیل آزمایشی فایل انجام شد.');
-  const attachment = submitted?.attachment as { name?: string; mimeType?: string; base64?: string } | undefined;
-  expect(attachment?.name).toBe('operations.pdf');
-  expect(attachment?.mimeType).toBe('application/pdf');
-  expect(attachment?.base64).toBe(pdf.toString('base64'));
+  await page.goto('/simorgh/app/home', { waitUntil: 'domcontentloaded' });
+  await expect(page.getByRole('button', { name: 'بازکردن دستیار هوش مصنوعی' })).toHaveCount(0);
+  await expect(page.getByRole('textbox', { name: 'پیام به دستیار' })).toHaveCount(0);
 });
 
-test('assistant can enter and stop automatic turn-taking voice mode', async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== 'desktop-chromium', 'Verify voice mode controls once; the general responsive workspace suite covers the other viewports.');
+test('AI voice controls are hidden in the core operations release', async ({ page }) => {
   await installIsolatedSession(page, 'owner');
-  await page.addInitScript(() => {
-    class MockSpeechRecognition {
-      lang = '';
-      interimResults = false;
-      continuous = false;
-      onresult: ((event: { results: ArrayLike<ArrayLike<{ transcript: string }> & { isFinal?: boolean }> }) => void) | null = null;
-      onerror: ((event: { error?: string }) => void) | null = null;
-      onend: (() => void) | null = null;
-      start() {}
-      stop() { this.onend?.(); }
-    }
-    Object.defineProperty(window, 'SpeechRecognition', { configurable: true, value: MockSpeechRecognition });
-
-    // CI validates the WebRTC state machine without a real microphone or external API key.
-    const audioTrack = { stop() {}, kind: 'audio', enabled: true };
-    Object.defineProperty(navigator, 'mediaDevices', {
-      configurable: true,
-      value: { getUserMedia: async () => ({ getAudioTracks: () => [audioTrack], getTracks: () => [audioTrack] }) },
-    });
-    class MockRTCDataChannel {
-      readyState = 'open';
-      onopen: (() => void) | null = null;
-      onmessage: ((event: { data: string }) => void) | null = null;
-      constructor() { window.setTimeout(() => this.onopen?.(), 0); }
-      send() {}
-      close() { this.readyState = 'closed'; }
-    }
-    class MockRTCPeerConnection {
-      connectionState = 'new';
-      ontrack: ((event: { streams: unknown[] }) => void) | null = null;
-      onconnectionstatechange: (() => void) | null = null;
-      addTrack() {}
-      createDataChannel() { return new MockRTCDataChannel(); }
-      async createOffer() { return { type: 'offer', sdp: 'v=0\r\n' }; }
-      async setLocalDescription() {}
-      async setRemoteDescription() {
-        this.connectionState = 'connected';
-        this.onconnectionstatechange?.();
-      }
-      close() { this.connectionState = 'closed'; this.onconnectionstatechange?.(); }
-    }
-    Object.defineProperty(window, 'RTCPeerConnection', { configurable: true, value: MockRTCPeerConnection });
-  });
-  await page.route('**/api/ai/realtime/session**', async route => {
-    expect(route.request().method()).toBe('POST');
-    expect(route.request().headers()['content-type']).toContain('application/sdp');
-    await route.fulfill({ status: 200, contentType: 'application/sdp', body: 'v=0\r\n' });
-  });
-  await page.route('**/api/ai/providers*', async route => route.fulfill({
-    status: 200,
-    contentType: 'application/json',
-    body: JSON.stringify({
-      activeProvider: 'openai', canConfigure: true,
-      providers: [
-        { provider: 'openai', model: 'gpt-6-luna', configured: true, isDefault: true, updatedAt: null },
-        { provider: 'gemini', model: 'gemini-4-argon', configured: false, isDefault: false, updatedAt: null },
-        { provider: 'deepseek', model: 'deepseek-flash', configured: false, isDefault: false, updatedAt: null },
-        { provider: 'anthropic', model: 'claude-sonnet-5', configured: false, isDefault: false, updatedAt: null },
-      ],
-    }),
-  }));
-  await page.goto('/simorgh/app/command', { waitUntil: 'domcontentloaded' });
-  await page.getByRole('button', { name: 'بازکردن دستیار هوش مصنوعی' }).click();
-  const dialog = page.getByRole('dialog', { name: 'دستیار مدار' });
-  await expect(dialog).toBeVisible();
-  await expect(dialog.getByRole('button', { name: 'شروع مکالمه صوتی خودکار' })).toBeVisible();
-  await dialog.getByRole('button', { name: 'شروع مکالمه صوتی خودکار' }).click();
-  await expect(dialog.getByRole('button', { name: 'توقف مکالمه صوتی' })).toBeVisible();
-  await expect(dialog.locator('.ai-composer-actions small')).toContainText('مکالمه realtime فعال');
-  await dialog.getByRole('button', { name: 'توقف مکالمه صوتی' }).click();
-  await expect(dialog.getByRole('button', { name: 'شروع مکالمه صوتی خودکار' })).toBeVisible();
+  await page.goto('/simorgh/app/home', { waitUntil: 'domcontentloaded' });
+  await expect(page.getByRole('button', { name: 'بازکردن دستیار هوش مصنوعی' })).toHaveCount(0);
+  await expect(page.getByRole('textbox', { name: 'پیام به دستیار' })).toHaveCount(0);
 });
 
 test('manager can preview and import a mixed supplier/customer CSV with duplicate phone removal', async ({ page }, testInfo) => {
@@ -731,140 +688,18 @@ test('a signed-in user can change their own password from Settings through the p
 });
 
 
-test('assistant send control remains visible and sends a message through the authenticated Worker API', async ({ page }) => {
+test('AI chat controls are hidden in the core operations release', async ({ page }) => {
   await installIsolatedSession(page, 'owner');
-  await page.route('**/api/ai/providers**', route => route.fulfill({
-    status: 200,
-    contentType: 'application/json',
-    headers: { 'cache-control': 'no-store' },
-    body: JSON.stringify({
-      companyId,
-      activeProvider: 'openai',
-      canConfigure: true,
-      providers: [{ provider: 'openai', model: 'gpt-6-luna', isDefault: true, configured: true, updatedAt: null }],
-    }),
-  }));
-  await page.route('**/api/ai/chat', async route => {
-    const request = route.request();
-    expect(request.method()).toBe('POST');
-    const payload = request.postDataJSON() as { companyId?: string; messages?: Array<{ role: string; content: string }> };
-    expect(payload.companyId).toBe(companyId);
-    expect(payload.messages?.some(message => message.role === 'user' && message.content === 'وضعیت کارهای امروز چیست؟')).toBe(true);
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      headers: { 'cache-control': 'no-store' },
-      body: JSON.stringify({ content: 'کارهای امروز از داده‌های واقعی بررسی می‌شوند.', provider: 'openai', model: 'gpt-6-luna' }),
-    });
-  });
   await page.goto('/simorgh/app/home', { waitUntil: 'domcontentloaded' });
-  await page.getByRole('button', { name: 'بازکردن دستیار هوش مصنوعی' }).click();
-  const composer = page.getByRole('textbox', { name: 'پیام به دستیار' });
-  await expect(composer).toBeVisible();
-  const send = page.getByRole('button', { name: 'ارسال پیام' });
-  await expect(send).toBeVisible();
-  await expect(send).toBeDisabled();
-  await composer.fill('وضعیت کارهای امروز چیست؟');
-  await expect(send).toBeEnabled();
-  await send.click();
-  await expect(page.getByText('کارهای امروز از داده‌های واقعی بررسی می‌شوند.')).toBeVisible();
-  await expect(composer).toHaveValue('');
+  await expect(page.getByRole('button', { name: 'بازکردن دستیار هوش مصنوعی' })).toHaveCount(0);
+  await expect(page.getByRole('textbox', { name: 'پیام به دستیار' })).toHaveCount(0);
 });
 
-
-test('agent center creates an inert proposal and only creates a task after explicit approval', async ({ page }) => {
+test('AI agent center is removed from the normal operations workflow', async ({ page }) => {
   await installIsolatedSession(page, 'owner');
-  const actionId = '00000000-0000-4000-8000-000000000099';
-  const taskId = '00000000-0000-4000-8000-000000000098';
-  const requestedBy = '00000000-0000-4000-8000-000000000011';
-  let action: {
-    id: string;
-    toolKey: 'create_operational_task';
-    status: 'proposed' | 'executed' | 'cancelled' | 'failed';
-    arguments: Record<string, unknown>;
-    result: { taskId?: string; title?: string; status?: string } | null;
-    createdAt: string;
-    executedAt?: string | null;
-    requestedByName: string;
-    requestedBy: string;
-  } | null = null;
-  let createdTasks = 0;
-
-  await page.route('**/api/workspace/members*', async route => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        members: [{
-          membership_id: '00000000-0000-4000-8000-000000000044',
-          company_id: companyId,
-          user_id: requestedBy,
-          role: 'owner',
-          active: true,
-          username: 'owner_test',
-          full_name: 'مالک آزمایشی مدار',
-        }],
-      }),
-    });
-  });
-  await page.route('**/api/ai/actions**', async route => {
-    const url = new URL(route.request().url());
-    const method = route.request().method();
-    if (url.pathname === '/api/ai/actions' && method === 'GET') {
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ actions: action ? [action] : [] }) });
-      return;
-    }
-    if (url.pathname === '/api/ai/actions/propose' && method === 'POST') {
-      const body = route.request().postDataJSON() as { companyId?: string; toolKey?: string; arguments?: Record<string, unknown> };
-      expect(body.companyId).toBe(companyId);
-      expect(body.toolKey).toBe('create_operational_task');
-      expect(body.arguments?.title).toBe('پیگیری تأمین خوراک فردا');
-      action = {
-        id: actionId,
-        toolKey: 'create_operational_task',
-        status: 'proposed',
-        arguments: body.arguments ?? {},
-        result: null,
-        createdAt: new Date().toISOString(),
-        requestedByName: 'مالک آزمایشی مدار',
-        requestedBy,
-      };
-      await route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ action, requiresConfirmation: true }) });
-      return;
-    }
-    if (url.pathname === '/api/ai/actions/' + actionId + '/execute' && method === 'POST') {
-      const body = route.request().postDataJSON() as { companyId?: string; confirmed?: boolean };
-      expect(body.companyId).toBe(companyId);
-      expect(body.confirmed).toBe(true);
-      expect(action?.status).toBe('proposed');
-      createdTasks += 1;
-      action = { ...action!, status: 'executed', result: { taskId, title: 'پیگیری تأمین خوراک فردا', status: 'pending' }, executedAt: new Date().toISOString() };
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, result: action.result }) });
-      return;
-    }
-    if (url.pathname === '/api/ai/actions/' + actionId + '/cancel' && method === 'POST') {
-      action = { ...action!, status: 'cancelled' };
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true }) });
-      return;
-    }
-    await route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ message: 'Unexpected agent API route in test' }) });
-  });
-
-  page.on('dialog', dialog => dialog.accept());
   await page.goto('/simorgh/app/agents', { waitUntil: 'domcontentloaded' });
-  await expect(page.getByRole('heading', { name: 'مرکز ایجنت‌ها و اقدامات' })).toBeVisible();
-  await page.getByLabel('عنوان وظیفه').fill('پیگیری تأمین خوراک فردا');
-  await page.getByLabel('شرح و نتیجهٔ مورد انتظار').fill('موجودی را بررسی و نتیجه را ثبت کن.');
-  await page.getByRole('button', { name: 'ثبت پیشنهاد برای تأیید' }).click();
-  await expect(page.locator('.agent-feedback.notice')).toContainText('پیشنهاد ذخیره شد؛ هنوز هیچ وظیفه‌ای در عملیات ایجاد نشده است.');
-  await expect(page.getByText('در انتظار تأیید')).toBeVisible();
-  expect(createdTasks).toBe(0);
-
-  await page.getByRole('button', { name: 'تأیید و ایجاد وظیفه' }).click();
-  await expect(page.getByText('وظیفه پس از تأیید در مدار ایجاد شد.')).toBeVisible();
-  await expect(page.getByText('اجرا شد')).toBeVisible();
-  await expect(page.getByText('شناسه وظیفه:')).toBeVisible();
-  expect(createdTasks).toBe(1);
+  await expect(page).toHaveURL(/\/simorgh\/app\/home$/);
+  await expect(page.locator('.side-nav a').filter({ hasText: 'مرکز ایجنت‌ها' })).toHaveCount(0);
 });
 
 test('owner can configure module access for a staff member and restore inherited role defaults', async ({ page }) => {
@@ -1310,7 +1145,7 @@ test('settings centralizes password, real connection health, and light/dark pref
   await expect(page.getByRole('heading', { name: 'اتصال مدار' })).toBeVisible();
   await expect(page.getByText('پاسخ‌گو')).toBeVisible();
   await expect(page.getByText('دستگاه‌های شناخته‌شده')).toBeVisible();
-  await expect(page.locator('.nav-tools-box')).toContainText('همه امکانات و ابزارها');
+  await expect(page.locator('.nav-tools-box')).toContainText('بخش‌های اصلی');
   await expect(page.locator('.sidebar-status')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'تغییر گذرواژه' })).toHaveCount(0);
 
@@ -1327,5 +1162,6 @@ test('settings centralizes password, real connection health, and light/dark pref
 
   await page.goto('/simorgh/app/command', { waitUntil: 'domcontentloaded' });
   await expect(page.locator('.dashboard-connect-disclosure')).toHaveCount(0);
-  await expect(page.locator('.sidebar-settings-link')).toBeVisible();
+  await expect(page.locator('.sidebar-settings-link, .profile-row')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'خروج از حساب' })).toBeVisible();
 });

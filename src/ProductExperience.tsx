@@ -17,13 +17,13 @@ const routeIcons: Record<string, LucideIcon> = {
   'operational-tasks': ListTodo, 'partner-finance': CreditCard, 'farm-sites': Warehouse, incidents: Activity,
 };
 const priorities: Record<string, string[]> = {
-  manager: ['command', 'orders', 'shipments'],
-  supplier: ['operational-tasks', 'daily-production', 'supplier-capacity'],
+  manager: ['home', 'orders', 'shipments'],
+  supplier: ['operational-tasks', 'daily-production', 'supplier-settlement'],
   driver: ['driver-work'], customer: ['catalog', 'my-orders', 'my-account'],
 };
 type MobileNavigationLink = { key: string; route: string; label: string; Icon: LucideIcon; anchor?: string };
 const shortLabels: Record<string, string> = {
-  command: 'نمای کلی', orders: 'سفارش‌ها', shipments: 'ارسال‌ها', finance: 'مالی', catalog: 'خرید',
+  home: 'نمای کلی', command: 'نمای کلی', orders: 'سفارش‌ها', shipments: 'ارسال‌ها', finance: 'مالی', catalog: 'خرید',
   'my-orders': 'سفارش‌های من', 'my-account': 'حساب', 'supplier-work': 'کارهای من',
   'supplier-capacity': 'ظرفیت', 'supplier-settlement': 'تسویه', 'driver-work': 'محموله‌ها',
   'daily-production': 'ثبت تولید', 'operational-tasks': 'وظایف', 'partner-finance': 'دفتر شریک',
@@ -66,6 +66,15 @@ export default function ProductExperience() {
   const signInOpen = authUiEnabled && (((location.hash === '#signin' || location.hash === '#signup') && !user && !loading) || (protectedRoute && !user && !loading));
   const normalizedPath = location.pathname.startsWith(basePath) ? location.pathname.slice(basePath.length) || '/' : location.pathname;
   const protectedDestination = normalizedPath === '/app/command' || normalizedPath === '/app' || normalizedPath === '/' ? '/app/home' : normalizedPath.startsWith('/app') ? normalizedPath : '/app/home';
+
+  useEffect(() => {
+    const invite = new URLSearchParams(location.search).get('invite')?.trim().toLowerCase() ?? '';
+    if (!user && /^[a-f0-9]{64}$/.test(invite)) {
+      setJoinInviteCode(invite);
+      setMode('signup');
+      setNotice('دعوت مجموعه دریافت شد؛ نام کاربری و رمز خودت را بساز تا به همان مجموعه متصل شوی.');
+    }
+  }, [location.search, user?.id]);
 
   useEffect(() => {
     const refreshTargets = () => {
@@ -116,8 +125,8 @@ export default function ProductExperience() {
 
   const mobileLinks = useMemo<MobileNavigationLink[]>(() => {
     const keys = new Set(allowedLinks.map(item => item.key));
-    const workspace = keys.has('catalog') ? 'customer' : keys.has('command') ? 'manager'
-      : keys.has('supplier-capacity') || keys.has('supplier-work') || keys.has('daily-production') ? 'supplier' : 'driver';
+    const workspace = keys.has('catalog') ? 'customer' : keys.has('orders') || keys.has('members') ? 'manager'
+      : keys.has('supplier-work') || keys.has('daily-production') ? 'supplier' : 'driver';
     if (workspace === 'driver' && keys.has('driver-work')) {
       return [
         { key: 'driver-cargo', route: 'driver-work', label: 'محموله‌ها', Icon: Truck, anchor: 'driver-shipments' },

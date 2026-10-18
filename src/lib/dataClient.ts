@@ -1,7 +1,13 @@
 import { HttpError } from './http';
 import { medarApiUrl, MEDAR_API_CONFIGURATION_ERROR } from './runtimeConfig';
+import { readOfflineResponse, writeOfflineResponse } from './offlineCache';
 
 export const isDataApiConfigured = import.meta.env.VITE_DISABLE_API_UI !== 'true' && !MEDAR_API_CONFIGURATION_ERROR;
+
+function dispatchApiConnectivity(online: boolean) {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new Event(online ? 'medar:api-online' : 'medar:api-offline'));
+}
 
 type Filter = { column: string; op: string; value?: unknown };
 type Order = { column: string; ascending: boolean };
@@ -85,28 +91,32 @@ class DataQuery implements PromiseLike<ApiResult> {
     if (this.executed) return this.executed;
     this.executed = (async () => {
       try {
+        const requestBody = {
+          action: this.action,
+          selection: this.selection,
+          values: this.values,
+          filters: this.filters,
+          orFilters: this.orFilters,
+          order: this.orderBy,
+          limit: this.limitValue,
+          count: this.countRequested,
+          head: this.headRequested,
+        };
+        const queryKey = '/api/data/' + encodeURIComponent(this.table) + ':' + JSON.stringify(requestBody);
         const response = await fetch(medarApiUrl('/api/data/' + encodeURIComponent(this.table)), {
           method: 'POST',
           credentials: 'include',
           cache: 'no-store',
           headers: { 'content-type': 'application/json', 'x-application-name': 'medar-network' },
-          body: JSON.stringify({
-            action: this.action,
-            selection: this.selection,
-            values: this.values,
-            filters: this.filters,
-            orFilters: this.orFilters,
-            order: this.orderBy,
-            limit: this.limitValue,
-            count: this.countRequested,
-            head: this.headRequested,
-          }),
+          body: JSON.stringify(requestBody),
         });
+        dispatchApiConnectivity(true);
         const payload = await readJson(response);
         if (!response.ok) {
           const message = typeof payload.message === 'string' ? payload.message : 'درخواست داده ناموفق بود.';
           return { data: null, error: { message }, count: null };
         }
+        if (this.action === 'select') await writeOfflineResponse(queryKey, payload).catch(() => undefined);
         const rows = Array.isArray(payload.data) ? payload.data : [];
         let data: unknown = rows;
         if (this.cardinality === 'single') {
@@ -118,6 +128,27 @@ class DataQuery implements PromiseLike<ApiResult> {
         }
         return { data: data as any, error: null, count: payload.count == null ? null : Number(payload.count) };
       } catch (caught) {
+        dispatchApiConnectivity(caught instanceof HttpError);
+        if (this.action === 'select') {
+          const requestBody = {
+            action: this.action, selection: this.selection, values: this.values, filters: this.filters,
+            orFilters: this.orFilters, order: this.orderBy, limit: this.limitValue,
+            count: this.countRequested, head: this.headRequested,
+          };
+          const cached = await readOfflineResponse('/api/data/' + encodeURIComponent(this.table) + ':' + JSON.stringify(requestBody));
+          if (cached) {
+            const rows = Array.isArray(cached.data) ? cached.data : [];
+            let data: unknown = rows;
+            if (this.cardinality === 'single') {
+              if (rows.length !== 1) return { data: null, error: { message: 'داده آفلاین برای خروجی تکی کامل نیست.' }, count: Number(cached.count ?? rows.length) };
+              data = rows[0];
+            } else if (this.cardinality === 'maybeSingle') {
+              if (rows.length > 1) return { data: null, error: { message: 'داده آفلاین برای خروجی تکی مبهم است.' }, count: Number(cached.count ?? rows.length) };
+              data = rows[0] ?? null;
+            }
+            return { data: data as any, error: null, count: cached.count == null ? null : Number(cached.count) };
+          }
+        }
         return { data: null, error: { message: caught instanceof HttpError ? caught.message : 'ارتباط با API مدار برقرار نشد.' }, count: null };
       }
     })();
