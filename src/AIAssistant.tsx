@@ -1,4 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Capacitor } from '@capacitor/core';
+import { SpeechRecognition } from '@capgo/capacitor-speech-recognition';
+import { SpeechSynthesis } from '@capgo/capacitor-speech-synthesis';
 import { ArrowDown, Check, FileText, Headphones, KeyRound, LoaderCircle, Mic, MicOff, Plus, Send, Settings2, ShieldCheck, Sparkles, Volume2, VolumeX, X } from 'lucide-react';
 import type { AppRole } from './lib/types';
 import { api } from './lib/apiClient';
@@ -84,8 +87,13 @@ export function AIAssistant({ companyId, role, userName }: AIAssistantProps) {
   useEffect(() => () => {
     voiceModeRef.current = false;
     if (voiceRestartTimerRef.current !== null) window.clearTimeout(voiceRestartTimerRef.current);
-    recognitionRef.current?.stop();
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) window.speechSynthesis.cancel();
+    if (Capacitor.isNativePlatform()) {
+      void SpeechRecognition.stop().catch(() => {});
+      void SpeechSynthesis.cancel().catch(() => {});
+    } else {
+      recognitionRef.current?.stop();
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) window.speechSynthesis.cancel();
+    }
   }, []);
 
   const loadProviders = useCallback(async () => {
@@ -212,7 +220,56 @@ export function AIAssistant({ companyId, role, userName }: AIAssistantProps) {
     }
   }
 
-  function startVoiceRecognition(autoSend: boolean) {
+  async function startVoiceRecognition(autoSend: boolean) {
+    setError('');
+    if (Capacitor.isNativePlatform()) {
+      try {
+        const permission = await SpeechRecognition.requestPermissions();
+        if (permission.speechRecognition !== 'granted') {
+          throw new Error('برای استفاده از دستیار صوتی، دسترسی میکروفون و تشخیص گفتار را در تنظیمات دستگاه فعال کن.');
+        }
+        const availability = await SpeechRecognition.available();
+        if (!availability.available) {
+          throw new Error('سرویس تشخیص گفتار روی این دستگاه در دسترس نیست. زبان گفتار دستگاه را بررسی کن یا از ورودی متنی استفاده کن.');
+        }
+        setListening(true);
+        const result = await SpeechRecognition.start({
+          language: 'fa-IR',
+          maxResults: 1,
+          partialResults: false,
+          popup: false,
+          addPunctuation: true,
+          contextualStrings: ['مدار', 'تأمین‌کننده', 'سفارش', 'تسویه', 'موجودی', 'ارسال', 'راننده', 'مزرعه', 'تولید'],
+        });
+        const transcript = result.matches?.[0]?.trim() || '';
+        setListening(false);
+        if (transcript) {
+          setDraft(transcript);
+          setError('');
+          if (autoSend && voiceModeRef.current && !voiceTurnPendingRef.current) {
+            voiceTurnPendingRef.current = true;
+            await sendMessage(undefined, transcript);
+          }
+        } else if (autoSend && voiceModeRef.current && !voiceTurnPendingRef.current) {
+          if (voiceRestartTimerRef.current !== null) window.clearTimeout(voiceRestartTimerRef.current);
+          voiceRestartTimerRef.current = window.setTimeout(() => {
+            voiceRestartTimerRef.current = null;
+            if (voiceModeRef.current && !voiceTurnPendingRef.current) void startVoiceRecognition(true);
+          }, 500);
+        }
+      } catch (caught) {
+        setListening(false);
+        const message = caught instanceof Error ? caught.message : '';
+        setError(message.includes('دسترسی') || message.includes('در دسترس') ? message : 'شروع تشخیص گفتار ناموفق بود. اجازه‌ی میکروفون و پشتیبانی زبان فارسی را بررسی کن.');
+        if (autoSend) {
+          voiceModeRef.current = false;
+          setVoiceMode(false);
+          voiceTurnPendingRef.current = false;
+        }
+      }
+      return;
+    }
+
     const Recognition = getSpeechConstructor();
     if (!Recognition) {
       setError('تبدیل گفتار به متن در این مرورگر پشتیبانی نمی‌شود. از ورودی متنی استفاده کن یا مرورگر سازگار با میکروفون را باز کن.');
@@ -264,7 +321,7 @@ export function AIAssistant({ companyId, role, userName }: AIAssistantProps) {
           if (voiceRestartTimerRef.current !== null) window.clearTimeout(voiceRestartTimerRef.current);
           voiceRestartTimerRef.current = window.setTimeout(() => {
             voiceRestartTimerRef.current = null;
-            if (voiceModeRef.current && !voiceTurnPendingRef.current) startVoiceRecognition(true);
+            if (voiceModeRef.current && !voiceTurnPendingRef.current) void startVoiceRecognition(true);
           }, 450);
         }
       };
@@ -286,12 +343,16 @@ export function AIAssistant({ companyId, role, userName }: AIAssistantProps) {
   function toggleVoiceInput() {
     setError('');
     if (listening) {
-      recognitionRef.current?.stop();
-      setListening(false);
+      if (Capacitor.isNativePlatform()) {
+        void SpeechRecognition.stop().catch(() => {});
+      } else {
+        recognitionRef.current?.stop();
+        setListening(false);
+      }
       return;
     }
     if (voiceModeRef.current) return;
-    startVoiceRecognition(false);
+    void startVoiceRecognition(false);
   }
 
   function startVoiceConversation() {
@@ -315,13 +376,69 @@ export function AIAssistant({ companyId, role, userName }: AIAssistantProps) {
     setVoiceMode(false);
     if (voiceRestartTimerRef.current !== null) window.clearTimeout(voiceRestartTimerRef.current);
     voiceRestartTimerRef.current = null;
-    recognitionRef.current?.stop();
-    window.speechSynthesis?.cancel();
+    if (Capacitor.isNativePlatform()) {
+      void SpeechRecognition.stop().catch(() => {});
+      void SpeechSynthesis.cancel().catch(() => {});
+    } else {
+      recognitionRef.current?.stop();
+      window.speechSynthesis?.cancel();
+    }
     setListening(false);
     setSpeaking(false);
   }
 
   function speak(text: string, resumeVoice = false) {
+    if (Capacitor.isNativePlatform()) {
+      void (async () => {
+        if (speaking && !resumeVoice) {
+          await SpeechSynthesis.cancel();
+          setSpeaking(false);
+          return;
+        }
+        await SpeechSynthesis.cancel();
+        setSpeaking(true);
+        let utteranceId = '';
+        let ended = false;
+        let endListener: { remove: () => Promise<void> } | null = null;
+        let errorListener: { remove: () => Promise<void> } | null = null;
+        const finishSpeech = () => {
+          if (ended) return;
+          ended = true;
+          void endListener?.remove();
+          void errorListener?.remove();
+          setSpeaking(false);
+          if (resumeVoice && voiceModeRef.current) {
+            voiceTurnPendingRef.current = false;
+            void startVoiceRecognition(true);
+          }
+        };
+        endListener = await SpeechSynthesis.addListener('end', event => {
+          if (utteranceId && event.utteranceId === utteranceId) finishSpeech();
+        });
+        errorListener = await SpeechSynthesis.addListener('error', event => {
+          if (utteranceId && event.utteranceId === utteranceId) finishSpeech();
+        });
+        try {
+          const result = await SpeechSynthesis.speak({
+            text,
+            language: 'fa-IR',
+            rate: 0.96,
+            pitch: 1,
+            volume: 1,
+            queueStrategy: 'Flush',
+          });
+          utteranceId = result.utteranceId;
+        } catch (caught) {
+          finishSpeech();
+          throw caught;
+        }
+      })().catch(caught => {
+        setSpeaking(false);
+        setError(caught instanceof Error ? caught.message : 'خواندن پاسخ با صدای دستگاه انجام نشد.');
+        if (resumeVoice) stopVoiceConversation();
+      });
+      return;
+    }
     if (!('speechSynthesis' in window)) {
       setError('خواندن پاسخ با صدا در این مرورگر پشتیبانی نمی‌شود.');
       if (resumeVoice) stopVoiceConversation();
@@ -340,7 +457,7 @@ export function AIAssistant({ companyId, role, userName }: AIAssistantProps) {
       setSpeaking(false);
       if (resumeVoice && voiceModeRef.current) {
         voiceTurnPendingRef.current = false;
-        startVoiceRecognition(true);
+        void startVoiceRecognition(true);
       }
     };
     utterance.onend = finishSpeech;
@@ -388,7 +505,7 @@ export function AIAssistant({ companyId, role, userName }: AIAssistantProps) {
       if (voiceModeRef.current) speak('پاسخ دریافت نشد. دوباره بگو تا تلاش کنم.', true);
     } finally {
       setSending(false);
-      inputRef.current?.focus();
+      if (!voiceModeRef.current) inputRef.current?.focus();
     }
   }
 
