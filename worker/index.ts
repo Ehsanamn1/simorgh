@@ -105,6 +105,7 @@ function base64UrlToBytes(value: string): Uint8Array {
 function bytesToBase64Url(bytes: Uint8Array): string {
   return bytesToBase64(bytes).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
 }
+function asArrayBuffer(bytes: Uint8Array): ArrayBuffer { return bytes.slice().buffer as ArrayBuffer; }
 function concatBytes(...parts: Uint8Array[]): Uint8Array {
   const length = parts.reduce((total, part) => total + part.length, 0);
   const result = new Uint8Array(length);
@@ -113,12 +114,12 @@ function concatBytes(...parts: Uint8Array[]): Uint8Array {
   return result;
 }
 async function hmacSha256(keyBytes: Uint8Array, data: Uint8Array): Promise<Uint8Array> {
-  const key = await crypto.subtle.importKey('raw', keyBytes, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
-  return new Uint8Array(await crypto.subtle.sign('HMAC', key, data));
+  const key = await crypto.subtle.importKey('raw', asArrayBuffer(keyBytes), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  return new Uint8Array(await crypto.subtle.sign('HMAC', key, asArrayBuffer(data)));
 }
 async function hkdfExpand(prk: Uint8Array, info: Uint8Array, length: number): Promise<Uint8Array> {
   const output: Uint8Array[] = [];
-  let previous = new Uint8Array(0);
+  let previous: Uint8Array = new Uint8Array(0);
   let total = 0;
   for (let counter = 1; total < length; counter += 1) {
     previous = await hmacSha256(prk, concatBytes(previous, info, new Uint8Array([counter])));
@@ -167,7 +168,7 @@ async function encryptWebPushPayload(payload: string, subscriptionPublicKey: str
   const uaPublic = base64UrlToBytes(subscriptionPublicKey);
   const auth = base64UrlToBytes(authSecret);
   if (uaPublic.length !== 65 || uaPublic[0] !== 4 || auth.length < 16) throw new Error('Invalid browser push encryption keys');
-  const uaKey = await crypto.subtle.importKey('raw', uaPublic, { name: 'ECDH', namedCurve: 'P-256' }, false, []);
+  const uaKey = await crypto.subtle.importKey('raw', asArrayBuffer(uaPublic), { name: 'ECDH', namedCurve: 'P-256' }, false, []);
   const pair = await crypto.subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveBits']) as CryptoKeyPair;
   const asPublic = new Uint8Array(await crypto.subtle.exportKey('raw', pair.publicKey));
   const shared = new Uint8Array(await crypto.subtle.deriveBits({ name: 'ECDH', public: uaKey }, pair.privateKey, 256));
@@ -179,8 +180,8 @@ async function encryptWebPushPayload(payload: string, subscriptionPublicKey: str
   const cek = await hkdfExpand(prk, encoder.encode('Content-Encoding: aes128gcm\0'), 16);
   const nonce = await hkdfExpand(prk, encoder.encode('Content-Encoding: nonce\0'), 12);
   const plain = concatBytes(encoder.encode(payload), new Uint8Array([2]));
-  const aesKey = await crypto.subtle.importKey('raw', cek, 'AES-GCM', false, ['encrypt']);
-  const encrypted = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv: nonce, tagLength: 128 }, aesKey, plain));
+  const aesKey = await crypto.subtle.importKey('raw', asArrayBuffer(cek), 'AES-GCM', false, ['encrypt']);
+  const encrypted = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv: asArrayBuffer(nonce), tagLength: 128 }, aesKey, asArrayBuffer(plain)));
   const recordHeader = new Uint8Array(21);
   recordHeader.set(salt, 0);
   new DataView(recordHeader.buffer).setUint32(16, 4096, false);
@@ -202,7 +203,7 @@ async function sendWebPush(subscription: { endpoint: string; p256dh_key: string;
       TTL: '60',
       Urgency: 'normal',
     },
-    body: encrypted,
+    body: asArrayBuffer(encrypted),
     signal: AbortSignal.timeout(10000),
   });
   return { ok: response.status >= 200 && response.status < 300, gone: response.status === 404 || response.status === 410, status: response.status };
