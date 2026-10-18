@@ -353,7 +353,7 @@ function FarmMapPanel({sites,schemaWarning,membership}:{sites:Row[];schemaWarnin
   const siteName=(site:Row)=>String(site.name??site.site_code??'سایت بدون نام');
   const markerPosition=(site:Row)=>({
     x:Math.min(98,Math.max(2,(Number(site.longitude)-bounds.west)/(bounds.east-bounds.west)*100)),
-    y:Math.min(98,Math.max(2,mapY(Number(site.latitude))),
+    y:Math.min(98,Math.max(2,mapY(Number(site.latitude)))),
   });
   return <section className="panel farm-map-panel">
     <div className="panel-heading">
