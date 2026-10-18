@@ -168,7 +168,7 @@ function AppShell() {
   const homeDestination = navItems.some(n => n.key === homeKey) ? homeKey : (navItems[0]?.key ?? 'command');
   const routeKey = location.pathname.split('/').pop() as PageKey;
   // Hidden specialist pages remain reachable by an explicit owner/admin URL while they are being phased out.
-  const allowed = navItems.some(n => n.key === routeKey) || (['owner', 'admin'].includes(String(role)) && deferredNavKeys.has(routeKey));
+  const allowed = navItems.some(n => n.key === routeKey) || (routeKey !== 'agents' && ['owner', 'admin'].includes(String(role)) && deferredNavKeys.has(routeKey));
   const active = navItems.find(n => n.key === location.pathname.split('/').pop()) ?? navItems[0];
   if (!user) return <MobileAccessScreen/>;
   if (loading) return <LoadingScreen label="در حال بررسی نشست و دسترسی…"/>;
