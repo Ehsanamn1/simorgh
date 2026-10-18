@@ -28,8 +28,6 @@ BEGIN
     WHEN nullif(trim(coalesce(NEW.completion_note,'')),'') IS NOT NULL THEN ' · ' || left(trim(NEW.completion_note),350)
     WHEN nullif(trim(coalesce(NEW.review_note,'')),'') IS NOT NULL THEN ' · ' || left(trim(NEW.review_note),350)
     ELSE '' END, 500);
-  notification_key := left('task-status:' || NEW.id::text || ':' || NEW.status::text || ':' || coalesce(NEW.updated_at,now())::text,240);
-
   FOR recipient_user_id IN
     SELECT DISTINCT m.user_id
     FROM public.memberships m
@@ -37,12 +35,14 @@ BEGIN
       AND m.active=true
       AND (
         m.user_id IN (NEW.assigned_by, NEW.assignee_user_id, NEW.reviewed_by)
+        OR (NEW.assignee_supplier_id IS NOT NULL AND m.supplier_id=NEW.assignee_supplier_id AND m.role::text='supplier')
         OR m.role::text IN ('owner','admin')
       )
       AND NOT (NEW.status='submitted' AND m.user_id=NEW.assignee_user_id)
   LOOP
+    notification_key := left('task-status:' || NEW.id::text || ':' || NEW.status::text || ':' || coalesce(NEW.updated_at,now())::text || ':' || recipient_user_id::text,240);
     INSERT INTO public.notifications(company_id,user_id,title,body,href,dedupe_key)
-    VALUES (NEW.company_id,recipient_user_id,status_title,status_body,'/app/operational-tasks',notification_key || ':' || recipient_user_id::text)
+    VALUES (NEW.company_id,recipient_user_id,status_title,status_body,'/app/operational-tasks',notification_key)
     ON CONFLICT (company_id,user_id,dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING;
   END LOOP;
 
