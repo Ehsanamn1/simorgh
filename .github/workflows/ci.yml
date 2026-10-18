@@ -621,8 +621,8 @@ jobs:
           restored_marker="$(psql -h 127.0.0.1 -U postgres -d "$restore_db" -v ON_ERROR_STOP=1 -Atqc "SELECT marker FROM public.ci_backup_probe WHERE id=1")"
           restored_migrations="$(psql -h 127.0.0.1 -U postgres -d "$restore_db" -v ON_ERROR_STOP=1 -Atqc "SELECT count(*) FROM public.medar_schema_migrations")"
           test "$restored_marker" = "medar-backup-restore-roundtrip"
-          test "$restored_migrations" = "24"
-          echo "PostgreSQL custom-format backup restored successfully with all 24 migration records and the fixture marker."
+          test "$restored_migrations" = "26"
+          echo "PostgreSQL custom-format backup restored successfully with all 26 migration records and the fixture marker."
       - name: Summarize all dependency advisories
         shell: bash
         run: |
