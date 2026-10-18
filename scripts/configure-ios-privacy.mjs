@@ -18,8 +18,8 @@ const entries = [
 ];
 
 for (const [key, value] of entries) {
-  const safeKey = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  if (new RegExp('<key>' + safeKey + '</key>').test(plist)) continue;
+  // All three keys are fixed Apple Info.plist identifiers (no regex metacharacters).
+  if (plist.includes('<key>' + key + '</key>')) continue;
   const rootClose = plist.lastIndexOf('</dict>');
   if (rootClose < 0) throw new Error('Could not locate the root dictionary in iOS Info.plist.');
   const xmlValue = value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
