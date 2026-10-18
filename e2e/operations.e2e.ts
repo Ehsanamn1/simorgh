@@ -427,6 +427,47 @@ test('AI assistant sends a PDF attachment through the selected provider boundary
   expect(attachment?.base64).toBe(pdf.toString('base64'));
 });
 
+test('assistant can enter and stop automatic turn-taking voice mode', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop-chromium', 'Verify voice mode controls once; the general responsive workspace suite covers the other viewports.');
+  await installIsolatedSession(page, 'owner');
+  await page.addInitScript(() => {
+    class MockSpeechRecognition {
+      lang = '';
+      interimResults = false;
+      continuous = false;
+      onresult: ((event: { results: ArrayLike<ArrayLike<{ transcript: string }> & { isFinal?: boolean }> }) => void) | null = null;
+      onerror: ((event: { error?: string }) => void) | null = null;
+      onend: (() => void) | null = null;
+      start() {}
+      stop() { this.onend?.(); }
+    }
+    Object.defineProperty(window, 'SpeechRecognition', { configurable: true, value: MockSpeechRecognition });
+  });
+  await page.route('**/api/ai/providers*', async route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({
+      activeProvider: 'openai', canConfigure: true,
+      providers: [
+        { provider: 'openai', model: 'gpt-6-luna', configured: true, isDefault: true, updatedAt: null },
+        { provider: 'gemini', model: 'gemini-4-argon', configured: false, isDefault: false, updatedAt: null },
+        { provider: 'deepseek', model: 'deepseek-flash', configured: false, isDefault: false, updatedAt: null },
+        { provider: 'anthropic', model: 'claude-sonnet-5', configured: false, isDefault: false, updatedAt: null },
+      ],
+    }),
+  }));
+  await page.goto('/simorgh/app/command', { waitUntil: 'domcontentloaded' });
+  await page.getByRole('button', { name: 'بازکردن دستیار هوش مصنوعی' }).click();
+  const dialog = page.getByRole('dialog', { name: 'دستیار مدار' });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole('button', { name: 'شروع مکالمه صوتی خودکار' })).toBeVisible();
+  await dialog.getByRole('button', { name: 'شروع مکالمه صوتی خودکار' }).click();
+  await expect(dialog.getByRole('button', { name: 'توقف مکالمه صوتی' })).toBeVisible();
+  await expect(dialog.locator('.ai-composer-actions small')).toContainText('مکالمه صوتی فعال');
+  await dialog.getByRole('button', { name: 'توقف مکالمه صوتی' }).click();
+  await expect(dialog.getByRole('button', { name: 'شروع مکالمه صوتی خودکار' })).toBeVisible();
+});
+
 test('manager can preview and import a mixed supplier/customer CSV with duplicate phone removal', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop-chromium', 'Validate import API payload once; compact layout is covered by general responsive checks.');
   await installIsolatedSession(page, 'owner');

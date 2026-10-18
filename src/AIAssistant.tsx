@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowDown, Check, FileText, KeyRound, LoaderCircle, Mic, MicOff, Plus, Send, Settings2, ShieldCheck, Sparkles, Volume2, VolumeX, X } from 'lucide-react';
+import { ArrowDown, Check, FileText, Headphones, KeyRound, LoaderCircle, Mic, MicOff, Plus, Send, Settings2, ShieldCheck, Sparkles, Volume2, VolumeX, X } from 'lucide-react';
 import type { AppRole } from './lib/types';
 import { api } from './lib/apiClient';
 
@@ -40,7 +40,7 @@ function encodeBase64(buffer: ArrayBuffer): string {
 
 type SpeechRecognitionLike = {
   lang: string; interimResults: boolean; continuous: boolean;
-  onresult: ((event: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void) | null;
+  onresult: ((event: { results: ArrayLike<ArrayLike<{ transcript: string }> & { isFinal?: boolean }> }) => void) | null;
   onerror: ((event: { error?: string }) => void) | null;
   onend: (() => void) | null;
   start: () => void; stop: () => void;
@@ -61,6 +61,10 @@ export function AIAssistant({ companyId, role, userName }: AIAssistantProps) {
   const [sending, setSending] = useState(false);
   const [speaking, setSpeaking] = useState(false);
   const [listening, setListening] = useState(false);
+  const [voiceMode, setVoiceMode] = useState(false);
+  const voiceModeRef = useRef(false);
+  const voiceTurnPendingRef = useRef(false);
+  const voiceRestartTimerRef = useRef<number | null>(null);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [attached, setAttached] = useState<AssistantAttachment | null>(null);
@@ -77,6 +81,8 @@ export function AIAssistant({ companyId, role, userName }: AIAssistantProps) {
   }, [open, messages, sending]);
 
   useEffect(() => () => {
+    voiceModeRef.current = false;
+    if (voiceRestartTimerRef.current !== null) window.clearTimeout(voiceRestartTimerRef.current);
     recognitionRef.current?.stop();
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) window.speechSynthesis.cancel();
   }, []);
@@ -183,12 +189,16 @@ export function AIAssistant({ companyId, role, userName }: AIAssistantProps) {
     }
   }
 
-  function toggleVoiceInput() {
-    setError('');
-    if (listening) { recognitionRef.current?.stop(); setListening(false); return; }
+  function startVoiceRecognition(autoSend: boolean) {
     const Recognition = getSpeechConstructor();
     if (!Recognition) {
-      setError('تبدیل گفتار به متن در این مرورگر پشتیبانی نمی‌شود. می‌توانی از ورودی متنی استفاده کنی.');
+      setError('تبدیل گفتار به متن در این مرورگر پشتیبانی نمی‌شود. از ورودی متنی استفاده کن یا مرورگر سازگار با میکروفون را باز کن.');
+      if (autoSend) {
+        voiceModeRef.current = false;
+        setVoiceMode(false);
+        voiceTurnPendingRef.current = false;
+      }
+      setListening(false);
       return;
     }
     try {
@@ -197,46 +207,128 @@ export function AIAssistant({ companyId, role, userName }: AIAssistantProps) {
       recognition.interimResults = true;
       recognition.continuous = false;
       recognition.onresult = event => {
-        const transcripts: string[] = [];
+        const finalParts: string[] = [];
+        const interimParts: string[] = [];
         for (let index = 0; index < event.results.length; index++) {
           const result = event.results[index];
-          if (result?.[0]?.transcript) transcripts.push(result[0].transcript);
+          const transcript = result?.[0]?.transcript?.trim();
+          if (!transcript) continue;
+          if (result.isFinal) finalParts.push(transcript);
+          else interimParts.push(transcript);
         }
-        setDraft(transcripts.join(' ').trim());
+        setDraft([...finalParts, ...interimParts].join(' ').trim());
+        if (autoSend && finalParts.length > 0 && !voiceTurnPendingRef.current && voiceModeRef.current) {
+          const finalText = finalParts.join(' ').trim();
+          if (finalText) {
+            voiceTurnPendingRef.current = true;
+            setDraft(finalText);
+            void sendMessage(undefined, finalText);
+          }
+        }
       };
       recognition.onerror = event => {
         setError(event.error === 'not-allowed' ? 'مجوز میکروفون را در مرورگر فعال کن.' : 'تشخیص گفتار کامل نشد؛ دوباره تلاش کن.');
         setListening(false);
+        if (autoSend) {
+          voiceModeRef.current = false;
+          setVoiceMode(false);
+          voiceTurnPendingRef.current = false;
+        }
       };
-      recognition.onend = () => setListening(false);
+      recognition.onend = () => {
+        setListening(false);
+        if (autoSend && voiceModeRef.current && !voiceTurnPendingRef.current) {
+          if (voiceRestartTimerRef.current !== null) window.clearTimeout(voiceRestartTimerRef.current);
+          voiceRestartTimerRef.current = window.setTimeout(() => {
+            voiceRestartTimerRef.current = null;
+            if (voiceModeRef.current && !voiceTurnPendingRef.current) startVoiceRecognition(true);
+          }, 450);
+        }
+      };
       recognitionRef.current = recognition;
       recognition.start();
       setListening(true);
+      setError('');
     } catch {
       setError('میکروفون فعلاً در دسترس نیست.');
       setListening(false);
+      if (autoSend) {
+        voiceModeRef.current = false;
+        setVoiceMode(false);
+        voiceTurnPendingRef.current = false;
+      }
     }
   }
 
-  function speak(text: string) {
-    if (!('speechSynthesis' in window)) {
-      setError('خواندن پاسخ با صدا در این مرورگر پشتیبانی نمی‌شود.');
+  function toggleVoiceInput() {
+    setError('');
+    if (listening) {
+      recognitionRef.current?.stop();
+      setListening(false);
       return;
     }
-    if (speaking) { window.speechSynthesis.cancel(); setSpeaking(false); return; }
+    if (voiceModeRef.current) return;
+    startVoiceRecognition(false);
+  }
+
+  function startVoiceConversation() {
+    setError('');
+    setNotice('');
+    if (!activeProvider || !configuredConfigs.some(item => item.provider === activeProvider)) {
+      setError('برای مکالمه صوتی ابتدا باید مالک یا مدیر یک پرووایدر را در تنظیمات دستیار فعال کند.');
+      if (isAdmin) setSettingsOpen(true);
+      return;
+    }
+    if (voiceModeRef.current) return;
+    voiceModeRef.current = true;
+    voiceTurnPendingRef.current = false;
+    setVoiceMode(true);
+    startVoiceRecognition(true);
+  }
+
+  function stopVoiceConversation() {
+    voiceModeRef.current = false;
+    voiceTurnPendingRef.current = false;
+    setVoiceMode(false);
+    if (voiceRestartTimerRef.current !== null) window.clearTimeout(voiceRestartTimerRef.current);
+    voiceRestartTimerRef.current = null;
+    recognitionRef.current?.stop();
+    window.speechSynthesis?.cancel();
+    setListening(false);
+    setSpeaking(false);
+  }
+
+  function speak(text: string, resumeVoice = false) {
+    if (!('speechSynthesis' in window)) {
+      setError('خواندن پاسخ با صدا در این مرورگر پشتیبانی نمی‌شود.');
+      if (resumeVoice) stopVoiceConversation();
+      return;
+    }
+    if (speaking && !resumeVoice) {
+      window.speechSynthesis.cancel();
+      setSpeaking(false);
+      return;
+    }
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = 'fa-IR';
     utterance.rate = 0.96;
-    utterance.onend = () => setSpeaking(false);
-    utterance.onerror = () => setSpeaking(false);
+    const finishSpeech = () => {
+      setSpeaking(false);
+      if (resumeVoice && voiceModeRef.current) {
+        voiceTurnPendingRef.current = false;
+        startVoiceRecognition(true);
+      }
+    };
+    utterance.onend = finishSpeech;
+    utterance.onerror = finishSpeech;
     setSpeaking(true);
     window.speechSynthesis.speak(utterance);
   }
 
-  async function sendMessage(event?: { preventDefault: () => void }) {
+  async function sendMessage(event?: { preventDefault: () => void }, overrideContent?: string) {
     event?.preventDefault();
-    const content = draft.trim();
+    const content = overrideContent === undefined ? draft.trim() : overrideContent.trim();
     if ((!content && !attached) || sending) return;
     if (!activeProvider || !configuredConfigs.some(item => item.provider === activeProvider)) {
       setError('هنوز یک پرووایدر فعال نشده است. مالک یا مدیر مجموعه باید ابتدا API key را در تنظیمات دستیار ثبت کند.');
@@ -266,9 +358,11 @@ export function AIAssistant({ companyId, role, userName }: AIAssistantProps) {
       });
       setMessages(current => [...current, { role: 'assistant', content: response.content }]);
       setAttached(null);
+      if (voiceModeRef.current) speak(response.content, true);
     } catch (caught) {
       // Keep the user's message on screen so the request can be retried or copied.
       setError(caught instanceof Error ? caught.message : 'دستیار پاسخ نداد؛ اتصال یا تنظیمات پرووایدر را بررسی کن.');
+      if (voiceModeRef.current) speak('پاسخ دریافت نشد. دوباره بگو تا تلاش کنم.', true);
     } finally {
       setSending(false);
       inputRef.current?.focus();
@@ -341,9 +435,10 @@ export function AIAssistant({ companyId, role, userName }: AIAssistantProps) {
               <div className="ai-composer-tools">
                 <button type="button" onClick={()=>fileRef.current?.click()} title="پیوست فایل" aria-label="پیوست فایل"><Plus size={18}/></button>
                 <input ref={fileRef} className="sr-only" type="file" accept=".txt,.csv,.tsv,.md,.markdown,.json,.vcf,.xml,.html,.log,.sql,.js,.mjs,.ts,.tsx,.py,.css,.yaml,.yml,.toml,.ini,.pdf,.doc,.docx,.rtf,.odt,.ppt,.pptx,.xls,.xlsx,text/plain,text/csv,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" onChange={event=>{const file=event.target.files?.[0];if(file)void handleFile(file);event.currentTarget.value='';}} />
-                <button type="button" className={listening?'recording':''} onClick={toggleVoiceInput} title={listening?'پایان گفتار':'تبدیل گفتار فارسی به متن'} aria-label={listening?'توقف ضبط گفتار':'شروع گفتار'}>{listening?<MicOff size={18}/>:<Mic size={18}/>}</button>
+                <button type="button" className={listening&&!voiceMode?'recording':''} onClick={toggleVoiceInput} disabled={voiceMode} title={listening&&!voiceMode?'پایان گفتار':'تبدیل گفتار فارسی به متن'} aria-label={listening&&!voiceMode?'توقف ضبط گفتار':'شروع گفتار'}>{listening&&!voiceMode?<MicOff size={18}/>:<Mic size={18}/>}</button>
+                <button type="button" className={voiceMode?'recording':''} onClick={()=>voiceMode?stopVoiceConversation():startVoiceConversation()} title={voiceMode?'پایان مکالمه صوتی':'شروع مکالمه صوتی خودکار'} aria-label={voiceMode?'توقف مکالمه صوتی':'شروع مکالمه صوتی خودکار'}>{voiceMode?<MicOff size={18}/>:<Headphones size={18}/>}</button>
               </div>
-              <small>{listening?'در حال شنیدن…':activeProvider?providerMeta[activeProvider].label:'پرووایدر تنظیم نشده'}</small>
+              <small>{voiceMode?'مکالمه صوتی فعال':listening?'در حال شنیدن…':activeProvider?providerMeta[activeProvider].label:'پرووایدر تنظیم نشده'}</small>
               <button className="ai-send-button" type="submit" disabled={sending||(!draft.trim()&&!attached)} aria-label="ارسال پیام">{sending?<LoaderCircle size={17} className="ai-spin"/>:<Send size={17}/>}</button>
             </div>
             <p className="ai-compose-disclaimer">پاسخ‌ها باید با رکوردهای مدار بررسی شوند. دستیار بدون تأیید کاربر عملیات مالی یا تغییر داده اجرا نمی‌کند.</p>
