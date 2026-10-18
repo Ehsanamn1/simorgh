@@ -364,7 +364,7 @@ test('manager AI assistant opens in-panel with provider settings but no client k
         providers: [
           { provider: 'openai', model: 'gpt-6-luna', configured: false, isDefault: false, updatedAt: null },
           { provider: 'gemini', model: 'gemini-4-argon', configured: false, isDefault: false, updatedAt: null },
-          { provider: 'deepseek', model: 'deepseek-flash', configured: false, isDefault: false, updatedAt: null },
+          { provider: 'deepseek', model: 'deepseek-v4-flash', configured: false, isDefault: false, updatedAt: null },
           { provider: 'anthropic', model: 'claude-sonnet-5', configured: false, isDefault: false, updatedAt: null },
         ],
       }),
@@ -380,6 +380,17 @@ test('manager AI assistant opens in-panel with provider settings but no client k
   await expect(dialog.getByRole('button', { name: /Gemini/ })).toBeVisible();
   await expect(dialog.getByRole('button', { name: /DeepSeek/ })).toBeVisible();
   await expect(page.getByText(/کلید فقط به API امن مدار فرستاده می‌شود/)).toBeVisible();
+  await dialog.locator('input[type="password"][autocomplete="new-password"]').fill('sk-test-provider-key-0000000000');
+  let testPayload: Record<string, unknown> | undefined;
+  await page.route('**/api/ai/provider-test', async route => {
+    testPayload = route.request().postDataJSON() as Record<string, unknown>;
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+      ok: true, provider: 'openai', model: 'gpt-6-luna', message: 'اتصال به OpenAI موفق بود. این تست کلید جدید را ذخیره نکرد.',
+    }) });
+  });
+  await dialog.getByRole('button', { name: /تست اتصال بدون ذخیره/ }).click();
+  await expect(dialog.getByRole('status')).toContainText('اتصال به OpenAI موفق بود');
+  expect(testPayload?.apiKey).toBe('sk-test-provider-key-0000000000');
 });
 
 test('AI assistant sends a PDF attachment through the selected provider boundary', async ({ page }, testInfo) => {
@@ -394,7 +405,7 @@ test('AI assistant sends a PDF attachment through the selected provider boundary
       providers: [
         { provider: 'openai', model: 'gpt-6-luna', configured: true, isDefault: true, updatedAt: null },
         { provider: 'gemini', model: 'gemini-4-argon', configured: false, isDefault: false, updatedAt: null },
-        { provider: 'deepseek', model: 'deepseek-flash', configured: false, isDefault: false, updatedAt: null },
+        { provider: 'deepseek', model: 'deepseek-v4-flash', configured: false, isDefault: false, updatedAt: null },
         { provider: 'anthropic', model: 'claude-sonnet-5', configured: false, isDefault: false, updatedAt: null },
       ],
     }),
@@ -451,7 +462,7 @@ test('assistant can enter and stop automatic turn-taking voice mode', async ({ p
       providers: [
         { provider: 'openai', model: 'gpt-6-luna', configured: true, isDefault: true, updatedAt: null },
         { provider: 'gemini', model: 'gemini-4-argon', configured: false, isDefault: false, updatedAt: null },
-        { provider: 'deepseek', model: 'deepseek-flash', configured: false, isDefault: false, updatedAt: null },
+        { provider: 'deepseek', model: 'deepseek-v4-flash', configured: false, isDefault: false, updatedAt: null },
         { provider: 'anthropic', model: 'claude-sonnet-5', configured: false, isDefault: false, updatedAt: null },
       ],
     }),
