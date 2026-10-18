@@ -276,7 +276,7 @@ function FarmMapPanel({sites,schemaWarning}:{sites:Row[];schemaWarning:string}) 
     };
     return {
       x:Math.min(98,Math.max(2,(longitude-bounds.west)/(bounds.east-bounds.west)*100)),
-      y:Math.min(98,Math.max(2,mapY(latitude)),
+      y:Math.min(98,Math.max(2,mapY(latitude))),
     };
   };
   return <section className="panel farm-map-panel">
