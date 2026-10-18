@@ -460,7 +460,45 @@ export function OperationsWorkspacePage({kind,membership,search}:{kind:Operation
     void action(()=>dataApi?dataApi.rpc('review_operational_task',{_task:String(row.id),_decision:decision,_review_note:note}):Promise.resolve({error:{message:'API مدار تنظیم نشده است.'}}),decision==='approved'?'وظیفه تأیید شد.':'وظیفه رد شد و نیازمند اصلاح است.');
   };
   const approveTemplate=(row:Row)=>void action(()=>updateRow('task_templates',row.id,{status:'approved'}),'دستورالعمل تأیید و قفل نسخه شد.');
-  const startBatch=(row:Row)=>void action(()=>updateRow('production_batches',row.id,{status:'active',started_on:row.started_on??new Date().toISOString().slice(0,10)}),'بچ تولید آغاز شد.');
+  const startBatch=(row:Row)=>void action(()=>updateRow('production_batches',row.id,{status:'active'}),row.status==='planned'?'بچ تولید آغاز شد.':'ادامهٔ تولید ثبت شد.');
+  const submitBatchReview=async(e:FormEvent<HTMLFormElement>)=>{
+    e.preventDefault();
+    if(!batchReview||!dataApi)return;
+    const produced=Number(batchProduced),rejected=Number(batchRejected||0);
+    if(!Number.isFinite(produced)||produced<=0||!Number.isFinite(rejected)||rejected<0||rejected>produced){
+      setError('مقدار تولید باید مثبت باشد و مقدار مردودی نمی‌تواند از تولید بیشتر باشد.');return;
+    }
+    setBusy(true);setError('');setNotice('');
+    const result=await updateRow('production_batches',batchReview.id,{status:'submitted_for_review',produced_quantity:produced,rejected_quantity:rejected});
+    setBusy(false);
+    if(result.error){setError(result.error.message);return;}
+    setBatchReview(null);setNotice('بچ برای بازبینی ارسال شد.');await load();
+  };
+  const approveBatch=(row:Row)=>void action(
+    ()=>updateRow('production_batches',row.id,{status:'approved'}),
+    'بچ تولید تأیید شد؛ تکمیل نهایی به لات آزادشده و کنترل کیفیت موفق نیاز دارد.'
+  );
+  const rejectBatch=(row:Row)=>{
+    const reason=window.prompt('علت رد بچ تولید و اقدام اصلاحی:');
+    if(!reason?.trim()){setError('برای رد بچ، علت و اقدام اصلاحی لازم است.');return;}
+    void action(()=>updateRow('production_batches',row.id,{status:'rejected',manager_notes:reason.trim()}),'بچ رد شد و برای اصلاح بازگشت.');
+  };
+  const eligibleLotsForBatch=(batch:Row)=>refs.lots.filter(l=>
+    l.status==='released'&&String(l.supplier_id)===String(batch.supplier_id)&&String(l.product_id)===String(batch.product_id)
+    &&refs.qualityReviews.some(q=>String(q.lot_id)===String(l.id)&&q.result==='pass')
+  );
+  const finishBatch=async(e:FormEvent<HTMLFormElement>)=>{
+    e.preventDefault();
+    if(!batchCompletion||!dataApi)return;
+    if(!eligibleLotsForBatch(batchCompletion).some(l=>String(l.id)===batchLotId)){
+      setError('لات باید آزادشده، متعلق به همین محصول و تأمین‌کننده و دارای بازبینی موفق باشد.');return;
+    }
+    setBusy(true);setError('');setNotice('');
+    const result=await updateRow('production_batches',batchCompletion.id,{status:'completed',quality_status:'passed',lot_id:batchLotId});
+    setBusy(false);
+    if(result.error){setError(result.error.message);return;}
+    setBatchCompletion(null);setBatchLotId('');setNotice('تکمیل بچ و اتصال لات تأییدشده ثبت شد.');await load();
+  };
   const resolveIncident=(row:Row)=>{
     const note=window.prompt('اقدام اصلاحی برای رفع رخداد:');
     if(!note?.trim()){setError('برای بستن رخداد، اقدام اصلاحی لازم است.');return;}
@@ -555,7 +593,14 @@ export function OperationsWorkspacePage({kind,membership,search}:{kind:Operation
       if(mine&&row.status==='in_progress'){buttons.push({label:'ثبت مدرک',tone:'soft',fn:()=>setEvidenceTask(String(row.id))});buttons.push({label:'ارسال برای بررسی',fn:()=>void submitTask(row)});}
       if(manager&&row.status==='submitted'){buttons.push({label:'تأیید',fn:()=>reviewTask(row,'approved')});buttons.push({label:'رد با دلیل',tone:'danger',fn:()=>reviewTask(row,'rejected')});}
     }
-    if(kind==='production-batches'&&manager&&row.status==='planned')buttons.push({label:'شروع تولید',fn:()=>startBatch(row)});
+    if(kind==='production-batches'&&internal&&['planned','rejected','on_hold'].includes(String(row.status)))buttons.push({
+      label:row.status==='planned'?'شروع تولید':row.status==='rejected'?'شروع مجدد تولید':'ادامهٔ تولید',fn:()=>startBatch(row)});
+    if(kind==='production-batches'&&internal&&row.status==='active')buttons.push({label:'ارسال برای بازبینی',fn:()=>{setBatchReview(row);setBatchProduced(String(row.produced_quantity??''));setBatchRejected(String(row.rejected_quantity??0));}});
+    if(kind==='production-batches'&&manager&&row.status==='submitted_for_review'){
+      buttons.push({label:'تأیید بچ',fn:()=>approveBatch(row)});
+      buttons.push({label:'رد با دلیل',tone:'danger',fn:()=>rejectBatch(row)});
+    }
+    if(kind==='production-batches'&&manager&&row.status==='approved')buttons.push({label:'تکمیل تولید',fn:()=>{setBatchCompletion(row);setBatchLotId('');}});
     if(kind==='incidents'&&manager&&['open','investigating','action_required'].includes(String(row.status))){
       if(row.status==='open')buttons.push({label:'شروع بررسی',tone:'soft',fn:()=>void action(()=>updateRow('operational_incidents',row.id,{status:'investigating'}),'رخداد وارد مرحله بررسی شد.')});
       buttons.push({label:'ثبت رفع رخداد',fn:()=>resolveIncident(row)});
