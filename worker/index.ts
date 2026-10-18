@@ -127,7 +127,7 @@ async function hkdfExpand(prk: Uint8Array, info: Uint8Array, length: number): Pr
   }
   return concatBytes(...output).slice(0, length);
 }
-function allowedWebPushEndpoint(value: string): URL | null {
+export function allowedWebPushEndpoint(value: string): URL | null {
   try {
     const url = new URL(value);
     const host = url.hostname.toLowerCase();
