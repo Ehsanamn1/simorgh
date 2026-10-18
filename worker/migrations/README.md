@@ -45,3 +45,12 @@ The Cloudflare operational deployment workflow applies this migration after vali
 
 
 19. `0019_daily_briefing_notifications.sql` — adds a nullable idempotency key and a partial unique index to notifications so daily in-app summaries do not duplicate for the same user, role, and business date. The Cloudflare Worker runs the daily briefing at 01:30 UTC; summaries are produced only from actual role-scoped records and are stored for in-app review. No external messages are sent by this schedule.
+
+
+17. `0017_delivery_video_evidence.sql` — video delivery evidence.
+18. `0018_bank_reconciliation_ledger.sql` — read-only bank statement import and reconciliation.
+19. `0019_daily_briefing_notifications.sql` — idempotent daily in-app notifications.
+20. `0020_operational_event_exception_ledger.sql` — tenant-scoped operational event history and deduplicated exception queue.
+21. `0021_medar_connect_messaging.sql` — explicit-participant conversations and idempotent messages.
+
+The clean-database CI chain and guarded Cloudflare deployment migration list must include every numbered migration. Production migration is intentionally not run from this branch until the PR has passed review and the main-branch deployment is authorized.
