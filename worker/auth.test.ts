@@ -7,6 +7,7 @@ import {
   isProductionBatchSubmissionValid,
   isProductionBatchCompletionReady,
   isPartnerFinancialEntryReadyToPost,
+  isSaleCollectionWithinInvoice,
   DUMMY_PASSWORD_HASH,
   FAILED_LOGIN_UPSERT_SQL,
   normalizeUsername,
@@ -82,6 +83,14 @@ describe('production and partner-finance status workflows', () => {
     expect(isPartnerFinancialEntryReadyToPost('sale_collection', 'paid', 90, 100, 'bank-ref-4')).toBe(false);
     expect(isPartnerFinancialEntryReadyToPost('sale_collection', 'paid', 100, 100, '   ')).toBe(false);
     expect(isPartnerFinancialEntryReadyToPost('sale_invoice', 'not_applicable', 0, 100, '')).toBe(true);
+  });
+
+  it('prevents posted sales collections from exceeding their invoice', () => {
+    expect(isSaleCollectionWithinInvoice(100, 0, 100)).toBe(true);
+    expect(isSaleCollectionWithinInvoice('100', '60', '40')).toBe(true);
+    expect(isSaleCollectionWithinInvoice(100, 60, 41)).toBe(false);
+    expect(isSaleCollectionWithinInvoice(100, -1, 20)).toBe(false);
+    expect(isSaleCollectionWithinInvoice(0, 0, 1)).toBe(false);
   });
 });
 
