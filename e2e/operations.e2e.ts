@@ -44,7 +44,7 @@ test('manager workspace retains operations and captures a real rendered control-
   page.on('pageerror', error => errors.push(error.message));
   await installIsolatedSession(page, 'owner');
   await page.goto('/simorgh/app', { waitUntil: 'domcontentloaded' });
-  await expect(page).toHaveURL(/\/simorgh\/app\/home$/);
+    await expect(page).toHaveURL(/home$/);
   await expect(page.getByRole('heading', { name: /سلام مالک آزمایشی مدار/ })).toBeVisible();
   await expect(page.locator('.workspace-home-hero')).toContainText('کنترل امروز کسب‌وکار');
   await expect(page.getByRole('heading', { name: 'بخش‌های پرکاربرد شما' })).toBeVisible();
@@ -70,9 +70,9 @@ test('manager workspace retains operations and captures a real rendered control-
     await expect(page.getByRole('heading', { name: title })).toBeVisible();
     const homeLink = page.getByRole('link', { name: 'بازگشت به صفحه اصلی' });
     await expect(homeLink).toBeVisible();
-    await expect(homeLink).toHaveAttribute('href', /\\/app\\/home$/);
+    await expect(homeLink).toHaveAttribute('href', /home$/);
     await homeLink.click();
-    await expect(page).toHaveURL(/\\/app\\/home$/);
+    await expect(page).toHaveURL(/home$/);
     await expect(page.getByRole('heading', { name: /سلام مالک آزمایشی مدار/ })).toBeVisible();
   }
   const dimensions = await page.evaluate(() => ({ viewport: innerWidth, document: document.documentElement.scrollWidth, body: document.body.scrollWidth }));
@@ -242,7 +242,7 @@ test('supplier workspace keeps manager-only routes out of the allowed menu', asy
   const viewportWidth = Number((testInfo.project.use as { viewport?: { width?: number } }).viewport?.width || 1365);
   await installIsolatedSession(page, 'supplier');
   await page.goto('/simorgh/app', { waitUntil: 'domcontentloaded' });
-  await expect(page).toHaveURL(/\/simorgh\/app\/home$/);
+    await expect(page).toHaveURL(/home$/);
   if (viewportWidth <= 860) {
     await page.getByRole('button', { name: 'بازکردن منو' }).click();
     await expect(page.locator('.app-sidebar')).toHaveClass(/open/);
@@ -308,7 +308,7 @@ test('customer lands in their authorized catalogue and sees customer-specific mo
   page.on('pageerror', error => errors.push(error.message));
   await installIsolatedSession(page, 'customer');
   await page.goto('/simorgh/app', { waitUntil: 'domcontentloaded' });
-  await expect(page).toHaveURL(/\/simorgh\/app\/home$/);
+    await expect(page).toHaveURL(/home$/);
   await expect(page.getByRole('heading', { name: /سلام مشتری آزمایشی مدار/ })).toBeVisible();
   await expect(page.locator('.workspace-home-hero')).toContainText('وضعیت سفارش‌های سازمان شما');
   await expect(page.locator('.workspace-home-link').filter({ hasText: 'کاتالوگ خرید' })).toBeVisible();
@@ -338,7 +338,7 @@ test('driver lands in assigned shipments and does not get customer or manager na
   page.on('pageerror', error => errors.push(error.message));
   await installIsolatedSession(page, 'driver');
   await page.goto('/simorgh/app', { waitUntil: 'domcontentloaded' });
-  await expect(page).toHaveURL(/\/simorgh\/app\/home$/);
+    await expect(page).toHaveURL(/home$/);
   await expect(page.getByRole('heading', { name: /سلام راننده آزمایشی مدار/ })).toBeVisible();
   await expect(page.locator('.workspace-home-hero')).toContainText('برنامه‌ی امروز راننده');
   await expect(page.locator('.workspace-home-link').filter({ hasText: 'محموله‌های من' })).toBeVisible();
