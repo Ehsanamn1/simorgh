@@ -36,6 +36,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y postgresql-client
+          psql -h 127.0.0.1 -U postgres -d medar_test -v ON_ERROR_STOP=1 -c "create table if not exists public.medar_schema_migrations (version text primary key, checksum text not null, applied_at timestamptz not null default now())"
           for migration in \
             worker/migrations/0001_foundation.sql \
             worker/migrations/0002_identity_foreign_keys.sql \
@@ -51,6 +52,9 @@ jobs:
             worker/migrations/0012_client_presence.sql worker/migrations/0013_ai_assistant_and_contacts.sql worker/migrations/0014_contact_intelligence.sql worker/migrations/0015_ai_action_approval_ledger.sql worker/migrations/0016_membership_module_permissions.sql worker/migrations/0017_delivery_video_evidence.sql worker/migrations/0018_bank_reconciliation_ledger.sql worker/migrations/0019_daily_briefing_notifications.sql; do
             echo "Applying $migration"
             psql -h 127.0.0.1 -U postgres -d medar_test -v ON_ERROR_STOP=1 -1 -f "$migration"
+            version="$(basename "$migration")"
+            checksum="$(sha256sum "$migration" | awk '{print $1}')"
+            psql -h 127.0.0.1 -U postgres -d medar_test -v ON_ERROR_STOP=1 -c "insert into public.medar_schema_migrations(version,checksum) values ('$version','$checksum') on conflict(version) do update set checksum=excluded.checksum"
           done
           psql -h 127.0.0.1 -U postgres -d medar_test -v ON_ERROR_STOP=1 -Atqc "
             select (
