@@ -2005,15 +2005,16 @@ app.get('/api/workspace/members/:membershipId/permissions', async (c) => {
   const byKey = new Map(rows.map(row => [row.module_key, row]));
   const modules = MODULE_PERMISSION_CATALOG.map(module => {
     const saved = byKey.get(module.key);
+    const configured = Boolean(saved && !saved.inherit_role_defaults);
     return {
       key: module.key,
       label: module.label,
-      configured: Boolean(saved && !saved.inherit_role_defaults),
-      can_read: saved?.can_read ?? true,
-      can_create: saved?.can_create ?? true,
-      can_update: saved?.can_update ?? true,
-      can_delete: saved?.can_delete ?? false,
-      can_approve: saved?.can_approve ?? false,
+      configured,
+      can_read: configured ? saved!.can_read : true,
+      can_create: configured ? saved!.can_create : true,
+      can_update: configured ? saved!.can_update : true,
+      can_delete: configured ? saved!.can_delete : false,
+      can_approve: configured ? saved!.can_approve : false,
     };
   });
   return c.json({ companyId, membership: { id: target.membership_id, role: target.role }, modules });
