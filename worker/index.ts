@@ -2516,8 +2516,8 @@ app.post('/api/access-requests',async c=>{
  return c.json({message:'درخواست نقش عمومی فعال نیست؛ با کد دعوت به یک مجموعه بپیوند.',account:user.username},410);
 });
 const PRIVATE_BUCKET_RULES:Record<string,{maxBytes:number;contentTypes:Set<string>}>={
- 'delivery-evidence':{maxBytes:10*1024*1024,contentTypes:new Set(['image/jpeg','image/png','image/webp','application/pdf'])},
- 'operational-evidence':{maxBytes:10*1024*1024,contentTypes:new Set(['image/jpeg','image/png','image/webp','application/pdf'])},
+ 'delivery-evidence':{maxBytes:50*1024*1024,contentTypes:new Set(['image/jpeg','image/png','image/webp','video/mp4','video/webm','video/quicktime','application/pdf'])},
+ 'operational-evidence':{maxBytes:50*1024*1024,contentTypes:new Set(['image/jpeg','image/png','image/webp','video/mp4','video/webm','video/quicktime','application/pdf'])},
  'contract-documents':{maxBytes:20*1024*1024,contentTypes:new Set(['application/pdf','image/jpeg','image/png'])}
 };
 function normalizePrivatePath(value:string):string|null{
