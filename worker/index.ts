@@ -3103,6 +3103,96 @@ app.post('/api/operational/exceptions/:id/resolve', async (c) => {
   return c.json({ ok: true, exception: rows[0] });
 });
 
+
+app.get('/api/connect/conversations', async (c) => {
+  const user = await requireUser(c);
+  if (user instanceof Response) return user;
+  const companyId = c.req.query('companyId') ?? '';
+  if (!COMPANY_ID_RE.test(companyId)) return c.json({ message: 'شناسه مجموعه معتبر نیست.' }, 422);
+  if (!(await aiCompanyMembership(c, companyId, user.id))) return c.json({ message: 'به این فضای کاری دسترسی فعال نداری.' }, 403);
+  const rows = await sqlFor(c).query(
+    'select v.id::text as id,v.title,v.related_entity_type as "relatedEntityType",v.related_entity_id::text as "relatedEntityId",v.created_at as "createdAt",v.updated_at as "updatedAt",p.last_read_at as "lastReadAt",(select count(*)::int from public.medar_messages msg where msg.company_id=v.company_id and msg.conversation_id=v.id and msg.deleted_at is null and msg.sender_user_id<>$2::uuid and (p.last_read_at is null or msg.created_at>p.last_read_at)) as "unreadCount",(select left(msg.body,180) from public.medar_messages msg where msg.company_id=v.company_id and msg.conversation_id=v.id and msg.deleted_at is null order by msg.created_at desc limit 1) as "lastMessage" from public.medar_conversation_participants p join public.medar_conversations v on v.company_id=p.company_id and v.id=p.conversation_id where p.company_id=$1::uuid and p.user_id=$2::uuid and v.archived_at is null order by v.updated_at desc limit 100',
+    [companyId,user.id],
+  );
+  return c.json({ conversations: rows });
+});
+
+app.post('/api/connect/conversations', async (c) => {
+  const user = await requireUser(c);
+  if (user instanceof Response) return user;
+  const body = await c.req.json<Record<string, unknown>>().catch(() => null);
+  if (!body) return c.json({ message: 'درخواست گفت‌وگو معتبر نیست.' }, 400);
+  const companyId = typeof body.companyId === 'string' ? body.companyId : '';
+  if (!COMPANY_ID_RE.test(companyId)) return c.json({ message: 'شناسه مجموعه معتبر نیست.' }, 422);
+  const membership = await aiCompanyMembership(c, companyId, user.id);
+  if (!membership || !['owner','admin','staff'].includes(membership.role) || !(await userHasModulePermission(c,user.id,companyId,'operational-tasks','can_create'))) return c.json({ message: 'ایجاد گفت‌وگوی جدید فقط برای اعضای داخلی دارای مجوز مجاز است.' }, 403);
+  const title = typeof body.title === 'string' ? body.title.trim() : '';
+  const relatedEntityType = typeof body.relatedEntityType === 'string' ? body.relatedEntityType : '';
+  const relatedEntityId = typeof body.relatedEntityId === 'string' ? body.relatedEntityId : '';
+  const inputIds = Array.isArray(body.participantUserIds) ? body.participantUserIds.filter((id): id is string => typeof id === 'string') : [];
+  if (title.length > 180 || inputIds.length > 29 || inputIds.some(id => !COMPANY_ID_RE.test(id))) return c.json({ message: 'عنوان یا فهرست اعضای گفت‌وگو معتبر نیست.' }, 422);
+  if (relatedEntityType && !['order','purchase_order','task','shipment','invoice','exception','other'].includes(relatedEntityType)) return c.json({ message: 'نوع رکورد مرتبط معتبر نیست.' }, 422);
+  if (relatedEntityId && (!COMPANY_ID_RE.test(relatedEntityId) || !relatedEntityType)) return c.json({ message: 'شناسه یا نوع رکورد مرتبط معتبر نیست.' }, 422);
+  const participantIds = [...new Set([user.id,...inputIds])];
+  const allowed = await sqlFor(c).query('select user_id::text as id from public.memberships where company_id=$1::uuid and active=true and user_id=any($2::uuid[])',[companyId,participantIds]);
+  if (allowed.length !== participantIds.length) return c.json({ message: 'تمام شرکت‌کنندگان باید عضو فعال همین شرکت باشند.' }, 422);
+  if (relatedEntityId) {
+    const sourceTable = ({order:'orders',purchase_order:'purchase_orders',task:'operational_tasks',shipment:'shipments',invoice:'invoices',exception:'medar_exception_cases',other:''} as Record<string,string>)[relatedEntityType] ?? '';
+    if (!sourceTable) return c.json({ message: 'این نوع رکورد برای اتصال گفت‌وگو پشتیبانی نمی‌شود.' }, 422);
+    const found = await sqlFor(c).query('select 1 from public.'+sourceTable+' where id=$1::uuid and company_id=$2::uuid limit 1',[relatedEntityId,companyId]);
+    if (!found.length) return c.json({ message: 'رکورد مرتبط در این شرکت پیدا نشد.' }, 404);
+  }
+  const rows = await sqlFor(c).query(
+    "with created as (insert into public.medar_conversations(company_id,title,related_entity_type,related_entity_id,created_by) values ($1::uuid,$2,$3,$4::uuid,$5::uuid) returning id,company_id), participants as (insert into public.medar_conversation_participants(company_id,conversation_id,user_id,participant_role) select created.company_id,created.id,ids.user_id,case when ids.user_id=$5::uuid then 'owner' else 'member' end from created cross join unnest($6::uuid[]) as ids(user_id) returning user_id) select created.id::text as id,created.company_id::text as \"companyId\" from created",
+    [companyId,title,relatedEntityType || null,relatedEntityId || null,user.id,participantIds],
+  );
+  return c.json({ ok: true, conversation: rows[0] }, 201);
+});
+
+app.get('/api/connect/conversations/:id/messages', async (c) => {
+  const user = await requireUser(c);
+  if (user instanceof Response) return user;
+  const companyId = c.req.query('companyId') ?? '';
+  const conversationId = c.req.param('id');
+  if (!COMPANY_ID_RE.test(companyId) || !COMPANY_ID_RE.test(conversationId)) return c.json({ message: 'شناسه گفت‌وگو یا مجموعه معتبر نیست.' }, 422);
+  if (!(await aiCompanyMembership(c,companyId,user.id))) return c.json({ message: 'به این فضای کاری دسترسی فعال نداری.' }, 403);
+  const participant = await sqlFor(c).query('select 1 from public.medar_conversation_participants where company_id=$1::uuid and conversation_id=$2::uuid and user_id=$3::uuid limit 1',[companyId,conversationId,user.id]);
+  if (!participant.length) return c.json({ message: 'این گفت‌وگو در دسترس حساب فعلی نیست.' }, 403);
+  const rows = await sqlFor(c).query(
+    'select msg.id::text as id,msg.sender_user_id::text as "senderUserId",u.username as "senderUsername",msg.body,msg.created_at as "createdAt",msg.edited_at as "editedAt" from (select * from public.medar_messages where company_id=$1::uuid and conversation_id=$2::uuid and deleted_at is null order by created_at desc limit 100) msg join public.medar_users u on u.id=msg.sender_user_id order by msg.created_at asc',
+    [companyId,conversationId],
+  );
+  await sqlFor(c).query('update public.medar_conversation_participants set last_read_at=now() where company_id=$1::uuid and conversation_id=$2::uuid and user_id=$3::uuid',[companyId,conversationId,user.id]);
+  return c.json({ messages: rows });
+});
+
+app.post('/api/connect/conversations/:id/messages', async (c) => {
+  const user = await requireUser(c);
+  if (user instanceof Response) return user;
+  const conversationId = c.req.param('id');
+  const body = await c.req.json<Record<string, unknown>>().catch(() => null);
+  const companyId = typeof body?.companyId === 'string' ? body.companyId : '';
+  const messageBody = typeof body?.body === 'string' ? body.body.trim() : '';
+  const clientMessageId = typeof body?.clientMessageId === 'string' ? body.clientMessageId.trim() : '';
+  if (!COMPANY_ID_RE.test(companyId) || !COMPANY_ID_RE.test(conversationId)) return c.json({ message: 'شناسه گفت‌وگو یا مجموعه معتبر نیست.' }, 422);
+  if (messageBody.length < 1 || messageBody.length > 8000) return c.json({ message: 'متن پیام باید بین ۱ تا ۸۰۰۰ نویسه باشد.' }, 422);
+  if (body?.clientMessageId !== undefined && (clientMessageId.length < 8 || clientMessageId.length > 120)) return c.json({ message: 'شناسه پیام معتبر نیست.' }, 422);
+  if (!(await aiCompanyMembership(c,companyId,user.id))) return c.json({ message: 'به این فضای کاری دسترسی فعال نداری.' }, 403);
+  const participant = await sqlFor(c).query('select 1 from public.medar_conversation_participants where company_id=$1::uuid and conversation_id=$2::uuid and user_id=$3::uuid limit 1',[companyId,conversationId,user.id]);
+  if (!participant.length) return c.json({ message: 'ارسال پیام به این گفت‌وگو مجاز نیست.' }, 403);
+  const rows = await sqlFor(c).query(
+    'insert into public.medar_messages(company_id,conversation_id,sender_user_id,body,client_message_id) values ($1::uuid,$2::uuid,$3::uuid,$4,$5) on conflict (company_id,conversation_id,sender_user_id,client_message_id) where client_message_id is not null do update set body=medar_messages.body returning id::text as id,company_id::text as \"companyId\",conversation_id::text as \"conversationId\",sender_user_id::text as \"senderUserId\",body,created_at as \"createdAt\"',
+    [companyId,conversationId,user.id,messageBody,clientMessageId || null],
+  );
+  const message = rows[0];
+  await sqlFor(c).query(
+    "insert into public.notifications(company_id,user_id,title,body,href,dedupe_key) select $1::uuid,p.user_id,'پیام جدید در مدار',left($2,180),'/app/home','message:'||$3 from public.medar_conversation_participants p where p.company_id=$1::uuid and p.conversation_id=$4::uuid and p.user_id<>$5::uuid on conflict (company_id,user_id,dedupe_key) where dedupe_key is not null do nothing",
+    [companyId,messageBody,message.id,conversationId,user.id],
+  );
+  await sqlFor(c).query('update public.medar_conversations set updated_at=now() where company_id=$1::uuid and id=$2::uuid',[companyId,conversationId]);
+  return c.json({ ok: true, message }, 201);
+});
+
 app.get('/api/notifications', async (c) => {
   const user = await requireUser(c);
   if (user instanceof Response) return user;
