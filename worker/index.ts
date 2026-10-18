@@ -885,6 +885,106 @@ app.post('/api/ai/chat', async (c) => {
   }
 });
 
+
+app.post('/api/contacts/classify', async (c) => {
+  const user = await requireUser(c);
+  if (user instanceof Response) return user;
+  const body = await c.req.json<Record<string, unknown>>().catch(() => null);
+  if (!body) return c.json({ message: 'درخواست تحلیل مخاطبین معتبر نیست.' }, 400);
+  const companyId = typeof body.companyId === 'string' ? body.companyId : '';
+  if (!COMPANY_ID_RE.test(companyId)) return c.json({ message: 'شناسه مجموعه معتبر نیست.' }, 422);
+  const membership = await aiCompanyMembership(c, companyId, user.id);
+  if (!membership) return c.json({ message: 'به این فضای کاری دسترسی فعال نداری.' }, 403);
+  if (membership.role !== 'owner' && membership.role !== 'admin') return c.json({ message: 'فقط مالک یا مدیر می‌تواند مخاطبین را با هوش مصنوعی تحلیل کند.' }, 403);
+  if (!Array.isArray(body.contacts) || body.contacts.length < 1 || body.contacts.length > 40) {
+    return c.json({ message: 'هر درخواست تحلیل باید بین ۱ تا ۴۰ مخاطب داشته باشد.' }, 422);
+  }
+  // Only non-sensitive business context is sent to the model. Never include phones,
+  // emails, street addresses, IDs, or existing customer/supplier records.
+  const contacts: Array<{ index: number; name: string; organization: string; city: string; notes: string; tags: string[]; hintedKind: string }> = [];
+  let inputChars = 0;
+  for (let index = 0; index < body.contacts.length; index++) {
+    const raw = body.contacts[index];
+    if (!raw || typeof raw !== 'object') continue;
+    const item = raw as Record<string, unknown>;
+    const pick = (key: string, max: number) => typeof item[key] === 'string' ? item[key].trim().slice(0, max) : '';
+    const name = pick('name', 160);
+    if (name.length < 2) continue;
+    const tags = Array.isArray(item.tags)
+      ? item.tags.filter((tag): tag is string => typeof tag === 'string').map(tag => tag.trim().slice(0, 40)).filter(Boolean).slice(0, 8)
+      : [];
+    const record = {
+      index,
+      name,
+      organization: pick('organization', 160),
+      city: pick('city', 80),
+      notes: pick('notes', 300),
+      tags,
+      hintedKind: item.kind === 'customers' ? 'customer' : item.kind === 'suppliers' ? 'supplier' : '',
+    };
+    inputChars += JSON.stringify(record).length;
+    contacts.push(record);
+  }
+  if (!contacts.length) return c.json({ message: 'برای تحلیل، مخاطب قابل خواندنی پیدا نشد.' }, 422);
+  if (inputChars > 22000) return c.json({ message: 'حجم اطلاعات برای یک درخواست زیاد است؛ مخاطبین را در دسته‌های کوچک‌تر تحلیل کن.' }, 413);
+  const sql = sqlFor(c);
+  const limits = await sql.query([
+    "select (select count(*)::int from public.medar_ai_usage_log where user_id=$1::uuid and created_at>now()-interval '1 minute') as minute_count,",
+    "(select count(*)::int from public.medar_ai_usage_log where user_id=$1::uuid and created_at>now()-interval '1 day') as day_count",
+  ].join(' '), [user.id]);
+  const limit = limits[0] as { minute_count: number; day_count: number } | undefined;
+  if (Number(limit?.minute_count ?? 0) >= 8 || Number(limit?.day_count ?? 0) >= 120) {
+    return c.json({ message: 'سقف درخواست دستیار در بازه فعلی پر شده است. کمی بعد دوباره تلاش کن.' }, 429);
+  }
+  const rows = await sql.query(
+    'select provider,model,encrypted_api_key from public.medar_ai_provider_configs where company_id=$1::uuid and is_default=true limit 1',
+    [companyId],
+  );
+  const config = rows[0] as { provider: string; model: string; encrypted_api_key: string } | undefined;
+  if (!config) return c.json({ message: 'برای تحلیل مخاطبین، مالک یا مدیر باید یک پرووایدر هوش مصنوعی فعال کند.' }, 409);
+  const provider = aiProvider(config.provider);
+  if (!provider) return c.json({ message: 'پرووایدر ذخیره‌شده پشتیبانی نمی‌شود.' }, 503);
+  let apiKey: string;
+  try { apiKey = await decryptAiKey(c, config.encrypted_api_key); }
+  catch { return c.json({ message: 'رمزگشایی کلید پرووایدر ناموفق بود؛ کلید را دوباره در تنظیمات ذخیره کن.' }, 503); }
+  const systemPrompt = [
+    'تو دستیار مدیریت ارتباطات کسب‌وکار مدار هستی.',
+    'دسته هر مخاطب را فقط با شواهد صریح موجود تعیین کن؛ از روی اسم به تنهایی حدس نزن.',
+    'customer فقط وقتی انتخاب شود که توضیحات/برچسب/سازمان شواهد روشنی از خریدار، مشتری، فروشگاه یا خریدار سازمانی بدهند.',
+    'supplier فقط وقتی انتخاب شود که شواهد روشنی از تأمین‌کننده، تولیدکننده، مزرعه، عمده‌فروش یا عرضه‌کننده وجود داشته باشد.',
+    'اگر شواهد کافی نیست kind را unknown و confidence را حداکثر 0.55 قرار بده. شماره تلفن، ایمیل و نشانی به تو داده نشده است.',
+    'حداکثر سه برچسب کوتاه فارسی پیشنهاد بده. هیچ عملیات یا تغییری را اجرا نکن؛ فقط نتیجه پیشنهادی بده.',
+    'فقط JSON معتبر بدون markdown و دقیقاً با این ساختار برگردان: {"results":[{"index":0,"kind":"customers|suppliers|unknown","confidence":0.0,"reason":"کوتاه و فارسی","tags":["برچسب"]}]}',
+  ].join(' ');
+  try {
+    const message = JSON.stringify({ contacts });
+    await sql.query(
+      'insert into public.medar_ai_usage_log(company_id,user_id,provider,model,input_chars) values($1::uuid,$2::uuid,$3,$4,$5)',
+      [companyId, user.id, provider, config.model, inputChars],
+    );
+    const responseText = await requestAiProvider(provider, config.model, apiKey, [{ role: 'user', content: message }], systemPrompt, null);
+    const parsed = JSON.parse(responseText.trim()) as { results?: unknown };
+    if (!Array.isArray(parsed.results)) throw new Error('AI classification response did not include results');
+    const sanitized = parsed.results.flatMap(raw => {
+      if (!raw || typeof raw !== 'object') return [];
+      const item = raw as Record<string, unknown>;
+      const index = Number(item.index);
+      if (!Number.isInteger(index) || index < 0 || index >= body.contacts!.length) return [];
+      const kind = item.kind === 'customers' || item.kind === 'suppliers' ? item.kind : 'unknown';
+      const confidence = Number.isFinite(Number(item.confidence)) ? Math.max(0, Math.min(1, Number(item.confidence))) : 0;
+      const reason = typeof item.reason === 'string' ? item.reason.replace(/[\\r\\n]/g, ' ').trim().slice(0, 180) : '';
+      const tags = Array.isArray(item.tags)
+        ? item.tags.filter((tag): tag is string => typeof tag === 'string').map(tag => tag.trim().replace(/[\\r\\n,;]/g, '').slice(0, 40)).filter(Boolean).slice(0, 3)
+        : [];
+      return [{ index, kind, confidence, reason, tags }];
+    });
+    if (!sanitized.length) throw new Error('AI classification response contained no valid result rows');
+    return c.json({ results: sanitized, analyzed: contacts.length, provider, model: config.model });
+  } catch {
+    return c.json({ message: 'تحلیل هوشمند دسته‌بندی کامل نشد؛ فایل و تنظیمات مدل را بررسی کن. اطلاعات مخاطبین ذخیره یا تغییر داده نشد.' }, 502);
+  }
+});
+
 app.post('/api/contacts/import', async (c) => {
   const user = await requireUser(c);
   if (user instanceof Response) return user;
@@ -897,34 +997,42 @@ app.post('/api/contacts/import', async (c) => {
   if (!membership) return c.json({ message: 'به این فضای کاری دسترسی فعال نداری.' }, 403);
   if (membership.role !== 'owner' && membership.role !== 'admin') return c.json({ message: 'فقط مالک یا مدیر می‌تواند مخاطبین مجموعه را وارد کند.' }, 403);
   if (!Array.isArray(body.contacts) || body.contacts.length < 1 || body.contacts.length > 1000) return c.json({ message: 'تعداد مخاطبین باید بین ۱ تا ۱۰۰۰ باشد.' }, 422);
-  const contacts: Array<{ name: string; phone: string; city: string; address: string; kind: 'customers' | 'suppliers' }> = [];
+  type ImportKind = 'customers' | 'suppliers';
+  type ContactRecord = { name: string; phone: string; city: string; address: string; email: string; organization: string; notes: string; tags: string[]; kind: ImportKind };
+  const contacts: ContactRecord[] = [];
   const seenNames = new Set<string>();
   const seenPhones = new Set<string>();
   for (const raw of body.contacts) {
     if (!raw || typeof raw !== 'object') continue;
     const item = raw as Record<string, unknown>;
-    const name = typeof item.name === 'string' ? item.name.trim().replace(/\s+/g, ' ') : '';
+    const name = typeof item.name === 'string' ? item.name.trim().replace(/\\s+/g, ' ') : '';
     const phone = typeof item.phone === 'string' ? item.phone.trim().replace(/[۰-۹٠-٩]/g, digit => {
       const code = digit.charCodeAt(0);
       return String(code - (code >= 0x06f0 && code <= 0x06f9 ? 0x06f0 : 0x0660));
     }).slice(0, 40) : '';
     const city = typeof item.city === 'string' ? item.city.trim().slice(0, 100) : '';
     const address = typeof item.address === 'string' ? item.address.trim().slice(0, 500) : '';
+    const email = typeof item.email === 'string' ? item.email.trim().slice(0, 254) : '';
+    const organization = typeof item.organization === 'string' ? item.organization.trim().replace(/\\s+/g, ' ').slice(0, 160) : '';
+    const notes = typeof item.notes === 'string' ? item.notes.trim().slice(0, 2000) : '';
+    const tags = Array.isArray(item.tags)
+      ? item.tags.filter((tag): tag is string => typeof tag === 'string').map(tag => tag.trim().replace(/[\\r\\n,;]/g, '').slice(0, 40)).filter(Boolean).slice(0, 12)
+      : [];
     const kind = item.kind === 'customers' || item.kind === 'suppliers' ? item.kind : defaultKind;
     if (!kind || name.length < 2 || name.length > 160) continue;
-    // Same person can be a customer and supplier, but each category must have unique names and phones in this batch.
+    if (email && !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) continue;
     const category = kind + ':';
     const nameKey = category + name.toLocaleLowerCase('fa-IR');
-    const phoneNumber = phone.replace(/\D/g, '');
+    const phoneNumber = phone.replace(/\\D/g, '');
     const phoneKey = phoneNumber ? category + phoneNumber : '';
     if (seenNames.has(nameKey) || (phoneKey && seenPhones.has(phoneKey))) continue;
     seenNames.add(nameKey);
     if (phoneKey) seenPhones.add(phoneKey);
-    contacts.push({ name, phone, city, address, kind });
+    contacts.push({ name, phone, city, address, email, organization, notes, tags, kind });
   }
   if (!contacts.length) return c.json({ message: 'مخاطب معتبر با دسته‌ی مقصد مشخص برای واردسازی باقی نمانده است.' }, 422);
   const sql = sqlFor(c);
-  const byKind: Record<'customers' | 'suppliers', { imported: number; updated: number }> = {
+  const byKind: Record<ImportKind, { imported: number; updated: number }> = {
     customers: { imported: 0, updated: 0 },
     suppliers: { imported: 0, updated: 0 },
   };
@@ -936,17 +1044,16 @@ app.post('/api/contacts/import', async (c) => {
       const values: string[] = [];
       batch.forEach(item => {
         const offset = params.length;
-        if (kind === 'customers') {
-          params.push(companyId, item.name, item.phone || null, item.city || null, item.address || null);
-          values.push('($' + (offset+1) + '::uuid,$' + (offset+2) + ',$' + (offset+3) + ',$' + (offset+4) + ',$' + (offset+5) + ')');
-        } else {
-          params.push(companyId, item.name, item.phone || null, item.city || null);
-          values.push('($' + (offset+1) + '::uuid,$' + (offset+2) + ',$' + (offset+3) + ',$' + (offset+4) + ')');
-        }
+        params.push(companyId, item.name, item.phone || null, item.city || null, item.address || null,
+          item.email || null, item.organization || null, item.notes || null, JSON.stringify(item.tags), 'phone_import');
+        values.push('($' + (offset+1) + '::uuid,$' + (offset+2) + ',$' + (offset+3) + ',$' + (offset+4) + ',$' + (offset+5) +
+          ',$' + (offset+6) + ',$' + (offset+7) + ',$' + (offset+8) + ',ARRAY(SELECT jsonb_array_elements_text($' + (offset+9) + '::jsonb)),$' + (offset+10) + ')');
       });
       const query = kind === 'customers'
-        ? "insert into public.customers(company_id,name,phone,city,address) values " + values.join(',') + " on conflict(company_id,name) do update set phone=coalesce(nullif(excluded.phone,''),customers.phone),city=coalesce(nullif(excluded.city,''),customers.city),address=coalesce(nullif(excluded.address,''),customers.address),updated_at=now() returning (xmax=0) as inserted"
-        : "insert into public.suppliers(company_id,name,phone,city) values " + values.join(',') + " on conflict(company_id,name) do update set phone=coalesce(nullif(excluded.phone,''),suppliers.phone),city=coalesce(nullif(excluded.city,''),suppliers.city),updated_at=now() returning (xmax=0) as inserted";
+        ? "insert into public.customers(company_id,name,phone,city,address,email,organization_name,contact_notes,contact_tags,contact_source) values " + values.join(',') +
+          " on conflict(company_id,name) do update set phone=coalesce(nullif(excluded.phone,''),customers.phone),city=coalesce(nullif(excluded.city,''),customers.city),address=coalesce(nullif(excluded.address,''),customers.address),email=coalesce(nullif(excluded.email,''),customers.email),organization_name=coalesce(nullif(excluded.organization_name,''),customers.organization_name),contact_notes=coalesce(nullif(excluded.contact_notes,''),customers.contact_notes),contact_tags=case when cardinality(excluded.contact_tags)>0 then excluded.contact_tags else customers.contact_tags end,contact_source='phone_import',updated_at=now() returning (xmax=0) as inserted"
+        : "insert into public.suppliers(company_id,name,phone,city,address,email,organization_name,contact_notes,contact_tags,contact_source) values " + values.join(',') +
+          " on conflict(company_id,name) do update set phone=coalesce(nullif(excluded.phone,''),suppliers.phone),city=coalesce(nullif(excluded.city,''),suppliers.city),address=coalesce(nullif(excluded.address,''),suppliers.address),email=coalesce(nullif(excluded.email,''),suppliers.email),organization_name=coalesce(nullif(excluded.organization_name,''),suppliers.organization_name),contact_notes=coalesce(nullif(excluded.contact_notes,''),suppliers.contact_notes),contact_tags=case when cardinality(excluded.contact_tags)>0 then excluded.contact_tags else suppliers.contact_tags end,contact_source='phone_import',updated_at=now() returning (xmax=0) as inserted";
       const rows = await sql.query(query, params) as Array<{ inserted: boolean }>;
       for (const row of rows) if (row.inserted) byKind[kind].imported++; else byKind[kind].updated++;
     }
