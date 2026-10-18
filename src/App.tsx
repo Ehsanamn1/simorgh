@@ -367,11 +367,11 @@ function FarmMapPanel({sites,schemaWarning,membership}:{sites:Row[];schemaWarnin
       <span className="status-badge neutral">{numberFa(visibleMapped.length + visibleFleetPoints.length)} موقعیت زنده/ثبت‌شده</span>
     </div>
     <div className="farm-map-mode-toggle" role="group" aria-label="حالت نمایش نقشه">
-      <button type="button" className={showIranPaper?'active':''} aria-pressed={showIranPaper} disabled={!iranMapped.length} onClick={()=>setMapMode('iran')}>نقشه کاغذی ایران</button>
+      <button type="button" className={showIranPaper?'active':''} aria-pressed={showIranPaper} onClick={()=>setMapMode('iran')}>نقشه کاغذی ایران</button>
       <button type="button" className={!showIranPaper?'active':''} aria-pressed={!showIranPaper} disabled={!mapped.length && !freshFleetPoints.length} onClick={()=>setMapMode('street')}>نقشه دقیق</button>
     </div>
-    {schemaWarning ? <div className="farm-map-warning"><MapPin size={18}/><div><b>به‌روزرسانی ساختار نقشه لازم است</b><p>{schemaWarning}</p><small>پس از اجرای مهاجرت، طول و عرض جغرافیایی هر سایت را از بخش «سایت‌های مزرعه» وارد کن.</small></div></div>
-    : (showIranPaper || mapped.length > 0 || visibleFleetPoints.length > 0) ? <div className="farm-map-layout">
+    {schemaWarning && <div className="farm-map-warning"><MapPin size={18}/><div><b>داده‌های مختصات هنوز کامل نیستند</b><p>{schemaWarning}</p><small>نقشه کاغذی ایران همچنان قابل استفاده است؛ پس از ثبت مختصات واقعی، نشانگر سایت‌ها و رانندگان نمایش داده می‌شوند.</small></div></div>}
+    {(showIranPaper || mapped.length > 0 || visibleFleetPoints.length > 0) ? <div className="farm-map-layout">
       <div className={'farm-map-canvas'+(showIranPaper?' farm-map-canvas-iran':'')}>
         {showIranPaper ? <svg className="iran-paper-illustration" viewBox="0 0 600 380" role="img" aria-label="نمای شماتیک قلمرو ایران">
           <defs>
