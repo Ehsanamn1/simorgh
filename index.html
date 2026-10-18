@@ -3,14 +3,14 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#101719" />
+    <meta name="theme-color" content="#F4F7F2" />
     <script>
       try {
-        var savedTheme = localStorage.getItem('simorgh-theme') === 'light' ? 'light' : 'dark';
+        var savedTheme = localStorage.getItem('simorgh-theme') === 'dark' ? 'dark' : 'light';
         document.documentElement.dataset.theme = savedTheme;
         document.documentElement.style.colorScheme = savedTheme;
-        document.querySelector('meta[name="theme-color"]').content = savedTheme === 'light' ? '#F4F7F7' : '#101719';
-      } catch (e) { document.documentElement.dataset.theme = 'dark'; }
+        document.querySelector('meta[name="theme-color"]').content = savedTheme === 'light' ? '#F4F7F2' : '#171A20';
+      } catch (e) { document.documentElement.dataset.theme = 'light'; document.documentElement.style.colorScheme = 'light'; }
     </script>
     <meta name="color-scheme" content="light dark" />
     <meta name="description" content="مدار — سامانه‌ی یکپارچه‌ی مدیریت مزرعه، سفارش، عملیات، مالی و ارسال." />
@@ -23,26 +23,33 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
     <style>
-      html,body{margin:0;min-width:320px;min-height:100%;background:#101719;color:#E7EFEB;font-family:Vazirmatn,Tahoma,sans-serif}
-      #app-boot-screen{position:fixed;inset:0;z-index:99999;display:grid;place-items:center;padding:24px;background:radial-gradient(ellipse at 50% 20%,rgba(112,154,168,.12),transparent 42%),#101719;transition:opacity .18s ease}
-      .boot-card{width:min(100%,380px);box-sizing:border-box;padding:28px;border:1px solid #29373B;border-radius:20px;background:#11191C;text-align:center;box-shadow:0 24px 80px rgba(0,0,0,.3)}
+      html,body{margin:0;min-width:320px;min-height:100%;background:#F4F7F2;color:#26372C;font-family:Vazirmatn,Tahoma,sans-serif}
+      #app-boot-screen{position:fixed;inset:0;z-index:99999;display:grid;place-items:center;padding:24px;background:radial-gradient(ellipse at 50% 20%,rgba(39,103,73,.08),transparent 42%),#F4F7F2;transition:opacity .18s ease}
+      .boot-card{width:min(100%,380px);box-sizing:border-box;padding:28px;border:1px solid #D4E0D1;border-radius:20px;background:#FFFFFF;text-align:center;box-shadow:0 24px 80px rgba(0,0,0,.3)}
       .boot-mark{display:grid;place-items:center;width:54px;height:54px;margin:0 auto 16px;border:0;border-radius:16px;background:transparent;overflow:hidden}.boot-mark img{display:block;width:54px;height:54px;object-fit:contain}
       .boot-brand{font-size:21px;font-weight:850;letter-spacing:-.03em}
-      .boot-brand-sub{display:block;margin-top:2px;color:#82BDB1;font-size:11px}
-      .boot-spinner{width:23px;height:23px;margin:22px auto 14px;border:2px solid #29373B;border-top-color:#82BDB1;border-radius:50%;animation:boot-spin .8s linear infinite}
-      .boot-wait{color:#A0B0B2;font-size:11px;line-height:1.9}
+      .boot-brand-sub{display:block;margin-top:2px;color:#276749;font-size:11px}
+      .boot-spinner{width:23px;height:23px;margin:22px auto 14px;border:2px solid #D4E0D1;border-top-color:#276749;border-radius:50%;animation:boot-spin .8s linear infinite}
+      .boot-wait{color:#607265;font-size:11px;line-height:1.9}
       .boot-failure{display:none;margin-top:14px}
-      .boot-failure p{color:#A0B0B2;font-size:11px;line-height:1.9}
-      .boot-failure button{width:100%;min-height:44px;border:1px solid #82BDB1;border-radius:11px;background:#82BDB1;color:#071311;font:inherit;font-size:12px;font-weight:850;cursor:pointer}
+      .boot-failure p{color:#607265;font-size:11px;line-height:1.9}
+      .boot-failure button{width:100%;min-height:44px;border:1px solid #276749;border-radius:11px;background:#276749;color:#FFFFFF;font:inherit;font-size:12px;font-weight:850;cursor:pointer}
       #app-boot-screen.has-error .boot-spinner,#app-boot-screen.has-error .boot-wait{display:none}
       #app-boot-screen.has-error .boot-failure{display:block}
-      html[data-theme="light"],html[data-theme="light"] body{background:#F4F7F7;color:#1B2B2C}
-      html[data-theme="light"] #app-boot-screen{background:radial-gradient(ellipse at 50% 20%,rgba(38,120,106,.09),transparent 42%),#F4F7F7}
-      html[data-theme="light"] .boot-card{border-color:#D6E2E0;background:#fff;box-shadow:0 24px 80px rgba(20,48,46,.12)}
-      html[data-theme="light"] .boot-brand-sub{color:#26786A}
-      html[data-theme="light"] .boot-spinner{border-color:#D6E2E0;border-top-color:#26786A}
-      html[data-theme="light"] .boot-wait,html[data-theme="light"] .boot-failure p{color:#52686B}
-      html[data-theme="light"] .boot-failure button{border-color:#26786A;background:#26786A;color:#fff}
+      html[data-theme="light"],html[data-theme="light"] body{background:#F4F7F2;color:#26372C}
+      html[data-theme="light"] #app-boot-screen{background:radial-gradient(ellipse at 50% 20%,rgba(39,103,73,.08),transparent 42%),#F4F7F2}
+      html[data-theme="light"] .boot-card{border-color:#D4E0D1;background:#fff;box-shadow:0 24px 80px rgba(34,68,45,.08)}
+      html[data-theme="light"] .boot-brand-sub{color:#276749}
+      html[data-theme="light"] .boot-spinner{border-color:#D4E0D1;border-top-color:#276749}
+      html[data-theme="light"] .boot-wait,html[data-theme="light"] .boot-failure p{color:#607265}
+      html[data-theme="light"] .boot-failure button{border-color:#276749;background:#276749;color:#fff}
+      html[data-theme="dark"],html[data-theme="dark"] body{background:#171A20;color:#EDF0F5}
+      html[data-theme="dark"] #app-boot-screen{background:radial-gradient(ellipse at 50% 20%,rgba(167,187,211,.08),transparent 42%),#171A20}
+      html[data-theme="dark"] .boot-card{border-color:#3B4351;background:#20242C;box-shadow:0 24px 80px rgba(0,0,0,.3)}
+      html[data-theme="dark"] .boot-brand-sub{color:#A7BBD3}
+      html[data-theme="dark"] .boot-spinner{border-color:#3B4351;border-top-color:#A7BBD3}
+      html[data-theme="dark"] .boot-wait,html[data-theme="dark"] .boot-failure p{color:#B9C1CD}
+      html[data-theme="dark"] .boot-failure button{border-color:#A7BBD3;background:#A7BBD3;color:#202A38}
       @keyframes boot-spin{to{transform:rotate(360deg)}}
       @media(prefers-reduced-motion:reduce){.boot-spinner{animation:none}#app-boot-screen{transition:none}}
     </style>

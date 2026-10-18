@@ -230,15 +230,22 @@ test('an existing account must join a workspace using an invitation code', async
 test('supplier workspace keeps manager-only routes out of the allowed menu', async ({ page }, testInfo) => {
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
+  const viewportWidth = Number((testInfo.project.use as { viewport?: { width?: number } }).viewport?.width || 1365);
   await installIsolatedSession(page, 'supplier');
   await page.goto('/simorgh/app', { waitUntil: 'domcontentloaded' });
+  if (viewportWidth <= 860) {
+    await page.getByRole('button', { name: 'بازکردن منو' }).click();
+    await expect(page.locator('.app-sidebar')).toHaveClass(/open/);
+  }
   await expect(page.getByRole('heading', { name: 'وظایف عملیاتی' })).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath('supplier-task-workspace-viewport.png') });
   await page.screenshot({ path: testInfo.outputPath('supplier-task-workspace.png'), fullPage: true });
   await expect(page.getByRole('link', { name: /وظایف عملیاتی/ })).toBeVisible();
   await expect(page.getByRole('link', { name: /دستورالعمل‌های کاری/ })).toHaveCount(0);
   await expect(page.getByRole('link', { name: /دسترسی کاربران/ })).toHaveCount(0);
-  await expect(page.getByRole('link', { name: /دوره‌های تسویه/ })).toBeVisible();
+  const settlementGroup = page.locator('.nav-group').filter({ has: page.locator('summary', { hasText: 'مشارکت و مالی' }) });
+  await settlementGroup.locator('summary').click();
+  await expect(settlementGroup.getByRole('link', { name: /دوره‌های تسویه/ })).toBeVisible();
   expect(errors).toEqual([]);
 });
 
@@ -341,6 +348,158 @@ test('driver lands in assigned shipments and does not get customer or manager na
   expect(dimensions.body).toBeLessThanOrEqual(dimensions.viewport);
   expect(errors).toEqual([]);
 });
+
+test('manager AI assistant opens in-panel with provider settings but no client key disclosure', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop-chromium', 'The assistant layout is responsive; verify key configuration flow once.');
+  await installIsolatedSession(page, 'owner');
+  const companyId = '00000000-0000-4000-8000-000000000022';
+  await page.route('**/api/ai/providers*', async route => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        companyId,
+        activeProvider: null,
+        canConfigure: true,
+        providers: [
+          { provider: 'openai', model: 'gpt-6-luna', configured: false, isDefault: false, updatedAt: null },
+          { provider: 'gemini', model: 'gemini-4-argon', configured: false, isDefault: false, updatedAt: null },
+          { provider: 'deepseek', model: 'deepseek-flash', configured: false, isDefault: false, updatedAt: null },
+          { provider: 'anthropic', model: 'claude-sonnet-5', configured: false, isDefault: false, updatedAt: null },
+        ],
+      }),
+    });
+  });
+  await page.goto('/simorgh/app/command', { waitUntil: 'domcontentloaded' });
+  await page.getByRole('button', { name: 'بازکردن دستیار هوش مصنوعی' }).click();
+  const dialog = page.getByRole('dialog', { name: 'دستیار مدار' });
+  await expect(dialog).toBeVisible();
+  await page.getByRole('button', { name: 'تنظیمات اتصال هوش مصنوعی' }).click();
+  await expect(page.getByText('اتصال مدل‌های هوش مصنوعی')).toBeVisible();
+  await expect(dialog.locator('input[type="password"][autocomplete="new-password"]')).toBeVisible();
+  await expect(dialog.getByRole('button', { name: /Gemini/ })).toBeVisible();
+  await expect(dialog.getByRole('button', { name: /DeepSeek/ })).toBeVisible();
+  await expect(page.getByText(/کلید فقط به API امن مدار فرستاده می‌شود/)).toBeVisible();
+});
+
+test('AI assistant sends a PDF attachment through the selected provider boundary', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop-chromium', 'Validate binary PDF packaging once; responsive layout is covered in all viewport projects.');
+  await installIsolatedSession(page, 'owner');
+  const companyId = '00000000-0000-4000-8000-000000000022';
+  await page.route('**/api/ai/providers*', async route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({
+      companyId, activeProvider: 'openai', canConfigure: true,
+      providers: [
+        { provider: 'openai', model: 'gpt-6-luna', configured: true, isDefault: true, updatedAt: null },
+        { provider: 'gemini', model: 'gemini-4-argon', configured: false, isDefault: false, updatedAt: null },
+        { provider: 'deepseek', model: 'deepseek-flash', configured: false, isDefault: false, updatedAt: null },
+        { provider: 'anthropic', model: 'claude-sonnet-5', configured: false, isDefault: false, updatedAt: null },
+      ],
+    }),
+  }));
+  const pdf = Buffer.from('%PDF-1.7\n1 0 obj\n<< /Type /Catalog >>\nendobj\n%%EOF', 'utf8');
+  let submitted: Record<string, unknown> | undefined;
+  await page.route('**/api/ai/chat', async route => {
+    submitted = route.request().postDataJSON() as Record<string, unknown>;
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ content: 'تحلیل آزمایشی فایل انجام شد.', provider: 'openai', model: 'gpt-6-luna' }),
+    });
+  });
+  await page.goto('/simorgh/app/command', { waitUntil: 'domcontentloaded' });
+  await page.getByRole('button', { name: 'بازکردن دستیار هوش مصنوعی' }).click();
+  const dialog = page.getByRole('dialog', { name: 'دستیار مدار' });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.locator('.ai-composer-actions small')).toContainText('OpenAI');
+  await dialog.locator('input[type="file"]').setInputFiles({
+    name: 'operations.pdf', mimeType: 'application/pdf', buffer: pdf,
+  });
+  await expect(dialog.locator('.ai-attachment-chip')).toContainText('operations.pdf');
+  await dialog.getByRole('textbox', { name: 'پیام به دستیار' }).fill('این سند را خلاصه کن.');
+  await dialog.getByRole('button', { name: 'ارسال پیام' }).click();
+  await expect(dialog.locator('.ai-message.assistant')).toContainText('تحلیل آزمایشی فایل انجام شد.');
+  const attachment = submitted?.attachment as { name?: string; mimeType?: string; base64?: string } | undefined;
+  expect(attachment?.name).toBe('operations.pdf');
+  expect(attachment?.mimeType).toBe('application/pdf');
+  expect(attachment?.base64).toBe(pdf.toString('base64'));
+});
+
+test('assistant can enter and stop automatic turn-taking voice mode', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop-chromium', 'Verify voice mode controls once; the general responsive workspace suite covers the other viewports.');
+  await installIsolatedSession(page, 'owner');
+  await page.addInitScript(() => {
+    class MockSpeechRecognition {
+      lang = '';
+      interimResults = false;
+      continuous = false;
+      onresult: ((event: { results: ArrayLike<ArrayLike<{ transcript: string }> & { isFinal?: boolean }> }) => void) | null = null;
+      onerror: ((event: { error?: string }) => void) | null = null;
+      onend: (() => void) | null = null;
+      start() {}
+      stop() { this.onend?.(); }
+    }
+    Object.defineProperty(window, 'SpeechRecognition', { configurable: true, value: MockSpeechRecognition });
+  });
+  await page.route('**/api/ai/providers*', async route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({
+      activeProvider: 'openai', canConfigure: true,
+      providers: [
+        { provider: 'openai', model: 'gpt-6-luna', configured: true, isDefault: true, updatedAt: null },
+        { provider: 'gemini', model: 'gemini-4-argon', configured: false, isDefault: false, updatedAt: null },
+        { provider: 'deepseek', model: 'deepseek-flash', configured: false, isDefault: false, updatedAt: null },
+        { provider: 'anthropic', model: 'claude-sonnet-5', configured: false, isDefault: false, updatedAt: null },
+      ],
+    }),
+  }));
+  await page.goto('/simorgh/app/command', { waitUntil: 'domcontentloaded' });
+  await page.getByRole('button', { name: 'بازکردن دستیار هوش مصنوعی' }).click();
+  const dialog = page.getByRole('dialog', { name: 'دستیار مدار' });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole('button', { name: 'شروع مکالمه صوتی خودکار' })).toBeVisible();
+  await dialog.getByRole('button', { name: 'شروع مکالمه صوتی خودکار' }).click();
+  await expect(dialog.getByRole('button', { name: 'توقف مکالمه صوتی' })).toBeVisible();
+  await expect(dialog.locator('.ai-composer-actions small')).toContainText('مکالمه صوتی فعال');
+  await dialog.getByRole('button', { name: 'توقف مکالمه صوتی' }).click();
+  await expect(dialog.getByRole('button', { name: 'شروع مکالمه صوتی خودکار' })).toBeVisible();
+});
+
+test('manager can preview and import a mixed supplier/customer CSV with duplicate phone removal', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop-chromium', 'Validate import API payload once; compact layout is covered by general responsive checks.');
+  await installIsolatedSession(page, 'owner');
+  let submitted: Record<string, unknown> | undefined;
+  await page.route('**/api/contacts/import', async route => {
+    submitted = route.request().postDataJSON() as Record<string, unknown>;
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        imported: 2, updated: 0, skipped: 0,
+        byKind: { suppliers: { imported: 1, updated: 0 }, customers: { imported: 1, updated: 0 } },
+      }),
+    });
+  });
+  await page.goto('/simorgh/app/contacts-import', { waitUntil: 'domcontentloaded' });
+  await page.locator('.contact-import-page input[type="file"]').setInputFiles({
+    name: 'contacts.csv',
+    mimeType: 'text/csv',
+    buffer: Buffer.from('name,phone,city,type\nSupplier One,09120000001,Tehran,supplier\nCustomer Two,09120000002,Karaj,customer\nDuplicate supplier,+989120000001,Tehran,supplier', 'utf8'),
+  });
+  await expect(page.getByText('Supplier One')).toBeVisible();
+  await expect(page.getByText('Customer Two')).toBeVisible();
+  await expect(page.locator('.contact-preview-list .contact-duplicate-tag')).toBeVisible();
+  await page.getByRole('button', { name: /ثبت .* مخاطب در فضای کاری/ }).click();
+  await expect(page.getByRole('status')).toContainText('واردکردن مخاطبین کامل شد');
+  expect(Array.isArray(submitted?.contacts)).toBe(true);
+  const importedContacts = submitted?.contacts as Array<{ kind: string; name: string }>;
+  expect(importedContacts).toHaveLength(2);
+  expect(importedContacts.map(contact => contact.kind).sort()).toEqual(['customers', 'suppliers']);
+});
+
 test('a signed-in user can change their own password through the protected Worker endpoint', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop-chromium', 'Validate the credential-change request once; responsive auth and workspace layout are covered in every viewport.');
   await installIsolatedSession(page, 'owner');

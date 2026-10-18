@@ -13,6 +13,7 @@ jobs:
       MEDAR_DATABASE_URL: ${{ secrets.MEDAR_DATABASE_URL }}
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      MEDAR_AI_ENCRYPTION_KEY: ${{ secrets.MEDAR_AI_ENCRYPTION_KEY }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -40,7 +41,7 @@ jobs:
         shell: bash
         run: |
           psql "$MEDAR_DATABASE_URL" -v ON_ERROR_STOP=1 -c "create table if not exists public.medar_schema_migrations (version text primary key, checksum text not null, applied_at timestamptz not null default now())"
-          for migration in worker/migrations/0007_existing_medar_schema_compat.sql worker/migrations/0008_operational_task_actions.sql worker/migrations/0009_inventory_movement_concurrency_lock.sql worker/migrations/0010_purchase_order_lifecycle.sql worker/migrations/0011_username_password_only.sql worker/migrations/0012_client_presence.sql; do
+          for migration in worker/migrations/0007_existing_medar_schema_compat.sql worker/migrations/0008_operational_task_actions.sql worker/migrations/0009_inventory_movement_concurrency_lock.sql worker/migrations/0010_purchase_order_lifecycle.sql worker/migrations/0011_username_password_only.sql worker/migrations/0012_client_presence.sql worker/migrations/0013_ai_assistant_and_contacts.sql; do
             version="$(basename "$migration")"
             checksum="$(sha256sum "$migration" | awk '{print $1}')"
             applied="$(psql "$MEDAR_DATABASE_URL" -v ON_ERROR_STOP=1 -Atqc "select checksum from public.medar_schema_migrations where version = '$version'")"
@@ -63,6 +64,8 @@ jobs:
             select (
               to_regclass('public.medar_users') is not null and
               to_regclass('public.medar_client_presence') is not null and
+              to_regclass('public.medar_ai_provider_configs') is not null and
+              to_regclass('public.medar_ai_usage_log') is not null and
               to_regclass('public.medar_sessions') is not null and
               to_regclass('public.medar_rate_limits') is not null and
               to_regclass('public.medar_audit_log') is not null and
@@ -112,6 +115,13 @@ jobs:
         working-directory: worker
         shell: bash
         run: printf '%s' "$MEDAR_DATABASE_URL" | npx wrangler@4 secret put DATABASE_URL --name medar-ops
+      - name: Configure a dedicated AI encryption key when supplied
+        if: ${{ env.MEDAR_AI_ENCRYPTION_KEY != '' }}
+        working-directory: worker
+        shell: bash
+        env:
+          MEDAR_AI_ENCRYPTION_KEY: ${{ secrets.MEDAR_AI_ENCRYPTION_KEY }}
+        run: printf '%s' "$MEDAR_AI_ENCRYPTION_KEY" | npx wrangler@4 secret put AI_ENCRYPTION_KEY --name medar-ops
       - name: Build the protected operational app with sign-in enabled and shared API
         run: npm run build
         env:

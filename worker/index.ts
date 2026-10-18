@@ -11,6 +11,7 @@ type Bindings = {
   MEDAR_MODE?: string;
   ALLOWED_ORIGINS?: string;
   FILE_STORE?: PrivateFileStore;
+  AI_ENCRYPTION_KEY?: string;
   ASSETS?: { fetch(request: Request): Promise<Response> };
 };
 type AppEnv = { Bindings: Bindings };
@@ -411,6 +412,440 @@ app.get('/api/admin/system/clients', async (c) => {
   const onlineCount = clients.filter(row => Boolean((row as { online?: boolean }).online)).length;
   return c.json({ companyId, clients, summary: { knownClients: clients.length, onlineClients: onlineCount, staleAfterSeconds: 180 } });
 });
+
+
+type AiProvider = 'openai' | 'gemini' | 'deepseek' | 'anthropic';
+type AiChatMessage = { role: 'user' | 'assistant'; content: string };
+type AiAttachmentPayload = { name: string; mimeType: string; base64?: string };
+const AI_PROVIDERS: Record<AiProvider, { label: string; model: string }> = {
+  openai: { label: 'OpenAI', model: 'gpt-6-luna' },
+  gemini: { label: 'Gemini', model: 'gemini-4-argon' },
+  deepseek: { label: 'DeepSeek', model: 'deepseek-flash' },
+  anthropic: { label: 'Claude', model: 'claude-sonnet-5' },
+};
+const COMPANY_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+function aiProvider(value: unknown): AiProvider | null {
+  return value === 'openai' || value === 'gemini' || value === 'deepseek' || value === 'anthropic' ? value : null;
+}
+type AiCompanyMembership = { role: string; supplierId: string | null; customerId: string | null };
+async function aiCompanyMembership(c: Ctx, companyId: string, userId: string): Promise<AiCompanyMembership | null> {
+  const rows = await sqlFor(c).query(
+    'select role::text as role,supplier_id::text as "supplierId",customer_id::text as "customerId" from public.memberships where company_id=$1::uuid and user_id=$2::uuid and active=true limit 1',
+    [companyId, userId],
+  );
+  return rows[0] as AiCompanyMembership | undefined ?? null;
+}
+async function aiEncryptionKey(c: Ctx): Promise<CryptoKey> {
+  const master = c.env.AI_ENCRYPTION_KEY || c.env.DATABASE_URL;
+  if (!master) throw new Error('AI_ENCRYPTION_KEY is not configured');
+  const digest = await crypto.subtle.digest('SHA-256', encoder.encode('medar-ai-key-v1:' + master));
+  return crypto.subtle.importKey('raw', digest, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
+}
+async function encryptAiKey(c: Ctx, apiKey: string): Promise<string> {
+  const key = await aiEncryptionKey(c);
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const encrypted = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, encoder.encode(apiKey));
+  return bytesToBase64(new Uint8Array([...iv, ...new Uint8Array(encrypted)]));
+}
+async function decryptAiKey(c: Ctx, packed: string): Promise<string> {
+  const raw = base64ToBytes(packed);
+  if (raw.length < 29) throw new Error('Stored AI key is invalid');
+  const key = await aiEncryptionKey(c);
+  const clear = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: raw.slice(0, 12) }, key, toArrayBuffer(raw.slice(12)));
+  return new TextDecoder().decode(clear);
+}
+function readProviderError(body: string, status: number): string {
+  try {
+    const payload = JSON.parse(body) as { error?: { message?: string }; message?: string };
+    const message = payload.error?.message || payload.message;
+    if (message && message.length < 240) return 'ارائه‌دهنده پاسخ نداد (' + status + '): ' + message;
+  } catch { /* do not surface an unparsed provider response */ }
+  return 'ارتباط با ارائه‌دهنده هوش مصنوعی برقرار نشد (' + status + '). کلید و شناسه مدل را بررسی کن.';
+}
+async function requestAiProvider(provider: AiProvider, model: string, key: string, messages: AiChatMessage[], systemPrompt: string, attachment: AiAttachmentPayload | null): Promise<string> {
+  const signal = AbortSignal.timeout(45000);
+  let response: Response;
+  if (provider === 'openai') {
+    response = await fetch('https://api.openai.com/v1/responses', {
+      method: 'POST', signal, headers: { Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model,
+        input: [
+          { role: 'system', content: systemPrompt },
+          ...messages.map((message, index) => {
+            if (attachment?.base64 && message.role === 'user' && index === messages.length - 1) {
+              return {
+                role: 'user',
+                content: [
+                  { type: 'input_file', filename: attachment.name, file_data: 'data:' + attachment.mimeType + ';base64,' + attachment.base64 },
+                  { type: 'input_text', text: message.content },
+                ],
+              };
+            }
+            return message;
+          }),
+        ],
+        max_output_tokens: 1800,
+      }),
+    });
+    const body = await response.text();
+    if (!response.ok) throw new Error(readProviderError(body, response.status));
+    const parsed = JSON.parse(body) as { output_text?: string; output?: Array<{ content?: Array<{ type?: string; text?: string }> }> };
+    const text = parsed.output_text || parsed.output?.flatMap(item => item.content ?? []).filter(part => part.type === 'output_text' || part.type === 'text').map(part => part.text || '').join('');
+    if (!text?.trim()) throw new Error('پاسخ متنی از OpenAI دریافت نشد.');
+    return text.trim();
+  }
+  if (provider === 'deepseek') {
+    if (attachment?.base64) throw new Error('برای فایل PDF یا Office، OpenAI، Gemini یا Claude را انتخاب کن.');
+    response = await fetch('https://api.deepseek.com/chat/completions', {
+      method: 'POST', signal, headers: { Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model, messages: [{ role: 'system', content: systemPrompt }, ...messages], max_tokens: 1800, temperature: 0.3 }),
+    });
+    const body = await response.text();
+    if (!response.ok) throw new Error(readProviderError(body, response.status));
+    const parsed = JSON.parse(body) as { choices?: Array<{ message?: { content?: string | Array<{ text?: string }> } }> };
+    const content = parsed.choices?.[0]?.message?.content;
+    const text = typeof content === 'string' ? content : content?.map(part => part.text || '').join('');
+    if (!text?.trim()) throw new Error('پاسخ متنی از DeepSeek دریافت نشد.');
+    return text.trim();
+  }
+  if (provider === 'anthropic') {
+    response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST', signal, headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model,
+        system: systemPrompt,
+        messages: messages.map((message, index) => {
+          if (attachment?.base64 && message.role === 'user' && index === messages.length - 1) {
+            return {
+              role: 'user',
+              content: [
+                { type: 'document', source: { type: 'base64', media_type: attachment.mimeType, data: attachment.base64 }, title: attachment.name },
+                { type: 'text', text: message.content },
+              ],
+            };
+          }
+          return message;
+        }),
+        max_tokens: 1800,
+      }),
+    });
+    const body = await response.text();
+    if (!response.ok) throw new Error(readProviderError(body, response.status));
+    const parsed = JSON.parse(body) as { content?: Array<{ type?: string; text?: string }> };
+    const text = parsed.content?.filter(part => part.type === 'text').map(part => part.text || '').join('');
+    if (!text?.trim()) throw new Error('پاسخ متنی از Claude دریافت نشد.');
+    return text.trim();
+  }
+  response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(model) + ':generateContent', {
+    method: 'POST', signal, headers: { 'x-goog-api-key': key, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      systemInstruction: { parts: [{ text: systemPrompt }] },
+      contents: messages.map((message, index) => ({
+        role: message.role === 'assistant' ? 'model' : 'user',
+        parts: [
+          { text: message.content },
+          ...(attachment?.base64 && message.role === 'user' && index === messages.length - 1
+            ? [{ inlineData: { mimeType: attachment.mimeType, data: attachment.base64 } }]
+            : []),
+        ],
+      })),
+      generationConfig: { maxOutputTokens: 1800, temperature: 0.3 },
+    }),
+  });
+  const body = await response.text();
+  if (!response.ok) throw new Error(readProviderError(body, response.status));
+  const parsed = JSON.parse(body) as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> };
+  const text = parsed.candidates?.[0]?.content?.parts?.map(part => part.text || '').join('');
+  if (!text?.trim()) throw new Error('پاسخ متنی از Gemini دریافت نشد.');
+  return text.trim();
+}
+
+app.get('/api/ai/providers', async (c) => {
+  const user = await requireUser(c);
+  if (user instanceof Response) return user;
+  const companyId = c.req.query('companyId') ?? '';
+  if (!COMPANY_ID_RE.test(companyId)) return c.json({ message: 'شناسه مجموعه معتبر نیست.' }, 422);
+  const membership = await aiCompanyMembership(c, companyId, user.id);
+  if (!membership) return c.json({ message: 'به این فضای کاری دسترسی فعال نداری.' }, 403);
+  const rows = await sqlFor(c).query('select provider,model,is_default as "isDefault",updated_at as "updatedAt" from public.medar_ai_provider_configs where company_id=$1::uuid order by is_default desc,provider', [companyId]);
+  const byProvider = new Map((rows as Array<{ provider: string; model: string; isDefault: boolean; updatedAt: string }>).map(row => [row.provider, row]));
+  const providers = (Object.keys(AI_PROVIDERS) as AiProvider[]).map(provider => {
+    const item = byProvider.get(provider);
+    return { provider, model: item?.model || AI_PROVIDERS[provider].model, isDefault: Boolean(item?.isDefault), configured: Boolean(item), updatedAt: item?.updatedAt ?? null };
+  });
+  return c.json({ companyId, activeProvider: providers.find(item => item.isDefault)?.provider ?? null, providers, canConfigure: membership.role === 'owner' || membership.role === 'admin' });
+});
+
+app.put('/api/ai/providers', async (c) => {
+  const user = await requireUser(c);
+  if (user instanceof Response) return user;
+  const body = await c.req.json<Record<string, unknown>>().catch(() => null);
+  if (!body) return c.json({ message: 'تنظیمات پرووایدر معتبر نیست.' }, 400);
+  const companyId = typeof body.companyId === 'string' ? body.companyId : '';
+  const provider = aiProvider(body.provider);
+  const model = typeof body.model === 'string' ? body.model.trim() : '';
+  const apiKey = typeof body.apiKey === 'string' ? body.apiKey.trim() : '';
+  const makeDefault = body.isDefault !== false;
+  if (!COMPANY_ID_RE.test(companyId) || !provider) return c.json({ message: 'شناسه مجموعه یا پرووایدر معتبر نیست.' }, 422);
+  if (!model || model.length > 120 || !/^[A-Za-z0-9._:/-]+$/.test(model)) return c.json({ message: 'شناسه مدل معتبر نیست.' }, 422);
+  if (apiKey.length > 512 || (apiKey && apiKey.length < 12)) return c.json({ message: 'فرمت کلید API معتبر نیست.' }, 422);
+  const membership = await aiCompanyMembership(c, companyId, user.id);
+  if (!membership) return c.json({ message: 'به این فضای کاری دسترسی فعال نداری.' }, 403);
+  if (membership.role !== 'owner' && membership.role !== 'admin') return c.json({ message: 'فقط مالک یا مدیر مجموعه می‌تواند پرووایدرهای هوش مصنوعی را تنظیم کند.' }, 403);
+  const sql = sqlFor(c);
+  const existingRows = await sql.query('select encrypted_api_key from public.medar_ai_provider_configs where company_id=$1::uuid and provider=$2 limit 1', [companyId, provider]);
+  const existing = existingRows[0] as { encrypted_api_key: string } | undefined;
+  if (!apiKey && !existing) return c.json({ message: 'برای اتصال اولیه باید API key وارد شود.' }, 422);
+  let encrypted = existing?.encrypted_api_key ?? '';
+  if (apiKey) {
+    try { encrypted = await encryptAiKey(c, apiKey); }
+    catch { return c.json({ message: 'رمزنگاری کلید هوش مصنوعی در سمت سرور آماده نیست.' }, 503); }
+  }
+  if (makeDefault) await sql.query('update public.medar_ai_provider_configs set is_default=false,updated_at=now() where company_id=$1::uuid and is_default=true and provider<>$2', [companyId, provider]);
+  const query = [
+    'insert into public.medar_ai_provider_configs(company_id,provider,model,encrypted_api_key,is_default,updated_by)',
+    'values($1::uuid,$2,$3,$4,$5,$6::uuid)',
+    'on conflict(company_id,provider) do update set model=excluded.model,encrypted_api_key=excluded.encrypted_api_key,is_default=excluded.is_default,updated_by=excluded.updated_by,updated_at=now()',
+    'returning provider,model,is_default as "isDefault",updated_at as "updatedAt"',
+  ].join(' ');
+  const rows = await sql.query(query, [companyId, provider, model, encrypted, makeDefault, user.id]);
+  return c.json({ ok: true, config: rows[0], message: 'تنظیمات پرووایدر ذخیره شد.' });
+});
+
+app.post('/api/ai/chat', async (c) => {
+  const user = await requireUser(c);
+  if (user instanceof Response) return user;
+  const body = await c.req.json<Record<string, unknown>>().catch(() => null);
+  if (!body) return c.json({ message: 'پیام دستیار معتبر نیست.' }, 400);
+  const companyId = typeof body.companyId === 'string' ? body.companyId : '';
+  if (!COMPANY_ID_RE.test(companyId)) return c.json({ message: 'شناسه مجموعه معتبر نیست.' }, 422);
+  const membership = await aiCompanyMembership(c, companyId, user.id);
+  if (!membership) return c.json({ message: 'به این فضای کاری دسترسی فعال نداری.' }, 403);
+  const role = membership.role;
+  if (!Array.isArray(body.messages) || body.messages.length < 1 || body.messages.length > 12) return c.json({ message: 'گفتگو باید بین ۱ تا ۱۲ پیام آخر را داشته باشد.' }, 422);
+  const messages: AiChatMessage[] = [];
+  let inputChars = 0;
+  for (const raw of body.messages) {
+    if (!raw || typeof raw !== 'object') return c.json({ message: 'ساختار پیام معتبر نیست.' }, 422);
+    const item = raw as Record<string, unknown>;
+    if ((item.role !== 'user' && item.role !== 'assistant') || typeof item.content !== 'string' || item.content.length < 1 || item.content.length > 6000) {
+      return c.json({ message: 'هر پیام باید متن معتبر با حداکثر ۶۰۰۰ نویسه داشته باشد.' }, 422);
+    }
+    inputChars += item.content.length;
+    messages.push({ role: item.role, content: item.content });
+  }
+  const attachmentRaw = body.attachment && typeof body.attachment === 'object' ? body.attachment as Record<string, unknown> : null;
+  let providerAttachment: AiAttachmentPayload | null = null;
+  if (attachmentRaw) {
+    const attachmentText = typeof attachmentRaw.text === 'string' ? attachmentRaw.text : '';
+    const attachmentName = typeof attachmentRaw.name === 'string' ? attachmentRaw.name.replace(/[\r\n\\/]/g, '_').slice(0, 160) : 'attached-file';
+    if (attachmentText.length > 24000) return c.json({ message: 'متن فایل بیش از حد مجاز است.' }, 413);
+    inputChars += attachmentText.length;
+    if (inputChars > 32000) return c.json({ message: 'حجم پیام و فایل پیوست بیش از حد مجاز است.' }, 413);
+    if (attachmentText) {
+      const last = messages[messages.length - 1];
+      if (last?.role !== 'user') return c.json({ message: 'فایل باید همراه با پیام کاربر ارسال شود.' }, 422);
+      last.content += '\n\nمحتوای فایل ' + attachmentName + ':\n' + attachmentText;
+    }
+    const base64 = typeof attachmentRaw.base64 === 'string' ? attachmentRaw.base64 : '';
+    if (!attachmentText && !base64) return c.json({ message: 'محتوای فایل پیوست خالی است.' }, 422);
+    if (base64) {
+      const mimeType = typeof attachmentRaw.mimeType === 'string' ? attachmentRaw.mimeType : '';
+      const allowedMimeTypes = new Set([
+        'application/pdf',
+        'application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/rtf',
+        'application/vnd.oasis.opendocument.text',
+        'application/vnd.ms-powerpoint',
+        'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+        'application/vnd.ms-excel',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      ]);
+      if (!allowedMimeTypes.has(mimeType)) return c.json({ message: 'نوع فایل باینری پشتیبانی نمی‌شود.' }, 415);
+      if (base64.length > 8388608 || base64.length % 4 !== 0 || !/^[A-Za-z0-9+/]+={0,2}$/.test(base64)) {
+        return c.json({ message: 'فایل کدگذاری معتبر ندارد یا بیش از ۶ مگابایت است.' }, 413);
+      }
+      providerAttachment = { name: attachmentName, mimeType, base64 };
+    }
+  } else if (inputChars > 32000) return c.json({ message: 'حجم گفتگو بیش از حد مجاز است.' }, 413);
+  if (messages[messages.length - 1]?.role !== 'user') return c.json({ message: 'آخرین پیام باید پیام کاربر باشد.' }, 422);
+  const sql = sqlFor(c);
+  const limits = await sql.query([
+    "select (select count(*)::int from public.medar_ai_usage_log where user_id=$1::uuid and created_at>now()-interval '1 minute') as minute_count,",
+    "(select count(*)::int from public.medar_ai_usage_log where user_id=$1::uuid and created_at>now()-interval '1 day') as day_count",
+  ].join(' '), [user.id]);
+  const limit = limits[0] as { minute_count: number; day_count: number } | undefined;
+  if (Number(limit?.minute_count ?? 0) >= 8 || Number(limit?.day_count ?? 0) >= 120) return c.json({ message: 'سقف درخواست دستیار در بازه فعلی پر شده است. کمی بعد دوباره تلاش کن.' }, 429);
+  const configurations = await sql.query('select provider,model,encrypted_api_key from public.medar_ai_provider_configs where company_id=$1::uuid and is_default=true limit 1', [companyId]);
+  const config = configurations[0] as { provider: string; model: string; encrypted_api_key: string } | undefined;
+  if (!config) return c.json({ message: 'هنوز پرووایدر هوش مصنوعی برای این مجموعه فعال نشده است.' }, 409);
+  const provider = aiProvider(config.provider);
+  if (!provider) return c.json({ message: 'پرووایدر ذخیره‌شده پشتیبانی نمی‌شود.' }, 503);
+  if (providerAttachment && provider === 'deepseek') {
+    return c.json({ message: 'این پرووایدر در مسیر فعلی فایل باینری را نمی‌خواند؛ برای PDF/Office، OpenAI، Gemini یا Claude را تنظیم کن.' }, 415);
+  }
+  if (providerAttachment && provider !== 'openai' && providerAttachment.mimeType !== 'application/pdf') {
+    return c.json({ message: 'فایل‌های Office در این نسخه فقط با OpenAI پشتیبانی می‌شوند؛ برای Gemini یا Claude فایل را به PDF تبدیل کن.' }, 415);
+  }
+  let providerKey: string;
+  try { providerKey = await decryptAiKey(c, config.encrypted_api_key); }
+  catch { return c.json({ message: 'رمزگشایی کلید پرووایدر ناموفق بود؛ کلید را دوباره در تنظیمات ذخیره کن.' }, 503); }
+  let context: Record<string, unknown> = {};
+  let recentTasks: unknown[] = [];
+  let recentIncidents: unknown[] = [];
+  try {
+    if (role === 'owner' || role === 'admin' || role === 'staff') {
+      const aggregate = await sql.query([
+        'select',
+        '(select count(*)::int from public.orders where company_id=$1::uuid) as orders_total,',
+        "(select count(*)::int from public.orders where company_id=$1::uuid and requested_delivery<current_date and status not in ('delivered','cancelled')) as late_orders,",
+        '(select count(*)::int from public.customers where company_id=$1::uuid and active=true) as active_customers,',
+        '(select count(*)::int from public.suppliers where company_id=$1::uuid and active=true) as active_suppliers,',
+        "(select count(*)::int from public.shipments where company_id=$1::uuid and stage not in ('delivered','returned','failed')) as open_shipments,",
+        "(select count(*)::int from public.operational_tasks where company_id=$1::uuid and status not in ('approved','cancelled')) as active_tasks,",
+        "(select count(*)::int from public.operational_tasks where company_id=$1::uuid and due_at<now() and status not in ('approved','cancelled')) as overdue_tasks,",
+        "(select count(*)::int from public.operational_incidents where company_id=$1::uuid and status not in ('resolved','closed','cancelled')) as open_incidents,",
+        '(select count(*)::int from public.farm_sites where company_id=$1::uuid and active=true and latitude is not null and longitude is not null) as mapped_sites',
+      ].join(' '), [companyId]);
+      context = aggregate[0] as Record<string, unknown> || {};
+      recentTasks = await sql.query([
+        'select title,status,priority,due_at as due from public.operational_tasks',
+        "where company_id=$1::uuid and status not in ('approved','cancelled')",
+        'order by due_at asc nulls last limit 5',
+      ].join(' '), [companyId]).catch(() => []);
+      recentIncidents = await sql.query([
+        'select title,severity,status from public.operational_incidents',
+        "where company_id=$1::uuid and status not in ('resolved','closed','cancelled')",
+        'order by created_at desc limit 4',
+      ].join(' '), [companyId]).catch(() => []);
+    } else if (role === 'supplier' && membership.supplierId) {
+      const scoped = await sql.query([
+        'select',
+        "(select count(*)::int from public.operational_tasks where company_id=$1::uuid and assignee_supplier_id=$2::uuid and status not in ('approved','cancelled')) as assigned_tasks,",
+        "(select count(*)::int from public.operational_tasks where company_id=$1::uuid and assignee_supplier_id=$2::uuid and due_at<now() and status not in ('approved','cancelled')) as overdue_tasks,",
+        "(select count(*)::int from public.capacity_commitments where company_id=$1::uuid and supplier_id=$2::uuid and status in ('confirmed','committed') and period_end>=current_date) as active_capacity_commitments",
+      ].join(' '), [companyId, membership.supplierId]);
+      context = scoped[0] as Record<string, unknown> || {};
+      recentTasks = await sql.query([
+        'select title,status,priority,due_at as due from public.operational_tasks',
+        "where company_id=$1::uuid and assignee_supplier_id=$2::uuid and status not in ('approved','cancelled')",
+        'order by due_at asc nulls last limit 8',
+      ].join(' '), [companyId, membership.supplierId]).catch(() => []);
+    } else if (role === 'driver') {
+      const scoped = await sql.query([
+        'select',
+        "(select count(*)::int from public.shipments where company_id=$1::uuid and driver_user_id=$2::uuid and stage not in ('delivered','returned','failed')) as assigned_open_shipments,",
+        "(select count(*)::int from public.shipments where company_id=$1::uuid and driver_user_id=$2::uuid and stage='failed') as assigned_failed_shipments",
+      ].join(' '), [companyId, user.id]);
+      context = scoped[0] as Record<string, unknown> || {};
+      recentTasks = await sql.query([
+        'select s.stage,s.planned_departure,s.departed_at,s.delivered_at,o.reference as order_reference',
+        'from public.shipments s join public.orders o on o.company_id=s.company_id and o.id=s.order_id',
+        'where s.company_id=$1::uuid and s.driver_user_id=$2::uuid',
+        'order by s.planned_departure asc nulls last limit 8',
+      ].join(' '), [companyId, user.id]).catch(() => []);
+    } else if (role === 'customer' && membership.customerId) {
+      const scoped = await sql.query([
+        'select',
+        '(select count(*)::int from public.orders where company_id=$1::uuid and customer_id=$2::uuid) as own_orders,',
+        "(select count(*)::int from public.orders where company_id=$1::uuid and customer_id=$2::uuid and requested_delivery<current_date and status not in ('delivered','cancelled')) as own_late_orders",
+      ].join(' '), [companyId, membership.customerId]);
+      context = scoped[0] as Record<string, unknown> || {};
+      recentTasks = await sql.query([
+        'select reference,status,requested_delivery as delivery_due from public.orders',
+        'where company_id=$1::uuid and customer_id=$2::uuid order by created_at desc limit 8',
+      ].join(' '), [companyId, membership.customerId]).catch(() => []);
+    } else {
+      context = { note: 'شناسه‌ی مرتبط برای خواندن جزئیات این نقش تعریف نشده است؛ اطلاعات عمومی محدود است.' };
+    }
+  } catch {
+    context = { note: 'برخی شاخص‌های مجاز در دسترس نیستند؛ فقط درباره داده موجود نتیجه‌گیری کن.' };
+  }
+  const systemPrompt = 'تو دستیار عملیاتی مدار هستی. فقط براساس داده‌ی خلاصه‌ی ارائه‌شده و متن کاربر نتیجه بگیر؛ عدد، مشتری، رویداد یا واقعیت ساختگی نساز. اگر داده ناقص است صریح بگو. پیشنهادها را به اقدام‌های اولویت‌دار، مسئول پیشنهادی و موعد تقسیم کن. عملیات مالی، تغییر سفارش، ارسال پیام به افراد یا هر تغییری را خودت اجرا نکن و برای چنین اقداماتی تأیید انسانی لازم بدان. اطلاعات حساس شخصی را بازگو نکن. زبان پاسخ فارسی و واضح باشد. نقش کاربر: ' + role + '. داده خلاصه و محدود همین مجموعه (بدون شماره تلفن و اطلاعات هویتی مخاطبین): ' + JSON.stringify({ metrics: context, activeTasks: recentTasks, openIncidents: recentIncidents });
+  try {
+    await sql.query('insert into public.medar_ai_usage_log(company_id,user_id,provider,model,input_chars) values($1::uuid,$2::uuid,$3,$4,$5)', [companyId, user.id, provider, config.model, inputChars]);
+    await sql.query("delete from public.medar_ai_usage_log where created_at<now()-interval '90 days'").catch(() => []);
+    const content = await requestAiProvider(provider, String(config.model), providerKey, messages, systemPrompt, providerAttachment);
+    return c.json({ content, provider, model: config.model });
+  } catch (error) {
+    const message = error instanceof Error ? error.message.slice(0, 500) : 'پاسخ‌گویی هوش مصنوعی انجام نشد.';
+    return c.json({ message }, 502);
+  }
+});
+
+app.post('/api/contacts/import', async (c) => {
+  const user = await requireUser(c);
+  if (user instanceof Response) return user;
+  const body = await c.req.json<Record<string, unknown>>().catch(() => null);
+  if (!body) return c.json({ message: 'داده واردسازی معتبر نیست.' }, 400);
+  const companyId = typeof body.companyId === 'string' ? body.companyId : '';
+  const defaultKind = body.kind === 'customers' || body.kind === 'suppliers' ? body.kind : null;
+  if (!COMPANY_ID_RE.test(companyId)) return c.json({ message: 'شناسه مجموعه معتبر نیست.' }, 422);
+  const membership = await aiCompanyMembership(c, companyId, user.id);
+  if (!membership) return c.json({ message: 'به این فضای کاری دسترسی فعال نداری.' }, 403);
+  if (membership.role !== 'owner' && membership.role !== 'admin') return c.json({ message: 'فقط مالک یا مدیر می‌تواند مخاطبین مجموعه را وارد کند.' }, 403);
+  if (!Array.isArray(body.contacts) || body.contacts.length < 1 || body.contacts.length > 1000) return c.json({ message: 'تعداد مخاطبین باید بین ۱ تا ۱۰۰۰ باشد.' }, 422);
+  const contacts: Array<{ name: string; phone: string; city: string; address: string; kind: 'customers' | 'suppliers' }> = [];
+  const seenNames = new Set<string>();
+  const seenPhones = new Set<string>();
+  for (const raw of body.contacts) {
+    if (!raw || typeof raw !== 'object') continue;
+    const item = raw as Record<string, unknown>;
+    const name = typeof item.name === 'string' ? item.name.trim().replace(/\s+/g, ' ') : '';
+    const phone = typeof item.phone === 'string' ? item.phone.trim().replace(/[۰-۹٠-٩]/g, digit => {
+      const code = digit.charCodeAt(0);
+      return String(code - (code >= 0x06f0 && code <= 0x06f9 ? 0x06f0 : 0x0660));
+    }).slice(0, 40) : '';
+    const city = typeof item.city === 'string' ? item.city.trim().slice(0, 100) : '';
+    const address = typeof item.address === 'string' ? item.address.trim().slice(0, 500) : '';
+    const kind = item.kind === 'customers' || item.kind === 'suppliers' ? item.kind : defaultKind;
+    if (!kind || name.length < 2 || name.length > 160) continue;
+    // Same person can be a customer and supplier, but each category must have unique names and phones in this batch.
+    const category = kind + ':';
+    const nameKey = category + name.toLocaleLowerCase('fa-IR');
+    const phoneNumber = phone.replace(/\D/g, '');
+    const phoneKey = phoneNumber ? category + phoneNumber : '';
+    if (seenNames.has(nameKey) || (phoneKey && seenPhones.has(phoneKey))) continue;
+    seenNames.add(nameKey);
+    if (phoneKey) seenPhones.add(phoneKey);
+    contacts.push({ name, phone, city, address, kind });
+  }
+  if (!contacts.length) return c.json({ message: 'مخاطب معتبر با دسته‌ی مقصد مشخص برای واردسازی باقی نمانده است.' }, 422);
+  const sql = sqlFor(c);
+  const byKind: Record<'customers' | 'suppliers', { imported: number; updated: number }> = {
+    customers: { imported: 0, updated: 0 },
+    suppliers: { imported: 0, updated: 0 },
+  };
+  for (const kind of ['customers', 'suppliers'] as const) {
+    const categorized = contacts.filter(contact => contact.kind === kind);
+    for (let start = 0; start < categorized.length; start += 100) {
+      const batch = categorized.slice(start, start + 100);
+      const params: unknown[] = [];
+      const values: string[] = [];
+      batch.forEach(item => {
+        const offset = params.length;
+        if (kind === 'customers') {
+          params.push(companyId, item.name, item.phone || null, item.city || null, item.address || null);
+          values.push('($' + (offset+1) + '::uuid,$' + (offset+2) + ',$' + (offset+3) + ',$' + (offset+4) + ',$' + (offset+5) + ')');
+        } else {
+          params.push(companyId, item.name, item.phone || null, item.city || null);
+          values.push('($' + (offset+1) + '::uuid,$' + (offset+2) + ',$' + (offset+3) + ',$' + (offset+4) + ')');
+        }
+      });
+      const query = kind === 'customers'
+        ? "insert into public.customers(company_id,name,phone,city,address) values " + values.join(',') + " on conflict(company_id,name) do update set phone=coalesce(nullif(excluded.phone,''),customers.phone),city=coalesce(nullif(excluded.city,''),customers.city),address=coalesce(nullif(excluded.address,''),customers.address),updated_at=now() returning (xmax=0) as inserted"
+        : "insert into public.suppliers(company_id,name,phone,city) values " + values.join(',') + " on conflict(company_id,name) do update set phone=coalesce(nullif(excluded.phone,''),suppliers.phone),city=coalesce(nullif(excluded.city,''),suppliers.city),updated_at=now() returning (xmax=0) as inserted";
+      const rows = await sql.query(query, params) as Array<{ inserted: boolean }>;
+      for (const row of rows) if (row.inserted) byKind[kind].imported++; else byKind[kind].updated++;
+    }
+  }
+  const imported = byKind.customers.imported + byKind.suppliers.imported;
+  const updated = byKind.customers.updated + byKind.suppliers.updated;
+  return c.json({ imported, updated, skipped: Number(body.contacts.length) - contacts.length, byKind });
+});
+
 
 app.post('/api/auth/signup', async (c) => {
   const body = await c.req.json<Record<string, unknown>>().catch(() => null);
