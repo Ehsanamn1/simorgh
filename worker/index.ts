@@ -626,6 +626,141 @@ app.get('/api/finance/bank-transactions', async (c) => {
   return c.json({transactions});
 });
 
+
+app.post('/api/finance/bank-transactions/import', async (c) => {
+  const user=await requireUser(c);
+  if(user instanceof Response)return user;
+  const body=await c.req.json<Record<string,unknown>>().catch(()=>null);
+  if(!body)return c.json({message:'اطلاعات ورود صورت‌حساب معتبر نیست.'},400);
+  const companyId=typeof body.companyId==='string'?body.companyId:'';
+  const accountId=typeof body.accountId==='string'?body.accountId:'';
+  if(!COMPANY_ID_RE.test(companyId)||!COMPANY_ID_RE.test(accountId))return c.json({message:'شناسه حساب یا مجموعه معتبر نیست.'},422);
+  const membership=await aiCompanyMembership(c,companyId,user.id);
+  if(!membership||!['owner','admin','staff'].includes(membership.role))return c.json({message:'فقط اعضای داخلی می‌توانند صورت‌حساب وارد کنند.'},403);
+  if(!(await userHasModulePermission(c,user.id,companyId,'finance','can_create')))return c.json({message:'مجوز ورود تراکنش مالی نداری.'},403);
+  if(!Array.isArray(body.transactions)||body.transactions.length<1||body.transactions.length>500)return c.json({message:'در هر بار باید بین ۱ تا ۵۰۰ تراکنش وارد شود.'},422);
+  const sql=sqlFor(c);
+  const account=await sql.query('select id from public.medar_bank_accounts where id=$1::uuid and company_id=$2::uuid and active=true limit 1',[accountId,companyId]);
+  if(!account.length)return c.json({message:'حساب فعال در این مجموعه پیدا نشد.'},404);
+  const ids=new Set<string>(), rows:Array<Record<string,string>>=[];
+  for(let index=0;index<body.transactions.length;index++){
+    const raw=body.transactions[index];
+    if(!raw||typeof raw!=='object'||Array.isArray(raw))return c.json({message:'ساختار تراکنش معتبر نیست.'},422);
+    const item=raw as Record<string,unknown>;
+    const externalId=typeof item.externalTransactionId==='string'?item.externalTransactionId.trim():'';
+    const bookedAt=typeof item.bookedAt==='string'?item.bookedAt:'';
+    const parsedDate=new Date(bookedAt);
+    const amount=Number(item.amount);
+    const currency=typeof item.currency==='string'?item.currency.trim().toUpperCase():'IRR';
+    const description=typeof item.description==='string'?item.description.trim():'';
+    const counterparty=typeof item.counterparty==='string'?item.counterparty.trim():'';
+    const reference=typeof item.reference==='string'?item.reference.trim():'';
+    if(externalId.length<8||externalId.length>240||/[\r\n\0]/.test(externalId)||ids.has(externalId))return c.json({message:'شناسه تراکنش خالی، تکراری یا نامعتبر است.'},422);
+    ids.add(externalId);
+    if(!bookedAt||!Number.isFinite(parsedDate.getTime()))return c.json({message:'تاریخ یک تراکنش معتبر نیست.'},422);
+    if(!Number.isFinite(amount)||Math.abs(amount)<0.01||Math.abs(amount)>1e15||Math.abs(amount*100-Math.round(amount*100))>0.0001)return c.json({message:'مبلغ باید غیرصفر و حداکثر با دو رقم اعشار باشد.'},422);
+    if(!/^[A-Z]{3}$/.test(currency)||description.length>1500||counterparty.length>300||reference.length>240)return c.json({message:'توضیح، مرجع یا ارز یک تراکنش معتبر نیست.'},422);
+    rows.push({external_transaction_id:externalId,booked_at:parsedDate.toISOString(),amount:amount.toFixed(2),currency,description,counterparty,reference,direction:amount>0?'incoming':'outgoing'});
+  }
+  try {
+    const results=await sql.transaction([
+      sql.query(
+        'insert into public.medar_bank_transactions(company_id,bank_account_id,external_transaction_id,booked_at,amount,currency,description,counterparty,reference,direction,imported_by) '+
+        'select $1::uuid,$2::uuid,x.external_transaction_id,x.booked_at,x.amount,x.currency,x.description,x.counterparty,x.reference,x.direction,$3::uuid '+
+        'from jsonb_to_recordset($4::jsonb) as x(external_transaction_id text,booked_at timestamptz,amount numeric,currency text,description text,counterparty text,reference text,direction text) '+
+        'on conflict(company_id,bank_account_id,external_transaction_id) do nothing returning id',
+        [companyId,accountId,user.id,JSON.stringify(rows)]),
+      sql.query('update public.medar_bank_accounts set last_imported_at=now(),updated_at=now() where id=$1::uuid and company_id=$2::uuid',[accountId,companyId]),
+      sql.query("insert into public.medar_audit_log(actor_user_id,action,entity_type,entity_id,metadata) values($1::uuid,'bank_transactions.imported','medar_bank_account',$2::text,jsonb_build_object('company_id',$3::text,'submitted_count',$4::int))",[user.id,accountId,companyId,rows.length]),
+    ]);
+    const inserted=(results[0]??[]) as Array<{id:string}>;
+    return c.json({inserted:inserted.length,skippedDuplicates:rows.length-inserted.length,submitted:rows.length});
+  } catch {
+    return c.json({message:'ورود صورت‌حساب ثبت نشد؛ این دسته تراکنش‌ها به‌صورت ناقص ذخیره نشده‌اند.'},500);
+  }
+});
+
+app.get('/api/finance/bank-transactions/:id/candidates', async (c) => {
+  const user=await requireUser(c);
+  if(user instanceof Response)return user;
+  const companyId=c.req.query('companyId')??'',transactionId=c.req.param('id');
+  if(!COMPANY_ID_RE.test(companyId)||!COMPANY_ID_RE.test(transactionId))return c.json({message:'شناسه تراکنش معتبر نیست.'},422);
+  if(!(await aiCompanyMembership(c,companyId,user.id)))return c.json({message:'به این فضای کاری دسترسی فعال نداری.'},403);
+  if(!(await userHasModulePermission(c,user.id,companyId,'finance','can_read')))return c.json({message:'برای مشاهده اسناد مالی مجوز نداری.'},403);
+  const sql=sqlFor(c);
+  const rows=await sql.query('select id::text as id,direction,amount::text as amount,currency,reconciliation_status as status from public.medar_bank_transactions where id=$1::uuid and company_id=$2::uuid limit 1',[transactionId,companyId]);
+  const transaction=rows[0] as {id:string;direction:string;amount:string;currency:string;status:string}|undefined;
+  if(!transaction)return c.json({message:'تراکنش بانکی پیدا نشد.'},404);
+  if(['reconciled','ignored'].includes(transaction.status))return c.json({candidates:[]});
+  let candidates:Array<Record<string,unknown>>=[];
+  if(transaction.direction==='incoming'){
+    const invoices=await sql.query(
+      "select 'invoice' as \"entityType\",i.id::text as \"entityId\",'فاکتور '||i.reference||' · '||coalesce(c.name,'مشتری') as label,(i.amount-i.paid_amount)::text as amount,i.due_date::text as \"dueAt\",i.status "+
+      'from public.invoices i left join public.customers c on c.company_id=i.company_id and c.id=i.customer_id where i.company_id=$1::uuid and i.status in (\'issued\',\'partially_paid\',\'overdue\') order by i.due_date asc nulls last limit 50',[companyId]);
+    const partners=await sql.query(
+      "select 'partner_financial_entry' as \"entityType\",e.id::text as \"entityId\",'سند شریک '||e.entry_type as label,(e.amount-e.paid_amount)::text as amount,e.recognized_on::text as \"dueAt\",e.status from public.partner_financial_entries e where e.company_id=$1::uuid and e.status in (\'submitted\',\'approved\') and e.direction in (\'inflow_to_company\',\'partner_to_company\') order by e.recognized_on desc limit 30",[companyId]);
+    candidates=[...invoices,...partners];
+  } else {
+    const settlements=await sql.query(
+      "select 'settlement' as \"entityType\",s.id::text as \"entityId\",'تسویه '||coalesce(nullif(s.invoice_ref,''),'تأمین‌کننده') as label,s.amount::text as amount,s.due_date::text as \"dueAt\",s.status from public.settlements s where s.company_id=$1::uuid and s.status in (\'pending\',\'approved\') order by s.due_date asc nulls last limit 50",[companyId]);
+    const orders=await sql.query(
+      "select 'purchase_order' as \"entityType\",po.id::text as \"entityId\",'سفارش خرید '||po.reference as label,coalesce(sum(i.ordered_quantity*i.unit_cost),0)::text as amount,po.expected_delivery::text as \"dueAt\",po.status from public.purchase_orders po left join public.purchase_order_items i on i.company_id=po.company_id and i.purchase_order_id=po.id where po.company_id=$1::uuid and po.status in (\'approved\',\'partially_received\') group by po.id order by po.expected_delivery asc nulls last limit 50",[companyId]);
+    const partners=await sql.query(
+      "select 'partner_financial_entry' as \"entityType\",e.id::text as \"entityId\",'سند شریک '||e.entry_type as label,(e.amount-e.paid_amount)::text as amount,e.recognized_on::text as \"dueAt\",e.status from public.partner_financial_entries e where e.company_id=$1::uuid and e.status in (\'submitted\',\'approved\') and e.direction in (\'outflow_from_company\',\'company_to_partner\') order by e.recognized_on desc limit 30",[companyId]);
+    candidates=[...settlements,...orders,...partners];
+  }
+  return c.json({candidates:candidates.slice(0,100),transaction:{direction:transaction.direction,amount:transaction.amount,currency:transaction.currency}});
+});
+
+app.post('/api/finance/bank-transactions/:id/reconcile', async (c) => {
+  const user=await requireUser(c);
+  if(user instanceof Response)return user;
+  const transactionId=c.req.param('id');
+  const body=await c.req.json<Record<string,unknown>>().catch(()=>null);
+  if(!body)return c.json({message:'اطلاعات تطبیق معتبر نیست.'},400);
+  const companyId=typeof body.companyId==='string'?body.companyId:'';
+  const entityType=typeof body.entityType==='string'?body.entityType:'';
+  const entityId=typeof body.entityId==='string'?body.entityId:'';
+  if(!COMPANY_ID_RE.test(transactionId)||!COMPANY_ID_RE.test(companyId)||!COMPANY_ID_RE.test(entityId))return c.json({message:'شناسه تراکنش، مجموعه یا سند معتبر نیست.'},422);
+  const targets:Record<string,string>={invoice:'invoices',purchase_order:'purchase_orders',settlement:'settlements',partner_financial_entry:'partner_financial_entries'};
+  const table=targets[entityType];
+  if(!table)return c.json({message:'نوع سند برای تطبیق پشتیبانی نمی‌شود.'},422);
+  const membership=await aiCompanyMembership(c,companyId,user.id);
+  if(!membership||!['owner','admin','staff'].includes(membership.role))return c.json({message:'فقط اعضای داخلی می‌توانند تطبیق دهند.'},403);
+  if(!(await userHasModulePermission(c,user.id,companyId,'finance','can_approve')))return c.json({message:'مجوز تأیید تطبیق مالی نداری.'},403);
+  const sql=sqlFor(c);
+  const [txn,target]=await Promise.all([
+    sql.query('select direction,reconciliation_status from public.medar_bank_transactions where id=$1::uuid and company_id=$2::uuid limit 1',[transactionId,companyId]),
+    sql.query('select id from public.'+table+' where id=$1::uuid and company_id=$2::uuid limit 1',[entityId,companyId]),
+  ]);
+  const transaction=txn[0] as {direction:string;reconciliation_status:string}|undefined;
+  if(!transaction||!target.length)return c.json({message:'تراکنش یا سند در همین مجموعه پیدا نشد.'},404);
+  if(transaction.reconciliation_status==='reconciled')return c.json({message:'این تراکنش قبلاً تطبیق نهایی شده است.'},409);
+  if(transaction.reconciliation_status==='ignored')return c.json({message:'این تراکنش نادیده گرفته شده است.'},409);
+  if((entityType==='invoice'&&transaction.direction!=='incoming')||(['purchase_order','settlement'].includes(entityType)&&transaction.direction!=='outgoing'))return c.json({message:'جهت تراکنش با نوع سند هماهنگ نیست.'},422);
+  const changed=await sql.query(
+    "update public.medar_bank_transactions set reconciliation_status='reconciled',matched_entity_type=$1,matched_entity_id=$2::uuid,matched_by=$3::uuid,matched_at=now() where id=$4::uuid and company_id=$5::uuid and reconciliation_status in ('unmatched','suggested') returning id",
+    [entityType,entityId,user.id,transactionId,companyId]);
+  if(!changed.length)return c.json({message:'تراکنش هم‌زمان تغییر کرده است؛ دوباره تازه‌سازی کن.'},409);
+  await sql.query("insert into public.medar_audit_log(actor_user_id,action,entity_type,entity_id,metadata) values($1::uuid,'bank_transaction.reconciled','medar_bank_transaction',$2::text,jsonb_build_object('company_id',$3::text,'matched_entity_type',$4::text,'matched_entity_id',$5::text))",[user.id,transactionId,companyId,entityType,entityId]);
+  return c.json({ok:true,status:'reconciled'});
+});
+
+app.post('/api/finance/bank-transactions/:id/ignore', async (c) => {
+  const user=await requireUser(c);
+  if(user instanceof Response)return user;
+  const transactionId=c.req.param('id'),body=await c.req.json<Record<string,unknown>>().catch(()=>null);
+  const companyId=typeof body?.companyId==='string'?body.companyId:'';
+  if(!COMPANY_ID_RE.test(transactionId)||!COMPANY_ID_RE.test(companyId))return c.json({message:'شناسه تراکنش یا مجموعه نامعتبر است.'},422);
+  const membership=await aiCompanyMembership(c,companyId,user.id);
+  if(!membership||!['owner','admin','staff'].includes(membership.role))return c.json({message:'فقط اعضای داخلی می‌توانند وضعیت تراکنش را تغییر دهند.'},403);
+  if(!(await userHasModulePermission(c,user.id,companyId,'finance','can_update')))return c.json({message:'مجوز ویرایش مالی نداری.'},403);
+  const rows=await sqlFor(c).query("update public.medar_bank_transactions set reconciliation_status='ignored' where id=$1::uuid and company_id=$2::uuid and reconciliation_status in ('unmatched','suggested') returning id",[transactionId,companyId]);
+  if(!rows.length)return c.json({message:'تراکنش پیدا نشد یا نهایی شده است.'},409);
+  await sqlFor(c).query("insert into public.medar_audit_log(actor_user_id,action,entity_type,entity_id,metadata) values($1::uuid,'bank_transaction.ignored','medar_bank_transaction',$2::text,jsonb_build_object('company_id',$3::text))",[user.id,transactionId,companyId]);
+  return c.json({ok:true,status:'ignored'});
+});
+
 app.get('/api/ai/providers', async (c) => {
   const user = await requireUser(c);
   if (user instanceof Response) return user;
