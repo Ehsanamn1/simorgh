@@ -887,7 +887,11 @@ app.post('/api/ai/chat', async (c) => {
 
 
 function canonicalContactPhone(value: string): string {
-  const digits = value.replace(/[^0-9]/g, '');
+  const western = value.replace(/[۰-۹٠-٩]/g, digit => {
+    const code = digit.charCodeAt(0);
+    return String(code - (code >= 0x06f0 && code <= 0x06f9 ? 0x06f0 : 0x0660));
+  });
+  const digits = western.replace(/[^0-9]/g, '');
   if (!digits) return '';
   if (digits.startsWith('0098') && digits.length > 4) return '98' + digits.slice(4);
   if (digits.startsWith('0') && digits.length === 11) return '98' + digits.slice(1);
