@@ -8,7 +8,7 @@ import {
 import type { AppRole, Membership, Row } from './lib/types';
 import { dataApi } from './lib/dataClient';
 import { InAppNotifications } from './InAppNotifications';
-import { dateFa, dateTimeFa, numberFa, roleLabel, statusLabel } from './lib/format';
+import { dateTimeFa, numberFa, roleLabel, statusLabel } from './lib/format';
 
 type QuickLink = { key: string; title: string; detail: string; icon: typeof LayoutDashboard };
 type BriefingItem = { id: string; title: string; detail: string; to: string; tone?: 'warning' | 'critical' | 'info' };
