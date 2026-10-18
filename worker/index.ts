@@ -3028,7 +3028,7 @@ app.get('/api/operational/exceptions', async (c) => {
   const status = c.req.query('status') ?? '';
   if (status && !['open','acknowledged','in_progress','resolved','closed'].includes(status)) return c.json({ message: 'وضعیت مسئله معتبر نیست.' }, 422);
   const rows = await sqlFor(c).query(
-    'select x.id::text as id,x.event_id::text as "eventId",x.title,x.details,x.severity,x.status,x.assigned_user_id::text as "assignedUserId",u.username as "assignedUsername",x.due_at as "dueAt",x.acknowledged_at as "acknowledgedAt",x.resolved_at as "resolvedAt",x.resolved_by::text as "resolvedBy",x.resolution_note as "resolutionNote",x.created_at as "createdAt",x.updated_at as "updatedAt" from public.medar_exception_cases x left join public.medar_users u on u.id=x.assigned_user_id where x.company_id=$1::uuid and ($2='' or x.status=$2) order by case x.severity when 'critical' then 0 else 1 end,x.due_at asc nulls last,x.created_at desc limit 100',
+    `select x.id::text as id,x.event_id::text as "eventId",x.title,x.details,x.severity,x.status,x.assigned_user_id::text as "assignedUserId",u.username as "assignedUsername",x.due_at as "dueAt",x.acknowledged_at as "acknowledgedAt",x.resolved_at as "resolvedAt",x.resolved_by::text as "resolvedBy",x.resolution_note as "resolutionNote",x.created_at as "createdAt",x.updated_at as "updatedAt" from public.medar_exception_cases x left join public.medar_users u on u.id=x.assigned_user_id where x.company_id=$1::uuid and ($2='' or x.status=$2) order by case x.severity when 'critical' then 0 else 1 end,x.due_at asc nulls last,x.created_at desc limit 100`,
     [companyId,status],
   );
   return c.json({ exceptions: rows });
