@@ -110,7 +110,7 @@ class DataQuery implements PromiseLike<ApiResult> {
           const message = typeof payload.message === 'string' ? payload.message : 'درخواست داده ناموفق بود.';
           return { data: null, error: { message }, count: null };
         }
-        if (this.action === 'select') void writeOfflineResponse(queryKey, payload);
+        if (this.action === 'select') await writeOfflineResponse(queryKey, payload).catch(() => undefined);
         const rows = Array.isArray(payload.data) ? payload.data : [];
         let data: unknown = rows;
         if (this.cardinality === 'single') {
