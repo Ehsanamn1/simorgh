@@ -2698,7 +2698,7 @@ app.post('/api/data/:table',async c=>{
      if(table==='orders'){row.status='draft';row.created_by=user.id;}
      if(table==='shipments')row.stage='planned';
      if(table==='operational_tasks')row.status='pending';
-     if(table==='partner_financial_entries'){row.status='submitted';row.submitted_by=user.id;if(columns.has('submitted_at'))row.submitted_at=new Date().toISOString();}
+     if(table==='partner_financial_entries'){row.status='draft';row.created_by=user.id;row.submitted_by=null;if(columns.has('submitted_at'))row.submitted_at=null;if(columns.has('approved_by'))row.approved_by=null;if(columns.has('approved_at'))row.approved_at=null;if(columns.has('posted_by'))row.posted_by=null;if(columns.has('posted_at'))row.posted_at=null;}
      if(table==='production_batches'){
       const siteId=typeof row.farm_site_id==='string'?row.farm_site_id:'';
       const supplierId=typeof row.supplier_id==='string'?row.supplier_id:null;
