@@ -1768,6 +1768,7 @@ function buildFilterSql(filters:DataFilter[],columns:Set<string>,params:unknown[
 }
 
 type MembershipScope = {
+ membership_id?: string;
  company_id: string;
  role: string;
  customer_id: string | null;
@@ -1784,7 +1785,7 @@ const RPC_ONLY_TABLES = new Set(['inventory_movements','quality_reviews','partne
 async function loadMembershipScopes(c:Ctx,userId:string):Promise<MembershipScope[]> {
  const sql=sqlFor(c);
  const rows=await sql.query(
-  "select company_id::text,role::text,customer_id::text,supplier_id::text from public.memberships where user_id=$1::uuid and active=true",
+  "select id::text as membership_id,company_id::text,role::text,customer_id::text,supplier_id::text from public.memberships where user_id=$1::uuid and active=true",
   [userId]
  );
  return rows as MembershipScope[];
@@ -1858,6 +1859,105 @@ export function sanitizeExternalRows(table:string,rows:Record<string,unknown>[],
 function companyRole(memberships:MembershipScope[],companyId:string):MembershipScope|undefined {
  return memberships.find(m=>m.company_id===companyId);
 }
+
+const MODULE_PERMISSION_CATALOG = [
+  { key: 'home', label: 'صفحه اصلی و کارهای روزانه' },
+  { key: 'command', label: 'مرکز فرمان و گزارش‌ها' },
+  { key: 'agents', label: 'دستیار و مرکز ایجنت‌ها' },
+  { key: 'contacts', label: 'دفترچه مخاطبین و واردکردن مخاطب' },
+  { key: 'customers', label: 'مشتریان و قراردادهای مشتری' },
+  { key: 'suppliers', label: 'تأمین‌کنندگان و ظرفیت' },
+  { key: 'orders', label: 'سفارش‌ها و اقلام سفارش' },
+  { key: 'purchase-orders', label: 'خرید و سفارش خرید' },
+  { key: 'products', label: 'محصولات و کاتالوگ' },
+  { key: 'inventory', label: 'موجودی و گردش انبار' },
+  { key: 'capacity', label: 'ظرفیت و تعهد تأمین' },
+  { key: 'quality', label: 'کیفیت و کنترل محموله' },
+  { key: 'shipments', label: 'حمل‌ونقل، رانندگان و مدارک' },
+  { key: 'finance', label: 'امور مالی و تسویه‌ها' },
+  { key: 'farm-sites', label: 'سایت‌ها و نقشه' },
+  { key: 'flock-cycles', label: 'چرخه‌های کشت و پرورش' },
+  { key: 'production-batches', label: 'دوره‌های تولید' },
+  { key: 'daily-production', label: 'ثبت روزانهٔ تولید' },
+  { key: 'operational-tasks', label: 'وظایف و شواهد کار' },
+  { key: 'task-templates', label: 'الگوهای وظیفه' },
+  { key: 'incidents', label: 'رخدادها و مغایرت‌ها' },
+  { key: 'partnership-agreements', label: 'قراردادهای مشارکت' },
+  { key: 'partner-finance', label: 'دفتر مالی شریک' },
+  { key: 'partner-settlements', label: 'دوره‌ها و تسویهٔ شریک' },
+  { key: 'goals', label: 'اهداف و برنامه' },
+  { key: 'members', label: 'اعضا و دعوت‌ها' },
+  { key: 'audit', label: 'تاریخچه و ممیزی' },
+] as const;
+type ModulePermissionCapability = 'can_read' | 'can_create' | 'can_update' | 'can_delete' | 'can_approve';
+type ModulePermissionRow = {
+  membership_id: string;
+  module_key: string;
+  inherit_role_defaults: boolean;
+  can_read: boolean;
+  can_create: boolean;
+  can_update: boolean;
+  can_delete: boolean;
+  can_approve: boolean;
+};
+const MODULE_KEY_BY_TABLE: Record<string, string> = {
+  access_requests: 'members', customers: 'customers', suppliers: 'suppliers', products: 'products',
+  price_agreements: 'customers', orders: 'orders', order_items: 'orders',
+  capacity_commitments: 'capacity', lots: 'inventory', quality_reviews: 'quality',
+  shipments: 'shipments', shipment_locations: 'shipments', delivery_evidence: 'shipments',
+  invoices: 'finance', settlements: 'finance', inventory_movements: 'inventory',
+  inventory_balances: 'inventory', notifications: 'home', audit_events: 'audit',
+  farm_sites: 'farm-sites', partnership_agreements: 'partnership-agreements',
+  purchase_orders: 'purchase-orders', purchase_order_items: 'purchase-orders',
+  flock_cycles: 'flock-cycles', production_batches: 'production-batches',
+  daily_production_records: 'daily-production', task_templates: 'task-templates',
+  operational_tasks: 'operational-tasks', task_evidence: 'operational-tasks',
+  operational_incidents: 'incidents', partner_financial_entries: 'partner-finance',
+  partner_settlement_periods: 'partner-settlements', company_goals: 'goals',
+};
+
+async function loadModulePermissionOverrides(
+  c: Ctx,
+  scopes: MembershipScope[],
+  moduleKey: string,
+): Promise<Map<string, ModulePermissionRow>> {
+  const ids = scopes.map(scope => scope.membership_id).filter((id): id is string => Boolean(id));
+  if (!ids.length) return new Map();
+  const rows = await sqlFor(c).query(
+    'select membership_id::text,module_key,inherit_role_defaults,can_read,can_create,can_update,can_delete,can_approve from public.medar_membership_module_permissions where membership_id=any($1::uuid[]) and module_key=$2',
+    [ids, moduleKey],
+  );
+  return new Map((rows as ModulePermissionRow[]).map(row => [row.membership_id, row]));
+}
+
+function scopeHasModulePermission(
+  scope: MembershipScope,
+  overrides: Map<string, ModulePermissionRow>,
+  capability: ModulePermissionCapability,
+): boolean {
+  if (scope.role === 'owner' || scope.role === 'admin') return true;
+  const override = scope.membership_id ? overrides.get(scope.membership_id) : undefined;
+  if (!override || override.inherit_role_defaults) return true;
+  return override[capability] === true;
+}
+
+async function userHasModulePermission(
+  c: Ctx,
+  userId: string,
+  companyId: string,
+  moduleKey: string,
+  capability: ModulePermissionCapability,
+): Promise<boolean> {
+  const rows = await sqlFor(c).query(
+    'select m.role::text as role,p.inherit_role_defaults,p.can_read,p.can_create,p.can_update,p.can_delete,p.can_approve from public.memberships m left join public.medar_membership_module_permissions p on p.membership_id=m.id and p.company_id=m.company_id and p.module_key=$3 where m.user_id=$1::uuid and m.company_id=$2::uuid and m.active=true limit 1',
+    [userId, companyId, moduleKey],
+  );
+  const row = rows[0] as ({ role: string; inherit_role_defaults: boolean | null } & Partial<Record<ModulePermissionCapability, boolean | null>>) | undefined;
+  if (!row) return false;
+  if (row.role === 'owner' || row.role === 'admin' || row.inherit_role_defaults === null || row.inherit_role_defaults === true) return true;
+  return row[capability] === true;
+}
+
 const UPDATE_PROTECTED_FIELDS:Record<string,Set<string>>={
  orders:new Set(['status','created_by']),
  shipments:new Set(['stage','departed_at','delivered_at','failure_reason','driver_user_id']),
