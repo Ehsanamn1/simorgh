@@ -2865,15 +2865,20 @@ async function canAccessPrivateFile(c: Ctx, userId: string, bucket: string, path
       ")" +
     ") " +
     "when $4='operational-evidence' then (" +
-      "exists(select 1 from public.memberships m where m.user_id=$1::uuid and m.company_id=$2::uuid and m.active=true and m.role::text in ('owner','admin','staff')) " +
-      "or exists(select 1 from public.operational_tasks t where t.id=$3::uuid and t.company_id=$2::uuid and (t.assignee_user_id=$1::uuid or exists(select 1 from public.memberships m where m.user_id=$1::uuid and m.company_id=$2::uuid and m.active=true and m.role::text='supplier' and m.supplier_id=t.assignee_supplier_id))) " +
+      "exists(select 1 from public.operational_tasks t where t.id=$3::uuid and t.company_id=$2::uuid and (" +
+        "exists(select 1 from public.memberships m where m.user_id=$1::uuid and m.company_id=$2::uuid and m.active=true and m.role::text in ('owner','admin','staff')) " +
+        "or t.assignee_user_id=$1::uuid " +
+        "or exists(select 1 from public.memberships m where m.user_id=$1::uuid and m.company_id=$2::uuid and m.active=true and m.role::text='supplier' and m.supplier_id=t.assignee_supplier_id)" +
+      ")) " +
     ") " +
     "when $4='delivery-evidence' then (" +
-      "exists(select 1 from public.memberships m where m.user_id=$1::uuid and m.company_id=$2::uuid and m.active=true and m.role::text in ('owner','admin','staff')) " +
-      (action === 'read'
-        ? "or exists(select 1 from public.shipments s where s.id=$3::uuid and s.company_id=$2::uuid and s.driver_user_id=$1::uuid) " +
-          "or exists(select 1 from public.shipments s join public.orders o on o.id=s.order_id and o.company_id=s.company_id join public.memberships m on m.company_id=o.company_id and m.customer_id=o.customer_id where s.id=$3::uuid and s.company_id=$2::uuid and m.user_id=$1::uuid and m.active=true and m.role::text='customer') "
-        : "or exists(select 1 from public.shipments s where s.id=$3::uuid and s.company_id=$2::uuid and s.driver_user_id=$1::uuid) ") +
+      "exists(select 1 from public.shipments s where s.id=$3::uuid and s.company_id=$2::uuid and (" +
+        "exists(select 1 from public.memberships m where m.user_id=$1::uuid and m.company_id=$2::uuid and m.active=true and m.role::text in ('owner','admin','staff')) " +
+        (action === 'read'
+          ? "or s.driver_user_id=$1::uuid " +
+            "or exists(select 1 from public.orders o join public.memberships m on m.company_id=o.company_id and m.customer_id=o.customer_id where o.id=s.order_id and o.company_id=s.company_id and m.user_id=$1::uuid and m.active=true and m.role::text='customer') "
+          : "or s.driver_user_id=$1::uuid ") +
+      ")) " +
     ") else false end as allowed",
     [userId, companyId, resourceId, bucket, path],
   );
