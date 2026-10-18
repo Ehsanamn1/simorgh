@@ -2105,9 +2105,11 @@ app.get('/api/workspace/members', async (c) => {
   }
   const members = await sql`
     select m.id as membership_id, m.company_id, m.user_id, m.role, m.active, m.created_at,
-      u.username, u.phone_e164 as phone, u.display_name as full_name
+      m.supplier_id, m.customer_id, u.username, u.phone_e164 as phone, u.display_name as full_name,
+      u.last_login_at, u.account_status, s.name as supplier_name
     from public.memberships m
     join public.medar_users u on u.id = m.user_id
+    left join public.suppliers s on s.id = m.supplier_id
     where m.company_id = ${companyId}
     order by case m.role when 'owner' then 0 when 'admin' then 1 else 2 end, m.created_at
   `;
