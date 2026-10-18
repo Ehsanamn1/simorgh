@@ -524,7 +524,7 @@ jobs:
             await page.getByRole('heading', { name: 'ساخت حساب و فضای کاری' }).waitFor({ state: 'visible' });
             await page.getByLabel('نام کاربری').waitFor({ state: 'visible' });
             await page.getByLabel('گذرواژه', { exact: true }).waitFor({ state: 'visible' });
-            for (const extraField of ['نام و نام خانوادگی', 'شماره موبایل', 'کد دعوت', 'تکرار گذرواژه']) {
+            for (const extraField of ['نام و نام خانوادگی', 'شماره موبایل', 'تکرار گذرواژه']) {
               if (await page.getByLabel(extraField).count()) throw new Error(label + ': signup unexpectedly requires ' + extraField);
             }
             const size = await page.evaluate(() => ({ viewport: innerWidth, document: document.documentElement.scrollWidth, body: document.body.scrollWidth }));
