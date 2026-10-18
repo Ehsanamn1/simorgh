@@ -1450,3 +1450,71 @@ html[data-theme="dark"] .bank-primary-button { color:#202a38; }
   .page-heading { align-items: flex-start; }
   .page-heading p { max-width: 42rem; }
 }
+
+
+/* Medar Connect: one calm, role-aware workspace for messages and operational coordination. */
+.medar-connect-page { display:grid; gap:16px; min-width:0; color:var(--obs-text); }
+.medar-connect-heading { display:flex; align-items:center; gap:12px; padding:18px; border:1px solid var(--obs-border); border-radius:18px; background:var(--obs-surface); }
+.medar-connect-heading-icon { display:grid; place-items:center; width:44px; height:44px; flex:none; border-radius:13px; color:var(--obs-accent); background:var(--obs-surface-2); }
+.medar-connect-heading-copy { flex:1; min-width:0; }
+.medar-connect-eyebrow { color:var(--obs-accent); font-size:9px; font-weight:900; letter-spacing:.12em; }
+.medar-connect-heading h1 { margin:2px 0; font-size:clamp(20px,2.5vw,27px); line-height:1.5; }
+.medar-connect-heading p,.medar-connect-chat-heading p { margin:0; color:var(--obs-muted); font-size:11px; line-height:1.9; }
+.medar-connect-refresh,.medar-connect-new button,.medar-connect-composer button { display:inline-flex; align-items:center; justify-content:center; gap:7px; min-height:38px; padding:8px 12px; border:1px solid var(--obs-border); border-radius:11px; color:var(--obs-text); background:var(--obs-surface-2); font:inherit; font-size:11px; font-weight:800; cursor:pointer; }
+.medar-connect-new button,.medar-connect-composer button { border-color:transparent; background:var(--obs-accent); color:white; }
+.medar-connect-refresh:disabled,.medar-connect-new button:disabled,.medar-connect-composer button:disabled { opacity:.5; cursor:not-allowed; }
+.medar-connect-alert,.medar-connect-notice { padding:10px 12px; border:1px solid var(--obs-border); border-radius:11px; font-size:11px; line-height:1.9; }
+.medar-connect-alert { color:var(--obs-critical); }
+.medar-connect-notice { color:var(--obs-accent); }
+.medar-connect-layout { display:grid; grid-template-columns:minmax(250px,.78fr) minmax(0,1.5fr); gap:14px; align-items:stretch; min-height:580px; }
+.medar-connect-sidebar,.medar-connect-chat { min-width:0; border:1px solid var(--obs-border); border-radius:16px; background:var(--obs-surface); overflow:hidden; }
+.medar-connect-sidebar { display:flex; flex-direction:column; }
+.medar-connect-new { display:grid; gap:10px; padding:14px; border-bottom:1px solid var(--obs-border); background:var(--obs-surface-2); }
+.medar-connect-new h2,.medar-connect-list-heading h2 { display:flex; align-items:center; gap:7px; margin:0; font-size:13px; }
+.medar-connect-new label { display:grid; gap:5px; color:var(--obs-muted); font-size:10px; font-weight:700; }
+.medar-connect-new input,.medar-connect-new select,.medar-connect-composer textarea { width:100%; min-width:0; border:1px solid var(--obs-border); border-radius:10px; padding:10px; color:var(--obs-text); background:var(--obs-surface); font:inherit; font-size:12px; outline-offset:2px; }
+.medar-connect-new button { width:100%; }
+.medar-connect-list-heading { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:13px 14px 9px; }
+.medar-connect-list-heading>span { color:var(--obs-muted); font-size:10px; }
+.medar-connect-list { display:grid; gap:3px; padding:0 7px 10px; }
+.medar-connect-thread { display:flex; align-items:center; gap:9px; width:100%; min-width:0; padding:10px; border:1px solid transparent; border-radius:11px; background:transparent; text-align:right; color:var(--obs-text); cursor:pointer; }
+.medar-connect-thread:hover,.medar-connect-thread.active { border-color:var(--obs-border); background:var(--obs-surface-2); }
+.medar-connect-thread-icon { display:grid; place-items:center; width:34px; height:34px; flex:none; border:1px solid var(--obs-border); border-radius:10px; color:var(--obs-accent); }
+.medar-connect-thread-copy { display:grid; gap:3px; flex:1; min-width:0; }
+.medar-connect-thread-copy b { font-size:11px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.medar-connect-thread-copy small { color:var(--obs-muted); font-size:9px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.medar-connect-unread { display:grid; place-items:center; min-width:21px; height:21px; padding:0 5px; border-radius:20px; background:var(--obs-accent); color:white; font-size:9px; }
+.medar-connect-chat { display:flex; flex-direction:column; min-height:580px; }
+.medar-connect-chat-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:16px; border-bottom:1px solid var(--obs-border); }
+.medar-connect-chat-heading h2 { margin:0 0 3px; font-size:15px; }
+.medar-connect-secure { flex:none; padding:5px 8px; border:1px solid var(--obs-border); border-radius:20px; color:var(--obs-muted); font-size:9px; }
+.medar-connect-messages { display:flex; flex:1; flex-direction:column; align-items:stretch; gap:10px; min-height:350px; max-height:65vh; overflow:auto; padding:14px; }
+.medar-connect-message { align-self:flex-start; width:min(88%,620px); padding:11px 12px; border:1px solid var(--obs-border); border-radius:13px 13px 13px 4px; background:var(--obs-surface-2); }
+.medar-connect-message.own { align-self:flex-end; border-radius:13px 13px 4px 13px; border-color:color-mix(in srgb,var(--obs-accent) 30%,var(--obs-border)); }
+.medar-connect-message-meta { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.medar-connect-message-meta b { font-size:10px; }
+.medar-connect-message-meta time { color:var(--obs-muted); font-size:9px; }
+.medar-connect-message p { margin:7px 0 0; font-size:12px; line-height:1.9; white-space:pre-wrap; overflow-wrap:anywhere; }
+.medar-connect-composer { display:flex; align-items:flex-end; gap:9px; padding:12px; border-top:1px solid var(--obs-border); }
+.medar-connect-composer textarea { resize:vertical; min-height:45px; max-height:150px; }
+.medar-connect-composer button { min-width:100px; }
+.medar-connect-empty { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:7px; min-height:120px; padding:18px; color:var(--obs-muted); text-align:center; font-size:10px; line-height:1.9; }
+.medar-connect-empty svg { color:var(--obs-accent); }
+.medar-connect-empty b { color:var(--obs-text); font-size:12px; }
+.medar-connect-empty span { max-width:300px; }
+.medar-connect-empty.large { flex:1; min-height:300px; }
+.medar-connect-muted { padding:14px; color:var(--obs-muted); font-size:11px; }
+@media(max-width:800px) {
+ .medar-connect-layout { grid-template-columns:minmax(0,1fr); }
+ .medar-connect-sidebar { order:2; }
+ .medar-connect-chat { order:1; min-height:450px; }
+ .medar-connect-messages { min-height:250px; max-height:55vh; }
+}
+@media(max-width:560px) {
+ .medar-connect-heading { align-items:flex-start; flex-wrap:wrap; padding:13px; }
+ .medar-connect-heading-copy { flex-basis:calc(100% - 60px); }
+ .medar-connect-refresh { margin-inline-start:auto; }
+ .medar-connect-composer { align-items:stretch; flex-direction:column; }
+ .medar-connect-composer button { width:100%; }
+ .medar-connect-message { width:94%; }
+}
