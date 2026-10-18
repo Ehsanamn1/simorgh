@@ -590,6 +590,32 @@ jobs:
           ROLLBACK;
           SQL
           echo "Role matrix, blocked-task and failed-shipment exception automation, partner settlement calculation/authorization/approval/payment caps, bank-import idempotency, and ledger constraints passed."
+      - name: Verify PostgreSQL backup and restore on a disposable CI database
+        env:
+          PGPASSWORD: medar_test_password
+        shell: bash
+        run: |
+          set -euo pipefail
+          restore_db="medar_restore_test"
+          dump_file="$RUNNER_TEMP/medar-ci-backup.dump"
+          cleanup_restore() {
+            dropdb -h 127.0.0.1 -U postgres --if-exists "$restore_db" >/dev/null 2>&1 || true
+            psql -h 127.0.0.1 -U postgres -d medar_test -v ON_ERROR_STOP=1 -c "DROP TABLE IF EXISTS public.ci_backup_probe" >/dev/null 2>&1 || true
+            rm -f "$dump_file"
+          }
+          trap cleanup_restore EXIT
+          psql -h 127.0.0.1 -U postgres -d medar_test -v ON_ERROR_STOP=1 <<'SQL'
+          CREATE TABLE public.ci_backup_probe (id integer PRIMARY KEY, marker text NOT NULL);
+          INSERT INTO public.ci_backup_probe(id,marker) VALUES (1,'medar-backup-restore-roundtrip');
+          SQL
+          pg_dump -h 127.0.0.1 -U postgres -d medar_test --format=custom --no-owner --no-acl --file="$dump_file"
+          createdb -h 127.0.0.1 -U postgres "$restore_db"
+          pg_restore -h 127.0.0.1 -U postgres -d "$restore_db" --no-owner --no-acl "$dump_file"
+          restored_marker="$(psql -h 127.0.0.1 -U postgres -d "$restore_db" -v ON_ERROR_STOP=1 -Atqc "SELECT marker FROM public.ci_backup_probe WHERE id=1")"
+          restored_migrations="$(psql -h 127.0.0.1 -U postgres -d "$restore_db" -v ON_ERROR_STOP=1 -Atqc "SELECT count(*) FROM public.medar_schema_migrations")"
+          test "$restored_marker" = "medar-backup-restore-roundtrip"
+          test "$restored_migrations" = "24"
+          echo "PostgreSQL custom-format backup restored successfully with all 24 migration records and the fixture marker."
       - name: Summarize all dependency advisories
         shell: bash
         run: |
