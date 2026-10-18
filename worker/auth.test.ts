@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   CREATE_OWNER_WORKSPACE_SQL,
   canonicalContactPhone,
+  resolveContactPhoneMatch,
   DUMMY_PASSWORD_HASH,
   FAILED_LOGIN_UPSERT_SQL,
   normalizeUsername,
@@ -9,6 +10,24 @@ import {
   resolveApiModeAccess,
   verifyPassword,
 } from './index';
+
+describe('existing contact phone matching', () => {
+  const existing = { id: 'customer-1', name: 'North Farm' };
+
+  it('updates an exact-name row through the normal unique-name upsert', () => {
+    expect(resolveContactPhoneMatch('North Farm', [existing], true)).toEqual({ action: 'upsert' });
+  });
+
+  it('enriches one unambiguous phone match rather than creating a duplicate', () => {
+    expect(resolveContactPhoneMatch('Imported alias', [existing], false)).toEqual({ action: 'update', id: 'customer-1' });
+  });
+
+  it('inserts when the number is new and skips unsafe phone/name collisions', () => {
+    expect(resolveContactPhoneMatch('New contact', [], false)).toEqual({ action: 'upsert' });
+    expect(resolveContactPhoneMatch('Imported alias', [existing], true)).toEqual({ action: 'skip' });
+    expect(resolveContactPhoneMatch('Shared number', [existing, { id: 'customer-2', name: 'Other' }], false)).toEqual({ action: 'skip' });
+  });
+});
 
 describe('phone normalization for contact import', () => {
   it('matches local, international and Persian-digit variants of the same Iranian number', () => {
