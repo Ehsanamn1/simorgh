@@ -886,3 +886,14 @@ html[data-theme="light"] .page-container {
 .ai-composer-tools button:disabled { opacity: .42; cursor: not-allowed; }
 .ai-composer-tools button.recording { box-shadow: 0 0 0 3px color-mix(in srgb,#d46b6b 15%,transparent); }
 html[data-theme="dark"] .ai-composer-tools button.recording { background: #41343a; color: #ffd4d7; border-color: #87535b; }
+
+/* Compact provider test controls; keep both actions legible on narrow phones. */
+.ai-provider-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1.12fr) minmax(0, 1fr);
+  gap: 8px;
+}
+.ai-provider-actions > button { min-width: 0; padding-inline: 8px; white-space: normal; line-height: 1.5; }
+@media (max-width: 390px) {
+  .ai-provider-actions { grid-template-columns: minmax(0,1fr); }
+}

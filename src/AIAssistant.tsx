@@ -12,7 +12,7 @@ type AIAssistantProps = { companyId: string; role: AppRole; userName?: string };
 const providerMeta: Record<ProviderId, { label: string; brand: string; defaultModel: string; detail: string }> = {
   openai: { label: 'OpenAI · GPT', brand: 'GPT', defaultModel: 'gpt-6-luna', detail: 'پاسخ‌گویی و تحلیل عمومی' },
   gemini: { label: 'Google · Gemini', brand: 'G', defaultModel: 'gemini-4-argon', detail: 'تحلیل چندمرحله‌ای و فایل' },
-  deepseek: { label: 'DeepSeek', brand: 'DS', defaultModel: 'deepseek-flash', detail: 'تحلیل اقتصادی و متنی' },
+  deepseek: { label: 'DeepSeek', brand: 'DS', defaultModel: 'deepseek-v4-flash', detail: 'تحلیل اقتصادی و متنی' },
   anthropic: { label: 'Anthropic · Claude', brand: 'C', defaultModel: 'claude-sonnet-5', detail: 'برنامه‌ریزی و بررسی اسناد' },
 };
 
@@ -55,6 +55,7 @@ export function AIAssistant({ companyId, role, userName }: AIAssistantProps) {
   const [model, setModel] = useState(providerMeta.openai.defaultModel);
   const [apiKey, setApiKey] = useState('');
   const [savingKey, setSavingKey] = useState(false);
+  const [testingProvider, setTestingProvider] = useState(false);
   const [loadingConfigs, setLoadingConfigs] = useState(false);
   const [draft, setDraft] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -117,6 +118,28 @@ export function AIAssistant({ companyId, role, userName }: AIAssistantProps) {
     setOpen(true);
     setError('');
     setNotice('');
+  }
+
+  async function testProvider() {
+    setTestingProvider(true);
+    setError('');
+    setNotice('');
+    try {
+      if (!configs.some(item => item.provider === selectedProvider && item.configured) && !apiKey.trim()) {
+        throw new Error('برای تست اولیه، API key را وارد کن. این تست کلید را ذخیره نمی‌کند.');
+      }
+      const result = await api.post<{ ok: boolean; provider: ProviderId; model: string; message: string }>('/api/ai/provider-test', {
+        companyId,
+        provider: selectedProvider,
+        model: model.trim() || providerMeta[selectedProvider].defaultModel,
+        ...(apiKey.trim() ? { apiKey: apiKey.trim() } : {}),
+      });
+      setNotice(result.message || 'اتصال پرووایدر موفق بود.');
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'تست اتصال پرووایدر ناموفق بود.');
+    } finally {
+      setTestingProvider(false);
+    }
   }
 
   async function saveProvider() {
@@ -402,10 +425,15 @@ export function AIAssistant({ companyId, role, userName }: AIAssistantProps) {
               <label>کلید API {configs.some(item=>item.provider===selectedProvider&&item.configured)&&<small>برای نگه‌داشتن کلید فعلی، این کادر را خالی بگذار.</small>}
                 <input dir="ltr" type="password" autoComplete="new-password" value={apiKey} onChange={event => setApiKey(event.target.value)} maxLength={512} placeholder={configs.some(item=>item.provider===selectedProvider&&item.configured)?'کلید ذخیره شده است':'API key را وارد کن'} />
               </label>
-              <button className="ai-primary-button" type="submit" disabled={savingKey || loadingConfigs}>{savingKey?<LoaderCircle size={16} className="ai-spin"/>:<KeyRound size={16}/>} ذخیره و فعال‌سازی</button>
+              <div className="ai-provider-actions">
+                <button className="ai-primary-button" type="submit" disabled={savingKey || testingProvider || loadingConfigs}>{savingKey?<LoaderCircle size={16} className="ai-spin"/>:<KeyRound size={16}/>} ذخیره و فعال‌سازی</button>
+                <button className="ai-secondary-button" type="button" onClick={()=>void testProvider()} disabled={savingKey || testingProvider || loadingConfigs}>{testingProvider?<LoaderCircle size={16} className="ai-spin"/>:<ShieldCheck size={16}/>} تست اتصال بدون ذخیره</button>
+              </div>
               
             </form>
           </>}
+          {error&&<div className="ai-feedback error" role="alert">{error}</div>}
+          {notice&&<div className="ai-feedback notice" role="status">{notice}</div>}
           <p className="ai-privacy-note"><ShieldCheck size={15}/> کلیدها رمزنگاری‌شده در سمت سرور نگهداری می‌شوند. متن گفتگو و فایل‌های پیوست برای ارائه‌دهنده‌ی مدل انتخابی ارسال می‌شوند؛ اطلاعات حساس را فقط در صورت مجاز بودن به‌اشتراک بگذار.</p>
         </div> : <>
           <div className="ai-conversation">
