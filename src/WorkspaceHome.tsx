@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import {
   Activity, ArrowLeft, Building2, CalendarClock, CheckCircle2, ClipboardCheck,
   CreditCard, Factory, FileText, LayoutDashboard, MapPin, Package, ShieldCheck,
-  Truck, Warehouse,
+  Truck, Warehouse, MessageCircle,
 } from 'lucide-react';
 import type { AppRole, Membership, Row } from './lib/types';
 import { dataApi } from './lib/dataClient';
