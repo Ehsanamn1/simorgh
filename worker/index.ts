@@ -899,15 +899,34 @@ app.post('/api/ai/realtime/session', async (c) => {
     voiceContext = { note: 'بعضی داده‌های نقش فعلی برای این مکالمه خوانده نشدند. درباره آن‌ها حدس نزن.' };
   }
 
+  const canProposeOperationalTasks = ['owner', 'admin', 'staff'].includes(membership.role);
   const instructions = [
     'تو دستیار صوتی عملیاتی مدار هستی و با فارسی روان، طبیعی و کوتاه صحبت می‌کنی.',
     'ابتدا پاسخ مستقیم بده؛ هنگام توضیح چند مرحله، جمله‌ها را کوتاه و قابل شنیدن نگه دار.',
     'از اطلاعات زمینه فقط برای همین مجموعه و همین نقش استفاده کن. عدد، وضعیت، شخص یا رویداد نساز و زمان داده‌ها را در صورت نیاز توضیح بده.',
-    'تو در این نشست ابزار نوشتن یا پرداخت نداری. ادعا نکن وظیفه یا تغییر عملیاتی را ثبت کرده‌ای. برای ثبت وظیفه از مرکز ایجنت‌ها استفاده کن؛ عملیات مالی حساس نیازمند تأیید انسانی است.',
-    'اطلاعات تماس خصوصی و رازها را افشا نکن. اگر اطلاعات لازم وجود ندارد، واضح بگو.',
+    canProposeOperationalTasks
+      ? 'وقتی کاربر صریحاً درخواست ساخت یک وظیفه عملیاتی را دارد و عنوان و نتیجه مورد انتظار روشن است، می‌توانی ابزار propose_operational_task را فقط برای ایجاد پیش‌نویس پیشنهاد استفاده کنی. اگر اطلاعات اصلی مبهم است ابتدا سؤال بپرس. ابزار صرفاً پیشنهاد می‌سازد و وظیفه واقعی را ایجاد نمی‌کند. پس از نتیجه ابزار صریحاً بگو پیشنهاد برای بررسی در مرکز ایجنت‌ها آماده است و کاربر باید آن را جداگانه تأیید کند.'
+      : 'در این نشست ابزار تغییر داده‌ها فعال نیست. هیچ وظیفه یا تغییر عملیاتی را اجراشده معرفی نکن. فقط درباره اطلاعات مجاز و موجود پاسخ بده.',
+    'هیچ پرداخت، انتقال وجه، تغییر مالی، ارسال بیرونی یا عملیات برگشت‌ناپذیری را انجام نده. اطلاعات تماس خصوصی و رازها را افشا نکن. اگر اطلاعات لازم وجود ندارد، واضح بگو.',
     'نقش فعلی: ' + membership.role + '. زمان سرور: ' + new Date().toISOString() + '.',
     'داده‌های مجاز و محدود همین مجموعه: ' + JSON.stringify(voiceContext),
   ].join(' ');
+  const voiceTools = canProposeOperationalTasks ? [{
+    type: 'function',
+    name: 'propose_operational_task',
+    description: 'Create a reviewable, inert proposal for one operational task. Never execute the task, payments, or external actions. Use only after the user explicitly requests creating a task and the title and expected outcome are clear.',
+    parameters: {
+      type: 'object',
+      properties: {
+        title: { type: 'string', description: 'Short task title in Persian, 2 to 180 characters.' },
+        instructions: { type: 'string', description: 'Task instructions and expected outcome in Persian, up to 3000 characters.' },
+        priority: { type: 'string', enum: ['low', 'normal', 'high', 'critical'] },
+        dueAt: { type: 'string', description: 'Optional ISO 8601 date-time with timezone; omit it if the date or timezone is unclear.' },
+      },
+      required: ['title', 'instructions', 'priority'],
+      additionalProperties: false,
+    },
+  }] : [];
 
   const safetyDigest = await crypto.subtle.digest('SHA-256', encoder.encode('medar-realtime-safety-v1:' + user.id));
   const safetyIdentifier = Array.from(new Uint8Array(safetyDigest), byte => byte.toString(16).padStart(2, '0')).join('');
@@ -922,6 +941,7 @@ app.post('/api/ai/realtime/session', async (c) => {
       },
       output: { voice: 'marin' },
     },
+    ...(voiceTools.length ? { tools: voiceTools, tool_choice: 'auto' } : {}),
   };
   const form = new FormData();
   form.set('sdp', sdp);
