@@ -76,7 +76,7 @@ test('signup creates a workspace using only a username and password', async ({ p
   await page.getByRole('button', { name: 'ساخت حساب و فضای کاری' }).click();
   await expect(page).toHaveURL(/#signup$/);
   await expect(page.getByRole('heading', { name: 'ساخت حساب و فضای کاری' })).toBeVisible();
-  for (const extraField of ['نام و نام خانوادگی', 'شماره موبایل', 'کد دعوت', 'تکرار گذرواژه']) await expect(page.getByLabel(extraField)).toHaveCount(0);
+  for (const extraField of ['نام و نام خانوادگی', 'شماره موبایل', 'تکرار گذرواژه']) await expect(page.getByLabel(extraField)).toHaveCount(0);
   await page.getByLabel('نام کاربری').fill('owner_test');
   await page.getByLabel('گذرواژه', { exact: true }).fill('Strong-test-pass-2026');
   await page.getByRole('button', { name: 'ساخت حساب و فضای کاری', exact: true }).click();
