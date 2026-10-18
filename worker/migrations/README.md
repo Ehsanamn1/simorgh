@@ -56,3 +56,5 @@ The Cloudflare operational deployment workflow applies this migration after vali
 The clean-database CI chain and guarded Cloudflare deployment migration list must include every numbered migration. Production migration is intentionally not run from this branch until the PR has passed review and the main-branch deployment is authorized.
 
 22. `0022_web_push_delivery_queue.sql` — opted-in browser push subscriptions and a durable outbox fed by in-app notifications.
+
+23. `0023_operational_event_hooks.sql` — emits idempotent events for core state changes and opens actionable cases for incidents, blocked tasks, and failed shipments.
