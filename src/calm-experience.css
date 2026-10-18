@@ -1611,7 +1611,7 @@ html[data-theme="dark"] .bank-primary-button { color:#202a38; }
 @keyframes role-ops-spin { to { transform: rotate(360deg); } }
 .role-ops-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
 .role-ops-metrics-supplier { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-.role-ops-metrics-manager { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.role-ops-metrics-manager { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .role-ops-metrics-driver { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .role-ops-metric { min-width: 0; padding: 17px 18px; border: 1px solid var(--role-ops-line); border-radius: 17px; background: var(--role-ops-panel); box-shadow: var(--medar-calm-shadow, none); }
 .role-ops-metric-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; color: var(--role-ops-muted); font-size: 12px; font-weight: 750; }
