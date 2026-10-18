@@ -485,7 +485,7 @@ function Dashboard({ membership }: { membership: Membership }) {
       dataApi.from('farm_sites').select('id,name,site_type,city,province,latitude,longitude', { count: 'exact' }).eq('company_id', company).eq('active', true).not('latitude', 'is', null).not('longitude', 'is', null).order('name').limit(30),
       dataApi.from('suppliers').select('id,name,city,province,address,latitude,longitude', { count: 'exact' }).eq('company_id', company).eq('active', true).not('latitude', 'is', null).not('longitude', 'is', null).order('name').limit(200),
     ]);
-    const dbError = s.error ?? sh.error ?? cap.error ?? openTasks.error ?? members.error ?? due.error ?? review.error ?? incidents.error ?? failed.error ?? licenses.error ?? audit.error ?? map.error ?? supplierMap.error;
+    const dbError = s.error ?? sh.error ?? cap.error ?? openTasks.error ?? due.error ?? review.error ?? incidents.error ?? failed.error ?? licenses.error ?? audit.error;
     if (dbError) setError(dbError.message);
     setMapError(map.error || supplierMap.error ? 'برای نمایش سایت‌ها و تأمین‌کنندگان روی نقشه، مهاجرت‌های موقعیت را روی پایگاه داده اجرا کن.' : '');
     const rowCount = (result: { count: number | null; data: unknown[] | null }) => result.count ?? result.data?.length ?? 0;
