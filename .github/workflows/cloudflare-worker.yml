@@ -367,6 +367,14 @@ jobs:
               throw new Error('Central panel did not show the live client: HTTP ' + presenceResponse.status + ' ' + JSON.stringify(presenceBody));
             }
 
+            stage = 'private-file-storage-readiness';
+            const fileStorage = await post('/api/storage/contract-documents', {}, signupCookie);
+            const fileStorageBody = await fileStorage.json();
+            await saveResult({ status: fileStorage.status, body: fileStorageBody });
+            if (fileStorage.status !== 503 || !String(fileStorageBody.message || '').includes('Cloudflare R2')) {
+              throw new Error('Private file storage readiness must report the documented R2-unavailable state until FILE_STORE is configured: HTTP ' + fileStorage.status + ' ' + JSON.stringify(fileStorageBody));
+            }
+
             stage = 'logout';
             const logout = await post('/api/auth/logout', {}, signupCookie);
             await saveResult({ status: logout.status, body: await logout.json() });
