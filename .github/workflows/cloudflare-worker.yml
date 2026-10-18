@@ -302,7 +302,7 @@ jobs:
             return response.text();
           };
           const [js, css] = await Promise.all([Promise.all(jsPaths.map(getText)), Promise.all(cssPaths.map(getText))]);
-          if (!js.join('\n').includes('simorgh-signin-layer') || !js.join('\n').includes('ثبت‌نام عمومی غیرفعال است')) throw new Error('Live operational JS bundle is missing sign-in/registration.');
+          if (!js.join('\n').includes('simorgh-signin-layer') || !js.join('\n').includes('ثبت‌نام عمومی غیرفعال است')) throw new Error('Live operational JS bundle is missing private sign-in/registration gating.');
           if (!css.join('\n').includes('simorgh-signin-layer')) throw new Error('Live operational CSS is missing the sign-in surface.');
           const deepLink = await fetch(base + '/app/command');
           if (!deepLink.ok || !(await deepLink.text()).includes('id="root"')) throw new Error('Operational /app/command deep-link failed.');
@@ -315,7 +315,7 @@ jobs:
       - name: Install Chromium for live Worker verification
         run: npx playwright install --with-deps chromium
 
-      - name: Verify live operational sign-in and owner registration UI in Chromium
+      - name: Verify live operational sign-in and private registration gating in Chromium
         shell: bash
         run: |
           worker_url="$(grep -Eo 'https://medar-ops\.[a-z0-9-]+\.workers\.dev' /tmp/medar-ops-deploy.log 2>/dev/null | tail -n1 || true)"
