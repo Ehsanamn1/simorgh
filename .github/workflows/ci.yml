@@ -88,7 +88,7 @@ jobs:
               exists (select 1 from pg_trigger where tgname='medar_notify_conversation_participants' and not tgisinternal) and
               exists (select 1 from public.medar_schema_migrations where version='0024_connect_task_notifications.sql') and
               exists (select 1 from public.medar_schema_migrations where version='0025_supplier_location_details.sql') and
-              (select count(*) from information_schema.columns where table_schema='public' and table_name='suppliers' and column_name in ('province','address')) = 2 and
+              (select count(*) from information_schema.columns where table_schema='public' and table_name='suppliers' and column_name in ('province','address','latitude','longitude')) = 4 and
               to_regprocedure('public.medar_check_membership_permission_company()') is not null and
               (select count(*) from information_schema.columns where table_schema='public' and table_name in ('customers','suppliers') and column_name in ('email','organization_name','contact_notes','contact_tags','contact_source')) = 10 and
               (select is_nullable = 'YES' from information_schema.columns where table_schema='public' and table_name='medar_users' and column_name='phone_e164') and
