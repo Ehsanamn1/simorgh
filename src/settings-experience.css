@@ -205,3 +205,12 @@ html[data-theme="light"] .network-status { background:var(--obs-surface); }
 
 .workspace-home-guide-button { display:inline-flex; align-items:center; gap:8px; margin-top:14px; padding:10px 14px; min-height:40px; border:1px solid color-mix(in srgb,var(--obs-accent) 45%,var(--obs-border)); border-radius:11px; background:color-mix(in srgb,var(--obs-accent) 9%,var(--obs-surface)); color:var(--obs-text); font-size:12px; font-weight:900; cursor:pointer; }
 .workspace-home-guide-button:hover { background:color-mix(in srgb,var(--obs-accent) 16%,var(--obs-surface)); }
+
+.tower-recent-activity-list { display:grid; gap:0; }
+.tower-recent-activity-row { display:flex; align-items:center; gap:12px; min-height:58px; padding:10px 2px; border-bottom:1px solid var(--obs-border); color:var(--obs-text); text-decoration:none; }
+.tower-recent-activity-row:last-child { border-bottom:0; }
+.tower-recent-activity-row > span:nth-child(2) { display:grid; gap:4px; min-width:0; flex:1; }
+.tower-recent-activity-row b { font-size:12px; font-weight:850; }
+.tower-recent-activity-row small { color:var(--obs-muted); font-size:11px; }
+.tower-recent-activity-icon { display:grid; place-items:center; width:32px; height:32px; flex:none; border:1px solid var(--obs-border); border-radius:10px; color:var(--obs-accent); background:var(--obs-surface-2); }
+.tower-recent-activity-row:hover { background:var(--obs-surface-2); }
