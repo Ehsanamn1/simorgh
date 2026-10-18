@@ -18,8 +18,8 @@ type Field = {
 };
 type Column = { key: string; label: string; value?: (row: Row, refs: RefData) => string };
 type Config = { title: string; eyebrow: string; description: string; table: string; icon: typeof Warehouse; columns: Column[] };
-type RefData = { suppliers: Row[]; sites: Row[]; batches: Row[]; templates: Row[]; agreements: Row[]; financeEntries: Row[]; products: Row[] };
-const emptyRefs: RefData = { suppliers: [], sites: [], batches: [], templates: [], agreements: [], financeEntries: [], products: [] };
+type RefData = { suppliers: Row[]; sites: Row[]; batches: Row[]; templates: Row[]; agreements: Row[]; financeEntries: Row[]; products: Row[]; lots: Row[]; qualityReviews: Row[] };
+const emptyRefs: RefData = { suppliers: [], sites: [], batches: [], templates: [], agreements: [], financeEntries: [], products: [], lots: [], qualityReviews: [] };
 const expenses: Option[] = [
   {value:'feed',label:'خوراک'},{value:'production',label:'تولید'},{value:'packaging',label:'بسته‌بندی'},
   {value:'processing',label:'فرآوری'},{value:'logistics',label:'حمل‌ونقل'},{value:'veterinary',label:'دامپزشکی'},
@@ -33,7 +33,7 @@ const evidenceTypes: Option[] = [
 ];
 const statusFa: Record<string,string> = {
   draft:'پیش‌نویس', pending_signature:'در انتظار امضا', active:'فعال', suspended:'معلق', expired:'منقضی',
-  terminated:'خاتمه‌یافته', planned:'برنامه‌ریزی‌شده', in_progress:'در حال انجام', submitted:'ارسال برای بررسی',
+  terminated:'خاتمه‌یافته', planned:'برنامه‌ریزی‌شده', in_progress:'در حال انجام', submitted:'ارسال برای بررسی', submitted_for_review:'در انتظار بازبینی',
   approved:'تأییدشده', rejected:'ردشده', completed:'تکمیل‌شده', on_hold:'متوقف', cancelled:'لغوشده',
   eggs:'تخم‌مرغ', meat:'گوشت', crop:'کشت و محصولات زراعی', livestock:'دام و فرآورده دامی',
   poultry:'طیور', aquaculture:'آبزی‌پروری', dairy:'لبنیات', greenhouse:'گلخانه', orchard:'باغ',
@@ -41,7 +41,7 @@ const statusFa: Record<string,string> = {
   processing:'فرآوری', warehouse:'انبار', distribution:'توزیع',
   farm_product:'محصول مزرعه', input:'نهاده و مواد اولیه', feed:'خوراک', equipment:'تجهیزات',
   processed:'محصول فرآوری‌شده', service:'خدمات', other:'سایر', unit:'واحد',
-  not_inspected:'بازرسی‌نشده', passed:'قبول',
+  not_inspected:'بازرسی‌نشده', passed:'قبول', pass:'قبول', failed:'رد شده', released:'آزادشده',
   pending_review:'در انتظار بازبینی', open:'باز', investigating:'در حال بررسی', action_required:'نیازمند اقدام',
   resolved:'رفع‌شده', closed:'بسته', sale_invoice:'فاکتور فروش', sale_collection:'دریافت فروش',
   expense:'هزینه', partner_advance:'پیش‌پرداخت شریک', settlement_payment:'پرداخت تسویه',
@@ -184,11 +184,16 @@ export function OperationsWorkspacePage({kind,membership,search}:{kind:Operation
   const [paymentRef,setPaymentRef]=useState('');
   const [periodStart,setPeriodStart]=useState('');
   const [periodEnd,setPeriodEnd]=useState('');
+  const [batchReview,setBatchReview]=useState<Row|null>(null);
+  const [batchProduced,setBatchProduced]=useState('');
+  const [batchRejected,setBatchRejected]=useState('0');
+  const [batchCompletion,setBatchCompletion]=useState<Row|null>(null);
+  const [batchLotId,setBatchLotId]=useState('');
 
   const load=async()=>{
     if(!dataApi){setError('اتصال API مدار در این build تنظیم نشده است.');setLoading(false);return;}
     setLoading(true);setError('');
-    const [main,suppliers,sites,batches,templates,agreements,entries,products]=await Promise.all([
+    const [main,suppliers,sites,batches,templates,agreements,entries,products,lots,qualityReviews]=await Promise.all([
       dataApi.from(cfg.table).select('*').eq('company_id',membership.company_id).order('created_at',{ascending:false}).limit(200),
       dataApi.from('suppliers').select('id,name,city,active').eq('company_id',membership.company_id).order('name').limit(300),
       dataApi.from('farm_sites').select('id,site_code,name,supplier_id,active').eq('company_id',membership.company_id).order('name').limit(300),
@@ -197,14 +202,20 @@ export function OperationsWorkspacePage({kind,membership,search}:{kind:Operation
       dataApi.from('partnership_agreements').select('id,supplier_id,agreement_code,version,status,effective_from,effective_to,shared_expense_categories,settlement_basis,company_profit_share_pct,partner_profit_share_pct').eq('company_id',membership.company_id).order('created_at',{ascending:false}).limit(200),
       dataApi.from('partner_financial_entries').select('id,agreement_id,supplier_id,entry_type,status,amount,paid_amount,external_reference,recognized_on').eq('company_id',membership.company_id).order('created_at',{ascending:false}).limit(300),
       dataApi.from('products').select('id,name,sku').eq('company_id',membership.company_id).order('name').limit(300),
+      dataApi.from('lots').select('id,code,supplier_id,product_id,status').eq('company_id',membership.company_id).order('created_at',{ascending:false}).limit(300),
+      dataApi.from('quality_reviews').select('id,lot_id,result').eq('company_id',membership.company_id).order('reviewed_at',{ascending:false}).limit(500),
     ]);
     if(main.error){setError(main.error.message);setRows([]);}else setRows((main.data??[]) as unknown as Row[]);
     setRefs({
       suppliers:(suppliers.data??[]) as unknown as Row[],sites:(sites.data??[]) as unknown as Row[],
       batches:(batches.data??[]) as unknown as Row[],templates:(templates.data??[]) as unknown as Row[],
       agreements:(agreements.data??[]) as unknown as Row[],financeEntries:(entries.data??[]) as unknown as Row[],
-      products:(products.data??[]) as unknown as Row[],
+      products:(products.data??[]) as unknown as Row[],lots:(lots.data??[]) as unknown as Row[],
+      qualityReviews:(qualityReviews.data??[]) as unknown as Row[],
     });
+    if(kind==='production-batches'&&(lots.error||qualityReviews.error)){
+      setError(lots.error?.message??qualityReviews.error?.message??'دریافت لات‌ها و نتایج کنترل کیفیت ناموفق بود.');
+    }
     setLoading(false);
   };
   useEffect(()=>{void load();},[kind,membership.company_id,membership.role]);
@@ -236,11 +247,12 @@ export function OperationsWorkspacePage({kind,membership,search}:{kind:Operation
         {name:'notes',label:'یادداشت',type:'textarea',full:true},
       ],
       'production-batches':[
-        {name:'farm_site_id',label:'سایت مزرعه',type:'select',required:true,options:sites},{name:'batch_code',label:'کد بچ',required:true},
+        {name:'farm_site_id',label:'سایت مزرعه دارای تأمین‌کننده',type:'select',required:true,options:refs.sites.filter(r=>r.active!==false&&Boolean(r.supplier_id)).map(siteOpt)},
+        {name:'batch_code',label:'کد بچ',required:true},
         {name:'production_kind',label:'نوع محصول',type:'select',options:types,required:true},
-        {name:'product_id',label:'محصول در کاتالوگ',type:'select',options:refs.products.map(r=>({value:String(r.id),label:String(r.name??r.sku??r.id)}))},
+        {name:'product_id',label:'محصول در کاتالوگ',type:'select',required:true,options:refs.products.map(r=>({value:String(r.id),label:String(r.name??r.sku??r.id)}))},
         {name:'unit',label:'واحد',required:true,defaultValue:'کیلوگرم'},{name:'planned_quantity',label:'مقدار برنامه',type:'number',min:'0',step:'0.001'},
-        {name:'started_on',label:'تاریخ شروع',type:'date'},{name:'expected_on',label:'تاریخ پایان مورد انتظار',type:'date'},
+        {name:'expected_on',label:'تاریخ پایان مورد انتظار',type:'date'},
         {name:'manager_notes',label:'یادداشت مدیر',type:'textarea',full:true},
       ],
       'daily-production':[
