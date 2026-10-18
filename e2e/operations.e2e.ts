@@ -1013,3 +1013,82 @@ test('role home loads the real notification inbox and acknowledges an unread bri
   await expect(page.getByRole('heading', { name: 'اعلان‌های من' })).toContainText('۰');
   expect(markReadCalls).toBe(1);
 });
+
+test('finance bank reconciliation imports real CSV rows without duplicating transactions', async ({ page }) => {
+  await installIsolatedSession(page, 'owner');
+  const accountId = '00000000-0000-4000-8000-000000000301';
+  let accountCreated = false;
+  let importedPayload: { companyId?: string; accountId?: string; transactions?: Array<Record<string, unknown>> } | null = null;
+  let importCalls = 0;
+  const account = {
+    id: accountId, label: 'حساب تست عملیات', bankName: 'بانک نمونه', maskedAccount: '****1234',
+    currency: 'IRR', provider: 'manual_csv', connectionStatus: 'manual_import', active: true,
+    lastImportedAt: null, createdAt: new Date().toISOString(), transactionCount: importCalls ? 1 : 0,
+    unmatchedCount: importCalls ? 1 : 0,
+  };
+
+  await page.route('**/api/finance/bank-accounts**', async route => {
+    if (route.request().method() === 'POST') {
+      const body = route.request().postDataJSON() as { companyId: string; label: string; maskedAccount: string };
+      expect(body.companyId).toBe(companyId);
+      expect(body.label).toBe('حساب تست عملیات');
+      expect(body.maskedAccount).toBe('****1234');
+      accountCreated = true;
+      await route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ account }) });
+      return;
+    }
+    await route.fulfill({
+      status: 200, contentType: 'application/json',
+      body: JSON.stringify({
+        accounts: accountCreated ? [{ ...account, transactionCount: importCalls, unmatchedCount: importCalls }] : [],
+        summary: { total: importCalls, unmatched: importCalls, reconciled: 0 },
+        capabilities: { canCreate: true, canUpdate: true, canDelete: false, canReconcile: true },
+      }),
+    });
+  });
+  await page.route('**/api/finance/bank-transactions/import', async route => {
+    expect(route.request().method()).toBe('POST');
+    importedPayload = route.request().postDataJSON() as { companyId?: string; accountId?: string; transactions?: Array<Record<string, unknown>> };
+    expect(importedPayload.companyId).toBe(companyId);
+    expect(importedPayload.accountId).toBe(accountId);
+    importCalls += 1;
+    await route.fulfill({
+      status: 200, contentType: 'application/json',
+      body: JSON.stringify({ inserted: importCalls === 1 ? 1 : 0, skippedDuplicates: importCalls === 1 ? 0 : 1, submitted: 1 }),
+    });
+  });
+  await page.route('**/api/finance/bank-transactions?**', async route => {
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ transactions: [] }) });
+  });
+
+  await page.goto('/simorgh/app/finance', { waitUntil: 'domcontentloaded' });
+  const bank = page.locator('.bank-reconciliation');
+  await expect(bank.getByRole('heading', { name: 'صورت‌حساب بانکی و تطبیق تراکنش' })).toBeVisible();
+  await bank.getByRole('button', { name: 'حساب جدید' }).click();
+  await bank.getByLabel('نام نمایشی حساب').fill('حساب تست عملیات');
+  await bank.getByLabel('نام بانک').fill('بانک نمونه');
+  await bank.getByLabel('چهار رقم پایانی (اختیاری)').fill('****1234');
+  await bank.getByRole('button', { name: 'ثبت حساب' }).click();
+  await expect(bank.getByRole('button', { name: /حساب تست عملیات/ })).toBeVisible();
+
+  const csv = [
+    'transaction_id,date,amount,currency,description,counterparty,reference',
+    'TXN-000001,2026-10-18,1250.50,IRR,"خرید, خوراک",فروشگاه,REF-12345',
+  ].join('\n');
+  const fileInput = bank.locator('input[type="file"]');
+  await fileInput.setInputFiles({ name: 'statement.csv', mimeType: 'text/csv', buffer: Buffer.from(csv) });
+  await expect(bank.getByText(/۱ تراکنش جدید ثبت شد/)).toBeVisible();
+  expect(importCalls).toBe(1);
+  expect(importedPayload!.transactions).toHaveLength(1);
+  expect(importedPayload!.transactions![0]).toMatchObject({
+    externalTransactionId: 'TXN-000001',
+    amount: 1250.5,
+    description: 'خرید, خوراک',
+    counterparty: 'فروشگاه',
+    reference: 'REF-12345',
+  });
+
+  await fileInput.setInputFiles({ name: 'statement.csv', mimeType: 'text/csv', buffer: Buffer.from(csv) });
+  await expect(bank.getByText(/۰ تراکنش جدید ثبت شد و ۱ مورد تکراری نادیده گرفته شد/)).toBeVisible();
+  expect(importCalls).toBe(2);
+});
