@@ -26,7 +26,6 @@ import { MedarConnect } from './MedarConnect';
 import { OperationalExceptionInbox } from './OperationalExceptionInbox';
 import type { AppRole, Membership, PageKey, Row } from './lib/types';
 import { dateFa, dateTimeFa, moneyFa, numberFa, orderLabel, roleLabel, statusLabel, statusTone } from './lib/format';
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import DemoWorkspace from './DemoWorkspace';
 
 const PAGE_PERMISSION_MODULE: Record<PageKey, string> = {
