@@ -1,3 +1,4 @@
+/* global self, URL */
 /* Medar Web Push service worker. Push is shown only for explicitly subscribed devices. */
 self.addEventListener('push', event => {
   let data = {};
