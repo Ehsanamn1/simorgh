@@ -329,12 +329,15 @@ test('supplier workspace keeps manager-only routes out of the allowed menu', asy
   await expect(page.locator('.workspace-home-hero')).toContainText('برنامه‌ی امروز تأمین‌کننده');
   await page.screenshot({ path: testInfo.outputPath('supplier-role-home-viewport.png') });
   await page.screenshot({ path: testInfo.outputPath('supplier-role-home.png'), fullPage: true });
-  const supplierGroup = page.locator('.nav-group').filter({ has: page.locator('summary', { hasText: /^تأمین/ }) });
-  await supplierGroup.locator('summary').click();
-  await expect(supplierGroup.getByRole('link', { name: /کارهای واگذارشده/ })).toBeVisible();
+  const operationsGroup = page.locator('.nav-group').filter({ has: page.locator('summary', { hasText: /^عملیات و تولید/ }) });
+  await operationsGroup.locator('summary').click();
+  await expect(operationsGroup.getByRole('link', { name: /کارهای واگذارشده/ })).toBeVisible();
   await expect(page.getByRole('link', { name: /دستورالعمل‌های کاری/ })).toHaveCount(0);
   await expect(page.getByRole('link', { name: /دسترسی کاربران/ })).toHaveCount(0);
-  await expect(supplierGroup.getByRole('link', { name: /تسویه‌های من/ })).toBeVisible();
+  const financeGroup = page.locator('.nav-group').filter({ has: page.locator('summary', { hasText: /^مالی و دسترسی/ }) });
+  await financeGroup.locator('summary').click();
+  await expect(financeGroup.getByRole('link', { name: /تسویه‌های من/ })).toBeVisible();
+  await expect(page.locator('.nav-group')).toHaveCountLessThan(8);
   expect(errors).toEqual([]);
 });
 
