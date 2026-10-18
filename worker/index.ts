@@ -2615,6 +2615,20 @@ export function isPartnerFinancialEntryReadyToPost(
     typeof externalReference === 'string' && externalReference.trim().length > 0;
 }
 
+export function isSaleCollectionWithinInvoice(
+  invoiceAmount: unknown,
+  alreadyCollected: unknown,
+  collectionAmount: unknown,
+): boolean {
+  const invoice = Number(invoiceAmount);
+  const collected = Number(alreadyCollected ?? 0);
+  const collection = Number(collectionAmount);
+  return Number.isFinite(invoice) && invoice > 0 &&
+    Number.isFinite(collected) && collected >= 0 &&
+    Number.isFinite(collection) && collection > 0 &&
+    collected + collection <= invoice;
+}
+
 export function isBankReconciliationDirectionCompatible(
   entityType: string,
   transactionDirection: string,
@@ -2891,6 +2905,63 @@ app.post('/api/data/:table',async c=>{
     const nextState = String(requestedState);
     if (!canTransitionMedarStatus(table, currentState, nextState)) {
       return c.json({ message: 'این انتقال وضعیت با گردش‌کار فعلی مجاز نیست.' }, 422);
+    }
+    if (table === 'partner_financial_entries' && ['submitted','approved','posted'].includes(nextState)) {
+      const supplierId = current.supplier_id;
+      const agreementId = current.agreement_id;
+      if (typeof supplierId !== 'string' || !/^[0-9a-f-]{36}$/i.test(supplierId) ||
+          typeof agreementId !== 'string' || !/^[0-9a-f-]{36}$/i.test(agreementId)) {
+        return c.json({ message: 'برای ثبت سند مالی، شریک و قرارداد معتبر لازم است.' }, 422);
+      }
+      const agreementRows = await runForUser(c, user.id,
+        'select shared_expense_categories from public.partnership_agreements where id=$1::uuid and company_id=$2::uuid and supplier_id=$3::uuid limit 1',
+        [agreementId, current.company_id, supplierId],
+      ) as Array<{ shared_expense_categories?: unknown }>;
+      if (!agreementRows.length) {
+        return c.json({ message: 'قرارداد انتخاب‌شده به همین شریک و شرکت تعلق ندارد.' }, 422);
+      }
+      const sharedCategories = Array.isArray(agreementRows[0].shared_expense_categories)
+        ? agreementRows[0].shared_expense_categories.map(String) : [];
+      if (current.entry_type === 'expense' && current.is_shared_cost === true &&
+          (typeof current.expense_category !== 'string' || !sharedCategories.includes(current.expense_category))) {
+        return c.json({ message: 'این دسته هزینه در قرارداد به‌عنوان هزینهٔ مشترک مجاز نشده است.' }, 422);
+      }
+      if (current.entry_type === 'sale_collection') {
+        const linkedId = current.linked_entry_id;
+        if (typeof linkedId !== 'string' || !/^[0-9a-f-]{36}$/i.test(linkedId)) {
+          return c.json({ message: 'دریافت فروش باید به یک فاکتور ثبت‌شده متصل باشد.' }, 422);
+        }
+        const invoiceRows = await runForUser(c, user.id,
+          "select id, amount from public.partner_financial_entries where id=$1::uuid and company_id=$2::uuid and supplier_id=$3::uuid and agreement_id=$4::uuid and entry_type='sale_invoice' and status='posted' limit 1",
+          [linkedId, current.company_id, supplierId, agreementId],
+        ) as Array<{ id: string; amount: unknown }>;
+        if (!invoiceRows.length) {
+          return c.json({ message: 'فاکتور مرجع باید ثبت‌شده و متعلق به همین شریک و قرارداد باشد.' }, 422);
+        }
+        if (nextState === 'posted') {
+          const collectedRows = await runForUser(c, user.id,
+            "select coalesce(sum(amount),0)::text as collected from public.partner_financial_entries where company_id=$1::uuid and entry_type='sale_collection' and status='posted' and linked_entry_id=$2::uuid and id<>$3::uuid",
+            [current.company_id, linkedId, current.id],
+          ) as Array<{ collected: unknown }>;
+          if (!isSaleCollectionWithinInvoice(invoiceRows[0].amount, collectedRows[0]?.collected ?? 0, current.amount)) {
+            return c.json({ message: 'مجموع دریافت‌های ثبت‌شده نمی‌تواند از مبلغ فاکتور بیشتر شود.' }, 422);
+          }
+        }
+      }
+      if (current.entry_type === 'adjustment') {
+        const linkedId = current.linked_entry_id;
+        if (typeof linkedId !== 'string' || !/^[0-9a-f-]{36}$/i.test(linkedId) ||
+            !['increase','decrease'].includes(String(current.adjustment_effect))) {
+          return c.json({ message: 'سند تعدیلی باید به یک سند ثبت‌شده و اثر تعدیل مشخص متصل باشد.' }, 422);
+        }
+        const sourceRows = await runForUser(c, user.id,
+          "select id from public.partner_financial_entries where id=$1::uuid and company_id=$2::uuid and supplier_id=$3::uuid and agreement_id=$4::uuid and status='posted' and entry_type<>'adjustment' limit 1",
+          [linkedId, current.company_id, supplierId, agreementId],
+        );
+        if (!sourceRows.length) {
+          return c.json({ message: 'سند تعدیلی باید به یک سند ثبت‌شده از همان شریک و قرارداد متصل باشد.' }, 422);
+        }
+      }
     }
     if (table === 'partner_financial_entries' && nextState === 'posted' &&
         !isPartnerFinancialEntryReadyToPost(current.entry_type,current.payment_status,current.paid_amount,current.amount,current.external_reference)) {
