@@ -477,7 +477,7 @@ async function requestAiProvider(provider: AiProvider, model: string, key: strin
               return {
                 role: 'user',
                 content: [
-                  { type: 'input_file', filename: attachment.name, file_data: 'data:' + attachment.mimeType + ';base64,' + attachment.base64, detail: 'auto' },
+                  { type: 'input_file', filename: attachment.name, file_data: 'data:' + attachment.mimeType + ';base64,' + attachment.base64 },
                   { type: 'input_text', text: message.content },
                 ],
               };
@@ -649,6 +649,7 @@ app.post('/api/ai/chat', async (c) => {
       last.content += '\n\nمحتوای فایل ' + attachmentName + ':\n' + attachmentText;
     }
     const base64 = typeof attachmentRaw.base64 === 'string' ? attachmentRaw.base64 : '';
+    if (!attachmentText && !base64) return c.json({ message: 'محتوای فایل پیوست خالی است.' }, 422);
     if (base64) {
       const mimeType = typeof attachmentRaw.mimeType === 'string' ? attachmentRaw.mimeType : '';
       const allowedMimeTypes = new Set([
@@ -665,9 +666,6 @@ app.post('/api/ai/chat', async (c) => {
       if (!allowedMimeTypes.has(mimeType)) return c.json({ message: 'نوع فایل باینری پشتیبانی نمی‌شود.' }, 415);
       if (base64.length > 8388608 || base64.length % 4 !== 0 || !/^[A-Za-z0-9+/]+={0,2}$/.test(base64)) {
         return c.json({ message: 'فایل کدگذاری معتبر ندارد یا بیش از ۶ مگابایت است.' }, 413);
-      }
-      if (mimeType !== 'application/pdf' && attachmentText.length === 0) {
-        // Office files remain as opaque base64 and are sent only to providers with documented file input support.
       }
       providerAttachment = { name: attachmentName, mimeType, base64 };
     }

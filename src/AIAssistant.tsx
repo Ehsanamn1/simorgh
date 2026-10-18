@@ -243,6 +243,14 @@ export function AIAssistant({ companyId, role, userName }: AIAssistantProps) {
       if (isAdmin) setSettingsOpen(true);
       return;
     }
+    if (attached?.base64 && activeProvider === 'deepseek') {
+      setError('DeepSeek در مسیر فعلی فایل باینری را پردازش نمی‌کند. برای PDF از OpenAI، Gemini یا Claude استفاده کن.');
+      return;
+    }
+    if (attached?.base64 && activeProvider !== 'openai' && attached.mimeType !== 'application/pdf') {
+      setError('اسناد Office فعلاً فقط با OpenAI پشتیبانی می‌شوند. برای Gemini یا Claude، سند را به PDF تبدیل کن.');
+      return;
+    }
     const outgoing: ChatMessage = { role: 'user', content: content || 'لطفاً فایل پیوست‌شده را بررسی و خلاصه کن.', ...(attached ? { attachmentName: attached.name } : {}) };
     const next = [...messages, outgoing];
     setMessages(next);

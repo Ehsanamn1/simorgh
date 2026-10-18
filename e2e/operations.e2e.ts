@@ -377,6 +377,51 @@ test('manager AI assistant opens in-panel with provider settings but no client k
   await expect(page.getByText(/کلید فقط به API امن مدار فرستاده می‌شود/)).toBeVisible();
 });
 
+test('AI assistant sends a PDF attachment through the selected provider boundary', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop-chromium', 'Validate binary PDF packaging once; responsive layout is covered in all viewport projects.');
+  await installIsolatedSession(page, 'owner');
+  const companyId = '00000000-0000-4000-8000-000000000022';
+  await page.route('**/api/ai/providers*', async route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({
+      companyId, activeProvider: 'openai', canConfigure: true,
+      providers: [
+        { provider: 'openai', model: 'gpt-6-luna', configured: true, isDefault: true, updatedAt: null },
+        { provider: 'gemini', model: 'gemini-4-argon', configured: false, isDefault: false, updatedAt: null },
+        { provider: 'deepseek', model: 'deepseek-flash', configured: false, isDefault: false, updatedAt: null },
+        { provider: 'anthropic', model: 'claude-sonnet-5', configured: false, isDefault: false, updatedAt: null },
+      ],
+    }),
+  }));
+  const pdf = Buffer.from('%PDF-1.7\\n1 0 obj\\n<< /Type /Catalog >>\\nendobj\\n%%EOF', 'utf8');
+  let submitted: Record<string, unknown> | undefined;
+  await page.route('**/api/ai/chat', async route => {
+    submitted = route.request().postDataJSON() as Record<string, unknown>;
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ content: 'تحلیل آزمایشی فایل انجام شد.', provider: 'openai', model: 'gpt-6-luna' }),
+    });
+  });
+  await page.goto('/simorgh/app/command', { waitUntil: 'domcontentloaded' });
+  await page.getByRole('button', { name: 'بازکردن دستیار هوش مصنوعی' }).click();
+  const dialog = page.getByRole('dialog', { name: 'دستیار مدار' });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.locator('.ai-composer-actions small')).toContainText('OpenAI');
+  await dialog.locator('input[type="file"]').setInputFiles({
+    name: 'operations.pdf', mimeType: 'application/pdf', buffer: pdf,
+  });
+  await expect(dialog.locator('.ai-attachment-chip')).toContainText('operations.pdf');
+  await dialog.getByRole('textbox', { name: 'پیام به دستیار' }).fill('این سند را خلاصه کن.');
+  await dialog.getByRole('button', { name: 'ارسال پیام' }).click();
+  await expect(dialog.locator('.ai-message.assistant')).toContainText('تحلیل آزمایشی فایل انجام شد.');
+  const attachment = submitted?.attachment as { name?: string; mimeType?: string; base64?: string } | undefined;
+  expect(attachment?.name).toBe('operations.pdf');
+  expect(attachment?.mimeType).toBe('application/pdf');
+  expect(attachment?.base64).toBe(pdf.toString('base64'));
+});
+
 test('manager can preview and import a mixed supplier/customer CSV with duplicate phone removal', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop-chromium', 'Validate import API payload once; compact layout is covered by general responsive checks.');
   await installIsolatedSession(page, 'owner');
