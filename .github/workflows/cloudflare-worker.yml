@@ -165,9 +165,9 @@ jobs:
         working-directory: worker
         shell: bash
         env:
-          MEDAR_VAPID_PUBLIC_KEY: \${{ secrets.MEDAR_VAPID_PUBLIC_KEY }}
-          MEDAR_VAPID_PRIVATE_KEY: \${{ secrets.MEDAR_VAPID_PRIVATE_KEY }}
-          MEDAR_VAPID_SUBJECT: \${{ secrets.MEDAR_VAPID_SUBJECT }}
+          MEDAR_VAPID_PUBLIC_KEY: ${{ secrets.MEDAR_VAPID_PUBLIC_KEY }}
+          MEDAR_VAPID_PRIVATE_KEY: ${{ secrets.MEDAR_VAPID_PRIVATE_KEY }}
+          MEDAR_VAPID_SUBJECT: ${{ secrets.MEDAR_VAPID_SUBJECT }}
         run: |
           set -euo pipefail
           if [[ -n "$MEDAR_VAPID_PUBLIC_KEY" || -n "$MEDAR_VAPID_PRIVATE_KEY" || -n "$MEDAR_VAPID_SUBJECT" ]]; then
