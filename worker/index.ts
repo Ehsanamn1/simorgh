@@ -3160,6 +3160,41 @@ app.post('/api/data/:table',async c=>{
       updateParams.push(value);
       return quoteSqlIdentifier(key) + ' = $' + updateParams.length;
     }).join(',');
+    const isSaleCollectionPosting = table === 'partner_financial_entries' &&
+      nextState === 'posted' && current.entry_type === 'sale_collection' &&
+      typeof current.linked_entry_id === 'string';
+    if (isSaleCollectionPosting) {
+      const invoiceId = String(current.linked_entry_id);
+      const txSql = sqlFor(c);
+      const txParams: unknown[] = [...updateParams, String(current.id), currentState, String(current.company_id), invoiceId];
+      const idParam = updateParams.length + 1;
+      const stateParam = updateParams.length + 2;
+      const companyParam = updateParams.length + 3;
+      const invoiceParam = updateParams.length + 4;
+      // Serialize postings for the same invoice. The aggregate is re-read in a
+      // separate statement after acquiring the invoice row lock, so concurrent
+      // collection requests cannot both spend the same remaining balance.
+      const transactionResult = await txSql.transaction([
+        txSql.query("select set_config('medar.user_id', $1, true)", [user.id]),
+        txSql.query(
+          "select id from public.partner_financial_entries where id=$1::uuid and company_id=$2::uuid and entry_type='sale_invoice' and status='posted' for update",
+          [invoiceId, String(current.company_id)],
+        ),
+        txSql.query(
+          'update public.partner_financial_entries as target set ' + setSql +
+          ' where target.id = $' + idParam +
+          ' and target.status = $' + stateParam +
+          ' and target.company_id = $' + companyParam +
+          " and target.entry_type = 'sale_collection' and target.linked_entry_id = $" + invoiceParam + '::uuid' +
+          " and coalesce((select sum(col.amount) from public.partner_financial_entries col where col.company_id=target.company_id and col.entry_type='sale_collection' and col.status='posted' and col.linked_entry_id=target.linked_entry_id and col.id<>target.id),0) + target.amount <= " +
+          "(select inv.amount from public.partner_financial_entries inv where inv.id=target.linked_entry_id and inv.company_id=target.company_id and inv.entry_type='sale_invoice' and inv.status='posted') returning target.*",
+          txParams,
+        ),
+      ]);
+      const updated = (transactionResult[2] ?? []) as Record<string, unknown>[];
+      if (!updated.length) return c.json({ message: 'ماندهٔ فاکتور برای ثبت این دریافت کافی نیست یا وضعیت سند هم‌زمان تغییر کرده است؛ فهرست را تازه‌سازی کن.' }, 409);
+      return c.json({ data: sanitizeExternalRows(table, updated, scopes), count: updated.length, error: null });
+    }
     updateParams.push(String(current.id));
     const idParam = updateParams.length;
     updateParams.push(current[stateField]);
