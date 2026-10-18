@@ -12,6 +12,7 @@ const asText = (value: unknown) => typeof value === 'string' ? value : '';
 const isIn = (value: unknown, values: string[]) => values.includes(asText(value));
 const faNumber = (value: number) => new Intl.NumberFormat('fa-IR').format(value);
 const dayLabel = () => new Intl.DateTimeFormat('fa-IR', { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date());
+const tehranToday = () => new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Tehran' });
 
 export function OperationsRoleExperience({ role, membership, children }: Props) {
   const [rows, setRows] = useState<Record<string, RecordRow[]>>({});
@@ -85,6 +86,7 @@ export function OperationsRoleExperience({ role, membership, children }: Props) 
     const capacity = rows.capacity ?? [];
     if (role === 'manager') return [
       { label: 'سفارش‌های باز', value: orders.filter(row => !isIn(row.status, ['delivered', 'cancelled', 'completed'])).length, note: 'از ثبت تا تحویل', tone: 'neutral', icon: Package },
+      { label: 'سفارش‌های عقب‌افتاده', value: orders.filter(row => !isIn(row.status, ['delivered', 'cancelled', 'completed']) && asText(row.requested_delivery) !== '' && asText(row.requested_delivery).slice(0, 10) < tehranToday()).length, note: 'موعد گذشته و هنوز نهایی نشده', tone: 'warning', icon: Clock3 },
       { label: 'ارسال‌های فعال', value: shipments.filter(row => !isIn(row.stage, ['delivered', 'returned', 'failed', 'cancelled'])).length, note: 'در مسیر یا آماده ارسال', tone: 'neutral', icon: Truck },
       { label: 'کارهای نیازمند اقدام', value: tasks.filter(row => !isIn(row.status, ['approved', 'cancelled', 'completed'])).length, note: 'کارهای باز و در انتظار بررسی', tone: tasks.some(row => isIn(row.status, ['blocked', 'rejected'])) ? 'warning' : 'neutral', icon: Clock3 },
       { label: 'رخدادهای باز', value: incidents.filter(row => !isIn(row.status, ['resolved', 'closed', 'cancelled'])).length, note: 'مواردی که باید پیگیری شوند', tone: incidents.some(row => isIn(row.status, ['open', 'action_required'])) ? 'warning' : 'positive', icon: AlertTriangle },
