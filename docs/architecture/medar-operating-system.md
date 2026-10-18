@@ -141,7 +141,7 @@ Required gates for new operational workflows:
 
 ### Scheduled in-app briefing
 
-The Worker runs a daily scheduled task at 01:30 UTC. It reads real open tasks, late orders, incidents, shipments, invoices, and supplier capacity according to each active membership role, creates a single actionable summary only when records require attention, and uses a database uniqueness key to remain idempotent across retries. Users can read and acknowledge only their own notifications. The schedule does not send SMS, email, or push notifications.
+The Worker runs a daily scheduled task at 01:30 UTC. It reads real open tasks, late orders, incidents, shipments, invoices, and supplier capacity according to each active membership role, creates a single actionable summary only when records require attention, and uses a database uniqueness key to remain idempotent across retries. Users can read and acknowledge only their own notifications. A separate five-minute schedule drains a durable Web Push outbox for devices that explicitly opted in; delivery requires all VAPID secrets to be configured and provider acceptance. SMS, email, and native FCM/APNs delivery are not implemented.
 
 ## Current implementation register (branch status, not a product promise)
 
@@ -154,14 +154,14 @@ The implementation should be assessed by observable behavior and successful test
 - Purchase-order lifecycle and inventory movement protections.
 - CSV bank transaction import, duplicate-safe reconciliation, and manual review; no transfer initiation.
 - Company-scoped AI provider settings, provider connection test, chat, inert action proposals, and explicitly confirmed task-creation execution.
-- In-app notifications and an idempotent scheduled daily briefing based on existing records. The branch adds Medar Connect tenant-scoped conversations/messages, explicit participant allowlists, retry-safe client message IDs, unread counts, and message-triggered in-app notifications.
+- In-app notifications and an idempotent scheduled daily briefing based on existing records. The branch adds Medar Connect tenant-scoped conversations/messages, explicit participant allowlists, retry-safe client message IDs, unread counts, and message-triggered in-app notifications. It also adds browser Web Push subscription management, VAPID authorization, encrypted payload delivery, an idempotent outbox, bounded retries, endpoint-expiry handling, and explicit opt-in UI. Production push is only live when the deployment has valid VAPID secrets and an actual device subscription.
 - Role-specific home views and responsive navigation.
 
 ### Partial capabilities that must not be described as fully complete
-- The branch now adds a durable tenant-scoped operational event ledger and exception queue with idempotency keys, assignment, due dates, acknowledgement, resolution notes, and a dedicated UI/API. Existing domain workflows are not yet automatically emitting canonical events for every business transition, and full audit/escalation rules remain to be integrated.
+- The branch adds a durable tenant-scoped operational event ledger and exception queue with idempotency keys, assignment, due dates, acknowledgement, resolution notes, and a dedicated UI/API. Database hooks emit events for orders, purchase orders, tasks, shipments, invoices, inventory movements, production batches, quality reviews, and incidents. Automatic exception creation is currently limited to active incidents, blocked/rejected tasks, and failed/returned shipments; complete transition coverage, escalation, and full audit history remain to be integrated.
 - Task templates and task status transitions exist, but there is not yet a general-purpose workflow/rules engine with versioned definitions, retry-safe step execution, timers, and compensation.
 - AI task creation is a narrow approved tool, not general natural-language execution across all modules. Read tools must cite the actual records used and must obey the same server-side permissions as the requesting user.
-- Browser/mobile Push delivery, SMS, and email are not implemented as live delivery channels yet; the current message notification is in-app only. Voice requires a configured provider and successful live session test. UI availability is not evidence of a working provider connection.
+- Web Push delivery code is implemented behind explicit subscription and VAPID configuration, but it is not proven live until production secrets are present and an actual device delivery is verified. Native Android/iOS push, SMS, and email remain unimplemented. Voice requires a configured provider and successful live session test. UI availability is not evidence of a working provider connection.
 - Private object storage depends on a real R2 binding and verified upload/read/delete flows.
 - Fleet display filters stale and future-dated points, but it does not prove background GPS operation on a physical device or user-consent compliance.
 - Banking is an imported-transaction/reconciliation workflow, not a live bank connector. No bank credentials or transfers are supported.
