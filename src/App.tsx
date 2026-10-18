@@ -1215,6 +1215,11 @@ function FinancePage({membership,search}:{membership:Membership;search:string}) 
  const shownInv=invoices.filter(r=>!search||`${r.reference} ${(r.customers as any)?.name??''} ${r.status}`.toLowerCase().includes(search.toLowerCase()));const shownSet=settlements.filter(r=>!search||`${r.invoice_ref??''} ${(r.suppliers as any)?.name??''} ${r.status}`.toLowerCase().includes(search.toLowerCase()));
  return <><PageHeading eyebrow="FINANCE / RECONCILIATION" title="مالی و تسویه" description="فاکتور و تسویه، رکورد تجاری مستقل‌اند. هیچ پرداختی صرفاً با تغییر وضعیت در این صفحه به‌عنوان انتقال بانکی تأیید نمی‌شود." action={internal&&<Button onClick={()=>{setMode('invoice');setForm({order_id:'',customer_id:'',supplier_id:'',reference:'',amount:'',due_date:'',invoice_ref:'',note:''});setOpen(true)}}><Plus size={16}/> صدور فاکتور</Button>}/>{error&&<InlineError error={error} retry={()=>void load()}/>}<div className="finance-notice"><CreditCard size={17}/><span><b>وضعیت مالی، مدرک بانکی نیست.</b> برای ثبت پرداخت واقعی باید سند، تراکنش یا فرآیند تطبیق مالی مجموعه تعریف شود. این نسخه هیچ درگاه بانکی را جعل نمی‌کند.</span></div><section className="panel entity-panel"><div className="panel-heading"><div><span className="section-number">۰۱</span><div><h3>فاکتورهای فروش</h3><p>فاکتورهای مجاز برای حساب فعال</p></div></div><Button variant="soft" onClick={()=>void load()}>تازه‌سازی</Button></div>{loading?<div className="panel-loading"><span className="spinner small"/></div>:shownInv.length?<DataTable rows={shownInv} columns={[{key:'reference',label:'شماره فاکتور'},{key:'customers',label:'مشتری',render:r=>(r.customers as any)?.name??'—'},{key:'orders',label:'سفارش',render:r=>(r.orders as any)?.reference??'—'},{key:'amount',label:'مبلغ',render:r=>moneyFa(String(r.amount))},{key:'paid_amount',label:'پرداخت‌شده',render:r=>moneyFa(String(r.paid_amount))},{key:'due_date',label:'سررسید'},{key:'status',label:'وضعیت',render:r=><Badge value={r.status}/> }]} actions={internal?r=><select aria-label="وضعیت فاکتور" value={String(r.status)} onChange={e=>void updateInvoice(r,e.target.value)}><option value={String(r.status)}>{statusLabel[String(r.status)]??String(r.status)}</option>{['issued','overdue','void'].filter(s=>s!==r.status).map(s=><option key={s} value={s}>{statusLabel[s]}</option>)}</select>:undefined}/>:<EmptyState title="فاکتوری وجود ندارد" description="فاکتورهای واقعی پس از ثبت توسط کاربران مجاز نمایش داده می‌شوند." icon={FileText}/>}</section><section className="panel recent-panel"><div className="panel-heading"><div><span className="section-number orange">۰۲</span><div><h3>تسویه تأمین‌کنندگان</h3><p>وضعیت بدهی و تطبیق داخلی</p></div></div>{internal&&<Button variant="soft" onClick={()=>{setMode('settlement');setForm({...form,amount:'',supplier_id:'',invoice_ref:'',due_date:'',note:''});setOpen(true)}}><Plus size={15}/> ثبت تسویه</Button>}</div>{loading?<div className="panel-loading"><span className="spinner small"/></div>:shownSet.length?<DataTable rows={shownSet} columns={[{key:'suppliers',label:'تأمین‌کننده',render:r=>(r.suppliers as any)?.name??'—'},{key:'invoice_ref',label:'مرجع فاکتور'},{key:'amount',label:'مبلغ',render:r=>moneyFa(String(r.amount))},{key:'due_date',label:'سررسید'},{key:'status',label:'وضعیت',render:r=><Badge value={r.status}/> }]} actions={internal?r=><select aria-label="وضعیت تسویه" value={String(r.status)} onChange={e=>void updateSettlement(r,e.target.value)}><option value={String(r.status)}>{statusLabel[String(r.status)]??String(r.status)}</option>{['approved','paid','disputed'].filter(s=>s!==r.status).map(s=><option key={s} value={s}>{statusLabel[s]}</option>)}</select>:undefined}/>:<EmptyState title="تسویه‌ای ثبت نشده" description="پس از ثبت توافق و سند مالی واقعی، رکورد تسویه اینجا قابل پیگیری است." icon={CreditCard}/>}</section>{open&&<Modal title={mode==='invoice'?'ثبت فاکتور فروش':'ثبت تسویه تأمین‌کننده'} subtitle="ثبت در دیتابیس؛ نه ارسال پول یا صدور سند رسمی به‌صورت خودکار." onClose={()=>setOpen(false)}><form className="record-form" onSubmit={create}>{mode==='invoice'?<><label className="full-span">سفارش<select required value={form.order_id} onChange={e=>{const o=orders.find(x=>x.id===e.target.value);setForm({...form,order_id:e.target.value,customer_id:String(o?.customer_id??'')})}}><option value="">انتخاب سفارش…</option>{orders.map(o=><option key={String(o.id)} value={String(o.id)}>{String(o.reference)} · {(o.customers as any)?.name??''}</option>)}</select></label><label>شماره فاکتور<input required value={form.reference} onChange={e=>setForm({...form,reference:e.target.value})} dir="ltr"/></label><label>مبلغ (تومان)<input type="number" min="0" required value={form.amount} onChange={e=>setForm({...form,amount:e.target.value})} dir="ltr"/></label></>:<><label className="full-span">تأمین‌کننده<select required value={form.supplier_id} onChange={e=>setForm({...form,supplier_id:e.target.value})}><option value="">انتخاب تأمین‌کننده…</option>{suppliers.map(s=><option key={String(s.id)} value={String(s.id)}>{String(s.name)}</option>)}</select></label><label>مرجع فاکتور / سند<input value={form.invoice_ref} onChange={e=>setForm({...form,invoice_ref:e.target.value})}/></label><label>مبلغ (تومان)<input type="number" min="0" required value={form.amount} onChange={e=>setForm({...form,amount:e.target.value})} dir="ltr"/></label><label className="full-span">یادداشت<textarea rows={2} value={form.note} onChange={e=>setForm({...form,note:e.target.value})}/></label></>}<label className="full-span">سررسید<input type="date" value={form.due_date} onChange={e=>setForm({...form,due_date:e.target.value})}/></label><div className="modal-actions"><Button variant="soft" onClick={()=>setOpen(false)}>انصراف</Button><Button type="submit" disabled={busy}>{busy?'در حال ثبت…':'ثبت رکورد مالی'}</Button></div></form></Modal>}</>;
 }
+type MemberModulePermission = {
+ key: string; label: string; configured: boolean;
+ can_read: boolean; can_create: boolean; can_update: boolean; can_delete: boolean; can_approve: boolean;
+};
+type ModulePermissionField = 'can_read' | 'can_create' | 'can_update' | 'can_delete' | 'can_approve';
 function MembersPage({membership,search}:{membership:Membership;search:string}) {
  const [rows,setRows]=useState<Row[]>([]);
  const [loading,setLoading]=useState(true);
@@ -1226,6 +1231,10 @@ function MembersPage({membership,search}:{membership:Membership;search:string}) 
  const [inviteCode,setInviteCode]=useState('');
  const [customers,setCustomers]=useState<Row[]>([]);const [suppliers,setSuppliers]=useState<Row[]>([]);
  const [inviteCustomerId,setInviteCustomerId]=useState('');const [inviteSupplierId,setInviteSupplierId]=useState('');const [resetSecret,setResetSecret]=useState('');
+ const [permissionsMember,setPermissionsMember]=useState<Row|null>(null);
+ const [modulePermissions,setModulePermissions]=useState<MemberModulePermission[]>([]);
+ const [permissionsLoading,setPermissionsLoading]=useState(false);
+ const [permissionsSaving,setPermissionsSaving]=useState(false);
  const load=async()=>{
   setLoading(true);setError('');
   try {
@@ -1286,6 +1295,36 @@ function MembersPage({membership,search}:{membership:Membership;search:string}) 
    setError(caught instanceof Error?caught.message:'غیرفعال‌سازی دسترسی ناموفق بود.');
   } finally {setBusy(false);}
  };
+ const editPermissions=async(row:Row)=>{
+  setPermissionsMember(row);setModulePermissions([]);setPermissionsLoading(true);setError('');setNotice('');
+  try{
+   const memberId=String(row.membership_id??row.id??'');
+   const result=await api.get<{modules:MemberModulePermission[]}>(`/api/workspace/members/${encodeURIComponent(memberId)}/permissions?companyId=${encodeURIComponent(membership.company_id)}`);
+   setModulePermissions(result.modules??[]);
+  }catch(caught){
+   setPermissionsMember(null);
+   setError(caught instanceof Error?caught.message:'دریافت مجوزهای عضو ناموفق بود.');
+  }finally{setPermissionsLoading(false);}
+ };
+ const setPermissionField=(moduleKey:string,field:ModulePermissionField,value:boolean)=>{
+  setModulePermissions(current=>current.map(module=>module.key===moduleKey?{...module,[field]:value,configured:true}:module));
+ };
+ const resetPermissionsToRoleDefaults=()=>{
+  setModulePermissions(current=>current.map(module=>({...module,configured:false})));
+ };
+ const saveModulePermissions=async()=>{
+  if(!permissionsMember||permissionsSaving)return;
+  setPermissionsSaving(true);setError('');setNotice('');
+  try{
+   await api.post(`/api/workspace/members/${encodeURIComponent(String(permissionsMember.membership_id??permissionsMember.id))}/permissions`,{
+    companyId:membership.company_id,modules:modulePermissions,
+   });
+   setNotice('مجوزهای ماژول ذخیره شدند؛ محدودیت‌ها در API سمت سرور اعمال می‌شوند.');
+   setPermissionsMember(null);
+  }catch(caught){
+   setError(caught instanceof Error?caught.message:'ذخیره مجوزهای عضو ناموفق بود.');
+  }finally{setPermissionsSaving(false);}
+ };
  const visible=rows.filter(r=>!search||[r.username,r.full_name,r.phone,r.role].some(v=>String(v??'').toLowerCase().includes(search.toLowerCase())));
  const options:AppRole[]=membership.role==='owner'?['admin','staff','customer','supplier','driver']:['staff','customer','supplier','driver'];
  return <>
@@ -1302,8 +1341,30 @@ function MembersPage({membership,search}:{membership:Membership;search:string}) 
     {key:'role',label:'نقش',render:r=><Badge value={r.role} type="role"/>},
     {key:'active',label:'دسترسی',render:r=><Badge value={r.active?'active':'inactive'}/>},
     {key:'created_at',label:'افزوده‌شده',render:r=>dateFa(String(r.created_at??''))}
-   ]} actions={r=>r.active===true&&r.role!=='owner'?<div className="table-action-group"><Button variant="soft" disabled={busy||(r.role==='admin'&&membership.role!=='owner')} onClick={()=>void resetMemberPassword(r)}>بازنشانی رمز</Button><Button variant="danger" disabled={busy} onClick={()=>void deactivate(r)}>غیرفعال‌سازی</Button></div>:<span className="muted-text">—</span>}/>:<EmptyState title="هنوز عضوی در فهرست نیست" description="با ثبت‌نام مالک و پذیرش دعوت معتبر، اعضای واقعی مجموعه در اینجا نمایش داده می‌شوند." icon={Users}/>}
+   ]} actions={r=>r.active===true&&r.role!=='owner'?<div className="table-action-group">
+    {r.role!=='admin'&&<Button variant="soft" disabled={busy||permissionsLoading} onClick={()=>void editPermissions(r)}>مجوزها</Button>}
+    <Button variant="soft" disabled={busy||(r.role==='admin'&&membership.role!=='owner')} onClick={()=>void resetMemberPassword(r)}>بازنشانی رمز</Button>
+    <Button variant="danger" disabled={busy} onClick={()=>void deactivate(r)}>غیرفعال‌سازی</Button>
+   </div>:<span className="muted-text">—</span>}/>:<EmptyState title="هنوز عضوی در فهرست نیست" description="با ثبت‌نام مالک و پذیرش دعوت معتبر، اعضای واقعی مجموعه در اینجا نمایش داده می‌شوند." icon={Users}/>}
   </section>
+  {permissionsMember&&<Modal title="مجوزهای ماژولی عضو" subtitle={`دسترسی‌های ${String(permissionsMember.full_name??permissionsMember.username??'عضو')} را محدود کن. این تنظیمات مجوزهای پیش‌فرض نقش را گسترش نمی‌دهند.`} onClose={()=>{if(!permissionsSaving)setPermissionsMember(null);}}>
+   {permissionsLoading?<div className="panel-loading"><span className="spinner small"/></div>:<div className="module-permissions-dialog" dir="rtl">
+    <div className="module-permissions-note"><ShieldCheck size={16}/><span>محدودیت‌ها در API و داده‌های همان مجموعه اعمال می‌شوند. خاموش‌کردن «استفاده از پیش‌فرض نقش» به معنی جایگزین‌کردن مجوزها با همین انتخاب‌هاست.</span></div>
+    <div className="module-permissions-header"><b>ماژول</b><b>مشاهده</b><b>ایجاد</b><b>ویرایش</b><b>حذف</b><b>تأیید</b></div>
+    <div className="module-permissions-list">{modulePermissions.map(module=><section className="module-permission-row" key={module.key}>
+      <div className="module-permission-name"><b>{module.label}</b><small>{module.configured?'مجوز سفارشی':'استفاده از پیش‌فرض نقش'}</small></div>
+      {([
+       ['can_read','مشاهده'],['can_create','ایجاد'],['can_update','ویرایش'],['can_delete','حذف'],['can_approve','تأیید'],
+      ] as Array<[ModulePermissionField,string]>).map(([field,label])=><label className="module-permission-toggle" key={field} title={label}>
+       <input type="checkbox" aria-label={module.label+' — '+label} checked={module.configured?module[field]:module[field]} onChange={event=>setPermissionField(module.key,field,event.currentTarget.checked)}/>
+      </label>)}
+     </section>)}</div>
+    <div className="module-permissions-actions">
+     <button type="button" className="agent-secondary-button" onClick={resetPermissionsToRoleDefaults} disabled={permissionsSaving}>بازگشت به پیش‌فرض نقش</button>
+     <button type="button" className="agent-primary-button" onClick={()=>void saveModulePermissions()} disabled={permissionsSaving||!modulePermissions.length}>{permissionsSaving?'در حال ذخیره…':'ذخیره مجوزها'}</button>
+    </div>
+   </div>}
+  </Modal>}
   {open&&<Modal title="ساخت کد دعوت" subtitle="این کد اجازه ثبت‌نام و اتصال به همین مجموعه را با نقش تعیین‌شده می‌دهد؛ کد نقش مالک تولید نمی‌کند." onClose={()=>setOpen(false)}><form className="record-form" onSubmit={e=>{e.preventDefault();void createInvite();}}>
    <label className="full-span">نقش دسترسی<select value={inviteRole} onChange={e=>{setInviteRole(e.target.value as AppRole);setInviteCustomerId('');setInviteSupplierId('');}}>{options.map(r=><option value={r} key={r}>{roleLabel[r]}</option>)}</select></label>
    {inviteRole==='customer'&&<label className="full-span">حساب مشتری<select required value={inviteCustomerId} onChange={e=>setInviteCustomerId(e.target.value)}><option value="">انتخاب مشتری همان مجموعه…</option>{customers.map(row=><option key={String(row.id)} value={String(row.id)}>{String(row.name)}</option>)}</select></label>}
