@@ -360,6 +360,51 @@ test('owner can create a supplier login and copy the one-time credentials', asyn
   expect(submitted?.role).toBe('supplier');
 });
 
+test('owner can generate a shareable invitation link for a new supplier or driver', async ({ page }) => {
+  await installIsolatedSession(page, 'owner');
+  const code = 'a'.repeat(64);
+  await page.route('**/api/workspace/members?*', route => route.fulfill({
+    status: 200, contentType: 'application/json', body: JSON.stringify({ members: [] }),
+  }));
+  await page.route('**/api/workspace/invites', async route => {
+    expect(route.request().method()).toBe('POST');
+    expect(route.request().postDataJSON()).toMatchObject({ companyId, role: 'staff', customerId: null, supplierId: null });
+    await route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ inviteCode: code, inviteId: '00000000-0000-4000-8000-000000000079', expiresAt: '2026-10-26T00:00:00.000Z' }) });
+  });
+  await page.goto('/simorgh/app/members', { waitUntil: 'domcontentloaded' });
+  await page.getByRole('button', { name: 'کد دعوت' }).click();
+  await page.getByRole('button', { name: 'ساخت کد دعوت' }).click();
+  const link = page.locator('.invite-code-panel .invite-code-value');
+  await expect(link).toContainText('/simorgh/app/home?invite=' + code + '#signup');
+  await expect(page.getByRole('button', { name: 'کپی لینک' })).toBeVisible();
+});
+
+test('operations can show cached order reads after the browser goes offline', async ({ page }) => {
+  await installIsolatedSession(page, 'owner');
+  await page.route('**/api/data/**', async route => {
+    const table = new URL(route.request().url()).pathname.split('/').pop() || '';
+    const data = table === 'orders' ? [{
+      id: '00000000-0000-4000-8000-000000000088',
+      reference: 'ORD-OFF-001',
+      status: 'submitted',
+      requested_delivery: '2026-10-20',
+      delivery_address: 'نشانی آزمایشی',
+      notes: '',
+      created_at: '2026-10-18T12:00:00.000Z',
+      customers: { name: 'خریدار آفلاین' },
+    }] : [];
+    await route.fulfill({ status: 200, contentType: 'application/json', headers: { 'cache-control': 'no-store' }, body: JSON.stringify({ data, count: data.length, error: null, table }) });
+  });
+  await page.goto('/simorgh/app/orders', { waitUntil: 'domcontentloaded' });
+  await expect(page.getByText('ORD-OFF-001')).toBeVisible();
+  await expect(page.getByText('خریدار آفلاین')).toBeVisible();
+  await page.context().setOffline(true);
+  await page.getByRole('button', { name: /تازه‌سازی/ }).click();
+  await expect(page.locator('.offline-notice')).toBeVisible();
+  await expect(page.getByText('ORD-OFF-001')).toBeVisible();
+  await page.context().setOffline(false);
+});
+
 test('supplier workspace keeps manager-only routes out of the allowed menu', async ({ page }, testInfo) => {
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
