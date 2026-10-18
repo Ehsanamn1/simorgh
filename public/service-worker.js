@@ -21,7 +21,7 @@ self.addEventListener('notificationclick', event => {
   const href = event.notification.data && typeof event.notification.data.href === 'string' && event.notification.data.href.startsWith('/app/')
     ? event.notification.data.href : '/app/home';
   event.waitUntil((async () => {
-    const target = new URL(href.replace(/^\\//,''), self.registration.scope).toString();
+    const target = new URL(href.replace(/^\//,''), self.registration.scope).toString();
     const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
     for (const client of windows) {
       if (new URL(client.url).origin === self.location.origin && 'focus' in client) {
