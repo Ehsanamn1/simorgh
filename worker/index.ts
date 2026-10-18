@@ -667,6 +667,155 @@ app.post('/api/ai/provider-test', async (c) => {
   }
 });
 
+
+/**
+ * AI/automation action proposals are inert records. No business write occurs until
+ * the authenticated user explicitly confirms the proposal through /execute.
+ */
+app.get('/api/ai/actions', async (c) => {
+  const user = await requireUser(c);
+  if (user instanceof Response) return user;
+  const companyId = c.req.query('companyId') ?? '';
+  if (!COMPANY_ID_RE.test(companyId)) return c.json({ message: 'شناسه مجموعه معتبر نیست.' }, 422);
+  const membership = await aiCompanyMembership(c, companyId, user.id);
+  if (!membership) return c.json({ message: 'به این فضای کاری دسترسی فعال نداری.' }, 403);
+  if (!['owner','admin','staff'].includes(membership.role)) {
+    return c.json({ message: 'این بخش فقط برای اعضای داخلی مجموعه فعال است.' }, 403);
+  }
+  const rows = await sqlFor(c).query(
+    `select a.id, a.tool_key as "toolKey", a.status, a.arguments, a.result,
+            a.created_at as "createdAt", a.executed_at as "executedAt",
+            u.display_name as "requestedByName", a.requested_by::text as "requestedBy"
+       from public.medar_ai_action_runs a
+       join public.medar_users u on u.id = a.requested_by
+      where a.company_id = $1::uuid and ($2 in ('owner','admin') or a.requested_by = $3::uuid)
+      order by a.created_at desc limit 50`,
+    [companyId, membership.role, user.id],
+  );
+  return c.json({ actions: rows });
+});
+
+app.post('/api/ai/actions/propose', async (c) => {
+  const user = await requireUser(c);
+  if (user instanceof Response) return user;
+  const body = await c.req.json<Record<string, unknown>>().catch(() => null);
+  if (!body) return c.json({ message: 'درخواست پیشنهاد اقدام معتبر نیست.' }, 400);
+  const companyId = typeof body.companyId === 'string' ? body.companyId : '';
+  if (!COMPANY_ID_RE.test(companyId)) return c.json({ message: 'شناسه مجموعه معتبر نیست.' }, 422);
+  const membership = await aiCompanyMembership(c, companyId, user.id);
+  if (!membership) return c.json({ message: 'به این فضای کاری دسترسی فعال نداری.' }, 403);
+  if (!['owner','admin','staff'].includes(membership.role)) {
+    return c.json({ message: 'فقط اعضای داخلی مجموعه می‌توانند اقدام عملیاتی پیشنهاد کنند.' }, 403);
+  }
+  const toolKey = typeof body.toolKey === 'string' ? body.toolKey : 'create_operational_task';
+  if (toolKey !== 'create_operational_task') return c.json({ message: 'این نوع اقدام هنوز پشتیبانی نمی‌شود.' }, 422);
+  const rawArgs = body.arguments && typeof body.arguments === 'object' && !Array.isArray(body.arguments)
+    ? body.arguments as Record<string, unknown> : {};
+  const title = typeof rawArgs.title === 'string' ? rawArgs.title.trim() : '';
+  const instructions = typeof rawArgs.instructions === 'string' ? rawArgs.instructions.trim() : '';
+  const priority = typeof rawArgs.priority === 'string' ? rawArgs.priority : 'normal';
+  const dueAtRaw = typeof rawArgs.dueAt === 'string' ? rawArgs.dueAt.trim() : '';
+  const assigneeUserIdRaw = typeof rawArgs.assigneeUserId === 'string' ? rawArgs.assigneeUserId.trim() : '';
+  const assigneeSupplierIdRaw = typeof rawArgs.assigneeSupplierId === 'string' ? rawArgs.assigneeSupplierId.trim() : '';
+  if (title.length < 2 || title.length > 180) return c.json({ message: 'عنوان وظیفه باید بین ۲ تا ۱۸۰ نویسه باشد.' }, 422);
+  if (instructions.length > 3000) return c.json({ message: 'شرح وظیفه نباید بیشتر از ۳۰۰۰ نویسه باشد.' }, 422);
+  if (!['low','normal','high','critical'].includes(priority)) return c.json({ message: 'اولویت وظیفه معتبر نیست.' }, 422);
+  if (dueAtRaw && (!Number.isFinite(Date.parse(dueAtRaw)) || dueAtRaw.length > 80)) {
+    return c.json({ message: 'زمان سررسید معتبر نیست.' }, 422);
+  }
+  if (assigneeUserIdRaw && !COMPANY_ID_RE.test(assigneeUserIdRaw)) return c.json({ message: 'شناسه مسئول وظیفه معتبر نیست.' }, 422);
+  if (assigneeSupplierIdRaw && !COMPANY_ID_RE.test(assigneeSupplierIdRaw)) return c.json({ message: 'شناسه تأمین‌کننده معتبر نیست.' }, 422);
+  if (assigneeUserIdRaw && assigneeSupplierIdRaw) return c.json({ message: 'وظیفه فقط می‌تواند یک مسئول داشته باشد.' }, 422);
+  const assigneeUserId = assigneeUserIdRaw || (!assigneeSupplierIdRaw ? user.id : '');
+  const sql = sqlFor(c);
+  if (assigneeUserId) {
+    const assignee = await sql.query(
+      "select 1 from public.memberships where user_id=$1::uuid and company_id=$2::uuid and active=true and role::text in ('owner','admin','staff','driver') limit 1",
+      [assigneeUserId, companyId],
+    );
+    if (!assignee.length) return c.json({ message: 'مسئول انتخاب‌شده عضو فعال و مجاز این مجموعه نیست.' }, 422);
+  }
+  if (assigneeSupplierIdRaw) {
+    const supplier = await sql.query(
+      'select 1 from public.suppliers where id=$1::uuid and company_id=$2::uuid and active=true limit 1',
+      [assigneeSupplierIdRaw, companyId],
+    );
+    if (!supplier.length) return c.json({ message: 'تأمین‌کننده انتخاب‌شده فعال نیست یا به این مجموعه تعلق ندارد.' }, 422);
+  }
+  const argumentsJson = {
+    title, instructions, priority,
+    ...(dueAtRaw ? { dueAt: new Date(dueAtRaw).toISOString() } : {}),
+    ...(assigneeUserId ? { assigneeUserId } : {}),
+    ...(assigneeSupplierIdRaw ? { assigneeSupplierId: assigneeSupplierIdRaw } : {}),
+  };
+  try {
+    const rows = await sql.query(
+      "insert into public.medar_ai_action_runs(company_id,requested_by,tool_key,status,arguments) values($1::uuid,$2::uuid,'create_operational_task','proposed',$3::jsonb) returning id,status,tool_key as \"toolKey\",arguments,created_at as \"createdAt\"",
+      [companyId, user.id, JSON.stringify(argumentsJson)],
+    );
+    const action = rows[0];
+    await sql.query(
+      "insert into public.medar_audit_log(actor_user_id,action,entity_type,entity_id,metadata) values($1::uuid,'ai_action.proposed','ai_action_run',$2::text,jsonb_build_object('company_id',$3::text,'tool_key','create_operational_task'))",
+      [user.id, String(action.id), companyId],
+    );
+    return c.json({ action, requiresConfirmation: true }, 201);
+  } catch {
+    return c.json({ message: 'پیشنهاد اقدام ذخیره نشد. تغییری در وظایف کسب‌وکار ایجاد نشده است.' }, 500);
+  }
+});
+
+app.post('/api/ai/actions/:id/execute', async (c) => {
+  const user = await requireUser(c);
+  if (user instanceof Response) return user;
+  const actionId = c.req.param('id');
+  const body = await c.req.json<Record<string, unknown>>().catch(() => null);
+  const companyId = typeof body?.companyId === 'string' ? body.companyId : '';
+  if (!COMPANY_ID_RE.test(actionId) || !COMPANY_ID_RE.test(companyId)) {
+    return c.json({ message: 'شناسه اقدام یا مجموعه معتبر نیست.' }, 422);
+  }
+  if (body?.confirmed !== true) return c.json({ message: 'برای اجرای اقدام باید تأیید صریح ارسال شود.' }, 422);
+  const membership = await aiCompanyMembership(c, companyId, user.id);
+  if (!membership) return c.json({ message: 'به این فضای کاری دسترسی فعال نداری.' }, 403);
+  if (!['owner','admin','staff'].includes(membership.role)) {
+    return c.json({ message: 'برای اجرای اقدام عملیاتی دسترسی لازم وجود ندارد.' }, 403);
+  }
+  try {
+    const rows = await sqlFor(c).query(
+      'select public.medar_execute_ai_create_task($1::uuid,$2::uuid,$3::uuid) as result',
+      [user.id, companyId, actionId],
+    );
+    if (!rows.length) return c.json({ message: 'نتیجه اجرای اقدام دریافت نشد.' }, 502);
+    return c.json({ ok: true, result: (rows[0] as { result: unknown }).result });
+  } catch {
+    return c.json({ message: 'اقدام اجرا نشد؛ پیشنهاد تغییری در داده‌های عملیاتی ایجاد نکرد. دسترسی و اطلاعات پیشنهاد را بررسی کن.' }, 409);
+  }
+});
+
+app.post('/api/ai/actions/:id/cancel', async (c) => {
+  const user = await requireUser(c);
+  if (user instanceof Response) return user;
+  const actionId = c.req.param('id');
+  const body = await c.req.json<Record<string, unknown>>().catch(() => null);
+  const companyId = typeof body?.companyId === 'string' ? body.companyId : '';
+  if (!COMPANY_ID_RE.test(actionId) || !COMPANY_ID_RE.test(companyId)) {
+    return c.json({ message: 'شناسه اقدام یا مجموعه معتبر نیست.' }, 422);
+  }
+  const membership = await aiCompanyMembership(c, companyId, user.id);
+  if (!membership) return c.json({ message: 'به این فضای کاری دسترسی فعال نداری.' }, 403);
+  if (!['owner','admin','staff'].includes(membership.role)) return c.json({ message: 'دسترسی لغو پیشنهاد را نداری.' }, 403);
+  const sql = sqlFor(c);
+  const rows = await sql.query(
+    "update public.medar_ai_action_runs set status='cancelled',updated_at=now() where id=$1::uuid and company_id=$2::uuid and status='proposed' and (requested_by=$3::uuid or $4 in ('owner','admin')) returning id",
+    [actionId, companyId, user.id, membership.role],
+  );
+  if (!rows.length) return c.json({ message: 'پیشنهاد پیدا نشد یا دیگر قابل لغو نیست.' }, 409);
+  await sql.query(
+    "insert into public.medar_audit_log(actor_user_id,action,entity_type,entity_id,metadata) values($1::uuid,'ai_action.cancelled','ai_action_run',$2::text,jsonb_build_object('company_id',$3::text))",
+    [user.id, actionId, companyId],
+  );
+  return c.json({ ok: true });
+});
+
 app.post('/api/ai/chat', async (c) => {
   const user = await requireUser(c);
   if (user instanceof Response) return user;
