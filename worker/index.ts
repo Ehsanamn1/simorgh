@@ -3183,6 +3183,7 @@ app.onError((error, c) => {
 const medarWorker = {
   fetch: app.fetch,
   scheduled(_controller: { scheduledTime: number }, env: Bindings, context: { waitUntil(promise: Promise<unknown>): void }) {
+    if (env.MEDAR_MODE !== 'operational') return;
     context.waitUntil(runDailyBriefingNotifications(env).catch(error => {
       console.error('[medar:daily-briefing] scheduled notification generation failed', error);
       throw error;
