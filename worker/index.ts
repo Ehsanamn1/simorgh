@@ -2248,7 +2248,7 @@ const RELATIONS:Record<string,Record<string,{target:string;local:string;foreign:
  orders:{customers:{target:'customers',local:'customer_id',foreign:'id'},order_items:{target:'order_items',local:'id',foreign:'order_id',many:true}},
  purchase_orders:{suppliers:{target:'suppliers',local:'supplier_id',foreign:'id'},purchase_order_items:{target:'purchase_order_items',local:'id',foreign:'purchase_order_id',many:true}},
  purchase_order_items:{products:{target:'products',local:'product_id',foreign:'id'}},
- order_items:{products:{target:'products',local:'product_id',foreign:'id'},suppliers:{target:'suppliers',local:'supplier_id',foreign:'id'},capacity_commitments:{target:'capacity_commitments',local:'capacity_commitment_id',foreign:'id'}},
+ order_items:{orders:{target:'orders',local:'order_id',foreign:'id'},products:{target:'products',local:'product_id',foreign:'id'},suppliers:{target:'suppliers',local:'supplier_id',foreign:'id'},capacity_commitments:{target:'capacity_commitments',local:'capacity_commitment_id',foreign:'id'}},
  invoices:{customers:{target:'customers',local:'customer_id',foreign:'id'},orders:{target:'orders',local:'order_id',foreign:'id'}},
  settlements:{suppliers:{target:'suppliers',local:'supplier_id',foreign:'id'}},
  capacity_commitments:{suppliers:{target:'suppliers',local:'supplier_id',foreign:'id'},products:{target:'products',local:'product_id',foreign:'id'}},
