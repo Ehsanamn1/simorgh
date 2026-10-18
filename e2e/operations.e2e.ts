@@ -29,7 +29,7 @@ async function installIsolatedSession(page: Page, role: 'owner' | 'supplier' | '
     status: 200, contentType: 'application/json',
     body: JSON.stringify({ memberships }),
   }));
-  await page.route('**/api/notifications*', async route => {
+  await page.route('**/api/notifications**', async route => {
     if (route.request().method() === 'GET') {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ notifications: [], summary: { total: 0, unread: 0 } }) });
       return;
@@ -539,6 +539,41 @@ test('assistant can enter and stop automatic turn-taking voice mode', async ({ p
       stop() { this.onend?.(); }
     }
     Object.defineProperty(window, 'SpeechRecognition', { configurable: true, value: MockSpeechRecognition });
+
+    // CI validates the WebRTC state machine without a real microphone or external API key.
+    const audioTrack = { stop() {}, kind: 'audio', enabled: true };
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: { getUserMedia: async () => ({ getAudioTracks: () => [audioTrack], getTracks: () => [audioTrack] }) },
+    });
+    class MockRTCDataChannel {
+      readyState = 'open';
+      onopen: (() => void) | null = null;
+      onmessage: ((event: { data: string }) => void) | null = null;
+      constructor() { window.setTimeout(() => this.onopen?.(), 0); }
+      send(_message: string) {}
+      close() { this.readyState = 'closed'; }
+    }
+    class MockRTCPeerConnection {
+      connectionState = 'new';
+      ontrack: ((event: { streams: unknown[] }) => void) | null = null;
+      onconnectionstatechange: (() => void) | null = null;
+      addTrack(_track: unknown, _stream: unknown) {}
+      createDataChannel(_label: string) { return new MockRTCDataChannel(); }
+      async createOffer() { return { type: 'offer', sdp: 'v=0\r\n' }; }
+      async setLocalDescription(_description: unknown) {}
+      async setRemoteDescription(_description: unknown) {
+        this.connectionState = 'connected';
+        this.onconnectionstatechange?.();
+      }
+      close() { this.connectionState = 'closed'; this.onconnectionstatechange?.(); }
+    }
+    Object.defineProperty(window, 'RTCPeerConnection', { configurable: true, value: MockRTCPeerConnection });
+  });
+  await page.route('**/api/ai/realtime/session**', async route => {
+    expect(route.request().method()).toBe('POST');
+    expect(route.request().headers()['content-type']).toContain('application/sdp');
+    await route.fulfill({ status: 200, contentType: 'application/sdp', body: 'v=0\r\n' });
   });
   await page.route('**/api/ai/providers*', async route => route.fulfill({
     status: 200,
@@ -560,7 +595,7 @@ test('assistant can enter and stop automatic turn-taking voice mode', async ({ p
   await expect(dialog.getByRole('button', { name: 'شروع مکالمه صوتی خودکار' })).toBeVisible();
   await dialog.getByRole('button', { name: 'شروع مکالمه صوتی خودکار' }).click();
   await expect(dialog.getByRole('button', { name: 'توقف مکالمه صوتی' })).toBeVisible();
-  await expect(dialog.locator('.ai-composer-actions small')).toContainText('مکالمه صوتی فعال');
+  await expect(dialog.locator('.ai-composer-actions small')).toContainText('مکالمه realtime فعال');
   await dialog.getByRole('button', { name: 'توقف مکالمه صوتی' }).click();
   await expect(dialog.getByRole('button', { name: 'شروع مکالمه صوتی خودکار' })).toBeVisible();
 });
@@ -747,7 +782,7 @@ test('agent center creates an inert proposal and only creates a task after expli
       }),
     });
   });
-  await page.route('**/api/ai/actions*', async route => {
+  await page.route('**/api/ai/actions**', async route => {
     const url = new URL(route.request().url());
     const method = route.request().method();
     if (url.pathname === '/api/ai/actions' && method === 'GET') {
@@ -796,7 +831,7 @@ test('agent center creates an inert proposal and only creates a task after expli
   await page.getByLabel('عنوان وظیفه').fill('پیگیری تأمین خوراک فردا');
   await page.getByLabel('شرح و نتیجهٔ مورد انتظار').fill('موجودی را بررسی و نتیجه را ثبت کن.');
   await page.getByRole('button', { name: 'ثبت پیشنهاد برای تأیید' }).click();
-  await expect(page.getByText('پیشنهاد ذخیره شد؛ هنوز هیچ وظیفه‌ای در عملیات ایجاد نشده است.')).toBeVisible();
+  await expect(page.locator('.agent-feedback.notice')).toContainText('پیشنهاد ذخیره شد؛ هنوز هیچ وظیفه‌ای در عملیات ایجاد نشده است.');
   await expect(page.getByText('در انتظار تأیید')).toBeVisible();
   expect(createdTasks).toBe(0);
 
@@ -964,8 +999,10 @@ test('finance imports an actual CSV payload and reconciles only after explicit c
   await expect(page.getByText('دریافت مشتری')).toBeVisible();
 
   await page.getByRole('button', { name: 'تطبیق', exact: true }).click();
-  await expect(page.getByText('فاکتور INV-900 · مشتری آزمایشی')).toBeVisible();
-  await page.getByLabel('سند تجاری مربوط').selectOption('invoice:' + invoiceId);
+  const candidateSelect = page.getByLabel('سند تجاری مربوط');
+  await expect(candidateSelect.locator('option').filter({ hasText: 'فاکتور INV-900 · مشتری آزمایشی' })).toHaveCount(1);
+  await candidateSelect.selectOption('invoice:' + invoiceId);
+  await expect(candidateSelect).toHaveValue('invoice:' + invoiceId);
   await page.getByRole('button', { name: 'تأیید و ثبت تطبیق' }).click();
   await expect(page.getByText(/پیوند تطبیق مالی ثبت/)).toBeVisible();
   expect(reconcileCalls).toBe(1);
@@ -981,7 +1018,7 @@ test('role home loads the real notification inbox and acknowledges an unread bri
     { id: secondId, title: 'محمولهٔ فعال', body: 'یک محموله در مسیر است.', href: '/app/driver-work', readAt: new Date(Date.now()-86400000).toISOString(), createdAt: new Date(Date.now()-86400000).toISOString() },
   ];
   let markReadCalls = 0;
-  await page.route('**/api/notifications*', async route => {
+  await page.route('**/api/notifications**', async route => {
     const request = route.request();
     const url = new URL(request.url());
     if (request.method() === 'GET') {
