@@ -1242,3 +1242,28 @@ html[data-theme="dark"] .agent-primary-button { color: #202a38; }
   .agent-action-top { flex-direction: column; }
   .agent-action-buttons > button { flex: 1 1 100%; }
 }
+
+/* Per-member module permission editor */
+.module-permissions-dialog { display: grid; gap: 12px; max-height: min(68vh,720px); overflow: auto; padding-inline: 2px; color: var(--obs-text); }
+.module-permissions-note { display: flex; align-items: flex-start; gap: 8px; padding: 10px 11px; border: 1px solid var(--obs-border); border-radius: 11px; background: var(--obs-surface-2); color: var(--obs-muted); font-size: 10px; line-height: 1.9; }
+.module-permissions-note svg { flex: none; color: var(--obs-accent); margin-top: 3px; }
+.module-permissions-header, .module-permission-row { display: grid; grid-template-columns: minmax(175px,1.8fr) repeat(5,minmax(42px,.5fr)); align-items: center; gap: 5px; }
+.module-permissions-header { position: sticky; top: 0; z-index: 1; padding: 9px 7px; border: 1px solid var(--obs-border); border-radius: 10px; background: var(--obs-surface); color: var(--obs-muted); font-size: 9px; text-align: center; }
+.module-permissions-header b:first-child { text-align: right; }
+.module-permissions-list { display: grid; gap: 6px; }
+.module-permission-row { padding: 9px 7px; border: 1px solid var(--obs-border); border-radius: 11px; background: var(--obs-surface); }
+.module-permission-name { display: grid; gap: 4px; min-width: 0; }
+.module-permission-name b { font-size: 10px; line-height: 1.7; overflow-wrap: anywhere; }
+.module-permission-name small { color: var(--obs-subtle); font-size: 8px; }
+.module-permission-toggle { display: grid; place-items: center; min-height: 34px; }
+.module-permission-toggle input { width: 16px; height: 16px; margin: 0; accent-color: var(--obs-accent); cursor: pointer; }
+.module-permissions-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding-top: 10px; border-top: 1px solid var(--obs-border); }
+@media (max-width: 680px) {
+ .module-permissions-dialog { max-height: 64vh; }
+ .module-permissions-header, .module-permission-row { grid-template-columns: minmax(120px,1.45fr) repeat(5,minmax(30px,.45fr)); gap: 3px; }
+ .module-permission-row { padding: 8px 4px; }
+ .module-permission-name b { font-size: 9px; }
+ .module-permission-toggle input { width: 14px; height: 14px; }
+ .module-permissions-header { font-size: 8px; padding-inline: 4px; }
+ .module-permissions-actions > button { flex: 1 1 100%; }
+}
