@@ -1145,3 +1145,68 @@ test('finance bank reconciliation imports real CSV rows without duplicating tran
   await expect(bank.getByText(/۰ تراکنش جدید ثبت شد و ۱ مورد تکراری نادیده گرفته شد/)).toBeVisible();
   expect(importCalls).toBe(2);
 });
+
+
+test('Medar Connect creates a restricted conversation and sends an idempotent operational message', async ({ page }) => {
+  const userId = '00000000-0000-4000-8000-000000000011';
+  const otherUserId = '00000000-0000-4000-8000-000000000077';
+  const firstConversationId = '00000000-0000-4000-8000-000000000088';
+  const newConversationId = '00000000-0000-4000-8000-000000000099';
+  await installIsolatedSession(page, 'owner');
+  let conversations = [{
+    id: firstConversationId, title: 'هماهنگی ارسال', relatedEntityType: 'shipment',
+    relatedEntityId: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+    lastReadAt: null, unreadCount: 1, lastMessage: 'بار آماده است',
+  }];
+  let messages = [{
+    id: '00000000-0000-4000-8000-000000000111', senderUserId: otherUserId,
+    senderUsername: 'driver_test', body: 'بار آماده است', createdAt: new Date().toISOString(), editedAt: null,
+  }];
+  await page.route('**/api/connect/**', async route => {
+    const request = route.request();
+    const url = new URL(request.url());
+    const path = url.pathname;
+    if (path.endsWith('/people') && request.method() === 'GET') {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ people: [{ id: otherUserId, username: 'driver_test', displayName: 'راننده آزمایشی', role: 'driver' }] }) });
+      return;
+    }
+    if (path.endsWith('/conversations') && request.method() === 'GET') {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ conversations }) });
+      return;
+    }
+    if (path.endsWith('/conversations') && request.method() === 'POST') {
+      conversations = [...conversations, {
+        id: newConversationId, title: 'تحویل سفارش ۱۲۴', relatedEntityType: null, relatedEntityId: null,
+        createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), lastReadAt: null,
+        unreadCount: 0, lastMessage: null,
+      }];
+      await route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ ok: true, conversation: { id: newConversationId } }) });
+      return;
+    }
+    if (path.endsWith('/messages') && request.method() === 'GET') {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ messages: url.pathname.includes(newConversationId) ? messages.filter(item => item.senderUserId === userId) : messages }) });
+      return;
+    }
+    if (path.endsWith('/messages') && request.method() === 'POST') {
+      const body = request.postDataJSON() as { body: string };
+      const message = { id: '00000000-0000-4000-8000-000000000122', senderUserId: userId, senderUsername: 'owner_test', body: body.body, createdAt: new Date().toISOString(), editedAt: null };
+      messages = [...messages, message];
+      conversations = conversations.map(item => item.id === newConversationId ? { ...item, lastMessage: body.body, updatedAt: new Date().toISOString() } : item);
+      await route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ ok: true, message }) });
+      return;
+    }
+    await route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ message: 'Unexpected test route: ' + path }) });
+  });
+
+  await page.goto('/simorgh/app/connect', { waitUntil: 'domcontentloaded' });
+  await expect(page.getByRole('heading', { name: 'مرکز ارتباطات' })).toBeVisible();
+  await expect(page.getByRole('button', { name: /هماهنگی ارسال/ })).toBeVisible();
+  await expect(page.getByText('بار آماده است')).toBeVisible();
+  await page.getByLabel('فرد یا شریک کاری').selectOption(otherUserId);
+  await page.getByLabel('عنوان (اختیاری)').fill('تحویل سفارش ۱۲۴');
+  await page.getByRole('button', { name: 'ایجاد گفت‌وگو' }).click();
+  await expect(page.getByRole('heading', { name: 'تحویل سفارش ۱۲۴' })).toBeVisible();
+  await page.getByRole('textbox', { name: 'متن پیام' }).fill('لطفاً رسید تحویل را ثبت کن.');
+  await page.getByRole('button', { name: 'ارسال پیام' }).click();
+  await expect(page.getByText('لطفاً رسید تحویل را ثبت کن.')).toBeVisible();
+});
