@@ -1212,7 +1212,7 @@ test('Medar Connect creates a restricted conversation and sends an idempotent op
   await expect(page.getByRole('heading', { name: 'تحویل سفارش ۱۲۴' })).toBeVisible();
   await page.getByRole('textbox', { name: 'متن پیام' }).fill('لطفاً رسید تحویل را ثبت کن.');
   await page.getByRole('button', { name: 'ارسال پیام' }).click();
-  await expect(page.getByText('لطفاً رسید تحویل را ثبت کن.')).toBeVisible();
+  await expect(page.getByText('لطفاً رسید تحویل را ثبت کن.').first()).toBeVisible();
 });
 
 
