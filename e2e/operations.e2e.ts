@@ -52,6 +52,7 @@ async function installIsolatedSession(page: Page, role: 'owner' | 'supplier' | '
 
 test('manager workspace retains operations and captures a real rendered control-tower screen', async ({ page }, testInfo) => {
   const errors: string[] = [];
+  const viewportWidth = Number((testInfo.project.use as { viewport?: { width?: number } }).viewport?.width || 1365);
   page.on('pageerror', error => errors.push(error.message));
   await installIsolatedSession(page, 'owner');
   await page.goto('/simorgh/app', { waitUntil: 'domcontentloaded' });
