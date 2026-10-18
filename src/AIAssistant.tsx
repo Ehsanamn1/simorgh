@@ -419,12 +419,57 @@ export function AIAssistant({ companyId, role, userName }: AIAssistantProps) {
       channel.onmessage = event => {
         try {
           const item = JSON.parse(String(event.data)) as {
-            type?: string; event_id?: string; item_id?: string; transcript?: string; error?: { message?: string };
+            type?: string; event_id?: string; item_id?: string; transcript?: string;
+            call_id?: string; name?: string; arguments?: string; error?: { message?: string };
           };
           if (item.event_id) {
             if (realtimeEventIdsRef.current.has(item.event_id)) return;
             realtimeEventIdsRef.current.add(item.event_id);
             if (realtimeEventIdsRef.current.size > 1000) realtimeEventIdsRef.current.clear();
+          }
+          if (item.type === 'response.function_call_arguments.done'
+            && item.name === 'propose_operational_task' && item.call_id) {
+            const callId = item.call_id;
+            const dataChannel = channel;
+            void (async () => {
+              let output: Record<string, unknown>;
+              try {
+                const args = JSON.parse(item.arguments || '{}') as Record<string, unknown>;
+                const title = typeof args.title === 'string' ? args.title.trim() : '';
+                const instructions = typeof args.instructions === 'string' ? args.instructions.trim() : '';
+                const priority = typeof args.priority === 'string' ? args.priority : 'normal';
+                const dueAt = typeof args.dueAt === 'string' ? args.dueAt : '';
+                const result = await api.post<{
+                  action: { id: string; status: string; arguments: { title?: string } };
+                  requiresConfirmation: boolean;
+                }>('/api/ai/actions/propose', {
+                  companyId,
+                  toolKey: 'create_operational_task',
+                  arguments: { title, instructions, priority, ...(dueAt ? { dueAt } : {}) },
+                });
+                output = {
+                  ok: true,
+                  proposalId: result.action.id,
+                  status: result.action.status,
+                  taskTitle: result.action.arguments?.title || title,
+                  requiresHumanApproval: true,
+                  message: 'Only an inert proposal was saved. No operational task has been created. The user must review and explicitly approve it in Medar Agent Center.',
+                };
+                setNotice('پیشنهاد وظیفه آماده شد؛ هنوز وظیفه‌ای ایجاد نشده است. برای اجرا، پیشنهاد را در مرکز ایجنت‌ها بررسی و تأیید کن.');
+              } catch (caught) {
+                const message = caught instanceof Error ? caught.message : 'ثبت پیشنهاد وظیفه ناموفق بود.';
+                output = { ok: false, error: message, noBusinessMutation: true };
+                setError(message);
+              }
+              if (dataChannel.readyState === 'open') {
+                dataChannel.send(JSON.stringify({
+                  type: 'conversation.item.create',
+                  item: { type: 'function_call_output', call_id: callId, output: JSON.stringify(output) },
+                }));
+                dataChannel.send(JSON.stringify({ type: 'response.create' }));
+              }
+            })();
+            return;
           }
           const transcript = typeof item.transcript === 'string' ? item.transcript.trim() : '';
           if (item.type === 'conversation.item.input_audio_transcription.completed' && transcript) {
