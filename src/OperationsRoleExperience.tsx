@@ -37,8 +37,10 @@ export function OperationsRoleExperience({ role, membership, children }: Props) 
           dataApi.from('operational_tasks').select('id,status,assignee_user_id,assignee_supplier_id').eq('company_id', companyId).order('created_at', { ascending: false }).limit(500),
           dataApi.from('operational_incidents').select('id,status').eq('company_id', companyId).order('created_at', { ascending: false }).limit(300),
           dataApi.from('partner_financial_entries').select('id,status,entry_type,payment_status').eq('company_id', companyId).order('created_at', { ascending: false }).limit(500),
+          dataApi.from('invoices').select('id,status,amount,paid_amount,due_date').eq('company_id', companyId).order('created_at', { ascending: false }).limit(500),
+          dataApi.from('settlements').select('id,status,amount,due_date').eq('company_id', companyId).order('created_at', { ascending: false }).limit(500),
         ]);
-        result = responses.map((response, i) => ({ key: ['orders', 'shipments', 'tasks', 'incidents', 'finance'][i], response }));
+        result = responses.map((response, i) => ({ key: ['orders', 'shipments', 'tasks', 'incidents', 'finance', 'invoices', 'settlements'][i], response }));
       } else if (role === 'supplier') {
         if (!membership.supplier_id) {
           setRows({});
@@ -86,7 +88,7 @@ export function OperationsRoleExperience({ role, membership, children }: Props) 
       { label: 'ارسال‌های فعال', value: shipments.filter(row => !isIn(row.stage, ['delivered', 'returned', 'failed', 'cancelled'])).length, note: 'در مسیر یا آماده ارسال', tone: 'neutral', icon: Truck },
       { label: 'کارهای نیازمند اقدام', value: tasks.filter(row => !isIn(row.status, ['approved', 'cancelled', 'completed'])).length, note: 'کارهای باز و در انتظار بررسی', tone: tasks.some(row => isIn(row.status, ['blocked', 'rejected'])) ? 'warning' : 'neutral', icon: Clock3 },
       { label: 'رخدادهای باز', value: incidents.filter(row => !isIn(row.status, ['resolved', 'closed', 'cancelled'])).length, note: 'مواردی که باید پیگیری شوند', tone: incidents.some(row => isIn(row.status, ['open', 'action_required'])) ? 'warning' : 'positive', icon: AlertTriangle },
-      { label: 'اسناد مالی باز', value: finance.filter(row => !isIn(row.status, ['posted', 'rejected', 'cancelled']) || isIn(row.payment_status, ['unpaid', 'partial'])).length, note: 'اسنادی که هنوز نهایی یا تسویه نشده‌اند', tone: 'warning', icon: WalletCards },
+      { label: 'اسناد مالی باز', value: finance.filter(row => !isIn(row.status, ['posted', 'rejected', 'cancelled']) || isIn(row.payment_status, ['unpaid', 'partial'])).length + (rows.invoices ?? []).filter(row => isIn(row.status, ['issued', 'partially_paid', 'overdue'])).length + (rows.settlements ?? []).filter(row => !isIn(row.status, ['paid', 'cancelled'])).length, note: 'فاکتورها، تسویه‌ها و اسناد شریک', tone: 'warning', icon: WalletCards },
     ];
     if (role === 'supplier') return [
       { label: 'اقلام سفارش', value: orders.filter(row => !isIn((row.orders as RecordRow | null)?.status, ['delivered', 'cancelled', 'completed'])).length, note: 'سفارش‌های فعال مجموعه شما', tone: 'neutral', icon: Package },
