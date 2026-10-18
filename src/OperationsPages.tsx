@@ -234,7 +234,6 @@ export function OperationsWorkspacePage({kind,membership,search}:{kind:Operation
     const sites=refs.sites.filter(r=>r.active!==false).map(siteOpt);
     const batches=refs.batches.map(batchOpt);
     const templates=refs.templates.filter(r=>r.status==='approved').map(r=>({value:String(r.id),label:String(r.template_code)+' · '+String(r.title)}));
-    const agreements=refs.agreements.filter(r=>['active','suspended','expired','terminated'].includes(String(r.status))).map(agreementOpt);
     const map: Record<OperationsKind,Field[]> = {
       'farm-sites':[
         {name:'site_code',label:'کد یکتای سایت',required:true},{name:'name',label:'نام مزرعه یا واحد',required:true},
