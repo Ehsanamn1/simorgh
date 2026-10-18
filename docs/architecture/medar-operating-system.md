@@ -142,3 +142,41 @@ Required gates for new operational workflows:
 ### Scheduled in-app briefing
 
 The Worker runs a daily scheduled task at 01:30 UTC. It reads real open tasks, late orders, incidents, shipments, invoices, and supplier capacity according to each active membership role, creates a single actionable summary only when records require attention, and uses a database uniqueness key to remain idempotent across retries. Users can read and acknowledge only their own notifications. The schedule does not send SMS, email, or push notifications.
+
+## Current implementation register (branch status, not a product promise)
+
+The implementation should be assessed by observable behavior and successful tests, not by the number of routes or screens.
+
+### Available foundation in this repository
+- A single Worker API and PostgreSQL-backed company-scoped records.
+- Username/password sessions, workspace membership, role-aware routes, module overrides, and audit records.
+- Operational task lifecycle, task templates, incidents, production/farm records, shipments, private-evidence metadata and guarded access paths.
+- Purchase-order lifecycle and inventory movement protections.
+- CSV bank transaction import, duplicate-safe reconciliation, and manual review; no transfer initiation.
+- Company-scoped AI provider settings, provider connection test, chat, inert action proposals, and explicitly confirmed task-creation execution.
+- In-app notifications and an idempotent scheduled daily briefing based on existing records.
+- Role-specific home views and responsive navigation.
+
+### Partial capabilities that must not be described as fully complete
+- The “important events” view is currently assembled from role-scoped operational queries and notifications. It is not yet a canonical, durable exception/event ledger with deduplication, ownership, acknowledgement, escalation, and resolution history across every domain.
+- Task templates and task status transitions exist, but there is not yet a general-purpose workflow/rules engine with versioned definitions, retry-safe step execution, timers, and compensation.
+- AI task creation is a narrow approved tool, not general natural-language execution across all modules. Read tools must cite the actual records used and must obey the same server-side permissions as the requesting user.
+- Voice requires a configured provider and successful live session test. UI availability is not evidence of a working provider connection.
+- Private object storage depends on a real R2 binding and verified upload/read/delete flows.
+- Fleet display filters stale and future-dated points, but it does not prove background GPS operation on a physical device or user-consent compliance.
+- Banking is an imported-transaction/reconciliation workflow, not a live bank connector. No bank credentials or transfers are supported.
+- Offline mutation queues, conflict resolution, and guaranteed resynchronization are not yet implemented.
+
+### UX simplification rule
+The authenticated navigation groups modules into six task-oriented destinations: home, command/assistant, work/follow-up, orders/contacts, operations/production, and finance/access. Grouping is only presentation; it must not grant access. Each role sees only allowed links, the active group opens automatically, and mobile navigation keeps its compact role-specific shortcuts. The home page should emphasize exceptions, ownership, due dates, and the next action before secondary metrics or decorative charts.
+
+### Delivery sequence
+1. Keep CI green and fix route, authorization, and migration regressions first.
+2. Make cross-company and role/action permissions testable for every sensitive endpoint; validate module overrides as deny-wins.
+3. Consolidate exceptions into a durable, idempotent event record with source references, owner, severity, due date, acknowledgement, resolution, and audit trail.
+4. Promote task templates into bounded workflows with explicit transitions, due-date rules, retries, idempotency, and visible failure recovery.
+5. Connect AI read tools to those records, return evidence references, and keep proposals separate from executed outcomes.
+6. Verify R2, live voice, GPS consent/background behavior, and bank-provider integrations individually in real environments before showing them as connected.
+7. Add offline sync only with a visible pending/synced/failed/conflict state and duplicate-safe server writes.
+
+Every phase must include unit tests, cross-tenant tests, role/action tests, migration verification on a clean database, and browser checks at desktop and mobile widths. Production migrations and deployments remain gated on the latest commit's successful checks and explicit readiness review.
