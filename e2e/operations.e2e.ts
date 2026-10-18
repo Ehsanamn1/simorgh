@@ -854,3 +854,112 @@ test('owner can configure module access for a staff member and restore inherited
   await expect(page.getByText('مجوزهای ماژول ذخیره شدند؛ محدودیت‌ها در API سمت سرور اعمال می‌شوند.')).toBeVisible();
   expect(saved!.every(module => module.configured === false)).toBe(true);
 });
+
+
+test('finance imports an actual CSV payload and reconciles only after explicit confirmation', async ({ page }) => {
+  await installIsolatedSession(page, 'owner');
+  const accountId = '00000000-0000-4000-8000-000000000301';
+  const transactionId = '00000000-0000-4000-8000-000000000302';
+  const invoiceId = '00000000-0000-4000-8000-000000000303';
+  let importedRows: Array<Record<string, unknown>> = [];
+  let transactionStatus = 'unmatched';
+  let reconcileCalls = 0;
+  const account = {
+    id: accountId, label: 'حساب تست عملیات', bankName: 'بانک آزمایشی', maskedAccount: '****1234',
+    currency: 'IRR', provider: 'manual_csv', connectionStatus: 'manual_import', active: true,
+    lastImportedAt: null, createdAt: new Date().toISOString(), transactionCount: 1, unmatchedCount: 1,
+  };
+  const transaction = {
+    id: transactionId, bankAccountId: accountId, externalTransactionId: 'TXN-20261018-001',
+    bookedAt: '2026-10-18T08:30:00.000Z', amount: '1250.50', currency: 'IRR',
+    description: 'دریافت مشتری', counterparty: 'مشتری آزمایشی', reference: 'REF-000001',
+    direction: 'incoming', reconciliationStatus: 'unmatched', importedAt: new Date().toISOString(),
+  };
+  await page.route('**/api/finance/bank-accounts*', async route => {
+    if (route.request().method() === 'GET') {
+      await route.fulfill({
+        status: 200, contentType: 'application/json',
+        body: JSON.stringify({
+          accounts: [account],
+          summary: { total: 1, unmatched: transactionStatus === 'unmatched' ? 1 : 0, reconciled: transactionStatus === 'reconciled' ? 1 : 0 },
+          capabilities: { canCreate: true, canUpdate: true, canDelete: false, canReconcile: true },
+        }),
+      });
+      return;
+    }
+    await route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ account }) });
+  });
+  await page.route('**/api/finance/bank-transactions**', async route => {
+    const url = new URL(route.request().url());
+    const method = route.request().method();
+    if (method === 'GET' && url.pathname.endsWith('/candidates')) {
+      await route.fulfill({
+        status: 200, contentType: 'application/json',
+        body: JSON.stringify({ candidates: [{
+          entityType: 'invoice', entityId: invoiceId, label: 'فاکتور INV-900 · مشتری آزمایشی',
+          amount: '1250.50', dueAt: '2026-10-20', status: 'issued',
+        }] }),
+      });
+      return;
+    }
+    if (method === 'GET') {
+      await route.fulfill({
+        status: 200, contentType: 'application/json',
+        body: JSON.stringify({
+          transactions: transactionStatus === 'unmatched' ? [transaction] : [{ ...transaction, reconciliationStatus: transactionStatus, matchedEntityType: 'invoice', matchedEntityId: invoiceId }],
+        }),
+      });
+      return;
+    }
+    if (method === 'POST' && url.pathname.endsWith('/import')) {
+      const body = route.request().postDataJSON() as { companyId: string; accountId: string; transactions: Array<Record<string, unknown>> };
+      expect(body.companyId).toBe(companyId);
+      expect(body.accountId).toBe(accountId);
+      importedRows = body.transactions;
+      await route.fulfill({
+        status: 200, contentType: 'application/json',
+        body: JSON.stringify({ inserted: body.transactions.length, skippedDuplicates: 0, submitted: body.transactions.length }),
+      });
+      return;
+    }
+    if (method === 'POST' && url.pathname.endsWith('/reconcile')) {
+      const body = route.request().postDataJSON() as { companyId: string; entityType: string; entityId: string };
+      expect(body.companyId).toBe(companyId);
+      expect(body.entityType).toBe('invoice');
+      expect(body.entityId).toBe(invoiceId);
+      reconcileCalls += 1;
+      transactionStatus = 'reconciled';
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, status: 'reconciled' }) });
+      return;
+    }
+    if (method === 'POST' && url.pathname.endsWith('/ignore')) {
+      transactionStatus = 'ignored';
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, status: 'ignored' }) });
+      return;
+    }
+    await route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ message: 'Unexpected bank API request in test.' }) });
+  });
+
+  page.on('dialog', dialog => dialog.accept());
+  await page.goto('/simorgh/app/finance', { waitUntil: 'domcontentloaded' });
+  await expect(page.getByRole('heading', { name: 'صورت‌حساب بانکی و تطبیق تراکنش' })).toBeVisible();
+  await expect(page.getByText('حساب تست عملیات')).toBeVisible();
+  const csv = [
+    'transaction_id,date,amount,currency,description,counterparty,reference',
+    'TXN-20261018-001,2026-10-18,1250.50,IRR,"دریافت مشتری",مشتری آزمایشی,REF-000001',
+  ].join('\n');
+  await page.locator('.bank-import-button input[type="file"]').setInputFiles({
+    name: 'statement.csv', mimeType: 'text/csv', buffer: Buffer.from(csv),
+  });
+  await expect(page.getByText(/ورود صورت‌حساب تمام شد/)).toBeVisible();
+  expect(importedRows).toHaveLength(1);
+  expect(importedRows[0]).toMatchObject({ externalTransactionId: 'TXN-20261018-001', amount: 1250.5, direction: 'incoming' });
+  await expect(page.getByText('دریافت مشتری')).toBeVisible();
+
+  await page.getByRole('button', { name: 'تطبیق', exact: true }).click();
+  await expect(page.getByText('فاکتور INV-900 · مشتری آزمایشی')).toBeVisible();
+  await page.getByLabel('سند تجاری مربوط').selectOption('invoice:' + invoiceId);
+  await page.getByRole('button', { name: 'تأیید و ثبت تطبیق' }).click();
+  await expect(page.getByText(/پیوند تطبیق مالی ثبت/)).toBeVisible();
+  expect(reconcileCalls).toBe(1);
+});
