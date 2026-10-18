@@ -124,12 +124,12 @@ export function ContactsHub({ membership, search: globalSearch = '' }: { members
         return <article className="contacts-hub-row" key={String(row.id)}>
           <span className="contacts-hub-avatar">{String(row.name ?? '?').slice(0, 1)}</span>
           <div className="contacts-hub-row-main"><b>{String(row.name ?? 'بدون نام')}</b><small>{String(row.organization_name ?? '') || 'نام سازمان ثبت نشده'}</small><div className="contacts-hub-row-meta">
-            {row.phone && <span><Phone size={13}/><b dir="ltr">{String(row.phone)}</b></span>}
-            {row.email && <span><Mail size={13}/><b dir="ltr">{String(row.email)}</b></span>}
-            {row.city && <span><MapPin size={13}/>{String(row.city)}</span>}
+            {typeof row.phone === 'string' && row.phone.length > 0 && <span><Phone size={13}/><b dir="ltr">{String(row.phone)}</b></span>}
+            {typeof row.email === 'string' && row.email.length > 0 && <span><Mail size={13}/><b dir="ltr">{String(row.email)}</b></span>}
+            {typeof row.city === 'string' && row.city.length > 0 && <span><MapPin size={13}/>{String(row.city)}</span>}
           </div>
           {tags.length > 0 && <div className="contacts-hub-tags">{tags.slice(0, 6).map(tag => <span key={tag}><Tag size={11}/>{tag}</span>)}</div>}
-          {row.contact_notes && <p className="contacts-hub-note">{String(row.contact_notes)}</p>}
+          {typeof row.contact_notes === 'string' && row.contact_notes.length > 0 && <p className="contacts-hub-note">{String(row.contact_notes)}</p>}
           </div>
           <div className="contacts-hub-row-trailing"><span className={row.active === false ? 'inactive' : 'active'}>{row.active === false ? 'غیرفعال' : 'فعال'}</span><small>{row.created_at ? dateFa(String(row.created_at)) : 'تاریخ ثبت نامشخص'}</small></div>
         </article>;
