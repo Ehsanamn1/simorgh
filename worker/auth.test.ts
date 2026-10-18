@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   CREATE_OWNER_WORKSPACE_SQL,
+  canonicalContactPhone,
   DUMMY_PASSWORD_HASH,
   FAILED_LOGIN_UPSERT_SQL,
   normalizeUsername,
@@ -8,6 +9,19 @@ import {
   resolveApiModeAccess,
   verifyPassword,
 } from './index';
+
+describe('phone normalization for contact import', () => {
+  it('matches local, international and Persian-digit variants of the same Iranian number', () => {
+    expect(canonicalContactPhone('0912-000-0001')).toBe('989120000001');
+    expect(canonicalContactPhone('+98 912 000 0001')).toBe('989120000001');
+    expect(canonicalContactPhone('۰۰۹۸۹۱۲۰۰۰۰۰۰۱')).toBe('989120000001');
+  });
+
+  it('preserves a distinct non-Iranian number and ignores values without digits', () => {
+    expect(canonicalContactPhone('+1 (202) 555-0101')).toBe('12025550101');
+    expect(canonicalContactPhone('No phone')).toBe('');
+  });
+});
 
 describe('Worker API deployment mode isolation', () => {
   it('keeps an unconfigured or public-demo Worker read-only by default', () => {
