@@ -137,3 +137,8 @@ Required gates for new operational workflows:
 - Do not give the model arbitrary SQL, generic unrestricted CRUD, or secrets.
 - Do not split into microservices without measurable need.
 - Do not claim autonomous completion when only a suggestion was generated.
+
+
+### Scheduled in-app briefing
+
+The Worker runs a daily scheduled task at 01:30 UTC. It reads real open tasks, late orders, incidents, shipments, invoices, and supplier capacity according to each active membership role, creates a single actionable summary only when records require attention, and uses a database uniqueness key to remain idempotent across retries. Users can read and acknowledge only their own notifications. The schedule does not send SMS, email, or push notifications.
