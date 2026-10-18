@@ -1319,6 +1319,7 @@ function MembersPage({membership,search}:{membership:Membership;search:string}) 
  const [accountSupplierId,setAccountSupplierId]=useState('');
  const [inviteRole,setInviteRole]=useState<AppRole>('staff');
  const [inviteCode,setInviteCode]=useState('');
+ const [inviteLink,setInviteLink]=useState('');
  const [customers,setCustomers]=useState<Row[]>([]);const [suppliers,setSuppliers]=useState<Row[]>([]);
  const [inviteCustomerId,setInviteCustomerId]=useState('');const [inviteSupplierId,setInviteSupplierId]=useState('');const [resetSecret,setResetSecret]=useState('');
  const [permissionsMember,setPermissionsMember]=useState<Row|null>(null);
@@ -1346,7 +1347,7 @@ function MembersPage({membership,search}:{membership:Membership;search:string}) 
  };
  useEffect(()=>{void load();},[membership.company_id]);
  const createInvite=async()=>{
-  setBusy(true);setError('');setNotice('');setInviteCode('');
+  setBusy(true);setError('');setNotice('');setInviteCode('');setInviteLink('');
   try {
    const result=await api.post<{inviteCode:string;expiresAt:string}>('/api/workspace/invites',{
     companyId:membership.company_id,role:inviteRole,
@@ -1354,7 +1355,9 @@ function MembersPage({membership,search}:{membership:Membership;search:string}) 
     supplierId:inviteRole==='supplier'?inviteSupplierId:null,
    });
    setInviteCode(result.inviteCode);
-   setNotice('کد دعوت ساخته شد. آن را فقط با فرد موردنظر به اشتراک بگذار؛ کد پس از ۷ روز منقضی می‌شود.');
+   const basePath = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL : import.meta.env.BASE_URL + '/';
+   setInviteLink(new URL(basePath + 'app/home?invite=' + encodeURIComponent(result.inviteCode) + '#signup', window.location.origin).toString());
+   setNotice('لینک دعوت ساخته شد؛ فرد با بازکردن آن مستقیماً فرم ساخت حساب را با دعوت آماده‌شده می‌بیند. لینک تا ۷ روز معتبر است.');
    setOpen(false);
   } catch(caught) {
    setError(caught instanceof Error?caught.message:'ساخت کد دعوت ناموفق بود.');
@@ -1442,7 +1445,7 @@ function MembersPage({membership,search}:{membership:Membership;search:string}) 
   {error&&<InlineError error={error} retry={()=>void load()}/>}
   {notice&&<div className="form-success notice-wide"><CheckCircle2 size={17}/>{notice}</div>}
   {resetSecret&&<section className="panel invite-code-panel"><div className="panel-heading"><div><span className="section-number">LOGIN DETAILS</span><div><h3>اطلاعات ورود</h3><p>این اطلاعات را کپی کن و فقط به صاحب حساب تحویل بده.</p></div></div><Button variant="soft" onClick={()=>void navigator.clipboard?.writeText(resetSecret)}>کپی اطلاعات</Button></div><code className="invite-code-value" dir="ltr">{resetSecret}</code></section>}
-  {inviteCode&&<section className="panel invite-code-panel"><div className="panel-heading"><div><span className="section-number">INVITE</span><div><h3>کد دعوت یک‌بارمصرف</h3><p>کد زیر را با عضو جدید به‌صورت امن به اشتراک بگذار.</p></div></div><Button variant="soft" onClick={()=>void navigator.clipboard?.writeText(inviteCode)}>کپی کد</Button></div><code className="invite-code-value" dir="ltr">{inviteCode}</code><small>این کد تا ۷ روز معتبر است و فقط برای نقش انتخاب‌شده مجوز می‌سازد.</small></section>}
+  {inviteCode&&<section className="panel invite-code-panel"><div className="panel-heading"><div><span className="section-number">INVITE</span><div><h3>لینک دعوت یک‌بارمصرف</h3><p>این لینک فرم ساخت حساب را با نقش تعیین‌شده باز می‌کند.</p></div></div><Button variant="soft" onClick={()=>void navigator.clipboard?.writeText(inviteLink)}>کپی لینک</Button></div><code className="invite-code-value" dir="ltr">{inviteLink}</code><div className="invite-link-code"><small>کد پشتیبان دعوت</small><code dir="ltr">{inviteCode}</code><Button variant="ghost" onClick={()=>void navigator.clipboard?.writeText(inviteCode)}>کپی کد</Button></div><small>پس از استفادهٔ موفق، دعوت یک‌بارمصرف مصرف می‌شود؛ لینک تا ۷ روز معتبر است.</small></section>}
   <div className="rule-banner"><ShieldCheck size={18}/><p><b>کنترل دسترسی سمت سرور</b><span>کاربران تنها پس از ثبت‌نام و ارائه کد دعوت معتبر به مجموعه متصل می‌شوند. مدیر نمی‌تواند مالک جدید تعیین کند؛ فقط مالک می‌تواند نقش مدیر را دعوت کند.</span></p></div>
   <section className="panel entity-panel members-list-panel"><div className="entity-toolbar"><div><b>{numberFa(visible.length)} عضویت</b><small>فهرست واقعی عضویت‌های مجموعه</small></div><Button variant="soft" onClick={()=>void load()}>تازه‌سازی</Button></div>
    {loading?<div className="panel-loading"><span className="spinner small"/></div>:visible.length?<DataTable rows={visible} columns={[
