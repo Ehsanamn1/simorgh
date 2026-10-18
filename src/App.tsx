@@ -228,7 +228,7 @@ function farmSiteIcon(siteType: unknown, size = 18) {
   }
 }
 
-function FarmMapPanel({sites,schemaWarning}:{sites:Row[];schemaWarning:string}) {
+function FarmMapPanel({sites,schemaWarning,membership}:{sites:Row[];schemaWarning:string;membership:Membership}) {
   const mapped = useMemo(() => sites.filter(site => {
     const lat = site.latitude, lon = site.longitude;
     return lat !== null && lat !== undefined && lat !== '' && lon !== null && lon !== undefined && lon !== ''
@@ -241,6 +241,41 @@ function FarmMapPanel({sites,schemaWarning}:{sites:Row[];schemaWarning:string}) 
   }), [mapped]);
   const [selectedId, setSelectedId] = useState('');
   const [mapMode, setMapMode] = useState<'iran'|'street'>('iran');
+  const [fleetShipments,setFleetShipments] = useState<Row[]>([]);
+  const [fleetLatest,setFleetLatest] = useState<Record<string,Row>>({});
+  const [fleetLastRefresh,setFleetLastRefresh] = useState('');
+  const [fleetNotice,setFleetNotice] = useState('');
+  const canViewFleet = ['owner','admin','staff'].includes(membership.role);
+  useEffect(()=>{
+    if(!dataApi||!canViewFleet)return;
+    let disposed=false;
+    const refreshFleet=async()=>{
+      try{
+        const shipmentResult=await dataApi.from('shipments').select('id,driver_user_id,stage,vehicle,planned_departure').eq('company_id',membership.company_id).in('stage',['loading','in_transit','arrived']).limit(200);
+        if(shipmentResult.error)throw new Error(shipmentResult.error.message);
+        const active=(shipmentResult.data??[]) as Row[];
+        if(disposed)return;
+        setFleetShipments(active);
+        if(!active.length){setFleetLatest({});setFleetLastRefresh(new Date().toISOString());setFleetNotice('');return;}
+        const pointResult=await dataApi.from('shipment_locations').select('id,shipment_id,latitude,longitude,accuracy_m,captured_at,driver_user_id').eq('company_id',membership.company_id).in('shipment_id',active.map(row=>String(row.id))).order('captured_at',{ascending:false}).limit(600);
+        if(pointResult.error)throw new Error(pointResult.error.message);
+        if(disposed)return;
+        const latest:Record<string,Row>={};
+        for(const point of (pointResult.data??[]) as Row[]){
+          const key=String(point.shipment_id);
+          if(!latest[key])latest[key]=point;
+        }
+        setFleetLatest(latest);
+        setFleetLastRefresh(new Date().toISOString());
+        setFleetNotice('');
+      }catch(caught){
+        if(!disposed)setFleetNotice(caught instanceof Error?caught.message:'دریافت موقعیت ناوگان ممکن نشد.');
+      }
+    };
+    void refreshFleet();
+    const timer=window.setInterval(()=>void refreshFleet(),15000);
+    return ()=>{disposed=true;window.clearInterval(timer);};
+  },[membership.company_id,membership.role,canViewFleet]);
   const showIranPaper = mapMode === 'iran';
   const visibleMapped = showIranPaper ? iranMapped : mapped;
   useEffect(() => {
@@ -322,8 +357,40 @@ function FarmMapPanel({sites,schemaWarning}:{sites:Row[];schemaWarning:string}) 
             <span className="sr-only">نشانگر {numberFa(index+1)}</span>
           </button>;
         })}
+        {canViewFleet&&Object.entries(fleetLatest).map(([shipmentId,point])=>{
+          const shipment=fleetShipments.find(item=>String(item.id)===shipmentId);
+          if(!shipment)return null;
+          const latitude=Number(point.latitude),longitude=Number(point.longitude);
+          if(!Number.isFinite(latitude)||!Number.isFinite(longitude))return null;
+          const time=Date.parse(String(point.captured_at??''));
+          const stale=!Number.isFinite(time)||Date.now()-time>5*60*1000;
+          if(stale)return null;
+          if(showIranPaper&&(latitude<24||latitude>41||longitude<43||longitude>65))return null;
+          if(!showIranPaper&&(latitude<bounds.south||latitude>bounds.north||longitude<bounds.west||longitude>bounds.east))return null;
+          const position=showIranPaper
+            ? {x:Math.min(83.3,Math.max(25.5,25.5+((longitude-43)/22)*57.8)),y:Math.min(83.2,Math.max(5.3,5.3+((40-latitude)/16)*77.9))}
+            : {x:Math.min(98,Math.max(2,(longitude-bounds.west)/(bounds.east-bounds.west)*100)),y:Math.min(98,Math.max(2,mapY(latitude))};
+          const label='راننده '+String(shipmentId).slice(0,8).toUpperCase();
+          return <button type="button" key={'gps-'+shipmentId} className="farm-map-driver-marker" style={{left:position.x+'%',top:position.y+'%'}} title={label+' · '+dateTimeFa(String(point.captured_at))} aria-label={label+' · '+dateTimeFa(String(point.captured_at))} onClick={()=>setSelectedId('gps:'+shipmentId)}>
+            <span className="farm-map-driver-marker-icon"><Truck size={15}/></span><span className="farm-map-driver-marker-label">{label}</span>
+          </button>;
+        })}
       </div>
-      {visibleMapped.length ? <div className="farm-map-sites" aria-label="فهرست موقعیت‌های ثبت‌شده">{visibleMapped.map(site=><button type="button" key={String(site.id)} className={'farm-map-site'+(String(site.id)===selectedId?' active':'')} aria-pressed={String(site.id)===selectedId} onClick={()=>setSelectedId(String(site.id))}><span className="farm-map-pin">{farmSiteIcon(site.site_type,16)}</span><span><b>{siteName(site)}</b><small>{[site.city,site.province].filter(Boolean).map(String).join(' · ') || 'نشانی ثبت نشده'}</small><small>{farmSiteTypeLabels[String(site.site_type ?? 'mixed')] ?? 'سایر'}</small></span></button>)}</div> : <div className="farm-map-sites farm-map-sites-empty"><EmptyState title="موقعیت ثبت‌شده‌ای در محدوده ایران نیست" description="نقشه کاغذی فعال است؛ برای نمایش نشانگرها، مختصات واقعی سایت‌های ایران را در بخش سایت‌های مزرعه ثبت کن." icon={MapPin}/></div>}
+      {visibleMapped.length ? <div className="farm-map-sites" aria-label="فهرست موقعیت‌های ثبت‌شده">{visibleMapped.map(site=><button type="button" key={String(site.id)} className={'farm-map-site'+(String(site.id)===selectedId?' active':'')} aria-pressed={String(site.id)===selectedId} onClick={()=>setSelectedId(String(site.id))}><span className="farm-map-pin">{farmSiteIcon(site.site_type,16)}</span><span><b>{siteName(site)}</b><small>{[site.city,site.province].filter(Boolean).map(String).join(' · ') || 'نشانی ثبت نشده'}</small><small>{farmSiteTypeLabels[String(site.site_type ?? 'mixed')] ?? 'سایر'}</small></span></button>)}</div> : <div className="farm-map-sites farm-map-sites-empty"><EmptyState title="موقعیت ثبت‌شده‌ای در محدوده ایران نیست" description="نقشه کاغذی فعال است؛ برای نمایش نشانگرها، مختصات واقعی سایت‌های ایران را در بخش سایت‌های مزرعه ثبت کن." icon={MapPin}/></div>}      <div className="farm-map-sites farm-map-fleet-list" aria-label="رانندگان و موقعیت مأموریت‌های فعال">
+        <div className="farm-map-fleet-heading"><Truck size={15}/><b>مأموریت‌های در حال حرکت</b><span>{numberFa(Object.keys(fleetLatest).length)} موقعیت</span></div>
+        {fleetNotice&&<p className="farm-map-fleet-notice">{fleetNotice}</p>}
+        {fleetShipments.length===0?<p className="helper-note">در حال حاضر مأموریت فعالی برای نمایش نیست.</p>:fleetShipments.map(shipment=>{
+          const point=fleetLatest[String(shipment.id)];
+          const stamp=point?Date.parse(String(point.captured_at??'')):NaN;
+          const stale=!Number.isFinite(stamp)||Date.now()-stamp>5*60*1000;
+          return <div className="farm-map-fleet-row" key={'fleet-'+String(shipment.id)}>
+            <span className={'farm-map-fleet-dot'+(point&&!stale?' live':'')}></span>
+            <span><b>{String(shipment.vehicle??('محموله '+String(shipment.id).slice(0,8).toUpperCase()))}</b><small>{point?dateTimeFa(String(point.captured_at)):'هنوز موقعیت ثبت نشده'}</small>{point&&stale&&<small className="stale">آخرین نقطه قدیمی است؛ موقعیت زنده نیست</small>}</span>
+            <Badge value={String(shipment.stage??'in_transit')}/>
+          </div>;
+        })}
+        <small className="farm-map-fleet-updated">آخرین بررسی: {fleetLastRefresh?dateTimeFa(fleetLastRefresh):'در حال دریافت'}</small>
+      </div>
     </div>
     : <EmptyState title="مختصات جغرافیایی ثبت نشده" description="از بخش سایت‌های مزرعه، مختصات واقعی را ذخیره کن تا موقعیت سایت‌ها روی نقشه نمایش داده شود. هیچ نقطه‌ی ساختگی نمایش داده نمی‌شود." icon={MapPin}/>}
     <div className="farm-map-operational-note"><ShieldCheck size={14}/><span>موقعیت‌های فعلی مربوط به سایت‌های ثبت‌شده‌اند؛ نمایش GPS زنده‌ی راننده پس از اتصال منبع موقعیت و ثبت رضایت/مجوز راننده فعال می‌شود.</span></div>
@@ -580,7 +647,7 @@ function Dashboard({ membership }: { membership: Membership }) {
         </Link>;
       })}</div> : <EmptyState title="هدف قابل‌پیگیری ثبت نشده" description="در بخش اهداف و برنامه، مقدار مبنا، هدف، موعد و مسئول را ثبت کن تا مسیر اجرا در مرکز فرمان نمایش داده شود." icon={Target}/>}
     </section></details>
-    <div className="dashboard-grid tower-map-grid"><FarmMapPanel sites={mapSites} schemaWarning={mapError}/></div>
+    <div className="dashboard-grid tower-map-grid"><FarmMapPanel sites={mapSites} schemaWarning={mapError} membership={membership}/></div>
     <div className="dashboard-grid tower-main-grid">
       <details className="dashboard-disclosure"><summary className="dashboard-disclosure-summary"><span><Activity size={17}/> نمودار سفارش‌ها و سابقه‌ی اخیر</span><small>{loading ? 'در حال دریافت' : numberFa(orders.length) + ' سفارش'}</small></summary><section className="panel chart-panel"><div className="panel-heading"><div><span className="section-number">۰۱</span><div><h3>وضعیت سفارش‌های اخیر</h3><p>توزیع رکوردهای واقعی، بدون پیش‌بینی</p></div></div><Badge value={loading ? 'در حال دریافت' : numberFa(orders.length) + ' رکورد'}/></div>
         {loading ? <div className="panel-loading"><span className="spinner small"/></div> : chart.length ? <div className="chart-wrap"><ResponsiveContainer width="100%" height={270}><BarChart data={chart} margin={{top:8,right:8,left:-14,bottom:8}}><CartesianGrid stroke="#29373B" strokeDasharray="4 4" vertical={false}/><XAxis dataKey="name" tick={{fill:'#A0B0B2',fontSize:11}} axisLine={{stroke:'#29373B'}} tickLine={{stroke:'#29373B'}}/><YAxis allowDecimals={false} tick={{fill:'#77898C',fontSize:10}} axisLine={false} tickLine={false}/><Tooltip contentStyle={{backgroundColor:'#11191C',border:'1px solid #29373B',borderRadius:12,color:'#EAF0F0'}} labelStyle={{color:'#EAF0F0'}} cursor={{fill:'#1D292D'}}/><Bar dataKey="count" name="تعداد سفارش" fill="#6EB9AC" radius={[6,6,0,0]} maxBarSize={54}/></BarChart></ResponsiveContainer></div> : <EmptyState title="هنوز سفارش ثبت نشده" description="با ثبت سفارش واقعی، نمودار وضعیت‌ها اینجا ظاهر می‌شود." icon={FileText}/>}
