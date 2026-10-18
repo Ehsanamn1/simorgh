@@ -2716,7 +2716,7 @@ app.post('/api/data/:table',async c=>{
         [row.lot_id,companyId,supplierId,row.product_id??null]);
        if(!lotRows.length)return c.json({message:'لات انتخاب‌شده با شرکت، تأمین‌کننده یا محصول بچ مطابقت ندارد.'},422);
       }
-      row.status='planned';row.quality_status='not_inspected';row.started_on=null;row.completed_on=null;row.rejected_quantity=0;row.created_by=user.id;
+      row.status='planned';row.quality_status='not_inspected';row.produced_quantity=0;row.started_on=null;row.completed_on=null;row.rejected_quantity=0;row.created_by=user.id;
      }
      if(table==='invoices'){row.status='draft';row.paid_amount=0;}
      sanitized.push(row);continue;
