@@ -24,3 +24,7 @@ No test business records or owner accounts are inserted by these migrations.
 
 
 - `0013_ai_assistant_and_contacts.sql`: adds company-scoped encrypted AI provider configuration, a minimal request-usage ledger for rate limits, and prerequisites for the secure assistant/contact import endpoints.
+
+12. `0012_client_presence.sql` — track authenticated web/mobile clients in the central manager panel.
+13. `0013_ai_assistant_and_contacts.sql` — company-scoped AI provider keys and usage accounting.
+14. `0014_contact_intelligence.sql` — keep organization, email, notes, tags, address and source metadata on imported customer/supplier records, with company-scoped phone lookup indexes.
