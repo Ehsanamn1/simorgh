@@ -2532,7 +2532,7 @@ const UPDATE_PROTECTED_FIELDS:Record<string,Set<string>>={
  invoices:new Set(['status','paid_amount','paid_at','paid_by','payment_reference']),
  settlements:new Set(['status','paid_at','paid_by','payment_reference']),
  operational_tasks:new Set(['status','started_at','submitted_at','reviewed_at','reviewed_by','review_note','assigned_by']),
- production_batches:new Set(['status','started_on','quality_status','completed_on','rejected_quantity']),
+ production_batches:new Set(['status','started_on','quality_status','completed_on','rejected_quantity','lot_id']),
  partner_financial_entries:new Set(['status','direction','paid_amount','payment_status','submitted_at','approved_by','approved_at','posted_by','posted_at','linked_entry_id','adjustment_effect']),
  partner_settlement_periods:new Set(['status','approved_by','approved_at','settled_by','settled_at','calculation_snapshot','net_result','company_share_amount','partner_share_amount','balance_due_to_partner','balance_due_to_company']),
  inventory_movements:new Set(['company_id','product_id','movement_type','quantity','unit_cost'])
@@ -2699,7 +2699,23 @@ app.post('/api/data/:table',async c=>{
      if(table==='shipments')row.stage='planned';
      if(table==='operational_tasks')row.status='pending';
      if(table==='partner_financial_entries'){row.status='submitted';row.submitted_by=user.id;if(columns.has('submitted_at'))row.submitted_at=new Date().toISOString();}
-     if(table==='production_batches'){row.status='planned';row.quality_status='not_inspected';row.started_on=null;row.completed_on=null;row.rejected_quantity=0;row.created_by=user.id;}
+     if(table==='production_batches'){
+      const siteId=typeof row.farm_site_id==='string'?row.farm_site_id:'';
+      const supplierId=typeof row.supplier_id==='string'?row.supplier_id:null;
+      const agreementId=typeof row.agreement_id==='string'?row.agreement_id:null;
+      const flockCycleId=typeof row.flock_cycle_id==='string'?row.flock_cycle_id:null;
+      const scopeRows=await runForUser(c,user.id,
+       "select fs.id from public.farm_sites fs where fs.id=$1::uuid and fs.company_id=$2::uuid and fs.supplier_id is not distinct from $3::uuid and ($4::uuid is null or exists (select 1 from public.partnership_agreements a where a.id=$4::uuid and a.company_id=$2::uuid and a.supplier_id is not distinct from $3::uuid and a.status='active')) and ($5::uuid is null or exists (select 1 from public.flock_cycles fc where fc.id=$5::uuid and fc.company_id=$2::uuid and fc.farm_site_id=fs.id))",
+       [siteId,companyId,supplierId,agreementId,flockCycleId]);
+      if(!scopeRows.length)return c.json({message:'مزرعه، تأمین‌کننده، قرارداد و چرخهٔ انتخاب‌شده با هم سازگار نیستند.'},422);
+      if(row.lot_id){
+       const lotRows=await runForUser(c,user.id,
+        'select id from public.lots where id=$1::uuid and company_id=$2::uuid and supplier_id is not distinct from $3::uuid and product_id is not distinct from $4::uuid',
+        [row.lot_id,companyId,supplierId,row.product_id??null]);
+       if(!lotRows.length)return c.json({message:'لات انتخاب‌شده با شرکت، تأمین‌کننده یا محصول بچ مطابقت ندارد.'},422);
+      }
+      row.status='planned';row.quality_status='not_inspected';row.started_on=null;row.completed_on=null;row.rejected_quantity=0;row.created_by=user.id;
+     }
      if(table==='invoices'){row.status='draft';row.paid_amount=0;}
      sanitized.push(row);continue;
     }
@@ -2869,7 +2885,7 @@ app.post('/api/data/:table',async c=>{
         "select l.id from public.lots l where l.id=$1::uuid and l.company_id=$2::uuid and l.status='released' and l.product_id is not distinct from $3::uuid and l.supplier_id is not distinct from $4::uuid and exists (select 1 from public.quality_reviews q where q.company_id=l.company_id and q.lot_id=l.id and q.result='pass') and exists (select 1 from public.farm_sites fs where fs.id=$5::uuid and fs.company_id=l.company_id and fs.supplier_id is not distinct from $4::uuid) limit 1",
         [lotId, current.company_id, current.product_id, current.supplier_id, current.farm_site_id],
       );
-      if (!readyLots.length) {
+      if (!isProductionBatchCompletionReady(qualityStatus, lotId, readyLots.length > 0)) {
         return c.json({ message: 'برای تکمیل بچ، لات باید متعلق به همین شرکت/تأمین‌کننده/محصول، آزادشده و دارای بازبینی موفق باشد.' }, 422);
       }
     }
@@ -2903,7 +2919,14 @@ app.post('/api/data/:table',async c=>{
         safeValues.quality_status = 'pending';
         safeValues.rejected_quantity = Number(values?.rejected_quantity ?? current.rejected_quantity ?? 0);
       }
-      if (nextState === 'rejected') safeValues.quality_status = 'failed';
+      if (nextState === 'approved') {
+        if (values?.quality_status !== undefined) safeValues.quality_status = values.quality_status;
+        safeValues.rejected_quantity = Number(values?.rejected_quantity ?? current.rejected_quantity ?? 0);
+      }
+      if (nextState === 'rejected') {
+        safeValues.quality_status = 'failed';
+        safeValues.rejected_quantity = Number(values?.rejected_quantity ?? current.rejected_quantity ?? 0);
+      }
       if (nextState === 'completed') {
         safeValues.quality_status = 'passed';
         safeValues.completed_on = today;
