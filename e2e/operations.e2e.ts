@@ -740,3 +740,58 @@ test('agent center creates an inert proposal and only creates a task after expli
   await expect(page.getByText('شناسه وظیفه:')).toBeVisible();
   expect(createdTasks).toBe(1);
 });
+
+test('owner can configure module access for a staff member and restore inherited role defaults', async ({ page }) => {
+  await installIsolatedSession(page, 'owner');
+  const memberId = '00000000-0000-4000-8000-000000000044';
+  const staffUserId = '00000000-0000-4000-8000-000000000045';
+  const modules = [
+    'home','command','agents','contacts','customers','suppliers','orders','purchase-orders','products',
+    'inventory','capacity','quality','shipments','finance','farm-sites','flock-cycles','production-batches',
+    'daily-production','operational-tasks','task-templates','incidents','partnership-agreements','partner-finance',
+    'partner-settlements','goals','members','audit',
+  ].map(key => ({
+    key,
+    label: key === 'agents' ? 'دستیار و مرکز ایجنت‌ها' : key,
+    configured: false,
+    can_read: true, can_create: true, can_update: true, can_delete: false, can_approve: false,
+  }));
+  let saved: Array<Record<string, unknown>> | null = null;
+  await page.route('**/api/workspace/members', async route => {
+    await route.fulfill({
+      status: 200, contentType: 'application/json',
+      body: JSON.stringify({ members: [
+        { membership_id: '00000000-0000-4000-8000-000000000046', company_id: companyId, user_id: '00000000-0000-4000-8000-000000000011', role: 'owner', active: true, username: 'owner_test', full_name: 'مالک آزمایشی مدار', phone: null, created_at: new Date().toISOString() },
+        { membership_id: memberId, company_id: companyId, user_id: staffUserId, role: 'staff', active: true, username: 'staff_test', full_name: 'کارشناس آزمایشی مدار', phone: null, created_at: new Date().toISOString() },
+      ] }),
+    });
+  });
+  await page.route('**/api/workspace/members/*/permissions*', async route => {
+    if (route.request().method() === 'GET') {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ modules }) });
+      return;
+    }
+    const body = route.request().postDataJSON() as { companyId: string; modules: Array<Record<string, unknown>> };
+    expect(body.companyId).toBe(companyId);
+    saved = body.modules;
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, configuredModules: saved.filter(m => m.configured === true).length }) });
+  });
+  await page.goto('/simorgh/app/members', { waitUntil: 'domcontentloaded' });
+  await expect(page.getByRole('heading', { name: 'دسترسی کاربران' })).toBeVisible();
+  const staffRow = page.locator('tr').filter({ hasText: 'staff_test' });
+  await staffRow.getByRole('button', { name: 'مجوزها' }).click();
+  const agentRead = page.getByRole('checkbox', { name: 'دستیار و مرکز ایجنت‌ها — مشاهده' });
+  await expect(agentRead).toBeVisible();
+  await expect(agentRead).toBeChecked();
+  await agentRead.uncheck();
+  await page.getByRole('button', { name: 'ذخیره مجوزها' }).click();
+  await expect(page.getByText('مجوزهای ماژول ذخیره شدند؛ محدودیت‌ها در API سمت سرور اعمال می‌شوند.')).toBeVisible();
+  expect(saved).not.toBeNull();
+  const agentsSaved = saved!.find(module => module.key === 'agents');
+  expect(agentsSaved).toMatchObject({ configured: true, can_read: false });
+  await staffRow.getByRole('button', { name: 'مجوزها' }).click();
+  await page.getByRole('button', { name: 'بازگشت به پیش‌فرض نقش' }).click();
+  await page.getByRole('button', { name: 'ذخیره مجوزها' }).click();
+  await expect(page.getByText('مجوزهای ماژول ذخیره شدند؛ محدودیت‌ها در API سمت سرور اعمال می‌شوند.')).toBeVisible();
+  expect(saved!.every(module => module.configured === false)).toBe(true);
+});
