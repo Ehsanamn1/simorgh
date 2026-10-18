@@ -1,5 +1,5 @@
 -- Company-scoped per-membership module/action overrides.
--- inherit_role_defaults=true is deliberately fail-open to the existing, separately enforced role scope.
+-- Inherited defaults allow read/create/update for delegated roles; delete/approve require explicit grants.
 CREATE TABLE IF NOT EXISTS public.medar_membership_module_permissions (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,

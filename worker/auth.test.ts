@@ -6,6 +6,7 @@ import {
   normalizeUsername,
   parseClientHeartbeat,
   resolveApiModeAccess,
+  aggregateModulePermissionRows,
   scopeHasModulePermission,
   verifyPassword,
 } from './index';
@@ -122,9 +123,12 @@ describe('company-scoped module permissions', () => {
     can_approve: false,
   };
 
-  it('inherits existing role behavior when no per-member override exists', () => {
+  it('uses conservative inherited capability defaults for delegated roles', () => {
     expect(scopeHasModulePermission(staff, new Map(), 'can_read')).toBe(true);
-    expect(scopeHasModulePermission(staff, new Map(), 'can_delete')).toBe(true);
+    expect(scopeHasModulePermission(staff, new Map(), 'can_create')).toBe(true);
+    expect(scopeHasModulePermission(staff, new Map(), 'can_update')).toBe(true);
+    expect(scopeHasModulePermission(staff, new Map(), 'can_delete')).toBe(false);
+    expect(scopeHasModulePermission(staff, new Map(), 'can_approve')).toBe(false);
   });
 
   it('uses explicit capabilities when a member has a custom module policy', () => {
@@ -140,6 +144,21 @@ describe('company-scoped module permissions', () => {
     const policies = new Map([[staff.membership_id, override]]);
     expect(scopeHasModulePermission({ ...staff, role: 'owner' }, policies, 'can_delete')).toBe(true);
     expect(scopeHasModulePermission({ ...staff, role: 'admin' }, policies, 'can_approve')).toBe(true);
+  });
+
+  it('does not let a second active delegated membership bypass a module denial', () => {
+    const restricted = {
+      role: 'staff', inherit_role_defaults: false,
+      can_read: false, can_create: true, can_update: true, can_delete: false, can_approve: false,
+    };
+    const inherited = {
+      role: 'driver', inherit_role_defaults: true,
+      can_read: true, can_create: true, can_update: true, can_delete: false, can_approve: false,
+    };
+    expect(aggregateModulePermissionRows([restricted, inherited], 'can_read')).toBe(false);
+    expect(aggregateModulePermissionRows([inherited], 'can_delete')).toBe(false);
+    expect(aggregateModulePermissionRows([inherited], 'can_approve')).toBe(false);
+    expect(aggregateModulePermissionRows([restricted, { ...inherited, role: 'owner' }], 'can_read')).toBe(true);
   });
 
   it('does not apply a policy to a different membership in the same company', () => {

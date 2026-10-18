@@ -1786,15 +1786,16 @@ app.get('/api/workspace/my-module-permissions', async (c) => {
     [user.id, companyId],
   ) as Array<{ membership_id: string; role: string; module_key: string | null; inherit_role_defaults: boolean | null; can_read: boolean | null }>;
   if (!memberships.length) return c.json({ message: 'به این فضای کاری دسترسی فعال نداری.' }, 403);
+  const uniqueMemberships = Array.from(new Map(memberships.map(row => [row.membership_id, row])).values());
   const permissions: Record<string, boolean> = {};
   for (const module of MODULE_PERMISSION_CATALOG) {
-    const matching = memberships.filter(row => row.module_key === module.key);
-    permissions[module.key] = memberships.some(row =>
-      row.role === 'owner' || row.role === 'admin' ||
-      !matching.some(entry => entry.membership_id === row.membership_id) ||
-      matching.some(entry => entry.membership_id === row.membership_id &&
-        (entry.inherit_role_defaults === true || entry.inherit_role_defaults === null || entry.can_read === true)),
-    );
+    permissions[module.key] = uniqueMemberships.some(row => row.role === 'owner' || row.role === 'admin') ||
+      uniqueMemberships.length > 0 && uniqueMemberships.every(member => {
+        if (member.role === 'owner' || member.role === 'admin') return true;
+        const policy = memberships.find(row => row.membership_id === member.membership_id && row.module_key === module.key);
+        // Read is inherited by default, but an explicit denial on any delegated membership wins.
+        return !policy || policy.inherit_role_defaults === true || policy.inherit_role_defaults === null || policy.can_read === true;
+      });
   }
   return c.json({ companyId, permissions });
 });
@@ -2300,6 +2301,21 @@ const MODULE_PERMISSION_CATALOG = [
   { key: 'audit', label: 'تاریخچه و ممیزی' },
 ] as const;
 type ModulePermissionCapability = 'can_read' | 'can_create' | 'can_update' | 'can_delete' | 'can_approve';
+type UserModulePermissionRow = { role: string; inherit_role_defaults: boolean | null } & Partial<Record<ModulePermissionCapability, boolean | null>>;
+
+/** Resolve one capability conservatively when a user has several active roles in one company. */
+export function aggregateModulePermissionRows(rows: UserModulePermissionRow[], capability: ModulePermissionCapability): boolean {
+  if (!rows.length) return false;
+  // Owner/admin authority is explicit and intentionally not configurable through member overrides.
+  if (rows.some(row => row.role === 'owner' || row.role === 'admin')) return true;
+  const inheritedDefault = capability !== 'can_delete' && capability !== 'can_approve';
+  // Deny wins across delegated memberships: a permissive or unconfigured membership cannot
+  // override a restriction saved against another active membership for the same user/company.
+  return rows.every(row => {
+    if (row.inherit_role_defaults === null || row.inherit_role_defaults === true) return inheritedDefault;
+    return row[capability] === true;
+  });
+}
 type ModulePermissionRow = {
   membership_id: string;
   module_key: string;
@@ -2347,7 +2363,11 @@ export function scopeHasModulePermission(
 ): boolean {
   if (scope.role === 'owner' || scope.role === 'admin') return true;
   const override = scope.membership_id ? overrides.get(scope.membership_id) : undefined;
-  if (!override || override.inherit_role_defaults) return true;
+  if (!override || override.inherit_role_defaults) {
+    // Match the permission editor's inherited defaults: read/create/update are inherited;
+    // delete and approve require explicit grants for delegated roles.
+    return capability !== 'can_delete' && capability !== 'can_approve';
+  }
   return override[capability] === true;
 }
 
@@ -2361,13 +2381,8 @@ async function userHasModulePermission(
   const rows = await sqlFor(c).query(
     'select m.role::text as role,p.inherit_role_defaults,p.can_read,p.can_create,p.can_update,p.can_delete,p.can_approve from public.memberships m left join public.medar_membership_module_permissions p on p.membership_id=m.id and p.company_id=m.company_id and p.module_key=$3 where m.user_id=$1::uuid and m.company_id=$2::uuid and m.active=true',
     [userId, companyId, moduleKey],
-  ) as Array<{ role: string; inherit_role_defaults: boolean | null } & Partial<Record<ModulePermissionCapability, boolean | null>>>;
-  if (!rows.length) return false;
-  return rows.some(row =>
-    row.role === 'owner' || row.role === 'admin' ||
-    row.inherit_role_defaults === null || row.inherit_role_defaults === true ||
-    row[capability] === true,
-  );
+  ) as UserModulePermissionRow[];
+  return aggregateModulePermissionRows(rows, capability);
 }
 
 const UPDATE_PROTECTED_FIELDS:Record<string,Set<string>>={
