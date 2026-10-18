@@ -1103,3 +1103,72 @@ html[data-theme="dark"] .ai-composer-tools button.recording { background: #41343
   .contacts-hub-actions > a, .contacts-hub-actions > button { flex: 1; }
   .contacts-hub-row-meta { display: grid; gap: 5px; }
 }
+
+
+/* Operational coherence: persistent home navigation and resilient assistant composer. */
+.topbar-home-link {
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  flex: none;
+  padding: 0 11px;
+  border: 1px solid var(--obs-border);
+  border-radius: 12px;
+  background: var(--obs-surface-2);
+  color: var(--obs-text);
+  font-size: 10px;
+  font-weight: 850;
+  text-decoration: none;
+  white-space: nowrap;
+  box-shadow: 0 3px 9px rgb(30 58 42 / 4%);
+}
+.topbar-home-link svg { flex: none; color: var(--obs-accent); }
+.topbar-home-link:hover, .topbar-home-link:focus-visible {
+  color: var(--obs-accent);
+  border-color: var(--obs-accent);
+  outline: none;
+}
+.ai-composer-actions {
+  display: grid !important;
+  grid-template-columns: auto minmax(0, 1fr) 44px;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.ai-composer-tools { min-width: 0; flex-wrap: nowrap; }
+.ai-composer-actions > small { min-width: 0; }
+.ai-send-button {
+  display: inline-grid !important;
+  place-items: center;
+  flex: none;
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  min-height: 44px;
+  align-self: center;
+  visibility: visible !important;
+  position: relative;
+  z-index: 2;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.ai-send-button:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--obs-accent) 55%, transparent);
+  outline-offset: 3px;
+}
+.ai-send-button:disabled {
+  opacity: .62 !important;
+  cursor: not-allowed;
+}
+@media (max-width: 860px) {
+  .topbar-home-link { width: 39px; min-width: 39px; height: 39px; min-height: 39px; padding: 0; border-radius: 13px; }
+  .topbar-home-link span { display: none; }
+}
+@media (max-width: 360px) {
+  .ai-composer-actions { grid-template-columns: auto minmax(0, 1fr) 42px; gap: 5px; }
+  .ai-composer-tools { gap: 4px; }
+  .ai-composer-tools button { width: 31px; height: 34px; border-radius: 10px; }
+  .ai-send-button { width: 42px; min-width: 42px; height: 42px; min-height: 42px; }
+}
