@@ -1,10 +1,11 @@
 import { useMemo, useRef, useState } from 'react';
-import { CheckCircle2, FileUp, FileText, LoaderCircle, Phone, RefreshCw, ShieldCheck, Users, Warehouse } from 'lucide-react';
+import { CheckCircle2, FileUp, FileText, LoaderCircle, Phone, RefreshCw, ShieldCheck, Sparkles, Users, Warehouse } from 'lucide-react';
 import { api } from './lib/apiClient';
 
 type ImportKind = 'customers' | 'suppliers';
-type ContactRow = { name: string; phone: string; city: string; address: string; email?: string; kind: ImportKind; kindDetected?: boolean };
+type ContactRow = { name: string; phone: string; city: string; address: string; email?: string; organization?: string; notes?: string; tags?: string[]; kind: ImportKind; kindDetected?: boolean; aiConfidence?: number; aiReason?: string; aiAnalyzed?: boolean; kindManuallySet?: boolean };
 type ImportResult = { imported: number; updated: number; skipped: number; kind?: ImportKind; byKind?: Record<ImportKind, { imported: number; updated: number }> };
+type ClassificationResult = { results: Array<{ index: number; kind: ImportKind | 'unknown'; confidence: number; reason: string; tags: string[] }>; analyzed: number; provider: string; model: string };
 
 function csvRows(input: string): string[][] {
   const rows: string[][] = [];
@@ -55,12 +56,17 @@ function parseVCard(source: string, fallbackKind: ImportKind): ContactRow[] {
     if(!lines.some(line=>/^BEGIN:VCARD/i.test(line)))return null;
     const get=(prefix:string)=>lines.find(line=>new RegExp('^'+prefix+'(?:;[^:]*)?:','i').test(line))?.split(':').slice(1).join(':').replace(/\\[nN]/g,' ').replace(/\\,/g,',').replace(/\\;/g,';').trim()||'';
     const name=get('FN')||get('N').split(';').reverse().join(' ').trim();
-    const phone=lines.find(line=>/^TEL(?:;[^:]*)?:/i.test(line))?.split(':').slice(1).join(':').replace(/[\s()-]/g,'')||'';
-    const org=get('ORG');
-    const address=get('ADR').split(';').filter(Boolean).slice(-2).join('، ');
-    const categoryHint = get('CATEGORIES') + ' ' + get('TITLE');
+    const phone=westernDigits(lines.find(line=>/^TEL(?:;[^:]*)?:/i.test(line))?.split(':').slice(1).join(':').replace(/[\s()-]/g,'')||'');
+    const organization=get('ORG');
+    const addressParts=get('ADR').split(';').map(part=>part.trim());
+    const address=addressParts.filter(Boolean).join('، ');
+    const city=addressParts[3]||addressParts[4]||'';
+    const email=get('EMAIL');
+    const notes=get('NOTE');
+    const categoryHint = get('CATEGORIES') + ' ' + get('TITLE') + ' ' + organization + ' ' + notes;
     const category = detectKind(categoryHint,fallbackKind);
-    return name?{name:org?name+' · '+org:name,phone,city:address,address,...category}:null;
+    const tags=get('CATEGORIES').split(/[;,]/).map(tag=>tag.trim()).filter(Boolean).slice(0,8);
+    return name?{name,phone,city,address,email,organization,notes,tags,...category}:null;
   }).filter(value=>value!==null) as ContactRow[];
 }
 function parseContacts(fileName:string,source:string,fallbackKind:ImportKind):ContactRow[] {
@@ -74,6 +80,10 @@ function parseContacts(fileName:string,source:string,fallbackKind:ImportKind):Co
   const phoneIndex=findIndex(['phone','mobile','telephone','tel','شماره','شماره تماس','موبایل','تلفن','تلفن همراه']);
   const cityIndex=findIndex(['city','شهر']);
   const addressIndex=findIndex(['address','آدرس','نشانی']);
+  const emailIndex=findIndex(['email','e-mail','mail','ایمیل','پست الکترونیکی']);
+  const organizationIndex=findIndex(['organization','organisation','company','business','company_name','نام شرکت','سازمان','مجموعه']);
+  const notesIndex=findIndex(['notes','note','description','details','توضیحات','شرح','یادداشت']);
+  const tagsIndex=findIndex(['tags','tag','labels','برچسب','برچسب‌ها','برچسب ها']);
   const kindIndex=findIndex(['kind','type','category','contact_type','contact type','نوع','نوع مخاطب','نوع ارتباط','دسته','دسته‌بندی','دسته بندی']);
   const hasHeader=nameIndex>=0||phoneIndex>=0;
   const data=hasHeader?rows.slice(1):rows;
@@ -83,17 +93,25 @@ function parseContacts(fileName:string,source:string,fallbackKind:ImportKind):Co
   const ai=hasHeader?addressIndex:3;
   const ki=hasHeader?kindIndex:-1;
   return data.map(row=>{
-    const category = detectKind(ki>=0?(row[ki]||''):'',fallbackKind);
+    const organization=organizationIndex>=0?(row[organizationIndex]||'').trim():'';
+    const notes=notesIndex>=0?(row[notesIndex]||'').trim():'';
+    const kindHint=(ki>=0?(row[ki]||''):'')+' '+organization+' '+notes;
+    const category = detectKind(kindHint,fallbackKind);
+    const tags=tagsIndex>=0?(row[tagsIndex]||'').split(/[;,|]/).map(tag=>tag.trim()).filter(Boolean).slice(0,8):[];
     return {
       name:(row[ni]||'').trim(),
       phone:pi>=0?(row[pi]||'').trim():'',
       city:ci>=0?(row[ci]||'').trim():'',
       address:ai>=0?(row[ai]||'').trim():'',
+      email:emailIndex>=0?(row[emailIndex]||'').trim():'',
+      organization,
+      notes,
+      tags,
       ...category,
     };
   })
     .filter(contact=>contact.name.length>=2)
-    .map(contact=>({...contact,phone:westernDigits(contact.phone).replace(/[\s()-]/g,'').slice(0,40),city:contact.city.slice(0,100),address:contact.address.slice(0,500)}));
+    .map(contact=>({...contact,phone:westernDigits(contact.phone).replace(/[\s()-]/g,'').slice(0,40),city:contact.city.slice(0,100),address:contact.address.slice(0,500),email:contact.email?.slice(0,254),organization:contact.organization?.slice(0,160),notes:contact.notes?.slice(0,2000)}));
 }
 function phoneKey(value:string){return westernDigits(value).replace(/\D/g,'').replace(/^0098/,'98').replace(/^0(?=9\d{9}$)/,'98');}
 
@@ -104,8 +122,10 @@ export function ContactImporter({companyId}:{companyId:string}) {
   const [contacts,setContacts]=useState<ContactRow[]>([]);
   const [loading,setLoading]=useState(false);
   const [saving,setSaving]=useState(false);
+  const [analyzing,setAnalyzing]=useState(false);
   const [error,setError]=useState('');
   const [notice,setNotice]=useState<ImportResult|null>(null);
+  const [aiSummary,setAiSummary]=useState('');
   const deduplicated=useMemo(()=>{
     const seenNames=new Set<string>(), seenPhones=new Set<string>();
     return contacts.map(contact=>{
@@ -120,8 +140,9 @@ export function ContactImporter({companyId}:{companyId:string}) {
     });
   },[contacts]);
   const ready=deduplicated.filter(contact=>!contact.duplicate&&contact.name.trim().length>=2);
+  const unclassified=contacts.filter(contact=>!contact.aiAnalyzed);
   async function handleFile(file:File){
-    setError('');setNotice(null);setContacts([]);setFileName(file.name);
+    setError('');setNotice(null);setAiSummary('');setContacts([]);setFileName(file.name);
     if(!/\.(vcf|csv|txt)$/i.test(file.name)){setError('فعلاً فقط فایل مخاطبین VCF یا فایل CSV/TXT قابل پردازش است. از گوشی می‌توانی مخاطب‌ها را به صورت VCF خروجی بگیری.');return;}
     if(file.size>5*1024*1024){setError('فایل باید حداکثر ۵ مگابایت باشد.');return;}
     setLoading(true);
@@ -133,13 +154,67 @@ export function ContactImporter({companyId}:{companyId:string}) {
     }catch(caught){setError(caught instanceof Error?caught.message:'خواندن فایل انجام نشد.');}
     finally{setLoading(false);}
   }
+  async function analyzeContacts(){
+    if(!unclassified.length||analyzing||saving)return;
+    const batch=unclassified.slice(0,200);
+    const suggestions=new Map<number,{kind:ImportKind|'unknown';confidence:number;reason:string;tags:string[]}>();
+    setAnalyzing(true);setError('');setNotice(null);
+    try{
+      for(let start=0;start<batch.length;start+=40){
+        const chunk=batch.slice(start,start+40);
+        const originalIndices=chunk.map(contact=>contacts.indexOf(contact));
+        const response=await api.post<ClassificationResult>('/api/contacts/classify',{
+          companyId,
+          contacts:chunk.map(contact=>({
+            name:contact.name,
+            organization:contact.organization||'',
+            city:contact.city||'',
+            notes:contact.notes||'',
+            tags:contact.tags||[],
+            kind:contact.kind,
+            kindDetected:contact.kindDetected===true||contact.kindManuallySet===true,
+          })),
+        });
+        for(const result of response.results||[]){
+          const localIndex=Number(result.index);
+          const targetIndex=originalIndices[localIndex];
+          if(!Number.isInteger(localIndex)||targetIndex===undefined)continue;
+          suggestions.set(targetIndex,{
+            kind:result.kind==='customers'||result.kind==='suppliers'?result.kind:'unknown',
+            confidence:Math.max(0,Math.min(1,Number(result.confidence)||0)),
+            reason:String(result.reason||'').slice(0,180),
+            tags:Array.isArray(result.tags)?result.tags.filter(tag=>typeof tag==='string').slice(0,3):[],
+          });
+        }
+      }
+      setContacts(current=>current.map((contact,index)=>{
+        const suggestion=suggestions.get(index);
+        if(!suggestion)return contact;
+        const confident=(suggestion.kind==='customers'||suggestion.kind==='suppliers')&&suggestion.confidence>=0.75;
+        return {
+          ...contact,
+          ...(!contact.kindDetected&&!contact.kindManuallySet&&confident?{kind:suggestion.kind as ImportKind}:{}),
+          tags:[...new Set([...(contact.tags||[]),...suggestion.tags])].slice(0,12),
+          aiConfidence:suggestion.confidence,
+          aiReason:suggestion.reason,
+          aiAnalyzed:true,
+        };
+      }));
+      const confident=[...suggestions.values()].filter(item=>(item.kind==='customers'||item.kind==='suppliers')&&item.confidence>=0.75).length;
+      setError('');
+      setAiSummary('تحلیل '+suggestions.size.toLocaleString('fa-IR')+' مخاطب انجام شد؛ '+confident.toLocaleString('fa-IR')+' پیشنهاد با اطمینان بالا برای بازبینی اعمال شد. هنوز چیزی در پایگاه داده ذخیره نشده است.'+
+        (unclassified.length>batch.length?' '+(unclassified.length-batch.length).toLocaleString('fa-IR')+' مخاطب دیگر در صف تحلیل باقی مانده است.':''));
+    }catch(caught){
+      setError(caught instanceof Error?caught.message:'تحلیل هوشمند مخاطبین انجام نشد؛ داده‌ها هنوز ذخیره نشده‌اند.');
+    }finally{setAnalyzing(false);}
+  }
   async function importContacts(){
     setSaving(true);setError('');setNotice(null);
     try{
       const total: ImportResult = { imported: 0, updated: 0, skipped: contacts.length-ready.length,
         byKind: { customers: { imported: 0, updated: 0 }, suppliers: { imported: 0, updated: 0 } } };
       for(let start=0;start<ready.length;start+=1000){
-        const chunk=ready.slice(start,start+1000).map(({name,phone,city,address,kind:contactKind})=>({name,phone,city,address,kind:contactKind}));
+        const chunk=ready.slice(start,start+1000).map(({name,phone,city,address,email,organization,notes,tags,kind:contactKind})=>({name,phone,city,address,email,organization,notes,tags,kind:contactKind}));
         const response=await api.post<ImportResult>('/api/contacts/import',{companyId,kind,contacts:chunk});
         total.imported+=response.imported;total.updated+=response.updated;total.skipped+=response.skipped;
         for(const target of ['customers','suppliers'] as const){
@@ -165,19 +240,24 @@ export function ContactImporter({companyId}:{companyId:string}) {
         </button>
         <input className="sr-only" ref={inputRef} type="file" accept=".vcf,.csv,.txt,text/vcard,text/csv,text/plain" onChange={event=>{const file=event.target.files?.[0];if(file)void handleFile(file);event.currentTarget.value='';}}/>
         <div className="contact-kind-select"><span>دسته‌ی مقصد</span><div>
-          <button type="button" className={kind==='suppliers'?'selected':''} onClick={()=>{setKind('suppliers');setContacts(current=>current.map(contact=>contact.kindDetected?contact:{...contact,kind:'suppliers'}));}}><Warehouse size={16}/> تأمین‌کننده</button>
-          <button type="button" className={kind==='customers'?'selected':''} onClick={()=>{setKind('customers');setContacts(current=>current.map(contact=>contact.kindDetected?contact:{...contact,kind:'customers'}));}}><Users size={16}/> مشتری</button>
+          <button type="button" className={kind==='suppliers'?'selected':''} onClick={()=>{setKind('suppliers');setContacts(current=>current.map(contact=>contact.kindDetected?contact:{...contact,kind:'suppliers',kindManuallySet:true}));}}><Warehouse size={16}/> تأمین‌کننده</button>
+          <button type="button" className={kind==='customers'?'selected':''} onClick={()=>{setKind('customers');setContacts(current=>current.map(contact=>contact.kindDetected?contact:{...contact,kind:'customers',kindManuallySet:true}));}}><Users size={16}/> مشتری</button>
         </div></div>
         <p className="contact-import-tip">راهنما: در CSV از سرستون‌های <code>name,phone,city,address,type</code> استفاده کن. ستون <code>type</code> می‌تواند supplier/suppliers یا customer/customers (یا «تأمین‌کننده»/«مشتری») باشد تا دسته به‌صورت خودکار انتخاب شود؛ اگر ستون نوع نباشد، دسته‌ی انتخابی مبناست.</p>
       </section>
       <section className="contact-import-card contact-preview-card">
-        <div className="contact-card-heading"><span><Phone size={18}/></span><div><b>۲. پیش‌نمایش و بررسی</b><small>{contacts.length.toLocaleString('fa-IR')} مخاطب شناسایی‌شده</small></div><button type="button" className="contact-reset" onClick={()=>{setContacts([]);setFileName('');setError('');setNotice(null);}} disabled={!contacts.length}><RefreshCw size={14}/></button></div>
+        <div className="contact-card-heading"><span><Phone size={18}/></span><div><b>۲. پیش‌نمایش و بررسی</b><small>{contacts.length.toLocaleString('fa-IR')} مخاطب شناسایی‌شده</small></div><button type="button" className="contact-reset" onClick={()=>{setContacts([]);setFileName('');setError('');setNotice(null);setAiSummary('');}} disabled={!contacts.length}><RefreshCw size={14}/></button></div>
         {loading?<div className="contact-empty"><LoaderCircle className="ai-spin" size={22}/> در حال خواندن پرونده</div>
           :contacts.length===0?<div className="contact-empty"><FileUp size={24}/><b>هنوز فایلی انتخاب نشده</b><span>بعد از انتخاب، نام و شماره‌ها را قبل از ذخیره می‌بینی.</span></div>
           :<>
             <div className="contact-preview-metrics"><div><b>{ready.length.toLocaleString('fa-IR')}</b><small>آماده‌ی ثبت</small></div><div><b>{(contacts.length-ready.length).toLocaleString('fa-IR')}</b><small>تکراری / کنارگذاشته</small></div></div>
+            <div className="contact-ai-review">
+              <div><Sparkles size={17}/><span><b>دسته‌بندی هوشمند</b><small>نام، سازمان، شهر، توضیحات و برچسب‌ها بررسی می‌شوند؛ شماره، ایمیل و نشانی برای مدل ارسال نمی‌شوند.</small></span></div>
+              <button type="button" className="ai-secondary-button" onClick={()=>void analyzeContacts()} disabled={analyzing||saving||unclassified.length===0}>{analyzing?<LoaderCircle size={15} className="ai-spin"/>:<Sparkles size={15}/>} {analyzing?'در حال تحلیل…':unclassified.length?('تحلیل '+Math.min(unclassified.length,200).toLocaleString('fa-IR')+' مخاطب'):'تحلیل اولیه انجام شده'}</button>
+            </div>
+            {aiSummary&&<div className="contact-ai-summary" role="status"><Sparkles size={16}/><span>{aiSummary}</span></div>}
             <div className="contact-preview-list">{deduplicated.slice(0,12).map((contact,index)=><article key={index} className={contact.duplicate?'duplicate':''}>
-              <span className="contact-avatar">{contact.name.slice(0,1)}</span><div><b>{contact.name}</b><small dir="ltr">{contact.phone||'بدون شماره'}</small><small>{[contact.city,contact.address].filter(Boolean).join(' · ')||'نشانی ثبت نشده'}</small></div>{contact.duplicate?<span className="contact-duplicate-tag">تکراری</span>:<span className="contact-kind-tag">{contact.kind==='suppliers'?'تأمین‌کننده':'مشتری'}</span>}
+              <span className="contact-avatar">{contact.name.slice(0,1)}</span><div><b>{contact.name}</b><small dir="ltr">{contact.phone||'بدون شماره'}</small><small>{[contact.organization,contact.city,contact.email].filter(Boolean).join(' · ')||'اطلاعات تکمیلی ثبت نشده'}</small>{contact.address&&<small>نشانی: {contact.address}</small>}{contact.notes&&<small>یادداشت: {contact.notes.slice(0,100)}</small>}{Boolean(contact.tags?.length)&&<small>برچسب‌ها: {contact.tags!.join('، ')}</small>}{contact.aiReason&&<small className={contact.aiConfidence&&contact.aiConfidence>=0.75?'contact-ai-reason confident':'contact-ai-reason'}>پیشنهاد AI · {Math.round((contact.aiConfidence||0)*100).toLocaleString('fa-IR')}٪: {contact.aiReason}</small>}</div>{contact.duplicate?<span className="contact-duplicate-tag">تکراری</span>:<span className="contact-kind-tag">{contact.kind==='suppliers'?'تأمین‌کننده':'مشتری'}</span>}
             </article>)}</div>
             {contacts.length>12&&<p className="contact-preview-more">۱۲ ردیف از {contacts.length.toLocaleString('fa-IR')} مخاطب نمایش داده شده است.</p>}
             <button className="ai-primary-button contact-save-button" type="button" onClick={()=>void importContacts()} disabled={saving||loading||ready.length===0}>{saving?<LoaderCircle size={16} className="ai-spin"/>:<CheckCircle2 size={16}/>} ثبت {ready.length.toLocaleString('fa-IR')} مخاطب در فضای کاری</button>

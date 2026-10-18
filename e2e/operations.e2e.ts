@@ -498,7 +498,7 @@ test('manager can preview and import a mixed supplier/customer CSV with duplicat
   await page.locator('.contact-import-page input[type="file"]').setInputFiles({
     name: 'contacts.csv',
     mimeType: 'text/csv',
-    buffer: Buffer.from('name,phone,city,type\nSupplier One,09120000001,Tehran,supplier\nCustomer Two,09120000002,Karaj,customer\nDuplicate supplier,+989120000001,Tehran,supplier', 'utf8'),
+    buffer: Buffer.from('name,phone,city,address,email,organization,notes,tags,type\nSupplier One,PHONE-001,Tehran,Industrial zone,supplier@example.invalid,North Farm,egg producer,producer|wholesale,supplier\nCustomer Two,PHONE-002,Karaj,Main street,buyer@example.invalid,City Store,retail customer,retail|weekly,customer\nDuplicate supplier,+PHONE-001,Tehran,Industrial zone,other@example.invalid,North Farm,duplicate,producer|wholesale,supplier', 'utf8'),
   });
   await expect(page.getByText('Supplier One')).toBeVisible();
   await expect(page.getByText('Customer Two')).toBeVisible();
@@ -506,9 +506,57 @@ test('manager can preview and import a mixed supplier/customer CSV with duplicat
   await page.getByRole('button', { name: /ثبت .* مخاطب در فضای کاری/ }).click();
   await expect(page.getByRole('status')).toContainText('واردکردن مخاطبین کامل شد');
   expect(Array.isArray(submitted?.contacts)).toBe(true);
-  const importedContacts = submitted?.contacts as Array<{ kind: string; name: string }>;
+  const importedContacts = submitted?.contacts as Array<{ kind: string; name: string; email?: string; organization?: string; notes?: string; tags?: string[] }>;
   expect(importedContacts).toHaveLength(2);
   expect(importedContacts.map(contact => contact.kind).sort()).toEqual(['customers', 'suppliers']);
+  const supplier = importedContacts.find(contact => contact.kind === 'suppliers');
+  expect(supplier).toMatchObject({ email: 'supplier@example.invalid', organization: 'North Farm', notes: 'egg producer' });
+  expect(supplier?.tags).toEqual(['producer','wholesale']);
+  const customer = importedContacts.find(contact => contact.kind === 'customers');
+  expect(customer).toMatchObject({ email: 'buyer@example.invalid', organization: 'City Store', notes: 'retail customer' });
+  expect(customer?.tags).toEqual(['retail','weekly']);
+});
+
+test('AI contact classification sends no phone, email or street address and only suggests changes', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop-chromium', 'The contact classification flow uses the same responsive preview.');
+  await installIsolatedSession(page, 'owner');
+  let sent: Record<string, unknown> | undefined;
+  await page.route('**/api/contacts/classify', async route => {
+    sent = route.request().postDataJSON() as Record<string, unknown>;
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        analyzed: 2, provider: 'deepseek', model: 'deepseek-flash',
+        results: [
+          { index: 0, kind: 'suppliers', confidence: 0.93, reason: 'سازمان و توضیحات با تأمین‌کننده سازگار است.', tags: ['تولیدکننده'] },
+          { index: 1, kind: 'customers', confidence: 0.91, reason: 'توضیحات کسب‌وکار با مشتری سازگار است.', tags: ['خریدار'] },
+        ],
+      }),
+    });
+  });
+  await page.goto('/simorgh/app/contacts-import', { waitUntil: 'domcontentloaded' });
+  await page.locator('.contact-import-page input[type="file"]').setInputFiles({
+    name: 'contacts.csv',
+    mimeType: 'text/csv',
+    buffer: Buffer.from('name,phone,city,address,email,organization,notes,tags,type\nSupplier One,PHONE-001,Tehran,Private road,supplier@example.invalid,North Farm,egg producer,producer|wholesale,supplier\nCustomer Two,PHONE-002,Karaj,Private lane,buyer@example.invalid,City Store,retail customer,retail|weekly,customer', 'utf8'),
+  });
+  await expect(page.getByText('Supplier One')).toBeVisible();
+  await page.getByRole('button', { name: /تحلیل .* مخاطب/ }).click();
+  await expect(page.locator('.contact-ai-summary')).toContainText('هنوز چیزی در پایگاه داده ذخیره نشده است.');
+  expect(Array.isArray(sent?.contacts)).toBe(true);
+  const rows = sent?.contacts as Array<Record<string, unknown>>;
+  expect(rows).toHaveLength(2);
+  for (const row of rows) {
+    expect(row).not.toHaveProperty('phone');
+    expect(row).not.toHaveProperty('email');
+    expect(row).not.toHaveProperty('address');
+    expect(row).not.toHaveProperty('streetAddress');
+  }
+  expect(JSON.stringify(sent)).not.toContain('PHONE-001');
+  expect(JSON.stringify(sent)).not.toContain('supplier@example.invalid');
+  expect(JSON.stringify(sent)).not.toContain('Private road');
+  await expect(page.getByText(/پیشنهاد AI · ۹۳٪/)).toBeVisible();
 });
 
 test('a signed-in user can change their own password through the protected Worker endpoint', async ({ page }, testInfo) => {
