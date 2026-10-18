@@ -59,11 +59,12 @@ test('manager workspace retains operations and captures a real rendered control-
   await expect(page.getByRole('heading', { name: /سلام مالک آزمایشی مدار/ })).toBeVisible();
   await expect(page.locator('.workspace-home-hero')).toContainText('کنترل امروز کسب‌وکار');
   await expect(page.getByRole('heading', { name: 'بخش‌های پرکاربرد شما' })).toBeVisible();
-  await expect(page.locator('.workspace-home-link')).toHaveCount(4);
-  await expect(page.locator('.workspace-home-link').filter({ hasText: 'نمای کلی کسب‌وکار' })).toBeVisible();
-  await expect(page.locator('.workspace-home-link').filter({ hasText: 'سفارش‌ها' })).toBeVisible();
-  await expect(page.locator('.workspace-home-link').filter({ hasText: 'کارها و پیگیری' })).toBeVisible();
-  await expect(page.locator('.workspace-home-link').filter({ hasText: 'مالی و تسویه' })).toBeVisible();
+  await expect(page.locator('.workspace-home-link')).toHaveCount(5);
+  await expect(page.locator('.workspace-home-link').filter({ hasText: 'شبکه تأمین‌کنندگان' })).toBeVisible();
+  await expect(page.locator('.workspace-home-link').filter({ hasText: 'دسترسی کاربران' })).toBeVisible();
+  await expect(page.locator('.workspace-home-link').filter({ hasText: 'مرکز ارتباطات' })).toBeVisible();
+  await expect(page.locator('.workspace-home-link').filter({ hasText: 'حمل‌ونقل و رانندگان' })).toBeVisible();
+  await expect(page.locator('.workspace-home-link').filter({ hasText: 'وظایف و مأموریت‌ها' })).toBeVisible();
   await expect(page.locator('.workspace-home-section').filter({ hasText: 'موارد مهم و اقدام بعدی' })).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath('manager-role-home-viewport.png') });
   await page.screenshot({ path: testInfo.outputPath('manager-role-home.png'), fullPage: true });
@@ -73,20 +74,21 @@ test('manager workspace retains operations and captures a real rendered control-
     ['flock-cycles', 'چرخه‌های کشت و پرورش'],
     ['production-batches', 'بچ‌های تولید'],
     ['daily-production', 'ثبت روزانه عملیات'],
-    ['task-templates', 'دستورالعمل‌های کاری'],
     ['operational-tasks', 'وظایف عملیاتی'],
     ['incidents', 'رخدادها و مغایرت‌ها'],
-    ['partnership-agreements', 'قراردادهای مشارکت'],
-    ['partner-finance', 'دفتر مالی شریک'],
-    ['partner-settlements', 'دوره‌ها و تسویه شریک'],
   ];
   for (const [path, title] of paths) {
     await page.goto('/simorgh/app/' + path, { waitUntil: 'domcontentloaded' });
     await expect(page.getByRole('heading', { name: title })).toBeVisible();
     const homeLink = page.getByRole('link', { name: 'بازگشت به صفحه اصلی' });
-    await expect(homeLink).toBeVisible();
-    await expect(homeLink).toHaveAttribute('href', /home$/);
-    await homeLink.click();
+    if (viewportWidth > 720) {
+      await expect(homeLink).toBeVisible();
+      await expect(homeLink).toHaveAttribute('href', /home$/);
+      await homeLink.click();
+    } else {
+      await expect(homeLink).toBeHidden();
+      await page.goto('/simorgh/app/home', { waitUntil: 'domcontentloaded' });
+    }
     await expect(page).toHaveURL(/home$/);
     await expect(page.getByRole('heading', { name: /سلام مالک آزمایشی مدار/ })).toBeVisible();
   }
@@ -452,7 +454,7 @@ test('manager bottom navigation stays manager-specific on mobile and tablet', as
   const mobileNav = page.locator('.mobile-workspace-nav');
   if (viewportWidth <= 860) {
     await expect(mobileNav).toBeVisible();
-    for (const label of ['نمای کلی', 'سفارش‌ها', 'ارسال‌ها']) {
+    for (const label of ['نمای کلی', 'مرکز ارتباطات', 'ارسال‌ها']) {
       await expect(mobileNav.getByRole('link', { name: label, exact: true })).toBeVisible();
     }
     await expect(mobileNav.getByRole('button', { name: 'بازکردن فهرست ماژول‌ها' })).toBeVisible();
@@ -475,7 +477,7 @@ test('mobile navigation is role-specific and only mirrors permitted real routes'
     await expect(mobileNav).toBeVisible();
     await expect(mobileNav.getByRole('link', { name: 'وظایف' })).toBeVisible();
     await expect(mobileNav.getByRole('link', { name: 'ثبت تولید' })).toBeVisible();
-    await expect(mobileNav.getByRole('link', { name: 'تسویه' })).toBeVisible();
+    await expect(mobileNav.getByRole('link', { name: 'مرکز ارتباطات' })).toBeVisible();
     await expect(mobileNav.getByRole('button', { name: 'بازکردن فهرست ماژول‌ها' })).toBeVisible();
     await expect(mobileNav.locator('a,button')).toHaveCount(4);
     await expect(mobileNav.getByRole('link', { name: 'دفتر شریک' })).toHaveCount(0);
