@@ -1322,6 +1322,7 @@ type MemberModulePermission = {
 type ModulePermissionField = 'can_read' | 'can_create' | 'can_update' | 'can_delete' | 'can_approve';
 function MembersPage({membership,search}:{membership:Membership;search:string}) {
  const [rows,setRows]=useState<Row[]>([]);
+ const [memberFilter,setMemberFilter]=useState<'all'|'supplier'|'driver'|'staff'|'admin'>('all');
  const [loading,setLoading]=useState(true);
  const [error,setError]=useState('');
  const [notice,setNotice]=useState('');
@@ -1455,12 +1456,15 @@ function MembersPage({membership,search}:{membership:Membership;search:string}) 
    setError(caught instanceof Error?caught.message:'ذخیره مجوزهای عضو ناموفق بود.');
   }finally{setPermissionsSaving(false);}
  };
- const visible=rows.filter(r=>!search||[r.username,r.full_name,r.phone,r.role].some(v=>String(v??'').toLowerCase().includes(search.toLowerCase())));
+ const visible=rows.filter(r=>(memberFilter==='all'||String(r.role)===memberFilter)&&(!search||[r.username,r.full_name,r.phone,r.role,r.supplier_name].some(v=>String(v??'').toLowerCase().includes(search.toLowerCase()))));
  const options:AppRole[]=membership.role==='owner'?['admin','staff','supplier','driver']:['staff','supplier','driver'];
  return <>
   <PageHeading eyebrow="ACCESS / MEMBERSHIPS" title="دسترسی کاربران" description="حساب تأمین‌کننده، راننده یا همکار را خودت بساز؛ ثبت‌نام عمومی بسته است و دعوت‌ها یک‌بارمصرف‌اند." action={<><Button variant="soft" onClick={()=>{setOpen(true);setInviteCode('');setError('');setNotice('');}}><Plus size={15}/> کد دعوت</Button><Button onClick={()=>{setAccountOpen(true);setError('');setNotice('');setAccountName('');setAccountUsername('');setAccountPassword('');setAccountRole('supplier');setAccountCustomerId('');setAccountSupplierId('');}}><Plus size={15}/> ساخت حساب</Button></>}/>
   {error&&<InlineError error={error} retry={()=>void load()}/>}
   {notice&&<div className="form-success notice-wide"><CheckCircle2 size={17}/>{notice}</div>}
+  <div className="member-role-filters" role="group" aria-label="تفکیک کاربران بر اساس نقش">
+   {([{key:'all',label:'همه کاربران'},{key:'supplier',label:'تأمین‌کنندگان'},{key:'driver',label:'رانندگان'},{key:'staff',label:'کارشناسان'},{key:'admin',label:'مدیران'}] as const).map(filter=><button key={filter.key} type="button" className={memberFilter===filter.key?'active':''} aria-pressed={memberFilter===filter.key} onClick={()=>setMemberFilter(filter.key)}>{filter.label}<small>{numberFa(rows.filter(row=>filter.key==='all'||String(row.role)===filter.key).length)}</small></button>)}
+  </div>
   {resetSecret&&<section className="panel invite-code-panel"><div className="panel-heading"><div><span className="section-number">LOGIN DETAILS</span><div><h3>اطلاعات ورود</h3><p>این اطلاعات را کپی کن و فقط به صاحب حساب تحویل بده.</p></div></div><Button variant="soft" onClick={()=>void navigator.clipboard?.writeText(resetSecret)}>کپی اطلاعات</Button></div><code className="invite-code-value" dir="ltr">{resetSecret}</code></section>}
   {inviteCode&&<section className="panel invite-code-panel"><div className="panel-heading"><div><span className="section-number">INVITE</span><div><h3>لینک دعوت یک‌بارمصرف</h3><p>این لینک فرم ساخت حساب را با نقش تعیین‌شده باز می‌کند.</p></div></div><Button variant="soft" onClick={()=>void navigator.clipboard?.writeText(inviteLink)}>کپی لینک</Button></div><code className="invite-code-value" dir="ltr">{inviteLink}</code><div className="invite-link-code"><small>کد پشتیبان دعوت</small><code dir="ltr">{inviteCode}</code><Button variant="ghost" onClick={()=>void navigator.clipboard?.writeText(inviteCode)}>کپی کد</Button></div><small>پس از استفادهٔ موفق، دعوت یک‌بارمصرف مصرف می‌شود؛ لینک تا ۷ روز معتبر است.</small></section>}
   <div className="rule-banner"><ShieldCheck size={18}/><p><b>کنترل دسترسی سمت سرور</b><span>ورود عمومی بسته است؛ حساب‌ها را مالک یا مدیر مجاز می‌سازد یا کاربر با دعوت معتبر و یک‌بارمصرف عضو می‌شود. فقط مالک می‌تواند نقش مدیر بسازد.</span></p></div>
@@ -1468,8 +1472,10 @@ function MembersPage({membership,search}:{membership:Membership;search:string}) 
    {loading?<div className="panel-loading"><span className="spinner small"/></div>:visible.length?<DataTable rows={visible} columns={[
     {key:'username',label:'نام کاربری',render:r=><div><b dir="ltr">@{String(r.username??'')}</b><small className="cell-subtitle">{String(r.full_name??'بدون نام')}</small></div>},
     {key:'phone',label:'موبایل',render:r=><span dir="ltr">{String(r.phone??'—')}</span>},
+    {key:'supplier_name',label:'تأمین‌کننده مرتبط',render:r=>String(r.supplier_name??'—')},
     {key:'role',label:'نقش',render:r=><Badge value={r.role} type="role"/>},
     {key:'active',label:'دسترسی',render:r=><Badge value={r.active?'active':'inactive'}/>},
+    {key:'last_login_at',label:'آخرین ورود',render:r=>r.last_login_at?dateTimeFa(String(r.last_login_at)):'هنوز وارد نشده'},
     {key:'created_at',label:'افزوده‌شده',render:r=>dateFa(String(r.created_at??''))}
    ]} actions={r=>r.active===true&&r.role!=='owner'?<div className="table-action-group">
     {r.role!=='admin'&&<Button variant="soft" disabled={busy||permissionsLoading} onClick={()=>void editPermissions(r)}>مجوزها</Button>}
