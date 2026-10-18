@@ -5,10 +5,10 @@ ALTER TABLE public.suppliers ADD COLUMN IF NOT EXISTS address text;
 ALTER TABLE public.suppliers ADD COLUMN IF NOT EXISTS latitude double precision;
 ALTER TABLE public.suppliers ADD COLUMN IF NOT EXISTS longitude double precision;
 
-DO $ BEGIN
+DO $$ BEGIN
   ALTER TABLE public.suppliers ADD CONSTRAINT suppliers_location_coordinates_pair CHECK (
     (latitude IS NULL AND longitude IS NULL) OR
     (latitude IS NOT NULL AND longitude IS NOT NULL AND latitude BETWEEN -90 AND 90 AND longitude BETWEEN -180 AND 180)
   );
 EXCEPTION WHEN duplicate_object THEN NULL;
-END $;
+END $$;
