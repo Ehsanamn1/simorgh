@@ -2,6 +2,7 @@ import { type FormEvent, useCallback, useEffect, useState } from 'react';
 import { MessageCircle, Plus, RefreshCw, Send, Users } from 'lucide-react';
 import { api } from './lib/apiClient';
 import type { Membership } from './lib/types';
+import { PushNotificationSettings } from './PushNotificationSettings';
 
 type Person = { id: string; username: string; displayName: string; role: string };
 type Conversation = { id: string; title: string; relatedEntityType: string | null; relatedEntityId: string | null; updatedAt: string; unreadCount: number; lastMessage: string | null };
@@ -115,6 +116,7 @@ export function MedarConnect({ membership }: { membership: Membership }) {
       </div>
       <button className="medar-connect-refresh" type="button" onClick={() => void loadConversations()} disabled={loading}><RefreshCw size={15}/> تازه‌سازی</button>
     </header>
+    <PushNotificationSettings membership={membership}/>
     {error && <div className="medar-connect-alert" role="alert">{error}</div>}
     {notice && <div className="medar-connect-notice" role="status">{notice}</div>}
     <div className="medar-connect-layout">
