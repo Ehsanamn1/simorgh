@@ -28,3 +28,8 @@ No test business records or owner accounts are inserted by these migrations.
 12. `0012_client_presence.sql` — track authenticated web/mobile clients in the central manager panel.
 13. `0013_ai_assistant_and_contacts.sql` — company-scoped AI provider keys and usage accounting.
 14. `0014_contact_intelligence.sql` — keep organization, email, notes, tags, address and source metadata on imported customer/supplier records, with company-scoped phone lookup indexes.
+
+
+15. `0015_ai_action_approval_ledger.sql` — stores inert company-scoped agent action proposals and adds an idempotent, audited task-creation function. Proposal creation never writes an operational task; executing the tool requires an authenticated active membership and a separate explicit confirmation.
+
+The Cloudflare operational deployment workflow applies this migration after validating the established Medar database. CI verifies the table and function against a fresh PostgreSQL database. This migration does not configure third-party providers and does not initiate financial actions.
