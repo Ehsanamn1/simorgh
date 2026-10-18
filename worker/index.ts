@@ -3323,6 +3323,60 @@ app.post('/api/connect/conversations/:id/messages', async (c) => {
   return c.json({ ok: true, message }, 201);
 });
 
+
+app.get('/api/push/config', async (c) => {
+  const user = await requireUser(c);
+  if (user instanceof Response) return user;
+  const companyId = c.req.query('companyId') ?? '';
+  if (!COMPANY_ID_RE.test(companyId)) return c.json({ message: 'شناسه مجموعه معتبر نیست.' }, 422);
+  if (!(await aiCompanyMembership(c,companyId,user.id))) return c.json({ message: 'به این فضای کاری دسترسی فعال نداری.' }, 403);
+  const enabled = Boolean(c.env.VAPID_PUBLIC_KEY && c.env.VAPID_PRIVATE_KEY && c.env.VAPID_SUBJECT);
+  return c.json({ enabled, publicKey: enabled ? c.env.VAPID_PUBLIC_KEY : null });
+});
+
+app.post('/api/push/subscriptions', async (c) => {
+  const user = await requireUser(c);
+  if (user instanceof Response) return user;
+  const body = await c.req.json<Record<string, unknown>>().catch(() => null);
+  if (!body) return c.json({ message: 'درخواست ثبت اعلان گوشی معتبر نیست.' }, 400);
+  const companyId = typeof body.companyId === 'string' ? body.companyId : '';
+  const endpoint = typeof body.endpoint === 'string' ? body.endpoint.trim() : '';
+  const keys = body.keys && typeof body.keys === 'object' && !Array.isArray(body.keys) ? body.keys as Record<string, unknown> : {};
+  const p256dh = typeof keys.p256dh === 'string' ? keys.p256dh : '';
+  const authSecret = typeof keys.auth === 'string' ? keys.auth : '';
+  if (!COMPANY_ID_RE.test(companyId)) return c.json({ message: 'شناسه مجموعه معتبر نیست.' }, 422);
+  if (!(await aiCompanyMembership(c,companyId,user.id))) return c.json({ message: 'به این فضای کاری دسترسی فعال نداری.' }, 403);
+  if (!c.env.VAPID_PUBLIC_KEY || !c.env.VAPID_PRIVATE_KEY || !c.env.VAPID_SUBJECT) return c.json({ message: 'ارسال Push هنوز روی محیط عملیاتی پیکربندی نشده است.' }, 503);
+  if (!allowedWebPushEndpoint(endpoint)) return c.json({ message: 'آدرس سرویس Push معتبر یا پشتیبانی‌شده نیست.' }, 422);
+  try {
+    if (base64UrlToBytes(p256dh).length !== 65 || base64UrlToBytes(authSecret).length < 16) throw new Error('invalid keys');
+  } catch { return c.json({ message: 'کلیدهای رمزنگاری مرورگر معتبر نیستند.' }, 422); }
+  const expiration = typeof body.expirationTime === 'number' && Number.isFinite(body.expirationTime) ? new Date(body.expirationTime) : null;
+  const endpointHash = await sha256(endpoint);
+  const userAgent = (c.req.header('user-agent') ?? '').slice(0,500);
+  const rows = await sqlFor(c).query(
+    'insert into public.medar_push_subscriptions(company_id,user_id,endpoint,endpoint_hash,p256dh_key,auth_secret,expiration_time,user_agent,active,updated_at) values ($1::uuid,$2::uuid,$3,$4,$5,$6,$7::timestamptz,$8,true,now()) on conflict(endpoint_hash) do update set company_id=excluded.company_id,user_id=excluded.user_id,endpoint=excluded.endpoint,p256dh_key=excluded.p256dh_key,auth_secret=excluded.auth_secret,expiration_time=excluded.expiration_time,user_agent=excluded.user_agent,active=true,last_error=null,updated_at=now() returning id::text as id,active',
+    [companyId,user.id,endpoint,endpointHash,p256dh,authSecret,expiration && Number.isFinite(expiration.getTime()) ? expiration.toISOString() : null,userAgent],
+  );
+  return c.json({ ok: true, subscription: rows[0] }, 201);
+});
+
+app.post('/api/push/subscriptions/remove', async (c) => {
+  const user = await requireUser(c);
+  if (user instanceof Response) return user;
+  const body = await c.req.json<Record<string, unknown>>().catch(() => null);
+  const companyId = typeof body?.companyId === 'string' ? body.companyId : '';
+  const endpoint = typeof body?.endpoint === 'string' ? body.endpoint.trim() : '';
+  if (!COMPANY_ID_RE.test(companyId) || !endpoint) return c.json({ message: 'شناسه مجموعه یا آدرس اشتراک معتبر نیست.' }, 422);
+  if (!(await aiCompanyMembership(c,companyId,user.id))) return c.json({ message: 'به این فضای کاری دسترسی فعال نداری.' }, 403);
+  const endpointHash = await sha256(endpoint);
+  const rows = await sqlFor(c).query(
+    'update public.medar_push_subscriptions set active=false,updated_at=now() where company_id=$1::uuid and user_id=$2::uuid and endpoint_hash=$3 returning id::text as id',
+    [companyId,user.id,endpointHash],
+  );
+  return c.json({ ok: true, removed: rows.length });
+});
+
 app.get('/api/notifications', async (c) => {
   const user = await requireUser(c);
   if (user instanceof Response) return user;
