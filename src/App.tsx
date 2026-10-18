@@ -19,18 +19,22 @@ import { MedarLogo as Logo } from './MedarLogo';
 import { HelpGuide } from './HelpGuide';
 import { AIAssistant } from './AIAssistant';
 import { ContactImporter } from './ContactImporter';
+import { ContactsHub } from './ContactsHub';
+import { WorkspaceHome } from './WorkspaceHome';
 import type { AppRole, Membership, PageKey, Row } from './lib/types';
 import { dateFa, dateTimeFa, moneyFa, numberFa, orderLabel, roleLabel, statusLabel, statusTone } from './lib/format';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import DemoWorkspace from './DemoWorkspace';
 
 const navDefinitions: { key: PageKey; label: string; group: string; icon: typeof LayoutDashboard; roles: AppRole[] }[] = [
+  { key: 'home', label: 'صفحه من', group: 'شروع', icon: LayoutDashboard, roles: ['owner', 'admin', 'staff', 'supplier', 'driver', 'customer'] },
   { key: 'command', label: 'مرکز فرمان', group: 'مدیریت', icon: LayoutDashboard, roles: ['owner', 'admin', 'staff'] },
   { key: 'orders', label: 'سفارش‌ها', group: 'مدیریت', icon: FileText, roles: ['owner', 'admin', 'staff'] },
   { key: 'goals', label: 'اهداف و برنامه', group: 'مدیریت', icon: Target, roles: ['owner', 'admin', 'staff'] },
+  { key: 'contacts', label: 'دفترچه مخاطبین', group: 'مخاطبین', icon: Users, roles: ['owner', 'admin'] },
   { key: 'customers', label: 'مشتریان', group: 'فروش و تأمین', icon: Users, roles: ['owner', 'admin', 'staff'] },
   { key: 'suppliers', label: 'تأمین‌کنندگان', group: 'فروش و تأمین', icon: Factory, roles: ['owner', 'admin', 'staff'] },
-  { key: 'contacts-import', label: 'ورود مخاطبین', group: 'فروش و تأمین', icon: Users, roles: ['owner', 'admin'] },
+  { key: 'contacts-import', label: 'ورود فایل مخاطبین', group: 'مخاطبین', icon: FileCheck2, roles: ['owner', 'admin'] },
   { key: 'products', label: 'کاتالوگ و قیمت', group: 'فروش و تأمین', icon: Package, roles: ['owner', 'admin', 'staff'] },
   { key: 'purchase-orders', label: 'سفارش خرید و رسید', group: 'فروش و تأمین', icon: FileText, roles: ['owner', 'admin', 'staff'] },
   { key: 'inventory', label: 'موجودی و ثبت خرید', group: 'عملیات', icon: Warehouse, roles: ['owner', 'admin', 'staff'] },
@@ -141,10 +145,8 @@ function AppShell() {
   }, [filteredNavItems]);
   useEffect(() => { if (mobileSearchOpen) searchInputRef.current?.focus(); }, [mobileSearchOpen]);
   useEffect(() => { setMobileSearchOpen(false); }, [location.pathname]);
-  // Land each authorized role in the first useful workflow, never the first item by definition order.
-  const homeKey: PageKey = role === 'supplier' ? 'operational-tasks'
-    : role === 'driver' ? 'driver-work'
-      : role === 'customer' ? 'catalog' : 'command';
+  // Every role lands on a compact, role-specific home with only its authorized shortcuts.
+  const homeKey: PageKey = 'home';
   const homeDestination = navItems.some(n => n.key === homeKey) ? homeKey : (navItems[0]?.key ?? 'command');
   const allowed = navItems.some(n => n.key === location.pathname.split('/').pop());
   const active = navItems.find(n => n.key === location.pathname.split('/').pop()) ?? navItems[0];
@@ -184,7 +186,7 @@ function AppShell() {
     {guideOpen && <HelpGuide role={role} onClose={() => setGuideOpen(false)}/>}
     <AIAssistant companyId={membership!.company_id} role={role ?? 'staff'} userName={String(user.full_name || user.username || '')}/>
     {mobileNav && <button aria-label="بستن منو" className="mobile-scrim" onClick={() => setMobileNav(false)}/>} 
-    <main className="app-main"><header className="app-topbar"><button className="mobile-menu" onClick={() => setMobileNav(true)} aria-label="بازکردن منو"><Menu size={19}/></button><div className="breadcrumbs"><span>مدار</span><i>/</i><b>{active?.label ?? 'مرکز فرمان'}</b></div><div className="topbar-tools"><button type="button" className="icon-action mobile-search-toggle" onClick={() => setMobileSearchOpen(open => !open)} aria-label={mobileSearchOpen ? "بستن جست‌وجو" : "بازکردن جست‌وجو"} aria-expanded={mobileSearchOpen}>{mobileSearchOpen ? <X size={17}/> : <Search size={17}/>}</button><label className={"global-search" + (mobileSearchOpen ? " mobile-open" : "")}><Search size={16}/><input ref={searchInputRef} placeholder="جست‌وجو در بخش فعلی…" value={search} onChange={e => setSearch(e.target.value)} aria-label="جست‌وجو در بخش فعلی"/></label><button className="icon-action theme-toggle" type="button" onClick={() => setTheme(current => current === 'dark' ? 'light' : 'dark')} title={theme === 'dark' ? 'فعال‌کردن حالت روشن' : 'فعال‌کردن حالت تاریک'} aria-label="تغییر حالت نمایش" aria-pressed={theme === 'light'}>{theme === 'dark' ? <Sun size={17}/> : <Moon size={17}/>}</button><button type="button" className="icon-action" title="راهنمای مدار" aria-label="راهنمای مدار" onClick={() => setGuideOpen(true)}><CircleHelp size={17}/></button><span className="topbar-sep"/><span className="topbar-user"><b>{companyName}</b><small>{new Intl.DateTimeFormat('fa-IR',{dateStyle:'medium'}).format(new Date())}</small></span></div></header><div className="page-container">{!allowed ? <Navigate to={`/app/${homeDestination}`} replace/> : <Routes><Route path="command" element={<Dashboard membership={membership!}/>}/><Route path="orders" element={<OrdersPage membership={membership!} search={search}/>}/><Route path="goals" element={<GoalsPage membership={membership!} search={search}/>}/><Route path="customers" element={<EntityPage membership={membership!} table="customers" title="مشتریان" description="حساب‌های سازمانی، اطلاعات تماس و شرایط همکاری." fields={[{name:'name',label:'نام مشتری',required:true},{name:'city',label:'شهر'},{name:'phone',label:'شماره تماس',type:'tel'},{name:'segment',label:'نوع مشتری'},{name:'address',label:'نشانی'},{name:'credit_limit',label:'سقف اعتبار (تومان)',type:'number'}]} columns={[{key:'name',label:'مشتری'},{key:'city',label:'شهر'},{key:'phone',label:'تلفن'},{key:'segment',label:'بخش'},{key:'credit_limit',label:'سقف اعتبار'}]} search={search}/>}/><Route path="suppliers" element={<EntityPage membership={membership!} table="suppliers" title="شبکه تأمین" description="اطلاعات تولیدکنندگان و تأمین‌کنندگان تأییدشده." fields={[{name:'name',label:'نام تأمین‌کننده',required:true},{name:'city',label:'شهر'},{name:'phone',label:'شماره تماس',type:'tel'},{name:'farm_registration',label:'شناسه یا مجوز مزرعه'}]} columns={[{key:'name',label:'تأمین‌کننده'},{key:'city',label:'شهر'},{key:'phone',label:'تلفن'},{key:'farm_registration',label:'شناسه مزرعه'},{key:'active',label:'وضعیت'}]} search={search}/>}/><Route path="products" element={<ProductsPage membership={membership!} search={search}/>}/><Route path="purchase-orders" element={<PurchaseOrdersPage membership={membership!} search={search}/>}/><Route path="inventory" element={<InventoryPage membership={membership!} search={search}/>}/><Route path="capacity" element={<CapacityPage membership={membership!} search={search}/>}/><Route path="quality" element={<QualityPage membership={membership!} search={search}/>}/><Route path="shipments" element={<ShipmentsPage membership={membership!} search={search}/>}/><Route path="finance" element={<FinancePage membership={membership!} search={search}/>}/><Route path="members" element={<MembersPage membership={membership!} search={search}/>}/><Route path="audit" element={<AuditPage membership={membership!} search={search}/>}/><Route path="contacts-import" element={<ContactImporter companyId={membership!.company_id}/>}/><Route path="catalog" element={<CustomerCatalog membership={membership!}/>}/><Route path="my-orders" element={<CustomerOrders membership={membership!} search={search}/>}/><Route path="my-account" element={<CustomerAccount membership={membership!}/>}/><Route path="supplier-work" element={<SupplierWork membership={membership!} search={search}/>}/><Route path="supplier-capacity" element={<SupplierCapacityPage membership={membership!} search={search}/>}/><Route path="supplier-settlement" element={<SupplierSettlementPage membership={membership!} search={search}/>}/><Route path="driver-work" element={<ShipmentsPage membership={membership!} search={search} driverMode/>}/><Route path="farm-sites" element={<OperationsWorkspacePage kind="farm-sites" membership={membership!} search={search}/>}/><Route path="flock-cycles" element={<OperationsWorkspacePage kind="flock-cycles" membership={membership!} search={search}/>}/><Route path="production-batches" element={<OperationsWorkspacePage kind="production-batches" membership={membership!} search={search}/>}/><Route path="daily-production" element={<OperationsWorkspacePage kind="daily-production" membership={membership!} search={search}/>}/><Route path="task-templates" element={<OperationsWorkspacePage kind="task-templates" membership={membership!} search={search}/>}/><Route path="operational-tasks" element={<OperationsWorkspacePage kind="operational-tasks" membership={membership!} search={search}/>}/><Route path="incidents" element={<OperationsWorkspacePage kind="incidents" membership={membership!} search={search}/>}/><Route path="partnership-agreements" element={<OperationsWorkspacePage kind="partnership-agreements" membership={membership!} search={search}/>}/><Route path="partner-finance" element={<OperationsWorkspacePage kind="partner-finance" membership={membership!} search={search}/>}/><Route path="partner-settlements" element={<OperationsWorkspacePage kind="partner-settlements" membership={membership!} search={search}/>}/><Route path="*" element={<Navigate to={`/app/${homeDestination}`} replace/>}/></Routes>}</div><footer className="app-footer"><span><Logo compact/> <b>مدار</b> · مدیریت مزرعه و عملیات</span><span>تاریخچه تغییرات فعال <i/> داده‌های واقعی پایگاه داده</span></footer></main>
+    <main className="app-main"><header className="app-topbar"><button className="mobile-menu" onClick={() => setMobileNav(true)} aria-label="بازکردن منو"><Menu size={19}/></button><div className="breadcrumbs"><span>مدار</span><i>/</i><b>{active?.label ?? 'مرکز فرمان'}</b></div><div className="topbar-tools"><button type="button" className="icon-action mobile-search-toggle" onClick={() => setMobileSearchOpen(open => !open)} aria-label={mobileSearchOpen ? "بستن جست‌وجو" : "بازکردن جست‌وجو"} aria-expanded={mobileSearchOpen}>{mobileSearchOpen ? <X size={17}/> : <Search size={17}/>}</button><label className={"global-search" + (mobileSearchOpen ? " mobile-open" : "")}><Search size={16}/><input ref={searchInputRef} placeholder="جست‌وجو در بخش فعلی…" value={search} onChange={e => setSearch(e.target.value)} aria-label="جست‌وجو در بخش فعلی"/></label><button className="icon-action theme-toggle" type="button" onClick={() => setTheme(current => current === 'dark' ? 'light' : 'dark')} title={theme === 'dark' ? 'فعال‌کردن حالت روشن' : 'فعال‌کردن حالت تاریک'} aria-label="تغییر حالت نمایش" aria-pressed={theme === 'light'}>{theme === 'dark' ? <Sun size={17}/> : <Moon size={17}/>}</button><button type="button" className="icon-action" title="راهنمای مدار" aria-label="راهنمای مدار" onClick={() => setGuideOpen(true)}><CircleHelp size={17}/></button><span className="topbar-sep"/><span className="topbar-user"><b>{companyName}</b><small><span className="topbar-role">{roleLabel[role ?? '']}</span><span> · {new Intl.DateTimeFormat('fa-IR',{dateStyle:'medium'}).format(new Date())}</span></small></span></div></header><div className="page-container">{!allowed ? <Navigate to={`/app/${homeDestination}`} replace/> : <Routes><Route path="home" element={<WorkspaceHome membership={membership!} userName={String(user.full_name || user.username || '')}/>}/><Route path="command" element={<Dashboard membership={membership!}/>}/><Route path="orders" element={<OrdersPage membership={membership!} search={search}/>}/><Route path="goals" element={<GoalsPage membership={membership!} search={search}/>}/><Route path="customers" element={<EntityPage membership={membership!} table="customers" title="مشتریان" description="حساب‌های سازمانی، اطلاعات تماس و شرایط همکاری." fields={[{name:'name',label:'نام مشتری',required:true},{name:'city',label:'شهر'},{name:'phone',label:'شماره تماس',type:'tel'},{name:'segment',label:'نوع مشتری'},{name:'address',label:'نشانی'},{name:'credit_limit',label:'سقف اعتبار (تومان)',type:'number'}]} columns={[{key:'name',label:'مشتری'},{key:'city',label:'شهر'},{key:'phone',label:'تلفن'},{key:'segment',label:'بخش'},{key:'credit_limit',label:'سقف اعتبار'}]} search={search}/>}/><Route path="suppliers" element={<EntityPage membership={membership!} table="suppliers" title="شبکه تأمین" description="اطلاعات تولیدکنندگان و تأمین‌کنندگان تأییدشده." fields={[{name:'name',label:'نام تأمین‌کننده',required:true},{name:'city',label:'شهر'},{name:'phone',label:'شماره تماس',type:'tel'},{name:'farm_registration',label:'شناسه یا مجوز مزرعه'}]} columns={[{key:'name',label:'تأمین‌کننده'},{key:'city',label:'شهر'},{key:'phone',label:'تلفن'},{key:'farm_registration',label:'شناسه مزرعه'},{key:'active',label:'وضعیت'}]} search={search}/>}/><Route path="products" element={<ProductsPage membership={membership!} search={search}/>}/><Route path="purchase-orders" element={<PurchaseOrdersPage membership={membership!} search={search}/>}/><Route path="inventory" element={<InventoryPage membership={membership!} search={search}/>}/><Route path="capacity" element={<CapacityPage membership={membership!} search={search}/>}/><Route path="quality" element={<QualityPage membership={membership!} search={search}/>}/><Route path="shipments" element={<ShipmentsPage membership={membership!} search={search}/>}/><Route path="finance" element={<FinancePage membership={membership!} search={search}/>}/><Route path="members" element={<MembersPage membership={membership!} search={search}/>}/><Route path="audit" element={<AuditPage membership={membership!} search={search}/>}/><Route path="contacts" element={<ContactsHub membership={membership!} search={search}/>}/><Route path="contacts-import" element={<ContactImporter companyId={membership!.company_id}/>}/><Route path="catalog" element={<CustomerCatalog membership={membership!}/>}/><Route path="my-orders" element={<CustomerOrders membership={membership!} search={search}/>}/><Route path="my-account" element={<CustomerAccount membership={membership!}/>}/><Route path="supplier-work" element={<SupplierWork membership={membership!} search={search}/>}/><Route path="supplier-capacity" element={<SupplierCapacityPage membership={membership!} search={search}/>}/><Route path="supplier-settlement" element={<SupplierSettlementPage membership={membership!} search={search}/>}/><Route path="driver-work" element={<ShipmentsPage membership={membership!} search={search} driverMode/>}/><Route path="farm-sites" element={<OperationsWorkspacePage kind="farm-sites" membership={membership!} search={search}/>}/><Route path="flock-cycles" element={<OperationsWorkspacePage kind="flock-cycles" membership={membership!} search={search}/>}/><Route path="production-batches" element={<OperationsWorkspacePage kind="production-batches" membership={membership!} search={search}/>}/><Route path="daily-production" element={<OperationsWorkspacePage kind="daily-production" membership={membership!} search={search}/>}/><Route path="task-templates" element={<OperationsWorkspacePage kind="task-templates" membership={membership!} search={search}/>}/><Route path="operational-tasks" element={<OperationsWorkspacePage kind="operational-tasks" membership={membership!} search={search}/>}/><Route path="incidents" element={<OperationsWorkspacePage kind="incidents" membership={membership!} search={search}/>}/><Route path="partnership-agreements" element={<OperationsWorkspacePage kind="partnership-agreements" membership={membership!} search={search}/>}/><Route path="partner-finance" element={<OperationsWorkspacePage kind="partner-finance" membership={membership!} search={search}/>}/><Route path="partner-settlements" element={<OperationsWorkspacePage kind="partner-settlements" membership={membership!} search={search}/>}/><Route path="*" element={<Navigate to={`/app/${homeDestination}`} replace/>}/></Routes>}</div><footer className="app-footer"><span><Logo compact/> <b>مدار</b> · مدیریت مزرعه و عملیات</span><span>تاریخچه تغییرات فعال <i/> داده‌های واقعی پایگاه داده</span></footer></main>
   </div>;
 }
 
@@ -231,15 +233,23 @@ function FarmMapPanel({sites,schemaWarning}:{sites:Row[];schemaWarning:string}) 
       && Number.isFinite(Number(lat)) && Number.isFinite(Number(lon))
       && Number(lat) >= -90 && Number(lat) <= 90 && Number(lon) >= -180 && Number(lon) <= 180;
   }), [sites]);
+  const iranMapped = useMemo(() => mapped.filter(site => {
+    const latitude = Number(site.latitude), longitude = Number(site.longitude);
+    return latitude >= 24 && latitude <= 41 && longitude >= 43 && longitude <= 65;
+  }), [mapped]);
   const [selectedId, setSelectedId] = useState('');
+  const [mapMode, setMapMode] = useState<'iran'|'street'>('iran');
+  const showIranPaper = mapMode === 'iran' && iranMapped.length > 0;
+  const visibleMapped = showIranPaper ? iranMapped : mapped;
   useEffect(() => {
-    setSelectedId(old => mapped.some(site => String(site.id) === old) ? old : String(mapped[0]?.id ?? ''));
-  }, [mapped]);
+    setSelectedId(old => visibleMapped.some(site => String(site.id) === old) ? old : String(visibleMapped[0]?.id ?? ''));
+  }, [visibleMapped]);
+
   const bounds = useMemo(() => {
     const clampLatitude = (value:number) => Math.min(85.0511,Math.max(-85.0511,value));
-    if (!mapped.length) return {west:0,east:1,south:-1,north:1};
-    const latitudes = mapped.map(site=>clampLatitude(Number(site.latitude)));
-    const longitudes = mapped.map(site=>Number(site.longitude));
+    if (!visibleMapped.length) return {west:43,east:65,south:24,north:41};
+    const latitudes = visibleMapped.map(site=>clampLatitude(Number(site.latitude)));
+    const longitudes = visibleMapped.map(site=>Number(site.longitude));
     const rawSouth=Math.min(...latitudes),rawNorth=Math.max(...latitudes);
     const rawWest=Math.min(...longitudes),rawEast=Math.max(...longitudes);
     const latPad=Math.max(0.12,(rawNorth-rawSouth)*0.18);
@@ -249,26 +259,60 @@ function FarmMapPanel({sites,schemaWarning}:{sites:Row[];schemaWarning:string}) 
     if(north-south<0.12){south=Math.max(-85.0511,rawSouth-0.12);north=Math.min(85.0511,rawNorth+0.12);}
     if(east-west<0.12){west=Math.max(-180,rawWest-0.12);east=Math.min(180,rawEast+0.12);}
     return {west,east,south,north};
-  }, [mapped]);
+  }, [visibleMapped]);
   const mapY = (latitude:number) => {
     const project=(value:number)=>Math.log(Math.tan(Math.PI/4+Math.min(85.0511,Math.max(-85.0511,value))*Math.PI/360));
     const north=project(bounds.north),south=project(bounds.south);
     return south===north?50:(project(latitude)-north)/(south-north)*100;
   };
   const bbox=[bounds.west,bounds.south,bounds.east,bounds.north].map(value=>value.toFixed(6)).join('%2C');
-  const mapUrl=mapped.length? `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik` : '';
+  const mapUrl=visibleMapped.length? `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik` : '';
   const siteName=(site:Row)=>String(site.name??site.site_code??'سایت بدون نام');
+  const markerPosition=(site:Row)=>{
+    const latitude=Number(site.latitude),longitude=Number(site.longitude);
+    if(showIranPaper) return {
+      x:Math.min(88,Math.max(15,16+((longitude-43)/22)*70)),
+      y:Math.min(92,Math.max(7,8+((40-latitude)/16)*84)),
+    };
+    return {
+      x:Math.min(98,Math.max(2,(longitude-bounds.west)/(bounds.east-bounds.west)*100)),
+      y:Math.min(98,Math.max(2,mapY(latitude))),
+    };
+  };
   return <section className="panel farm-map-panel">
-    <div className="panel-heading"><div><span className="section-number">۰۳</span><div><h3>نقشه‌ی سایت‌های مجموعه</h3><p>همه‌ی نشانگرها از مختصات واقعی ثبت‌شده خوانده می‌شوند؛ برای انتخاب هر سایت، روی نشانگر یا نام آن بزن.</p></div></div><span className="status-badge neutral">{numberFa(mapped.length)} موقعیت</span></div>
+    <div className="panel-heading">
+      <div><span className="section-number">۰۳</span><div><h3>نقشه‌ی عملیات و سایت‌ها</h3><p>{showIranPaper?'نمای شماتیک ایران با مختصات واقعی ثبت‌شده؛ این نما مسیریابی یا GPS زنده نیست.':'نشانگرها از موقعیت‌های واقعی ثبت‌شده خوانده می‌شوند؛ برای انتخاب هر موقعیت، روی نشانگر یا نام آن بزن.'}</p></div></div>
+      <span className="status-badge neutral">{numberFa(visibleMapped.length)} موقعیت</span>
+    </div>
+    <div className="farm-map-mode-toggle" role="group" aria-label="حالت نمایش نقشه">
+      <button type="button" className={showIranPaper?'active':''} aria-pressed={showIranPaper} disabled={!iranMapped.length} onClick={()=>setMapMode('iran')}>نقشه کاغذی ایران</button>
+      <button type="button" className={!showIranPaper?'active':''} aria-pressed={!showIranPaper} onClick={()=>setMapMode('street')}>نقشه دقیق</button>
+    </div>
     {schemaWarning ? <div className="farm-map-warning"><MapPin size={18}/><div><b>به‌روزرسانی ساختار نقشه لازم است</b><p>{schemaWarning}</p><small>پس از اجرای مهاجرت، طول و عرض جغرافیایی هر سایت را از بخش «سایت‌های مزرعه» وارد کن.</small></div></div>
     : mapped.length ? <div className="farm-map-layout">
-      <div className="farm-map-canvas">
-        <iframe title="نقشه‌ی جغرافیایی سایت‌های مجموعه" src={mapUrl} loading="lazy" referrerPolicy="no-referrer-when-downgrade"/>
-        {mapped.map((site,index)=>{
-          const latitude=Math.min(85.0511,Math.max(-85.0511,Number(site.latitude)));
-          const longitude=Number(site.longitude);
-          const x=Math.min(98,Math.max(2,(longitude-bounds.west)/(bounds.east-bounds.west)*100));
-          const y=Math.min(98,Math.max(2,mapY(latitude)));
+      <div className={'farm-map-canvas'+(showIranPaper?' farm-map-canvas-iran':'')}>
+        {showIranPaper ? <svg className="iran-paper-illustration" viewBox="0 0 600 380" role="img" aria-label="نمای شماتیک قلمرو ایران">
+          <defs>
+            <pattern id="iran-paper-grid" width="22" height="22" patternUnits="userSpaceOnUse"><path d="M22 0H0V22" fill="none" stroke="#a7b9a4" strokeWidth=".7" opacity=".42"/></pattern>
+            <pattern id="iran-paper-dots" width="7" height="7" patternUnits="userSpaceOnUse"><circle cx="1.3" cy="1.3" r=".7" fill="#9bad96" opacity=".42"/></pattern>
+            <linearGradient id="iran-land-gradient" x1="0" x2="1" y1="0" y2="1"><stop offset="0" stopColor="#e7edda"/><stop offset="1" stopColor="#c9d8bf"/></linearGradient>
+          </defs>
+          <rect width="600" height="380" rx="18" fill="#f4f0df"/>
+          <rect width="600" height="380" rx="18" fill="url(#iran-paper-grid)"/>
+          <path d="M177 31 L231 20 L279 28 L316 23 L354 43 L382 41 L409 55 L445 63 L464 91 L493 104 L499 132 L480 158 L489 184 L471 205 L451 224 L431 251 L407 262 L394 287 L366 306 L338 316 L311 305 L291 287 L266 282 L245 257 L224 237 L205 219 L184 200 L169 175 L161 147 L167 121 L153 103 L168 80 Z" fill="url(#iran-land-gradient)" stroke="#778f72" strokeWidth="2.5" strokeLinejoin="round"/>
+          <path d="M178 44 L188 81 L174 114 L186 146 L177 177 L203 210 L224 237 M231 22 L243 59 L279 78 L316 77 L353 99 L388 93 L429 114 M243 257 L272 230 L302 211 L319 176 L353 150 L388 133 L430 114 M291 287 L309 261 L338 247 L366 225 L394 202 L451 224" fill="none" stroke="#9fb296" strokeWidth="1.3" strokeDasharray="4 5" opacity=".8"/>
+          <path d="M190 211 C224 224 242 249 266 282 C286 305 313 312 338 316" fill="none" stroke="#7099a0" strokeWidth="2" opacity=".85"/>
+          <path d="M338 316 C351 294 365 283 394 287" fill="none" stroke="#7099a0" strokeWidth="2" opacity=".85"/>
+          <text x="365" y="16" textAnchor="middle" fontSize="12" fill="#78918a">دریای خزر</text>
+          <text x="186" y="333" textAnchor="middle" fontSize="12" fill="#6d999d">خلیج فارس</text>
+          <text x="433" y="320" textAnchor="middle" fontSize="11" fill="#6d999d">دریای عمان</text>
+          <text x="302" y="165" textAnchor="middle" fontSize="18" fontWeight="700" letterSpacing="5" fill="#789071" opacity=".72">ایران</text>
+          <text x="38" y="35" fontSize="10" fill="#9a9b84">نقشه‌ی شماتیک</text>
+          <path d="M546 46 L546 75 M539 56 L546 44 L553 56" stroke="#6f816a" strokeWidth="1.8" fill="none" strokeLinecap="round"/>
+          <text x="546" y="88" textAnchor="middle" fontSize="10" fill="#75826c">شمال</text>
+        </svg> : <iframe title="نقشه‌ی جغرافیایی سایت‌های مجموعه" src={mapUrl} loading="lazy" referrerPolicy="no-referrer-when-downgrade"/>}
+        {visibleMapped.map((site,index)=>{
+          const {x,y}=markerPosition(site);
           const active=String(site.id)===selectedId;
           return <button type="button" key={String(site.id)} className={'farm-map-marker'+(active?' active':'')} style={{left:x+'%',top:y+'%'}} aria-label={'انتخاب '+siteName(site)} aria-pressed={active} title={siteName(site)} onClick={()=>setSelectedId(String(site.id))}>
             <span className="farm-map-marker-icon">{farmSiteIcon(site.site_type,18)}</span>
@@ -277,10 +321,11 @@ function FarmMapPanel({sites,schemaWarning}:{sites:Row[];schemaWarning:string}) 
           </button>;
         })}
       </div>
-      <div className="farm-map-sites" aria-label="فهرست موقعیت‌های ثبت‌شده">{mapped.map(site=><button type="button" key={String(site.id)} className={'farm-map-site'+(String(site.id)===selectedId?' active':'')} aria-pressed={String(site.id)===selectedId} onClick={()=>setSelectedId(String(site.id))}><span className="farm-map-pin">{farmSiteIcon(site.site_type,16)}</span><span><b>{siteName(site)}</b><small>{[site.city,site.province].filter(Boolean).map(String).join(' · ') || 'نشانی ثبت نشده'}</small><small>{farmSiteTypeLabels[String(site.site_type ?? 'mixed')] ?? 'سایر'}</small></span></button>)}</div>
+      <div className="farm-map-sites" aria-label="فهرست موقعیت‌های ثبت‌شده">{visibleMapped.map(site=><button type="button" key={String(site.id)} className={'farm-map-site'+(String(site.id)===selectedId?' active':'')} aria-pressed={String(site.id)===selectedId} onClick={()=>setSelectedId(String(site.id))}><span className="farm-map-pin">{farmSiteIcon(site.site_type,16)}</span><span><b>{siteName(site)}</b><small>{[site.city,site.province].filter(Boolean).map(String).join(' · ') || 'نشانی ثبت نشده'}</small><small>{farmSiteTypeLabels[String(site.site_type ?? 'mixed')] ?? 'سایر'}</small></span></button>)}</div>
     </div>
-    : <EmptyState title="مختصات جغرافیایی ثبت نشده" description="از بخش سایت‌های مزرعه، مختصات واقعی GPS را ذخیره کن تا نقشه‌ی مدیریتی فعال شود. نقطه‌ی آزمایشی یا ساختگی نمایش داده نمی‌شود." icon={MapPin}/>}
-    <div className="farm-map-footer"><span>نقشه‌ی پایه: OpenStreetMap</span><Link to="/app/farm-sites">مدیریت سایت‌ها <ArrowLeft size={14}/></Link></div>
+    : <EmptyState title="مختصات جغرافیایی ثبت نشده" description="از بخش سایت‌های مزرعه، مختصات واقعی را ذخیره کن تا موقعیت سایت‌ها روی نقشه نمایش داده شود. هیچ نقطه‌ی ساختگی نمایش داده نمی‌شود." icon={MapPin}/>}
+    <div className="farm-map-operational-note"><ShieldCheck size={14}/><span>موقعیت‌های فعلی مربوط به سایت‌های ثبت‌شده‌اند؛ نمایش GPS زنده‌ی راننده پس از اتصال منبع موقعیت و ثبت رضایت/مجوز راننده فعال می‌شود.</span></div>
+    <div className="farm-map-footer"><span>{showIranPaper?'نمای شماتیک ایران · موقعیت از مختصات ذخیره‌شده':'نقشه‌ی دقیق: OpenStreetMap'}</span><Link to="/app/farm-sites">مدیریت سایت‌ها <ArrowLeft size={14}/></Link></div>
   </section>;
 }
 

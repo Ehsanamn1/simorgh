@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { SpeechRecognition } from '@capgo/capacitor-speech-recognition';
 import { SpeechSynthesis } from '@capgo/capacitor-speech-synthesis';
-import { ArrowDown, Check, FileText, Headphones, KeyRound, LoaderCircle, Mic, MicOff, Plus, Send, Settings2, ShieldCheck, Sparkles, Volume2, VolumeX, X } from 'lucide-react';
+import { ArrowDown, AudioLines, Check, FileText, Headphones, KeyRound, LoaderCircle, Mic, MicOff, Plus, Send, Settings2, ShieldCheck, Sparkles, Volume2, VolumeX, X } from 'lucide-react';
 import type { AppRole } from './lib/types';
 import { api } from './lib/apiClient';
 
@@ -500,9 +500,15 @@ export function AIAssistant({ companyId, role, userName }: AIAssistantProps) {
       setAttached(null);
       if (voiceModeRef.current) speak(response.content, true);
     } catch (caught) {
-      // Keep the user's message on screen so the request can be retried or copied.
+      // Keep the transcript/attachment retryable. A failed outgoing message is removed from
+      // the transcript so retrying will not duplicate it and the send button becomes usable again.
+      setMessages(current => current.filter(message => message !== outgoing));
+      setDraft(currentDraft => currentDraft.trim() && content.trim()
+        ? content + '\n' + currentDraft
+        : (currentDraft.trim() || content));
       setError(caught instanceof Error ? caught.message : 'دستیار پاسخ نداد؛ اتصال یا تنظیمات پرووایدر را بررسی کن.');
-      if (voiceModeRef.current) speak('پاسخ دریافت نشد. دوباره بگو تا تلاش کنم.', true);
+      setNotice('پیام ارسال نشد؛ متن و فایل پیوست حفظ شده‌اند. پس از بررسی اتصال، دوباره ارسال کن.');
+      if (voiceModeRef.current) stopVoiceConversation();
     } finally {
       setSending(false);
       if (!voiceModeRef.current) inputRef.current?.focus();
@@ -511,7 +517,7 @@ export function AIAssistant({ companyId, role, userName }: AIAssistantProps) {
 
   return <>
     <button type="button" className="ai-assistant-launcher" aria-label="بازکردن دستیار هوش مصنوعی" onClick={openPanel}>
-      <span className="ai-launcher-orb"><Sparkles size={20}/></span>
+      <span className="ai-launcher-orb"><AudioLines size={21}/></span>
       <span className="ai-launcher-label"><b>دستیار مدار</b><small>تحلیل و راهنمایی</small></span>
     </button>
     {open && <div className="ai-assistant-layer" dir="rtl">
@@ -523,7 +529,7 @@ export function AIAssistant({ companyId, role, userName }: AIAssistantProps) {
             <small><span className="ai-presence-dot"/> {activeProvider ? providerMeta[activeProvider].label : 'آماده‌ی راهنمایی'} · {roleTitles[role]}</small>
           </div>
           {isAdmin && <button type="button" className="ai-icon-button" onClick={() => { setSettingsOpen(value => !value); setError(''); setNotice(''); if (!configs.length) void loadProviders(); }} aria-label="تنظیمات اتصال هوش مصنوعی" title="تنظیمات پرووایدر"><Settings2 size={18}/></button>}
-          <button type="button" className="ai-icon-button" onClick={() => { setOpen(false); setSettingsOpen(false); recognitionRef.current?.stop(); }} aria-label="بستن دستیار"><X size={19}/></button>
+          <button type="button" className="ai-icon-button" onClick={() => { setOpen(false); setSettingsOpen(false); stopVoiceConversation(); recognitionRef.current?.stop(); }} aria-label="بستن دستیار"><X size={19}/></button>
         </header>
         {settingsOpen && isAdmin ? <div className="ai-settings-panel">
           <div className="ai-settings-title"><div><b>اتصال مدل‌های هوش مصنوعی</b><small>کلید فقط به API امن مدار فرستاده می‌شود و در پاسخ به مرورگر برنمی‌گردد.</small></div><ShieldCheck size={20}/></div>
@@ -584,7 +590,7 @@ export function AIAssistant({ companyId, role, userName }: AIAssistantProps) {
                 <button type="button" className={voiceMode?'recording':''} onClick={()=>voiceMode?stopVoiceConversation():startVoiceConversation()} title={voiceMode?'پایان مکالمه صوتی':'شروع مکالمه صوتی خودکار'} aria-label={voiceMode?'توقف مکالمه صوتی':'شروع مکالمه صوتی خودکار'}>{voiceMode?<MicOff size={18}/>:<Headphones size={18}/>}</button>
               </div>
               <small>{voiceMode?'مکالمه صوتی فعال':listening?'در حال شنیدن…':activeProvider?providerMeta[activeProvider].label:'پرووایدر تنظیم نشده'}</small>
-              <button className="ai-send-button" type="submit" disabled={sending||(!draft.trim()&&!attached)} aria-label="ارسال پیام">{sending?<LoaderCircle size={17} className="ai-spin"/>:<Send size={17}/>}</button>
+              <button className="ai-send-button" type="submit" title={sending ? "در حال ارسال پیام" : "ارسال پیام به دستیار"} disabled={sending||(!draft.trim()&&!attached)} aria-label="ارسال پیام">{sending?<LoaderCircle size={17} className="ai-spin"/>:<Send size={17}/>}</button>
             </div>
             <p className="ai-compose-disclaimer">پاسخ‌ها باید با رکوردهای مدار بررسی شوند. دستیار بدون تأیید کاربر عملیات مالی یا تغییر داده اجرا نمی‌کند.</p>
           </form>
