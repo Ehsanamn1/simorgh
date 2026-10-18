@@ -305,6 +305,155 @@ jobs:
           DELETE FROM public.companies WHERE id='00000000-0000-4000-8000-000000000022';
           SQL
           echo "Concurrent deductions, purchase-order approval, partial/final receipt, stock ledger updates, and over-receipt rejection all passed."
+      - name: Verify partner settlement lifecycle, role restrictions, and bank ledger invariants
+        env:
+          PGPASSWORD: medar_test_password
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql -h 127.0.0.1 -U postgres -d medar_test -v ON_ERROR_STOP=1 <<'SQL'
+          BEGIN;
+          INSERT INTO public.companies (id,name)
+          VALUES ('00000000-0000-4000-8000-000000000332','CI settlement and bank ledger company');
+          INSERT INTO public.medar_users (id,username,username_normalized,phone_e164,display_name,password_hash) VALUES
+            ('00000000-0000-4000-8000-000000000331','ci.settlement.owner','ci.settlement.owner','+989190000331','CI settlement owner','not-a-login-hash'),
+            ('00000000-0000-4000-8000-000000000333','ci.settlement.supplier','ci.settlement.supplier','+989190000333','CI settlement supplier','not-a-login-hash');
+          INSERT INTO public.suppliers (id,company_id,name)
+          VALUES ('00000000-0000-4000-8000-000000000334','00000000-0000-4000-8000-000000000332','CI settlement supplier');
+          INSERT INTO public.memberships (company_id,user_id,role,active,created_by,supplier_id) VALUES
+            ('00000000-0000-4000-8000-000000000332','00000000-0000-4000-8000-000000000331','owner',true,'00000000-0000-4000-8000-000000000331',NULL),
+            ('00000000-0000-4000-8000-000000000332','00000000-0000-4000-8000-000000000333','supplier',true,'00000000-0000-4000-8000-000000000331','00000000-0000-4000-8000-000000000334');
+          INSERT INTO public.partnership_agreements (
+            id,company_id,supplier_id,agreement_code,status,effective_from,effective_to,
+            company_profit_share_pct,partner_profit_share_pct,shared_expense_categories,settlement_basis,
+            signed_document_path,signed_at,approved_by,approved_at,created_by
+          ) VALUES (
+            '00000000-0000-4000-8000-000000000335','00000000-0000-4000-8000-000000000332',
+            '00000000-0000-4000-8000-000000000334','CI-AGREEMENT-01','active',
+            current_date-30,current_date,60,40,ARRAY['feed'],'collected_cash',
+            'ci://signed-agreement',now(),'00000000-0000-4000-8000-000000000331',now(),
+            '00000000-0000-4000-8000-000000000331'
+          );
+          INSERT INTO public.partner_financial_entries (
+            company_id,supplier_id,agreement_id,entry_type,status,direction,amount,paid_amount,currency,
+            paid_by,payment_status,recognized_on,external_reference,created_by,posted_by,posted_at
+          ) VALUES (
+            '00000000-0000-4000-8000-000000000332','00000000-0000-4000-8000-000000000334',
+            '00000000-0000-4000-8000-000000000335','sale_collection','posted','inflow_to_company',
+            1000,1000,'TOMAN','customer','paid',current_date,'CI-COLLECT-0001',
+            '00000000-0000-4000-8000-000000000331',
+            '00000000-0000-4000-8000-000000000331',now()
+          );
+
+          DO $settlement$
+          DECLARE
+            v_period uuid;
+            v_status text;
+            v_due numeric;
+            v_cash numeric;
+            v_paid numeric;
+          BEGIN
+            v_period := public.medar_create_partner_settlement_period(
+              '00000000-0000-4000-8000-000000000331',
+              '00000000-0000-4000-8000-000000000335',
+              current_date-1,current_date
+            );
+            SELECT status,balance_due_to_partner,recorded_cash_available
+              INTO v_status,v_due,v_cash
+              FROM public.partner_settlement_periods WHERE id=v_period;
+            IF v_status<>'draft' OR v_due<>400 OR v_cash<>1000 THEN
+              RAISE EXCEPTION 'Settlement calculation mismatch: status %, due %, cash %',v_status,v_due,v_cash;
+            END IF;
+
+            BEGIN
+              PERFORM public.medar_approve_partner_settlement_period(
+                '00000000-0000-4000-8000-000000000333',v_period
+              );
+              RAISE EXCEPTION 'Supplier was incorrectly allowed to approve a settlement';
+            EXCEPTION WHEN OTHERS THEN
+              IF SQLERRM='Supplier was incorrectly allowed to approve a settlement' THEN RAISE; END IF;
+            END;
+
+            PERFORM public.medar_approve_partner_settlement_period(
+              '00000000-0000-4000-8000-000000000331',v_period
+            );
+            PERFORM public.medar_record_partner_settlement_payment(
+              '00000000-0000-4000-8000-000000000331',v_period,400,'CI-PAYMENT-0001',now()
+            );
+            SELECT status,settled_amount INTO v_status,v_paid
+              FROM public.partner_settlement_periods WHERE id=v_period;
+            IF v_status<>'settled' OR v_paid<>400 THEN
+              RAISE EXCEPTION 'Settlement payment transition mismatch: status %, paid %',v_status,v_paid;
+            END IF;
+
+            BEGIN
+              PERFORM public.medar_record_partner_settlement_payment(
+                '00000000-0000-4000-8000-000000000331',v_period,1,'CI-PAYMENT-OVERFLOW',now()
+              );
+              RAISE EXCEPTION 'Overpayment was incorrectly accepted';
+            EXCEPTION WHEN OTHERS THEN
+              IF SQLERRM='Overpayment was incorrectly accepted' THEN RAISE; END IF;
+            END;
+          END $settlement$;
+
+          INSERT INTO public.medar_bank_accounts (
+            id,company_id,label,bank_name,masked_account,currency,provider,connection_status,created_by
+          ) VALUES (
+            '00000000-0000-4000-8000-000000000336',
+            '00000000-0000-4000-8000-000000000332','CI bank account','CI Bank','****۱۲۳۴',
+            'IRR','manual_csv','manual_import','00000000-0000-4000-8000-000000000331'
+          );
+          INSERT INTO public.medar_bank_transactions (
+            company_id,bank_account_id,external_transaction_id,booked_at,amount,currency,direction,imported_by
+          ) VALUES (
+            '00000000-0000-4000-8000-000000000332','00000000-0000-4000-8000-000000000336',
+            'CI-BANK-000001',now(),125,'IRR','incoming','00000000-0000-4000-8000-000000000331'
+          ) ON CONFLICT(company_id,bank_account_id,external_transaction_id) DO NOTHING;
+          INSERT INTO public.medar_bank_transactions (
+            company_id,bank_account_id,external_transaction_id,booked_at,amount,currency,direction,imported_by
+          ) VALUES (
+            '00000000-0000-4000-8000-000000000332','00000000-0000-4000-8000-000000000336',
+            'CI-BANK-000001',now(),125,'IRR','incoming','00000000-0000-4000-8000-000000000331'
+          ) ON CONFLICT(company_id,bank_account_id,external_transaction_id) DO NOTHING;
+
+          DO $bank_ledger$
+          DECLARE v_count integer;
+          BEGIN
+            SELECT count(*) INTO v_count FROM public.medar_bank_transactions
+              WHERE company_id='00000000-0000-4000-8000-000000000332'
+                AND bank_account_id='00000000-0000-4000-8000-000000000336'
+                AND external_transaction_id='CI-BANK-000001';
+            IF v_count<>1 THEN RAISE EXCEPTION 'Duplicate bank import was not idempotent'; END IF;
+
+            BEGIN
+              INSERT INTO public.medar_bank_transactions (
+                company_id,bank_account_id,external_transaction_id,booked_at,amount,currency,direction,imported_by
+              ) VALUES (
+                '00000000-0000-4000-8000-000000000332','00000000-0000-4000-8000-000000000336',
+                'CI-BANK-INVALID-01',now(),-125,'IRR','incoming','00000000-0000-4000-8000-000000000331'
+              );
+              RAISE EXCEPTION 'Bank direction/amount mismatch was incorrectly accepted';
+            EXCEPTION WHEN OTHERS THEN
+              IF SQLERRM='Bank direction/amount mismatch was incorrectly accepted' THEN RAISE; END IF;
+            END;
+
+            BEGIN
+              INSERT INTO public.medar_bank_transactions (
+                company_id,bank_account_id,external_transaction_id,booked_at,amount,currency,direction,
+                reconciliation_status,imported_by
+              ) VALUES (
+                '00000000-0000-4000-8000-000000000332','00000000-0000-4000-8000-000000000336',
+                'CI-BANK-INVALID-02',now(),125,'IRR','incoming','reconciled',
+                '00000000-0000-4000-8000-000000000331'
+              );
+              RAISE EXCEPTION 'Reconciled transaction without an audit link was incorrectly accepted';
+            EXCEPTION WHEN OTHERS THEN
+              IF SQLERRM='Reconciled transaction without an audit link was incorrectly accepted' THEN RAISE; END IF;
+            END;
+          END $bank_ledger$;
+          ROLLBACK;
+          SQL
+          echo "Partner settlement calculation, role authorization, approval, payment caps, bank-import idempotency, and ledger constraints passed."
       - name: Summarize all dependency advisories
         shell: bash
         run: |
