@@ -23,7 +23,7 @@ describe('AI provider default model IDs', () => {
     expect(AI_PROVIDERS.openai.model).toBe('gpt-6-luna');
     expect(AI_PROVIDERS.gemini.model).toBe('gemini-3.8-flash');
     expect(AI_PROVIDERS.deepseek.model).toBe('deepseek-flash');
-    expect(AI_PROVIDERS.anthropic.model).toBe('claude-sonnet-5');
+    expect(AI_PROVIDERS.anthropic.model).toBe('claude-sonnet-5-5');
   });
 });
 
