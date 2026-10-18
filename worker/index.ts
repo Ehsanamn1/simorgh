@@ -1065,31 +1065,94 @@ app.post('/api/contacts/import', async (c) => {
     customers: { imported: 0, updated: 0 },
     suppliers: { imported: 0, updated: 0 },
   };
+  let ambiguousPhoneSkipped = 0;
   for (const kind of ['customers', 'suppliers'] as const) {
     const categorized = contacts.filter(contact => contact.kind === kind);
+    if (!categorized.length) continue;
+    // Cache the existing company-scoped phone index once for this category. Normalization
+    // handles Iranian local (09…), international (+98/0098), and Persian digits.
+    const existingRows = await sql.query(
+      'select id::text as id,name,phone from public.' + kind + ' where company_id=$1::uuid and phone is not null',
+      [companyId],
+    ) as Array<{ id: string; name: string; phone: string }>;
+    const existingByPhone = new Map<string, Array<{ id: string; name: string; phone: string }>>();
+    for (const row of existingRows) {
+      const canonical = canonicalContactPhone(row.phone);
+      if (!canonical) continue;
+      existingByPhone.set(canonical, [...(existingByPhone.get(canonical) ?? []), row]);
+    }
     for (let start = 0; start < categorized.length; start += 100) {
       const batch = categorized.slice(start, start + 100);
-      const params: unknown[] = [];
-      const values: string[] = [];
-      batch.forEach(item => {
-        const offset = params.length;
-        params.push(companyId, item.name, item.phone || null, item.city || null, item.address || null,
-          item.email || null, item.organization || null, item.notes || null, JSON.stringify(item.tags), 'phone_import');
-        values.push('($' + (offset+1) + '::uuid,$' + (offset+2) + ',$' + (offset+3) + ',$' + (offset+4) + ',$' + (offset+5) +
-          ',$' + (offset+6) + ',$' + (offset+7) + ',$' + (offset+8) + ',ARRAY(SELECT jsonb_array_elements_text($' + (offset+9) + '::jsonb)),$' + (offset+10) + ')');
-      });
-      const query = kind === 'customers'
-        ? "insert into public.customers(company_id,name,phone,city,address,email,organization_name,contact_notes,contact_tags,contact_source) values " + values.join(',') +
-          " on conflict(company_id,name) do update set phone=coalesce(nullif(excluded.phone,''),customers.phone),city=coalesce(nullif(excluded.city,''),customers.city),address=coalesce(nullif(excluded.address,''),customers.address),email=coalesce(nullif(excluded.email,''),customers.email),organization_name=coalesce(nullif(excluded.organization_name,''),customers.organization_name),contact_notes=coalesce(nullif(excluded.contact_notes,''),customers.contact_notes),contact_tags=case when cardinality(excluded.contact_tags)>0 then excluded.contact_tags else customers.contact_tags end,contact_source='phone_import',updated_at=now() returning (xmax=0) as inserted"
-        : "insert into public.suppliers(company_id,name,phone,city,address,email,organization_name,contact_notes,contact_tags,contact_source) values " + values.join(',') +
-          " on conflict(company_id,name) do update set phone=coalesce(nullif(excluded.phone,''),suppliers.phone),city=coalesce(nullif(excluded.city,''),suppliers.city),address=coalesce(nullif(excluded.address,''),suppliers.address),email=coalesce(nullif(excluded.email,''),suppliers.email),organization_name=coalesce(nullif(excluded.organization_name,''),suppliers.organization_name),contact_notes=coalesce(nullif(excluded.contact_notes,''),suppliers.contact_notes),contact_tags=case when cardinality(excluded.contact_tags)>0 then excluded.contact_tags else suppliers.contact_tags end,contact_source='phone_import',updated_at=now() returning (xmax=0) as inserted";
-      const rows = await sql.query(query, params) as Array<{ inserted: boolean }>;
-      for (const row of rows) if (row.inserted) byKind[kind].imported++; else byKind[kind].updated++;
+      const phoneUpdates: Array<{ id: string; contact: ContactRecord }> = [];
+      const toUpsert: ContactRecord[] = [];
+      for (const contact of batch) {
+        const canonical = canonicalContactPhone(contact.phone);
+        const matches = canonical ? (existingByPhone.get(canonical) ?? []) : [];
+        const exactNameMatch = matches.find(row => row.name === contact.name);
+        if (exactNameMatch) {
+          // Let the unique company/name constraint update this exact record normally.
+          toUpsert.push(contact);
+        } else if (matches.length === 1) {
+          // One existing row owns this number under a different label. Enrich it rather
+          // than creating a second customer/supplier; preserve its canonical name.
+          phoneUpdates.push({ id: matches[0].id, contact });
+        } else if (matches.length > 1) {
+          // A shared/ambiguous number must never merge unrelated company records silently.
+          ambiguousPhoneSkipped++;
+        } else {
+          toUpsert.push(contact);
+        }
+      }
+      if (phoneUpdates.length) {
+        const params: unknown[] = [companyId];
+        const values: string[] = [];
+        phoneUpdates.forEach(({ id, contact }) => {
+          const offset = params.length;
+          params.push(id, contact.name, contact.phone || null, contact.city || null, contact.address || null,
+            contact.email || null, contact.organization || null, contact.notes || null, JSON.stringify(contact.tags));
+          values.push('($' + (offset+1) + '::uuid,$' + (offset+2) + ',$' + (offset+3) + ',$' + (offset+4) + ',$' + (offset+5) +
+            ',$' + (offset+6) + ',$' + (offset+7) + ',$' + (offset+8) + ',ARRAY(SELECT jsonb_array_elements_text($' + (offset+9) + '::jsonb))');
+        });
+        const updateQuery =
+          'update public.' + kind + ' as current set ' +
+          'phone=coalesce(current.phone,nullif(input.phone,\\'\\')),' +
+          'city=coalesce(nullif(input.city,\\'\\'),current.city),' +
+          'address=coalesce(nullif(input.address,\\'\\'),current.address),' +
+          'email=coalesce(nullif(input.email,\\'\\'),current.email),' +
+          'organization_name=coalesce(nullif(input.organization_name,\\'\\'),current.organization_name),' +
+          "contact_notes=nullif(concat_ws(E'\\\\n',nullif(current.contact_notes,'')," +
+            "case when current.name<>input.imported_name and position(input.imported_name in coalesce(current.contact_notes,''))=0 then 'نام واردشده از فایل: '||input.imported_name end," +
+            "case when nullif(input.notes,'') is not null and position(input.notes in coalesce(current.contact_notes,''))=0 then input.notes end),'')" +
+          ',contact_tags=array(select distinct tag from unnest(coalesce(current.contact_tags,array[]::text[]) || coalesce(input.tags,array[]::text[])) as all_tags(tag) where nullif(tag,\\'\\') is not null),' +
+          "contact_source='file_import',updated_at=now() " +
+          'from (values ' + values.join(',') + ') as input(id,imported_name,phone,city,address,email,organization_name,notes,tags) ' +
+          'where current.company_id=$1::uuid and current.id=input.id returning current.id';
+        const updatedRows = await sql.query(updateQuery, params) as Array<{ id: string }>;
+        byKind[kind].updated += updatedRows.length;
+      }
+      if (toUpsert.length) {
+        const params: unknown[] = [];
+        const values: string[] = [];
+        toUpsert.forEach(item => {
+          const offset = params.length;
+          params.push(companyId, item.name, item.phone || null, item.city || null, item.address || null,
+            item.email || null, item.organization || null, item.notes || null, JSON.stringify(item.tags), 'file_import');
+          values.push('($' + (offset+1) + '::uuid,$' + (offset+2) + ',$' + (offset+3) + ',$' + (offset+4) + ',$' + (offset+5) +
+            ',$' + (offset+6) + ',$' + (offset+7) + ',$' + (offset+8) + ',ARRAY(SELECT jsonb_array_elements_text($' + (offset+9) + '::jsonb)),$' + (offset+10) + ')');
+        });
+        const query = kind === 'customers'
+          ? "insert into public.customers(company_id,name,phone,city,address,email,organization_name,contact_notes,contact_tags,contact_source) values " + values.join(',') +
+            " on conflict(company_id,name) do update set phone=coalesce(nullif(excluded.phone,''),customers.phone),city=coalesce(nullif(excluded.city,''),customers.city),address=coalesce(nullif(excluded.address,''),customers.address),email=coalesce(nullif(excluded.email,''),customers.email),organization_name=coalesce(nullif(excluded.organization_name,''),customers.organization_name),contact_notes=coalesce(nullif(excluded.contact_notes,''),customers.contact_notes),contact_tags=case when cardinality(excluded.contact_tags)>0 then array(select distinct tag from unnest(coalesce(customers.contact_tags,array[]::text[])||excluded.contact_tags) as merged_tags(tag)) else customers.contact_tags end,contact_source='file_import',updated_at=now() returning (xmax=0) as inserted"
+          : "insert into public.suppliers(company_id,name,phone,city,address,email,organization_name,contact_notes,contact_tags,contact_source) values " + values.join(',') +
+            " on conflict(company_id,name) do update set phone=coalesce(nullif(excluded.phone,''),suppliers.phone),city=coalesce(nullif(excluded.city,''),suppliers.city),address=coalesce(nullif(excluded.address,''),suppliers.address),email=coalesce(nullif(excluded.email,''),suppliers.email),organization_name=coalesce(nullif(excluded.organization_name,''),suppliers.organization_name),contact_notes=coalesce(nullif(excluded.contact_notes,''),suppliers.contact_notes),contact_tags=case when cardinality(excluded.contact_tags)>0 then array(select distinct tag from unnest(coalesce(suppliers.contact_tags,array[]::text[])||excluded.contact_tags) as merged_tags(tag)) else suppliers.contact_tags end,contact_source='file_import',updated_at=now() returning (xmax=0) as inserted";
+        const rows = await sql.query(query, params) as Array<{ inserted: boolean }>;
+        for (const row of rows) if (row.inserted) byKind[kind].imported++; else byKind[kind].updated++;
+      }
     }
   }
   const imported = byKind.customers.imported + byKind.suppliers.imported;
   const updated = byKind.customers.updated + byKind.suppliers.updated;
-  return c.json({ imported, updated, skipped: Number(body.contacts.length) - contacts.length, byKind });
+  return c.json({ imported, updated, skipped: Number(body.contacts.length) - contacts.length + ambiguousPhoneSkipped, byKind, ambiguousPhoneSkipped });
 });
 
 
