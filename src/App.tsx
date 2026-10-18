@@ -27,6 +27,19 @@ import { dateFa, dateTimeFa, moneyFa, numberFa, orderLabel, roleLabel, statusLab
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import DemoWorkspace from './DemoWorkspace';
 
+const PAGE_PERMISSION_MODULE: Record<PageKey, string> = {
+  home: 'home', contacts: 'contacts', command: 'command', agents: 'agents',
+  orders: 'orders', 'purchase-orders': 'purchase-orders', customers: 'customers', suppliers: 'suppliers',
+  products: 'products', inventory: 'inventory', capacity: 'capacity', quality: 'quality', shipments: 'shipments',
+  finance: 'finance', members: 'members', audit: 'audit', catalog: 'products', 'my-orders': 'orders',
+  'my-account': 'home', 'supplier-work': 'operational-tasks', 'supplier-capacity': 'capacity',
+  'supplier-settlement': 'partner-settlements', 'driver-work': 'shipments', 'farm-sites': 'farm-sites',
+  'flock-cycles': 'flock-cycles', 'production-batches': 'production-batches', 'daily-production': 'daily-production',
+  'task-templates': 'task-templates', 'operational-tasks': 'operational-tasks', incidents: 'incidents',
+  'partnership-agreements': 'partnership-agreements', 'partner-finance': 'partner-finance',
+  'partner-settlements': 'partner-settlements', 'contacts-import': 'contacts', goals: 'goals',
+};
+
 const navDefinitions: { key: PageKey; label: string; group: string; icon: typeof LayoutDashboard; roles: AppRole[] }[] = [
   { key: 'home', label: 'صفحه من', group: 'شروع', icon: LayoutDashboard, roles: ['owner', 'admin', 'staff', 'supplier', 'driver', 'customer'] },
   { key: 'command', label: 'مرکز فرمان', group: 'مدیریت', icon: LayoutDashboard, roles: ['owner', 'admin', 'staff'] },
@@ -87,6 +100,7 @@ function AppShell() {
   const { user, memberships, signOut, loading, error } = useAuth();
   const location = useLocation();
   const [membershipId, setMembershipId] = useState(''); const [mobileNav, setMobileNav] = useState(false); const [search, setSearch] = useState(''); const [guideOpen, setGuideOpen] = useState(false); const [mobileSearchOpen, setMobileSearchOpen] = useState(false); const [navSearch, setNavSearch] = useState(''); const searchInputRef = useRef<HTMLInputElement>(null);
+  const [moduleReadPermissions, setModuleReadPermissions] = useState<Record<string, boolean> | null>(null);
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -135,7 +149,19 @@ function AppShell() {
   const membership = memberships.find(m => m.id === membershipId) ?? memberships[0];
   const role = membership?.role;
   useEffect(() => { if (membership && membershipId !== membership.id) setMembershipId(membership.id); }, [membership?.id, membershipId]);
-  const navItems = useMemo(() => navDefinitions.filter(n => role && n.roles.includes(role)), [role]);
+  useEffect(() => {
+    let active = true;
+    setModuleReadPermissions(null);
+    if (!membership) return () => { active = false; };
+    void api.get<{ permissions: Record<string, boolean> }>('/api/workspace/my-module-permissions?companyId=' + encodeURIComponent(membership.company_id))
+      .then(result => { if (active) setModuleReadPermissions(result.permissions ?? {}); })
+      .catch(() => { if (active) setModuleReadPermissions(null); });
+    return () => { active = false; };
+  }, [membership?.id, membership?.company_id]);
+  const navItems = useMemo(() => navDefinitions.filter(n =>
+    Boolean(role && n.roles.includes(role)) &&
+    (moduleReadPermissions === null || moduleReadPermissions[PAGE_PERMISSION_MODULE[n.key]] !== false)
+  ), [role, moduleReadPermissions]);
   const filteredNavItems = useMemo(() => {
     const query = navSearch.trim().toLocaleLowerCase('fa-IR');
     return query ? navItems.filter(item => (item.label + ' ' + item.group).toLocaleLowerCase('fa-IR').includes(query)) : navItems;
