@@ -269,12 +269,8 @@ function FarmMapPanel({sites,schemaWarning,membership}:{sites:Row[];schemaWarnin
       && Number.isFinite(Number(lat)) && Number.isFinite(Number(lon))
       && Number(lat) >= -90 && Number(lat) <= 90 && Number(lon) >= -180 && Number(lon) <= 180;
   }), [sites]);
-  const iranMapped = useMemo(() => mapped.filter(site => {
-    const latitude = Number(site.latitude), longitude = Number(site.longitude);
-    return latitude >= 24 && latitude <= 41 && longitude >= 43 && longitude <= 65;
-  }), [mapped]);
+
   const [selectedId, setSelectedId] = useState('');
-  const showIranPaper = false;
   const [fleetShipments,setFleetShipments] = useState<Row[]>([]);
   const [fleetLatest,setFleetLatest] = useState<Record<string,Row>>({});
   const [fleetLastRefresh,setFleetLastRefresh] = useState('');
@@ -320,12 +316,10 @@ function FarmMapPanel({sites,schemaWarning,membership}:{sites:Row[];schemaWarnin
         !Number.isFinite(capturedAt) || Date.now() - capturedAt > 5 * 60 * 1000 || capturedAt > Date.now() + 60 * 1000) return [];
     return [{ shipmentId, shipment, point, latitude, longitude, capturedAt }];
   }), [fleetLatest, fleetShipments, fleetLastRefresh]);
-  const iranFleetPoints = useMemo(() => freshFleetPoints.filter(item =>
-    item.latitude >= 24 && item.latitude <= 41 && item.longitude >= 43 && item.longitude <= 65
-  ), [freshFleetPoints]);
+
   // Only real map tiles and recorded coordinates are shown; no schematic map.
-  const visibleMapped = showIranPaper ? iranMapped : mapped;
-  const visibleFleetPoints = showIranPaper ? iranFleetPoints : freshFleetPoints;
+  const visibleMapped = mapped;
+  const visibleFleetPoints = freshFleetPoints;
   useEffect(() => {
     setSelectedId(old => visibleMapped.some(site => String(site.id) === old) ? old : String(visibleMapped[0]?.id ?? ''));
   }, [visibleMapped]);
@@ -355,47 +349,21 @@ function FarmMapPanel({sites,schemaWarning,membership}:{sites:Row[];schemaWarnin
     return south===north?50:(project(latitude)-north)/(south-north)*100;
   };
   const bbox=[bounds.west,bounds.south,bounds.east,bounds.north].map(value=>value.toFixed(6)).join('%2C');
-  const mapUrl=(visibleMapped.length || visibleFleetPoints.length)? `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik` : '';
+  const mapUrl=`https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik`;
   const siteName=(site:Row)=>String(site.name??site.site_code??'سایت بدون نام');
-  const markerPosition=(site:Row)=>{
-    const latitude=Number(site.latitude),longitude=Number(site.longitude);
-    if(showIranPaper) return {
-      x:Math.min(83.3,Math.max(25.5,25.5+((longitude-43)/22)*57.8)),
-      y:Math.min(83.2,Math.max(5.3,5.3+((40-latitude)/16)*77.9)),
-    };
-    return {
-      x:Math.min(98,Math.max(2,(longitude-bounds.west)/(bounds.east-bounds.west)*100)),
-      y:Math.min(98,Math.max(2,mapY(latitude))),
-    };
-  };
+  const markerPosition=(site:Row)=>({
+    x:Math.min(98,Math.max(2,(Number(site.longitude)-bounds.west)/(bounds.east-bounds.west)*100)),
+    y:Math.min(98,Math.max(2,mapY(Number(site.latitude))),
+  });
   return <section className="panel farm-map-panel">
     <div className="panel-heading">
-      <div><span className="section-number">۰۳</span><div><h3>نقشه‌ی عملیات و سایت‌ها</h3><p>{showIranPaper?'نمای شماتیک ایران با مختصات واقعی سایت‌ها و آخرین نقاط GPS تازهٔ رانندگان.':'نشانگرها از موقعیت‌های واقعی ثبت‌شده خوانده می‌شوند؛ برای انتخاب هر موقعیت، روی نشانگر یا نام آن بزن.'}</p></div></div>
+      <div><span className="section-number">۰۳</span><div><h3>نقشه‌ی عملیات و سایت‌ها</h3><p>نشانگرها از موقعیت‌های واقعی ثبت‌شده خوانده می‌شوند؛ برای انتخاب هر موقعیت، روی نشانگر یا نام آن بزن.</p></div></div>
       <span className="status-badge neutral">{numberFa(visibleMapped.length + visibleFleetPoints.length)} موقعیت زنده/ثبت‌شده</span>
     </div>
     {schemaWarning && <div className="farm-map-warning"><MapPin size={18}/><div><b>داده‌های مختصات هنوز کامل نیستند</b><p>{schemaWarning}</p><small>پس از ثبت موقعیت نقشه یا دریافت GPS مجاز راننده، نشانگر واقعی نمایش داده می‌شود.</small></div></div>}
-    {(showIranPaper || mapped.length > 0 || visibleFleetPoints.length > 0) ? <div className="farm-map-layout">
-      <div className={'farm-map-canvas'+(showIranPaper?' farm-map-canvas-iran':'')}>
-        {showIranPaper ? <svg className="iran-paper-illustration" viewBox="0 0 600 380" role="img" aria-label="نمای شماتیک قلمرو ایران">
-          <defs>
-            <pattern id="iran-paper-grid" width="22" height="22" patternUnits="userSpaceOnUse"><path d="M22 0H0V22" fill="none" stroke="#a7b9a4" strokeWidth=".7" opacity=".42"/></pattern>
-            <pattern id="iran-paper-dots" width="7" height="7" patternUnits="userSpaceOnUse"><circle cx="1.3" cy="1.3" r=".7" fill="#9bad96" opacity=".42"/></pattern>
-            <linearGradient id="iran-land-gradient" x1="0" x2="1" y1="0" y2="1"><stop offset="0" stopColor="#e7edda"/><stop offset="1" stopColor="#c9d8bf"/></linearGradient>
-          </defs>
-          <rect width="600" height="380" rx="18" fill="#f4f0df"/>
-          <rect width="600" height="380" rx="18" fill="url(#iran-paper-grid)"/>
-          <path d="M177 31 L231 20 L279 28 L316 23 L354 43 L382 41 L409 55 L445 63 L464 91 L493 104 L499 132 L480 158 L489 184 L471 205 L451 224 L431 251 L407 262 L394 287 L366 306 L338 316 L311 305 L291 287 L266 282 L245 257 L224 237 L205 219 L184 200 L169 175 L161 147 L167 121 L153 103 L168 80 Z" fill="url(#iran-land-gradient)" stroke="#778f72" strokeWidth="2.5" strokeLinejoin="round"/>
-          <path d="M178 44 L188 81 L174 114 L186 146 L177 177 L203 210 L224 237 M231 22 L243 59 L279 78 L316 77 L353 99 L388 93 L429 114 M243 257 L272 230 L302 211 L319 176 L353 150 L388 133 L430 114 M291 287 L309 261 L338 247 L366 225 L394 202 L451 224" fill="none" stroke="#9fb296" strokeWidth="1.3" strokeDasharray="4 5" opacity=".8"/>
-          <path d="M190 211 C224 224 242 249 266 282 C286 305 313 312 338 316" fill="none" stroke="#7099a0" strokeWidth="2" opacity=".85"/>
-          <path d="M338 316 C351 294 365 283 394 287" fill="none" stroke="#7099a0" strokeWidth="2" opacity=".85"/>
-          <text x="365" y="16" textAnchor="middle" fontSize="12" fill="#78918a">دریای خزر</text>
-          <text x="186" y="333" textAnchor="middle" fontSize="12" fill="#6d999d">خلیج فارس</text>
-          <text x="433" y="320" textAnchor="middle" fontSize="11" fill="#6d999d">دریای عمان</text>
-          <text x="302" y="165" textAnchor="middle" fontSize="18" fontWeight="700" letterSpacing="5" fill="#789071" opacity=".72">ایران</text>
-          <text x="38" y="35" fontSize="10" fill="#9a9b84">نقشه‌ی شماتیک</text>
-          <path d="M546 46 L546 75 M539 56 L546 44 L553 56" stroke="#6f816a" strokeWidth="1.8" fill="none" strokeLinecap="round"/>
-          <text x="546" y="88" textAnchor="middle" fontSize="10" fill="#75826c">شمال</text>
-        </svg> : <iframe title="نقشه‌ی جغرافیایی سایت‌های مجموعه" src={mapUrl} loading="lazy" referrerPolicy="no-referrer-when-downgrade"/>}
+    {(mapped.length > 0 || fleetShipments.length > 0) ? <div className="farm-map-layout">
+      <div className="farm-map-canvas">
+        <iframe title="نقشه‌ی جغرافیایی سایت‌های مجموعه" src={mapUrl} loading="lazy" referrerPolicy="no-referrer-when-downgrade"/>
         {visibleMapped.map((site,index)=>{
           const {x,y}=markerPosition(site);
           const active=String(site.id)===selectedId;
@@ -433,7 +401,7 @@ function FarmMapPanel({sites,schemaWarning,membership}:{sites:Row[];schemaWarnin
     </div>
     : <EmptyState title="هنوز نقطه‌ای برای نمایش روی نقشه ثبت نشده" description="برای راننده‌ها موقعیت فقط از GPS واقعی و با اجازه دستگاه نمایش داده می‌شود. برای سایت‌ها می‌توان استان، شهر و نشانی را بدون مختصات دقیق ثبت کرد؛ در این حالت نقطه‌ای حدس زده نمی‌شود." icon={MapPin}/>}
     <div className="farm-map-operational-note"><ShieldCheck size={14}/><span>نقاط راننده فقط از GPS واقعی ثبت‌شده با اجازهٔ دستگاه دریافت می‌شوند؛ مختصات قدیمی‌تر از ۵ دقیقه از نقشهٔ زنده پنهان می‌شوند. ردیابی خودکار فقط هنگام فعال‌بودن صفحهٔ راننده ادامه دارد.</span></div>
-    <div className="farm-map-footer"><span>{showIranPaper?'نقشه واقعی OpenStreetMap · موقعیت‌های ثبت‌شده':'نقشه‌ی دقیق: OpenStreetMap'}</span><Link to="/app/farm-sites">مدیریت سایت‌ها <ArrowLeft size={14}/></Link></div>
+    <div className="farm-map-footer"><span>نقشه‌ی واقعی OpenStreetMap · موقعیت‌های ثبت‌شده</span><Link to="/app/farm-sites">مدیریت سایت‌ها <ArrowLeft size={14}/></Link></div>
   </section>;
 }
 
