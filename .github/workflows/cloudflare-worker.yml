@@ -530,7 +530,7 @@ jobs:
                   if (attempt > 0) console.log('Asset became available after retry:', path, 'attempts=' + (attempt + 1));
                   return { path, url: response.url, contentType, body };
                 }
-                lastFailure = 'HTTP ' + response.status + ', ' + contentType + '; response prefix=' + body.slice(0,120).replace(/\\s+/g,' ');
+                lastFailure = 'HTTP ' + response.status + ', ' + contentType + '; response prefix=' + body.slice(0,120).replace(/\s+/g,' ');
               } catch (error) {
                 lastFailure = String(error);
               }
