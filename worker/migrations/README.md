@@ -36,3 +36,6 @@ The Cloudflare operational deployment workflow applies this migration after vali
 
 
 16. `0016_membership_module_permissions.sql` — creates optional company-scoped module/action overrides for individual memberships and a trigger that rejects cross-company membership IDs. The Worker still applies role and entity-level scopes; per-module overrides only narrow those permissions.
+
+
+17. `0017_delivery_video_evidence.sql` — adds the `video` delivery-evidence kind so private shipment evidence can describe video files. The Worker accepts MP4, WebM and QuickTime/MOV in the private evidence buckets up to 50 MiB; access still requires a valid company/mission relationship and the private R2 binding.
