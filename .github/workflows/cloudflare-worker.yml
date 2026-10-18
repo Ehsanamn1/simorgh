@@ -101,6 +101,18 @@ jobs:
             echo "Neon schema is missing a required table, versioned migration, or Worker RPC. Refusing deployment."
             exit 1
           fi
+      - name: Ensure the private R2 bucket exists before binding it to the Worker
+        working-directory: worker
+        shell: bash
+        run: |
+          set -euo pipefail
+          buckets="$(npx wrangler@4 r2 bucket list)"
+          if grep -Fq 'medar-private-files' <<< "$buckets"; then
+            echo "Private evidence bucket already exists."
+          else
+            echo "Creating the private evidence bucket."
+            npx wrangler@4 r2 bucket create medar-private-files
+          fi
       # Keep medar-api as the public showcase. The operational app is a separate Worker
       # so enabling its sign-in UI never changes the read-only public demo.
       - name: Build safe bootstrap bundle for the operational Worker
