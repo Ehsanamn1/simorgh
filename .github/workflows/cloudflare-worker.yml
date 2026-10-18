@@ -514,16 +514,30 @@ jobs:
           const resolve = path => new URL(path, base + '/').toString();
           const fetchTexts = async (paths, expectedType) => Promise.all(paths.map(async path => {
             const url = resolve(path);
-            const response = await fetch(url, { cache: 'no-store', headers: { 'cache-control': 'no-cache' } });
-            const body = await response.text();
-            const contentType = response.headers.get('content-type') || '';
-            if (!response.ok) throw new Error('Frontend asset failed: ' + path + ' (' + response.status + ', ' + contentType + ')');
-            if (!contentType.toLowerCase().includes(expectedType)) {
-              throw new Error('Frontend asset had the wrong content type: ' + path + ' -> ' + contentType + '; response prefix=' + body.slice(0,120).replace(/\\s+/g,' '));
+            let lastFailure = 'no response';
+            // Worker versions and their asset manifests can converge at different edges just after publish.
+            // Revalidate each hashed asset independently; do not treat a SPA HTML fallback as JavaScript.
+            for (let attempt = 0; attempt < 20; attempt++) {
+              try {
+                const requestUrl = url + (url.includes('?') ? '&' : '?') + '__medar_asset_check=' + Date.now() + '-' + attempt;
+                const response = await fetch(requestUrl, {
+                  cache: 'no-store',
+                  headers: { 'cache-control': 'no-cache, no-store, max-age=0', pragma: 'no-cache' },
+                });
+                const body = await response.text();
+                const contentType = response.headers.get('content-type') || '';
+                if (response.ok && contentType.toLowerCase().includes(expectedType)) {
+                  if (attempt > 0) console.log('Asset became available after retry:', path, 'attempts=' + (attempt + 1));
+                  return { path, url: response.url, contentType, body };
+                }
+                lastFailure = 'HTTP ' + response.status + ', ' + contentType + '; response prefix=' + body.slice(0,120).replace(/\\s+/g,' ');
+              } catch (error) {
+                lastFailure = String(error);
+              }
+              if (attempt < 19) await new Promise(resolve => setTimeout(resolve, 2000));
             }
-            return { path, url: response.url, contentType, body };
+            throw new Error('Frontend asset did not become available after cache-busted retries: ' + path + '; ' + lastFailure);
           }));
-          const [jsAssets, cssAssets] = await Promise.all([fetchTexts(jsPaths, 'javascript'), fetchTexts(cssPaths, 'text/css')]);
           const js = jsAssets.map(asset => asset.body).join('\n');
           const css = cssAssets.map(asset => asset.body).join('\n');
           console.log('Live JS assets:', JSON.stringify(jsAssets.map(a => ({path:a.path,url:a.url,type:a.contentType,bytes:a.body.length}))));
