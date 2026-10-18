@@ -15,7 +15,7 @@ type AIAssistantProps = { companyId: string; role: AppRole; userName?: string };
 const providerMeta: Record<ProviderId, { label: string; brand: string; defaultModel: string; detail: string }> = {
   openai: { label: 'OpenAI · GPT', brand: 'GPT', defaultModel: 'gpt-6-luna', detail: 'پاسخ‌گویی و تحلیل عمومی' },
   gemini: { label: 'Google · Gemini', brand: 'G', defaultModel: 'gemini-4-argon', detail: 'تحلیل چندمرحله‌ای و فایل' },
-  deepseek: { label: 'DeepSeek', brand: 'DS', defaultModel: 'deepseek-v4-flash', detail: 'تحلیل اقتصادی و متنی' },
+  deepseek: { label: 'DeepSeek', brand: 'DS', defaultModel: 'deepseek-flash', detail: 'تحلیل اقتصادی و متنی' },
   anthropic: { label: 'Anthropic · Claude', brand: 'C', defaultModel: 'claude-sonnet-5', detail: 'برنامه‌ریزی و بررسی اسناد' },
 };
 
