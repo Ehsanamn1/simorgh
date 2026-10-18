@@ -2182,9 +2182,9 @@ app.post('/api/workspace/members/create', async (c) => {
   }
 
   const sql = sqlFor(c);
-  const actors = await sql\`
+  const actors = await sql`
     select role::text as role from public.memberships
-    where user_id = \${user.id} and company_id = \${companyId} and active = true limit 1
+    where user_id = ${user.id} and company_id = ${companyId} and active = true limit 1
   \`;
   const actorRole = (actors[0] as { role: string } | undefined)?.role;
   if (!actorRole || !['owner', 'admin'].includes(actorRole)) {
@@ -2194,11 +2194,11 @@ app.post('/api/workspace/members/create', async (c) => {
     return c.json({ message: 'فقط مالک می‌تواند حساب مدیر بسازد.' }, 403);
   }
   if (customerId) {
-    const found = await sql\`select 1 from public.customers where id = \${customerId} and company_id = \${companyId} limit 1\`;
+    const found = await sql`select 1 from public.customers where id = ${customerId} and company_id = ${companyId} limit 1\`;
     if (!found.length) return c.json({ message: 'حساب مشتری به این مجموعه تعلق ندارد.' }, 422);
   }
   if (supplierId) {
-    const found = await sql\`select 1 from public.suppliers where id = \${supplierId} and company_id = \${companyId} limit 1\`;
+    const found = await sql`select 1 from public.suppliers where id = ${supplierId} and company_id = ${companyId} limit 1\`;
     if (!found.length) return c.json({ message: 'حساب تأمین‌کننده به این مجموعه تعلق ندارد.' }, 422);
   }
 
