@@ -42,6 +42,8 @@ const PAGE_PERMISSION_MODULE: Record<PageKey, string> = {
   'partner-settlements': 'partner-settlements', 'contacts-import': 'contacts', goals: 'goals',
 };
 
+const DEFERRED_NAV_KEYS = new Set<PageKey>(['agents', 'goals', 'audit', 'contacts-import']);
+
 const navDefinitions: { key: PageKey; label: string; group: string; icon: typeof LayoutDashboard; roles: AppRole[] }[] = [
   { key: 'home', label: 'صفحه من', group: 'شروع', icon: LayoutDashboard, roles: ['owner', 'admin', 'staff', 'supplier', 'driver', 'customer'] },
   { key: 'settings', label: 'تنظیمات', group: 'مدیریت و تنظیمات', icon: Settings2, roles: ['owner', 'admin', 'staff', 'supplier', 'driver', 'customer'] },
@@ -130,9 +132,8 @@ function AppShell() {
   }, [membership?.id, membership?.company_id]);
   // Keep the first release focused on daily operations. Advanced/AI pages remain in the codebase
   // but are removed from normal navigation until the supplier network is operational.
-  const deferredNavKeys = new Set<PageKey>(['agents', 'goals', 'audit', 'contacts-import']);
   const navItems = useMemo(() => navDefinitions.filter(n =>
-    !deferredNavKeys.has(n.key) && Boolean(role && n.roles.includes(role)) &&
+    !DEFERRED_NAV_KEYS.has(n.key) && Boolean(role && n.roles.includes(role)) &&
     (n.key === 'settings' || moduleReadPermissions === null || moduleReadPermissions[PAGE_PERMISSION_MODULE[n.key]] !== false)
   ), [role, moduleReadPermissions]);
   const filteredNavItems = useMemo(() => {
@@ -166,7 +167,7 @@ function AppShell() {
   const homeDestination = navItems.some(n => n.key === homeKey) ? homeKey : (navItems[0]?.key ?? 'command');
   const routeKey = location.pathname.split('/').pop() as PageKey;
   // Hidden specialist pages remain reachable by an explicit owner/admin URL while they are being phased out.
-  const allowed = navItems.some(n => n.key === routeKey) || (routeKey !== 'agents' && ['owner', 'admin'].includes(String(role)) && deferredNavKeys.has(routeKey));
+  const allowed = navItems.some(n => n.key === routeKey) || (routeKey !== 'agents' && ['owner', 'admin'].includes(String(role)) && DEFERRED_NAV_KEYS.has(routeKey));
   const active = navItems.find(n => n.key === location.pathname.split('/').pop()) ?? navItems[0];
   if (!user) return <MobileAccessScreen/>;
   if (loading) return <LoadingScreen label="در حال بررسی نشست و دسترسی…"/>;
