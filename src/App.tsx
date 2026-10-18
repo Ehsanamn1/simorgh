@@ -295,7 +295,7 @@ function FarmMapPanel({sites,schemaWarning,membership}:{sites:Row[];schemaWarnin
         setFleetLastRefresh(new Date().toISOString());
         setFleetNotice('');
       }catch(caught){
-        if(!disposed)setFleetNotice(caught instanceof Error?caught.message:'دریافت موقعیت ناوگان ممکن نشد.');
+        if(!disposed){setFleetNotice(caught instanceof Error?caught.message:'دریافت موقعیت ناوگان ممکن نشد.');setFleetLastRefresh(new Date().toISOString());}
       }
     };
     void refreshFleet();
@@ -311,7 +311,7 @@ function FarmMapPanel({sites,schemaWarning,membership}:{sites:Row[];schemaWarnin
         latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180 ||
         !Number.isFinite(capturedAt) || Date.now() - capturedAt > 5 * 60 * 1000) return [];
     return [{ shipmentId, shipment, point, latitude, longitude, capturedAt }];
-  }), [fleetLatest, fleetShipments]);
+  }), [fleetLatest, fleetShipments, fleetLastRefresh]);
   const iranFleetPoints = useMemo(() => freshFleetPoints.filter(item =>
     item.latitude >= 24 && item.latitude <= 41 && item.longitude >= 43 && item.longitude <= 65
   ), [freshFleetPoints]);
@@ -340,7 +340,7 @@ function FarmMapPanel({sites,schemaWarning,membership}:{sites:Row[];schemaWarnin
     if(north-south<0.12){south=Math.max(-85.0511,rawSouth-0.12);north=Math.min(85.0511,rawNorth+0.12);}
     if(east-west<0.12){west=Math.max(-180,rawWest-0.12);east=Math.min(180,rawEast+0.12);}
     return {west,east,south,north};
-  }, [visibleMapped]);
+  }, [visibleMapped, visibleFleetPoints]);
   const mapY = (latitude:number) => {
     const project=(value:number)=>Math.log(Math.tan(Math.PI/4+Math.min(85.0511,Math.max(-85.0511,value))*Math.PI/360));
     const north=project(bounds.north),south=project(bounds.south);
@@ -363,7 +363,7 @@ function FarmMapPanel({sites,schemaWarning,membership}:{sites:Row[];schemaWarnin
   return <section className="panel farm-map-panel">
     <div className="panel-heading">
       <div><span className="section-number">۰۳</span><div><h3>نقشه‌ی عملیات و سایت‌ها</h3><p>{showIranPaper?'نمای شماتیک ایران با مختصات واقعی سایت‌ها و آخرین نقاط GPS تازهٔ رانندگان.':'نشانگرها از موقعیت‌های واقعی ثبت‌شده خوانده می‌شوند؛ برای انتخاب هر موقعیت، روی نشانگر یا نام آن بزن.'}</p></div></div>
-      <span className="status-badge neutral" >{numberFa(visibleMapped.length + visibleFleetPoints.length)} موقعیت زنده/ثبت‌شده</span>
+      <span className="status-badge neutral">{numberFa(visibleMapped.length + visibleFleetPoints.length)} موقعیت زنده/ثبت‌شده</span>
     </div>
     <div className="farm-map-mode-toggle" role="group" aria-label="حالت نمایش نقشه">
       <button type="button" className={showIranPaper?'active':''} aria-pressed={showIranPaper} disabled={!iranMapped.length} onClick={()=>setMapMode('iran')}>نقشه کاغذی ایران</button>
