@@ -35,35 +35,39 @@ function cacheKey(queryKey: string): string | null {
 
 /** Cache only successful, read-only API results. Writes are never silently queued or replayed. */
 export async function writeOfflineResponse(queryKey: string, payload: Record<string, unknown>): Promise<void> {
-  const key = cacheKey(queryKey);
-  if (!key || JSON.stringify(payload).length > MAX_RESPONSE_CHARS) return;
-  const db = await openDatabase();
-  if (!db) return;
-  const record: CachedResponse = { key, partition: currentPartition, savedAt: Date.now(), payload };
-  await new Promise<void>(resolve => {
-    const tx = db.transaction(STORE_NAME, 'readwrite');
-    tx.objectStore(STORE_NAME).put(record);
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => resolve();
-    tx.onabort = () => resolve();
-  });
-  await new Promise<void>(resolve => {
-    const tx = db.transaction(STORE_NAME, 'readonly');
-    const request = tx.objectStore(STORE_NAME).index('partition').getAll(currentPartition);
-    request.onsuccess = () => {
-      const records = (request.result as CachedResponse[]).sort((a, b) => b.savedAt - a.savedAt);
-      const stale = records.slice(MAX_ENTRIES_PER_USER);
-      if (stale.length) {
-        const deleteTx = db.transaction(STORE_NAME, 'readwrite');
-        const store = deleteTx.objectStore(STORE_NAME);
-        stale.forEach(item => store.delete(item.key));
-        deleteTx.oncomplete = () => resolve();
-        deleteTx.onerror = () => resolve();
-      } else resolve();
-    };
-    request.onerror = () => resolve();
-  });
-  db.close();
+  try {
+    const key = cacheKey(queryKey);
+    if (!key || JSON.stringify(payload).length > MAX_RESPONSE_CHARS) return;
+    const db = await openDatabase();
+    if (!db) return;
+    const record: CachedResponse = { key, partition: currentPartition, savedAt: Date.now(), payload };
+    await new Promise<void>(resolve => {
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      tx.objectStore(STORE_NAME).put(record);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => resolve();
+      tx.onabort = () => resolve();
+    });
+    await new Promise<void>(resolve => {
+      const tx = db.transaction(STORE_NAME, 'readonly');
+      const request = tx.objectStore(STORE_NAME).index('partition').getAll(currentPartition);
+      request.onsuccess = () => {
+        const records = (request.result as CachedResponse[]).sort((a, b) => b.savedAt - a.savedAt);
+        const stale = records.slice(MAX_ENTRIES_PER_USER);
+        if (stale.length) {
+          const deleteTx = db.transaction(STORE_NAME, 'readwrite');
+          const store = deleteTx.objectStore(STORE_NAME);
+          stale.forEach(item => store.delete(item.key));
+          deleteTx.oncomplete = () => resolve();
+          deleteTx.onerror = () => resolve();
+        } else resolve();
+      };
+      request.onerror = () => resolve();
+    });
+    db.close();
+  } catch {
+    // Offline cache must never break the live operation.
+  }
 }
 
 export async function readOfflineResponse(queryKey: string): Promise<Record<string, unknown> | null> {
