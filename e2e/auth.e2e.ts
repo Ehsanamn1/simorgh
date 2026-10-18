@@ -34,11 +34,13 @@ test('the app opens a username-and-password sign-in without an email field', asy
   await expect(page.getByLabel('گذرواژه', { exact: true })).toBeVisible();
   const signInThemeToggle = page.getByRole('button', { name: 'تغییر حالت نمایش' });
   await expect(signInThemeToggle).toBeVisible();
-  await signInThemeToggle.click();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
-  await expect(page.getByRole('button', { name: 'تغییر حالت نمایش' })).toHaveAttribute('aria-pressed', 'true');
-  await page.getByRole('button', { name: 'تغییر حالت نمایش' }).click();
+  await expect(signInThemeToggle).toHaveAttribute('aria-pressed', 'true');
+  await signInThemeToggle.click();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  await expect(page.getByRole('button', { name: 'تغییر حالت نمایش' })).toHaveAttribute('aria-pressed', 'false');
+  await page.getByRole('button', { name: 'تغییر حالت نمایش' }).click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
   await expect(page.locator('#simorgh-signin-email')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'ساخت حساب و فضای کاری' })).toBeVisible();
   await expect(page.locator('.portal')).toHaveCount(0);
@@ -83,19 +85,20 @@ test('signup creates a workspace using only a username and password', async ({ p
 
   const operationalThemeToggle = page.getByRole('button', { name: 'تغییر حالت نمایش' });
   await expect(operationalThemeToggle).toBeVisible();
-  await expect(operationalThemeToggle).toHaveAttribute('aria-pressed', 'false');
-  await operationalThemeToggle.click();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
-  await expect(page.getByRole('button', { name: 'تغییر حالت نمایش' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(operationalThemeToggle).toHaveAttribute('aria-pressed', 'true');
   await expect.poll(() => page.evaluate(() => localStorage.getItem('simorgh-theme'))).toBe('light');
-  await expect.poll(() => page.locator('.app-frame').evaluate(el => getComputedStyle(el).backgroundColor)).toBe('rgb(244, 247, 247)');
+  await expect.poll(() => page.locator('.app-frame').evaluate(el => getComputedStyle(el).backgroundColor)).toBe('rgb(244, 247, 242)');
+  await operationalThemeToggle.click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  await expect(page.getByRole('button', { name: 'تغییر حالت نمایش' })).toHaveAttribute('aria-pressed', 'false');
+  await expect.poll(() => page.evaluate(() => localStorage.getItem('simorgh-theme'))).toBe('dark');
   await page.reload({ waitUntil: 'domcontentloaded' });
   await expect(page.locator('.app-frame')).toBeVisible();
-  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
-  await expect(page.getByRole('button', { name: 'تغییر حالت نمایش' })).toHaveAttribute('aria-pressed', 'true');
-  await page.getByRole('button', { name: 'تغییر حالت نمایش' }).click();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
-  await expect.poll(() => page.evaluate(() => localStorage.getItem('simorgh-theme'))).toBe('dark');
+  await page.getByRole('button', { name: 'تغییر حالت نمایش' }).click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+  await expect.poll(() => page.evaluate(() => localStorage.getItem('simorgh-theme'))).toBe('light');
 });
 
 test('login accepts a username and renders server errors', async ({ page }) => {
