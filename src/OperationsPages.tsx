@@ -309,7 +309,7 @@ export function OperationsWorkspacePage({kind,membership,search}:{kind:Operation
         {name:'shared_expense_categories',label:'دسته هزینه‌های مشترک',type:'multi',options:expenses,required:true,helper:'قرارداد بدون دسته هزینه مشترک فعال نمی‌شود.'},
       ],
       'partner-finance':[
-        {name:'supplier_id',label:'شریک',type:'select',options:suppliers,required:true},{name:'agreement_id',label:'قرارداد مبنا',type:'select',options:agreements,required:true},
+        {name:'supplier_id',label:'شریک',type:'select',options:suppliers,required:true},{name:'agreement_id',label:'قرارداد مبنا',type:'select',options:refs.agreements.filter(a=>a.status==='active'&&String(a.supplier_id)===String(draft.supplier_id)).map(agreementOpt),required:true},
         {name:'entry_type',label:'نوع سند',type:'select',options:finTypes,required:true},{name:'amount',label:'مبلغ کل (تومان)',type:'number',min:'1',step:'1',required:true},
         {name:'expense_category',label:'دسته هزینه',type:'select',options:expenses},{name:'is_shared_cost',label:'هزینه طبق قرارداد مشترک است',type:'checkbox',defaultValue:false},
         {name:'paid_by',label:'پرداخت‌کننده هزینه',type:'select',options:[{value:'none',label:'ثبت نشده'},{value:'company',label:'شرکت'},{value:'partner',label:'شریک'},{value:'customer',label:'مشتری'},{value:'vendor',label:'فروشنده'},{value:'third_party',label:'شخص ثالث'}],defaultValue:'none'},
