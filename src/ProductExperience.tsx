@@ -40,7 +40,7 @@ function readAllowedLinks(): NavigationEntry[] {
   });
 }
 
-/** Secure operational sign-in. Self-registration creates an isolated owner workspace; joining an existing workspace requires an invitation. */
+/** Secure sign-in for a private workspace. Public self-registration is disabled; joining requires a valid invitation. */
 export default function ProductExperience() {
   const { user, loading, memberships, refreshSession, error: sessionError } = useAuth();
   const { theme, setTheme } = useAppTheme();
@@ -61,7 +61,7 @@ export default function ProductExperience() {
   const protectedRoute = location.pathname.includes('/app');
   // Protected operational routes are only active in builds that explicitly opt in.
   // The Pages showcase remains read-only; the same-origin Worker build enables this guarded UI.
-  // Creating a workspace grants owner access only to that new tenant; joining an existing tenant requires a server-issued invitation.
+  // Public workspace creation is disabled; joining requires a server-issued invitation.
   const authUiEnabled = import.meta.env.VITE_ENABLE_AUTH_UI === 'true' && isApiConfigured;
   const signInOpen = authUiEnabled && (((location.hash === '#signin' || location.hash === '#signup') && !user && !loading) || (protectedRoute && !user && !loading));
   const normalizedPath = location.pathname.startsWith(basePath) ? location.pathname.slice(basePath.length) || '/' : location.pathname;
@@ -72,7 +72,7 @@ export default function ProductExperience() {
     if (!user && /^[a-f0-9]{64}$/.test(invite)) {
       setJoinInviteCode(invite);
       setMode('signup');
-      setNotice('دعوت مجموعه دریافت شد؛ نام کاربری و رمز خودت را بساز تا به همان مجموعه متصل شوی.');
+      setNotice('دعوت معتبر مجموعه دریافت شد؛ حساب فقط در همان مجموعه و با نقش تعیین‌شده فعال می‌شود.');
     }
   }, [location.search, user?.id]);
 
@@ -166,20 +166,16 @@ export default function ProductExperience() {
     try {
       if (mode === 'signup') {
         const inviteCode = joinInviteCode.trim().toLowerCase();
-        if (inviteCode && !/^[a-f0-9]{64}$/.test(inviteCode)) {
-          setError('کد دعوت باید ۶۴ نویسهٔ معتبر داشته باشد.');
+        if (!/^[a-f0-9]{64}$/.test(inviteCode)) {
+          setError('ساخت حساب عمومی غیرفعال است؛ برای عضویت فقط از دعوت معتبر صادرشده توسط مالک استفاده کن.');
           return;
         }
-        if (inviteCode) {
-          await api.post('/api/auth/signup-with-invite', { username: cleanUsername, password, inviteCode });
-        } else {
-          await api.post('/api/auth/signup', { username: cleanUsername, password });
-        }
+        await api.post('/api/auth/signup-with-invite', { username: cleanUsername, password, inviteCode });
         await refreshSession();
         setPassword('');
         setJoinInviteCode('');
         setMode('signin');
-        setNotice(inviteCode ? 'حساب ساخته شد و با نقش تعیین‌شده به مجموعه پیوست.' : 'حساب و فضای کاری با موفقیت ساخته شد.');
+        setNotice('حساب با نقش تعیین‌شده به مجموعه پیوست.');
         navigate(protectedDestination, { replace: true });
       } else {
         await api.post('/api/auth/login', { username: cleanUsername, password });
@@ -264,7 +260,7 @@ export default function ProductExperience() {
                  {busy ? <><span className="signin-spinner" aria-hidden="true"/> در حال پردازش…</> : mode === 'signup' ? <>ساخت حساب و فضای کاری <ArrowLeft size={17}/></> : <>ورود به فضای کار <ArrowLeft size={17}/></>}
                </button>
              </form>
-             {mode === 'signin' && <><p className="auth-recovery-note">برای بازنشانی امن گذرواژه، با مالک سامانه تماس بگیر؛ بازیابی بدون ایمیل یا عامل تأیید دوم فعلاً فعال نیست.</p><div className="signin-registration-cta"><span>برای مجموعه جدید حساب می‌خواهی؟</span><button type="button" onClick={() => {setMode('signup');setError('');setNotice('');navigate({pathname:location.pathname,search:location.search,hash:'#signup'},{replace:true});}}>ساخت حساب و فضای کاری</button></div></>}
+             {mode === 'signin' && <p className="auth-recovery-note">این سامانه خصوصی است؛ ساخت حساب عمومی فعال نیست. برای دریافت دسترسی با مالک مجموعه هماهنگ کن. اگر دعوت معتبر داری، لینک دعوت را باز کن.</p>}
              {mode === 'signup' && <button type="button" className="auth-text-action" onClick={() => {setMode('signin');setError('');setNotice('');navigate({pathname:location.pathname,search:location.search,hash:'#signin'},{replace:true});}}>بازگشت به ورود</button>}
              <div className="signin-form-foot"><span><Check size={13}/> کنترل دسترسی سمت سرور</span><span>مدار · فضای امن</span></div>
           </div>
