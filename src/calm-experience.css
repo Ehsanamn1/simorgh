@@ -1290,3 +1290,108 @@ html[data-theme="dark"] .agent-primary-button { color: #202a38; }
  .farm-map-driver-marker-label { max-width: 94px; font-size: 8px; }
  .farm-map-driver-marker-icon { width: 24px; height: 24px; }
 }
+
+/* Bank statement import and manual reconciliation */
+.bank-reconciliation { display:grid; gap:13px; min-width:0; color:var(--obs-text); }
+.bank-section-header { display:flex; align-items:center; gap:12px; min-width:0; padding:14px 15px; border:1px solid var(--obs-border); border-radius:17px; background:var(--obs-surface); box-shadow:var(--medar-calm-shadow); }
+.bank-header-icon { display:grid; place-items:center; width:43px; height:43px; flex:none; border:1px solid var(--obs-border); border-radius:14px; color:var(--obs-accent); background:var(--obs-surface-2); }
+.bank-section-title { min-width:0; flex:1; }
+.bank-section-title .eyebrow { margin:0 0 2px; color:var(--obs-subtle); font-size:9px; letter-spacing:.09em; font-weight:800; }
+.bank-section-title h2 { margin:0; color:var(--obs-text); font-size:15px; line-height:1.75; }
+.bank-section-title p { margin:3px 0 0; color:var(--obs-muted); font-size:10px; line-height:1.85; }
+.bank-policy-note { display:flex; align-items:flex-start; gap:9px; padding:11px 13px; border:1px solid var(--obs-border); border-radius:12px; background:var(--obs-surface-2); color:var(--obs-muted); font-size:10px; line-height:1.95; }
+.bank-policy-note svg { flex:none; margin-top:2px; color:var(--obs-accent); }
+.bank-policy-note b { color:var(--obs-text); }
+.bank-feedback { display:flex; align-items:flex-start; gap:8px; padding:10px 12px; border:1px solid var(--obs-border); border-radius:11px; font-size:10px; line-height:1.9; }
+.bank-feedback>svg { flex:none; margin-top:3px; }
+.bank-feedback>span { flex:1; min-width:0; }
+.bank-feedback>button { display:grid; place-items:center; width:25px; height:25px; flex:none; border:0; border-radius:8px; background:transparent; color:inherit; cursor:pointer; }
+.bank-feedback.error { border-color:color-mix(in srgb,var(--obs-critical) 38%,var(--obs-border)); color:var(--obs-critical); background:color-mix(in srgb,var(--obs-critical) 7%,var(--obs-surface)); }
+.bank-feedback.notice { color:var(--obs-muted); background:var(--obs-surface-2); }
+.bank-summary-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; }
+.bank-summary-grid article { display:grid; gap:6px; min-width:0; padding:13px; border:1px solid var(--obs-border); border-radius:14px; background:var(--obs-surface); }
+.bank-summary-grid article>small { color:var(--obs-muted); font-size:10px; }
+.bank-summary-grid article>b { color:var(--obs-text); font-size:24px; line-height:1.3; font-variant-numeric:tabular-nums; }
+.bank-summary-grid article>span { display:flex; align-items:center; gap:5px; color:var(--obs-subtle); font-size:9px; line-height:1.7; }
+.bank-summary-grid article>span svg { flex:none; color:var(--obs-accent); }
+.bank-accounts-panel,.bank-transactions-panel { display:grid; gap:12px; min-width:0; padding:14px; border:1px solid var(--obs-border); border-radius:16px; background:var(--obs-surface); box-shadow:var(--medar-calm-shadow); }
+.bank-panel-heading { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:9px; min-width:0; }
+.bank-panel-heading>div:first-child { display:grid; gap:3px; min-width:0; }
+.bank-panel-heading>div:first-child>b { color:var(--obs-text); font-size:12px; }
+.bank-panel-heading>div:first-child>small { color:var(--obs-muted); font-size:9px; line-height:1.7; }
+.bank-primary-button,.bank-quiet-button,.bank-mini-button,.bank-icon-button { display:inline-flex; align-items:center; justify-content:center; gap:6px; min-height:34px; padding:7px 10px; border:1px solid var(--obs-border); border-radius:10px; font:inherit; font-size:9px; font-weight:850; cursor:pointer; white-space:nowrap; }
+.bank-primary-button { border-color:color-mix(in srgb,var(--obs-accent) 65%,var(--obs-border)); background:var(--obs-accent); color:#fff; }
+html[data-theme="dark"] .bank-primary-button { color:#202a38; }
+.bank-quiet-button,.bank-mini-button { background:var(--obs-surface-2); color:var(--obs-text); }
+.bank-mini-button { min-height:29px; padding:5px 7px; font-size:8px; }
+.bank-icon-button { width:30px; min-width:30px; padding:0; background:var(--obs-surface-2); color:var(--obs-text); }
+.bank-primary-button:disabled,.bank-quiet-button:disabled,.bank-mini-button:disabled { opacity:.55; cursor:not-allowed; }
+.bank-loading { display:flex; align-items:center; justify-content:center; gap:8px; min-height:90px; color:var(--obs-muted); font-size:10px; }
+.bank-account-list { display:grid; gap:8px; }
+.bank-account-card { display:flex; align-items:center; gap:10px; min-width:0; width:100%; padding:11px; border:1px solid var(--obs-border); border-radius:12px; background:var(--obs-surface-2); color:var(--obs-text); text-align:right; cursor:pointer; }
+.bank-account-card.selected { border-color:color-mix(in srgb,var(--obs-accent) 65%,var(--obs-border)); background:color-mix(in srgb,var(--obs-accent) 7%,var(--obs-surface)); }
+.bank-account-mark { display:grid; place-items:center; width:37px; height:37px; flex:none; border:1px solid var(--obs-border); border-radius:11px; color:var(--obs-accent); background:var(--obs-surface); }
+.bank-account-main { display:grid; gap:4px; flex:1; min-width:0; }
+.bank-account-main>b,.bank-account-meta>b { font-size:10px; }
+.bank-account-main>small,.bank-account-meta>small { color:var(--obs-muted); font-size:8px; line-height:1.7; overflow-wrap:anywhere; }
+.bank-account-meta { display:grid; gap:3px; flex:none; text-align:left; }
+.bank-account-chevron { flex:none; color:var(--obs-subtle); }
+.bank-empty { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; min-height:125px; color:var(--obs-muted); text-align:center; font-size:10px; line-height:1.9; }
+.bank-empty>svg { color:var(--obs-accent); }
+.bank-empty>b { color:var(--obs-text); font-size:11px; }
+.bank-empty>span { max-width:430px; }
+.bank-empty.compact { min-height:80px; }
+.bank-account-form { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; padding:12px; border:1px solid var(--obs-border); border-radius:12px; background:var(--obs-surface-2); }
+.bank-account-form>label,.bank-reconcile-box>label { display:grid; gap:6px; color:var(--obs-muted); font-size:9px; font-weight:750; }
+.bank-account-form input,.bank-account-form select,.bank-transactions-tools select,.bank-reconcile-box select { min-width:0; width:100%; min-height:38px; padding:8px 10px; border:1px solid var(--obs-border); border-radius:9px; background:var(--obs-surface); color:var(--obs-text); font:inherit; font-size:10px; }
+.bank-account-form label small { color:var(--obs-subtle); font-size:8px; font-weight:400; }
+.bank-form-actions { display:flex; justify-content:flex-end; flex-wrap:wrap; gap:7px; grid-column:1/-1; padding-top:8px; border-top:1px solid var(--obs-border); }
+.bank-transactions-tools { display:flex; align-items:center; flex-wrap:wrap; gap:7px; }
+.bank-transactions-tools select { width:auto; min-width:145px; }
+.bank-import-button { position:relative; display:inline-flex; align-items:center; justify-content:center; gap:6px; min-height:34px; padding:7px 10px; overflow:hidden; border:1px solid var(--obs-border); border-radius:10px; background:var(--obs-surface-2); color:var(--obs-text); font-size:9px; font-weight:850; cursor:pointer; white-space:nowrap; }
+.bank-import-button input { position:absolute; inset:0; width:100%; height:100%; opacity:0; cursor:pointer; }
+.bank-import-button.disabled { opacity:.5; cursor:not-allowed; }
+.bank-import-button.disabled input { cursor:not-allowed; }
+.bank-csv-help { margin:0; padding:8px 10px; border-radius:9px; background:var(--obs-surface-2); color:var(--obs-subtle); font-size:9px; line-height:1.9; }
+.bank-table-scroll { max-width:100%; overflow:auto; border:1px solid var(--obs-border); border-radius:11px; }
+.bank-transaction-table { width:100%; min-width:780px; border-collapse:separate; border-spacing:0; color:var(--obs-text); font-size:9px; }
+.bank-transaction-table th { position:sticky; top:0; z-index:1; padding:10px 9px; border-bottom:1px solid var(--obs-border); background:var(--obs-surface-2); color:var(--obs-muted); font-weight:800; text-align:right; white-space:nowrap; }
+.bank-transaction-table td { padding:9px; border-bottom:1px solid var(--obs-border); vertical-align:middle; }
+.bank-transaction-table tbody tr:last-child td { border-bottom:0; }
+.bank-transaction-table td:nth-child(2) { max-width:240px; }
+.bank-transaction-table td:nth-child(2)>b,.bank-transaction-table td:nth-child(2)>small { display:block; overflow-wrap:anywhere; }
+.bank-transaction-table td:nth-child(2)>b { font-size:9px; line-height:1.7; }
+.bank-transaction-table td:nth-child(2)>small,.bank-transaction-table td:nth-child(5)>small { margin-top:3px; color:var(--obs-subtle); font-size:8px; line-height:1.7; }
+.bank-transaction-table td>code { font-size:8px; overflow-wrap:anywhere; }
+.bank-amount { display:inline-flex; align-items:center; gap:5px; white-space:nowrap; font-variant-numeric:tabular-nums; }
+.bank-amount.incoming { color:var(--obs-positive); }
+.bank-amount.outgoing { color:var(--obs-critical); }
+.bank-transaction-status { display:inline-flex; padding:4px 6px; border:1px solid var(--obs-border); border-radius:7px; background:var(--obs-surface-2); color:var(--obs-muted); font-size:8px; white-space:nowrap; }
+.bank-transaction-status.reconciled { color:var(--obs-positive); border-color:color-mix(in srgb,var(--obs-positive) 40%,var(--obs-border)); }
+.bank-transaction-status.ignored { color:var(--obs-subtle); }
+.bank-transaction-status.unmatched { color:var(--obs-critical); border-color:color-mix(in srgb,var(--obs-critical) 35%,var(--obs-border)); }
+.bank-row-actions { display:flex; flex-wrap:wrap; gap:5px; }
+.bank-reconcile-box { display:grid; gap:11px; padding:13px; border:1px solid var(--obs-border); border-radius:13px; background:var(--obs-surface-2); }
+.bank-reconcile-heading { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; }
+.bank-reconcile-heading>div { display:grid; gap:4px; }
+.bank-reconcile-heading b { font-size:11px; }
+.bank-reconcile-heading small { color:var(--obs-muted); font-size:9px; }
+.bank-candidate-preview { display:flex; align-items:center; flex-wrap:wrap; gap:7px 12px; padding:9px; border:1px solid var(--obs-border); border-radius:9px; background:var(--obs-surface); color:var(--obs-muted); font-size:9px; }
+.bank-candidate-preview>small { flex:1 1 100%; line-height:1.8; color:var(--obs-subtle); }
+@media(max-width:680px) {
+ .bank-section-header { align-items:flex-start; flex-wrap:wrap; padding:11px; }
+ .bank-section-title { flex:1 1 calc(100% - 60px); }
+ .bank-quiet-button { margin-inline-start:auto; }
+ .bank-summary-grid { grid-template-columns:1fr; }
+ .bank-summary-grid article { grid-template-columns:1fr auto; align-items:center; }
+ .bank-summary-grid article>span { grid-column:1/-1; }
+ .bank-accounts-panel,.bank-transactions-panel { padding:10px; }
+ .bank-account-card { align-items:flex-start; flex-wrap:wrap; }
+ .bank-account-meta { flex:1 1 100%; text-align:right; padding-right:47px; }
+ .bank-account-form { grid-template-columns:1fr; }
+ .bank-transactions-tools { width:100%; }
+ .bank-transactions-tools select { flex:1; }
+ .bank-import-button { flex:1; }
+ .bank-panel-heading { align-items:flex-start; }
+ .bank-panel-heading .bank-transactions-tools { margin-top:5px; }
+}
