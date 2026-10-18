@@ -441,7 +441,7 @@ test('driver lands in assigned shipments and does not get customer or manager na
   await page.locator('.workspace-home-link').filter({ hasText: 'محموله‌های من' }).click();
   await expect(page.getByRole('heading', { name: 'مرکز مأموریت‌های راننده' })).toBeVisible();
   await expect(page.locator('.role-ops-metrics-driver')).toBeVisible();
-  await expect(page.getByRole('link', { name: 'ارتباط با مدیر' })).toHaveAttribute('href', '/app/connect');
+  await expect(page.getByRole('link', { name: 'ارتباط با مدیر' })).toHaveAttribute('href', '/simorgh/app/connect');
   if (viewportWidth <= 860) {
     const nav = page.locator('.mobile-workspace-nav');
     await expect(nav).toBeVisible();
