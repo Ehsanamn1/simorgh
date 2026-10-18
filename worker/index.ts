@@ -1745,47 +1745,8 @@ app.post('/api/contacts/import', async (c) => {
 
 
 app.post('/api/auth/signup', async (c) => {
-  const body = await c.req.json<Record<string, unknown>>().catch(() => null);
-  if (!body) return c.json({ message: 'اطلاعات ثبت‌نام معتبر نیست.' }, 400);
-  const username = normalizeUsername(body.username);
-  const password = typeof body.password === 'string' ? body.password : '';
-  if (!username) return c.json({ message: 'نام کاربری باید ۳ تا ۳۲ نویسه باشد و با نقطه یا خط تیره شروع یا تمام نشود.' }, 422);
-  if (password.length < 8 || password.length > 128) return c.json({ message: 'رمز عبور باید بین ۸ تا ۱۲۸ نویسه باشد.' }, 422);
-  const signupIp = c.req.header('cf-connecting-ip') ?? 'unknown';
-  // A new key avoids stale counters created when successful registrations were counted as failures.
-  const signupBucket = await sha256('signup-ip-v2:' + signupIp);
-  if (await isRateLimited(c, [signupBucket])) return c.json({ message: 'تلاش‌های ثبت‌نام از این اتصال بیش از حد است؛ ۱۵ دقیقه دیگر دوباره امتحان کن.' }, 429);
-
-  const sql = sqlFor(c);
-  try {
-    const conflicts = await sql.query(
-      "select id from public.medar_users where coalesce(username_normalized,lower(username))=$1 limit 1",
-      [username],
-    );
-    if (conflicts.length) {
-      await recordSignupFailure(c, signupBucket);
-      return c.json({ message: 'این نام کاربری قبلاً ثبت شده است.' }, 409);
-    }
-    const passwordHash = await hashPassword(password);
-    const result = await sql.query(CREATE_OWNER_WORKSPACE_SQL, [username, passwordHash]);
-    const created = result[0] as (Record<string, unknown> & { id: string; companyId: string }) | undefined;
-    if (!created) {
-      await recordSignupFailure(c, signupBucket);
-      return c.json({ message: 'ساخت حساب و فضای کاری انجام نشد. دوباره تلاش کن.' }, 500);
-    }
-    await createSession(c, created.id);
-    const memberships = await getMemberships(c, created.id);
-    await sql.query("delete from public.medar_rate_limits where key_hash=$1", [signupBucket]);
-    return c.json({ user: safeUser(created), companyId: created.companyId, memberships }, 201);
-  } catch (error) {
-    const databaseError = error as { code?: string; constraint?: string };
-    if (databaseError.code === '23505') {
-      await recordSignupFailure(c, signupBucket);
-      return c.json({ message: 'این نام کاربری قبلاً ثبت شده است.' }, 409);
-    }
-    await recordSignupFailure(c, signupBucket);
-    throw error;
-  }
+  // Medar is private and owner-provisioned; public owner-workspace creation is disabled.
+  return c.json({ message: 'ثبت‌نام عمومی غیرفعال است؛ برای دریافت حساب با مالک مجموعه هماهنگ کن.' }, 403);
 });
 
 app.post('/api/auth/signup-with-invite', async (c) => {
@@ -1811,7 +1772,7 @@ app.post('/api/auth/signup-with-invite', async (c) => {
     const result = await sql.query(
       "with invite as (" +
         "update public.company_invites set uses=uses+1,updated_at=now() " +
-        "where token_hash=$3 and revoked_at is null and expires_at>now() and uses<max_uses " +
+        "where token_hash=$3 and role <> 'customer'::public.app_role and revoked_at is null and expires_at>now() and uses<max_uses " +
         "returning company_id,role,customer_id,supplier_id" +
       "), new_user as (" +
         "insert into public.medar_users(username,display_name,password_hash,requested_role,account_status) " +
@@ -1918,7 +1879,7 @@ app.post('/api/workspace/invites', async (c) => {
   const role = typeof body?.role === 'string' ? body.role : '';
   const customerId = typeof body?.customerId === 'string' ? body.customerId : null;
   const supplierId = typeof body?.supplierId === 'string' ? body.supplierId : null;
-  const allowedRoles = ['admin', 'staff', 'customer', 'supplier', 'driver'];
+  const allowedRoles = ['admin', 'staff', 'supplier', 'driver'];
   if (!/^[0-9a-f-]{36}$/i.test(companyId) || !allowedRoles.includes(role)) return c.json({ message: 'شرکت یا نقش دعوت معتبر نیست.' }, 422);
   if ((role === 'customer' && (!customerId || supplierId)) || (role === 'supplier' && (!supplierId || customerId)) || (!['customer','supplier'].includes(role) && (customerId || supplierId))) {
     return c.json({ message: 'برای نقش مشتری یا تأمین‌کننده باید حساب مربوط به همان مجموعه انتخاب شود.' }, 422);
@@ -2165,7 +2126,7 @@ app.post('/api/workspace/members/create', async (c) => {
   const role = typeof body.role === 'string' ? body.role : '';
   const customerId = typeof body.customerId === 'string' && body.customerId ? body.customerId : null;
   const supplierId = typeof body.supplierId === 'string' && body.supplierId ? body.supplierId : null;
-  const allowedRoles = ['admin', 'staff', 'customer', 'supplier', 'driver'];
+  const allowedRoles = ['admin', 'staff', 'supplier', 'driver'];
   if (!COMPANY_ID_RE.test(companyId) || !username || !allowedRoles.includes(role)) {
     return c.json({ message: 'شناسه مجموعه، نام کاربری یا نقش معتبر نیست.' }, 422);
   }
