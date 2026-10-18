@@ -112,7 +112,8 @@ test('manager map shows every saved farm coordinate and allows marker selection'
   await page.goto('/simorgh/app/command', { waitUntil: 'domcontentloaded' });
   const map = page.locator('.farm-map-panel');
   await expect(map.getByRole('heading', { name: 'نقشه‌ی عملیات و سایت‌ها' })).toBeVisible();
-  await expect(map.locator('.iran-paper-illustration')).toBeVisible();
+  await expect(map.locator('.iran-paper-illustration')).toHaveCount(0);
+  await expect(map.locator('.farm-map-canvas iframe')).toBeVisible();
   await expect(map.locator('.farm-map-marker')).toHaveCount(2);
   await expect(map.locator('.farm-map-sites .farm-map-site')).toHaveCount(2);
   await expect(map.locator('.farm-map-marker.active .farm-map-marker-label')).toHaveText('مزرعه تهران');
@@ -125,7 +126,6 @@ test('manager map shows every saved farm coordinate and allows marker selection'
   expect(markerPositions[1].width).toBeGreaterThan(0);
   expect(Math.abs(markerPositions[0].left - markerPositions[1].left)).toBeGreaterThan(10);
   expect(Math.abs(markerPositions[0].top - markerPositions[1].top)).toBeGreaterThan(10);
-  await map.getByRole('button', { name: 'نقشه دقیق' }).click();
   const embedUrl = await map.locator('.farm-map-canvas iframe').getAttribute('src');
   expect(embedUrl).toContain('bbox=');
   expect(embedUrl).not.toContain('marker=');
@@ -136,10 +136,9 @@ test('manager map shows every saved farm coordinate and allows marker selection'
 
   sites = [];
   await page.reload({ waitUntil: 'domcontentloaded' });
-  await expect(map.locator('.iran-paper-illustration')).toBeVisible();
-  await expect(map.getByRole('button', { name: 'نقشه کاغذی ایران' })).toBeEnabled();
-  await expect(map.locator('.farm-map-sites-empty')).toBeVisible();
-  await expect(map.getByRole('button', { name: 'نقشه دقیق' })).toBeDisabled();
+  await expect(map.locator('.iran-paper-illustration')).toHaveCount(0);
+  await expect(map.locator('.farm-map-sites-empty')).toHaveCount(0);
+  await expect(map.locator('.empty-state')).toBeVisible();
 });
 
 
@@ -190,7 +189,6 @@ test('operations map shows fresh driver GPS without inventing coordinates and hi
   await expect(map.locator('.farm-map-driver-marker')).toHaveCount(1);
   await expect(map.getByRole('button', { name: /مأموریت خاور GPS/ })).toBeVisible();
   await expect(map.locator('.farm-map-fleet-list')).toContainText('خاور GPS');
-  await map.getByRole('button', { name: 'نقشه دقیق' }).click();
   await expect(map.locator('.farm-map-canvas iframe')).toBeVisible();
   await expect(map.locator('.farm-map-canvas iframe')).toHaveAttribute('src', /bbox=/);
   await expect(map.locator('.farm-map-driver-marker')).toHaveCount(1);
@@ -210,13 +208,8 @@ test('generic farm types and daily rejected quantities are validated before writ
   await installIsolatedSession(page, 'owner');
 
   await page.goto('/simorgh/app/products', { waitUntil: 'domcontentloaded' });
-  await expect(page.getByRole('heading', { name: 'کاتالوگ و مشخصات محصول' })).toBeVisible();
-  await page.getByRole('button', { name: 'افزودن رکورد', exact: true }).click();
-  const productKind = page.getByLabel('نوع محصول');
-  for (const kind of ['farm_product','crop','livestock','poultry','aquaculture','dairy','eggs','meat','honey','forestry','greenhouse','orchard','input','feed','equipment','processed','service','other']) {
-    await expect(productKind.locator('option[value="' + kind + '"]')).toHaveCount(1);
-  }
-  await page.getByRole('button', { name: 'انصراف' }).click();
+  await expect(page).toHaveURL(/\/simorgh\/app\/command$/);
+  await expect(page.getByRole('heading', { name: 'کاتالوگ و مشخصات محصول' })).toHaveCount(0);
 
   await page.goto('/simorgh/app/farm-sites', { waitUntil: 'domcontentloaded' });
   await expect(page.getByRole('heading', { name: 'سایت‌های مزرعه' })).toBeVisible();
@@ -225,16 +218,11 @@ test('generic farm types and daily rejected quantities are validated before writ
   for (const kind of ['crop','livestock','poultry','dairy','aquaculture','greenhouse','orchard','apiary','processing','warehouse','distribution','mixed','other']) {
     await expect(siteType.locator('option[value="' + kind + '"]')).toHaveCount(1);
   }
-  const latitude = page.locator('#ops-latitude');
-  const longitude = page.locator('#ops-longitude');
-  await latitude.fill('-33.8688');
-  await longitude.fill('151.2093');
-  expect(await latitude.evaluate((input: HTMLInputElement) => input.checkValidity())).toBe(true);
-  expect(await longitude.evaluate((input: HTMLInputElement) => input.checkValidity())).toBe(true);
-  await latitude.fill('91');
-  expect(await latitude.evaluate((input: HTMLInputElement) => input.checkValidity())).toBe(false);
-  await longitude.fill('-181');
-  expect(await longitude.evaluate((input: HTMLInputElement) => input.checkValidity())).toBe(false);
+  await expect(page.locator('#ops-latitude')).toHaveCount(0);
+  await expect(page.locator('#ops-longitude')).toHaveCount(0);
+  await expect(page.locator('#ops-province')).toBeVisible();
+  await expect(page.locator('#ops-city')).toBeVisible();
+  await expect(page.locator('#ops-address')).toBeVisible();
   await page.locator('.ops-modal').getByRole('button', { name: 'بستن' }).click();
 
   await page.goto('/simorgh/app/flock-cycles', { waitUntil: 'domcontentloaded' });
@@ -781,71 +769,11 @@ test('Medar Connect creates a restricted conversation and sends an idempotent op
 });
 
 
-test('operational exception inbox assigns, acknowledges and resolves a case with a resolution note', async ({ page }) => {
-  const caseId = '00000000-0000-4000-8000-000000000133';
-  const ownerId = '00000000-0000-4000-8000-000000000011';
+test('exception inbox is disabled in the simplified supply-chain release', async ({ page }) => {
   await installIsolatedSession(page, 'owner');
-  let cases: Array<Record<string, unknown>> = [];
-  await page.route('**/api/operational/**', async route => {
-    const request = route.request();
-    const url = new URL(request.url());
-    const path = url.pathname;
-    if (path.endsWith('/events') && request.method() === 'GET') {
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ events: [] }) });
-      return;
-    }
-    if (path.endsWith('/exceptions') && request.method() === 'GET') {
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ exceptions: cases }) });
-      return;
-    }
-    if (path.endsWith('/exceptions') && request.method() === 'POST') {
-      const body = request.postDataJSON() as { title: string; details: string; severity: string; assignedUserId?: string };
-      cases = [{
-        id: caseId, title: body.title, details: body.details, severity: body.severity, status: 'open',
-        assignedUserId: body.assignedUserId ?? null, assignedUsername: 'owner_test', dueAt: null,
-        createdAt: new Date().toISOString(), resolutionNote: null,
-      }];
-      await route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ ok: true, exception: cases[0] }) });
-      return;
-    }
-    if (path.endsWith('/acknowledge') && request.method() === 'POST') {
-      cases = cases.map(item => ({ ...item, status: 'acknowledged' }));
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, exception: { id: caseId, status: 'acknowledged' } }) });
-      return;
-    }
-    if (path.endsWith('/start') && request.method() === 'POST') {
-      cases = cases.map(item => ({ ...item, status: 'in_progress' }));
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, exception: { id: caseId, status: 'in_progress' } }) });
-      return;
-    }
-    if (path.endsWith('/resolve') && request.method() === 'POST') {
-      const body = request.postDataJSON() as { resolutionNote: string };
-      cases = cases.map(item => ({ ...item, status: 'resolved', resolutionNote: body.resolutionNote, resolvedBy: ownerId }));
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, exception: cases[0] }) });
-      return;
-    }
-    await route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ message: 'Unexpected operational route: ' + path }) });
-  });
-  await page.route('**/api/connect/people**', route => route.fulfill({
-    status: 200, contentType: 'application/json',
-    body: JSON.stringify({ people: [{ id: ownerId, username: 'owner_test', displayName: 'مالک آزمایشی', role: 'owner' }] }),
-  }));
-
   await page.goto('/simorgh/app/exceptions', { waitUntil: 'domcontentloaded' });
-  await expect(page.getByRole('heading', { name: 'صندوق مسائل و استثناها' })).toBeVisible();
-  await page.getByLabel('عنوان مسئله').fill('تأخیر در تحویل سفارش');
-  await page.getByLabel('شرح و زمینه').fill('راننده هنوز رسید تحویل را ثبت نکرده است.');
-  await page.getByLabel('شدت').selectOption('critical');
-  await page.getByRole('button', { name: 'ثبت و پیگیری' }).click();
-  await expect(page.getByRole('heading', { name: 'تأخیر در تحویل سفارش' })).toBeVisible();
-  await page.getByRole('button', { name: 'ثبت دریافت' }).click();
-  await expect(page.getByText('دریافت‌شده')).toBeVisible();
-  await page.getByRole('button', { name: 'شروع رسیدگی' }).click();
-  await expect(page.getByText('در حال رسیدگی')).toBeVisible();
-  await page.getByLabel('شرح نتیجه تأخیر در تحویل سفارش').fill('رسید تحویل دریافت و بررسی شد.');
-  await page.getByRole('button', { name: 'حل و بستن' }).click();
-  await expect(page.getByText('حل‌شده')).toBeVisible();
-  await expect(page.getByText('رسید تحویل دریافت و بررسی شد.')).toBeVisible();
+  await expect(page).toHaveURL(/\/simorgh\/app\/command$/);
+  await expect(page.getByRole('heading', { name: 'صندوق مسائل و استثناها' })).toHaveCount(0);
 });
 
 test('settings centralizes password, real connection health, and light/dark preferences', async ({ page }) => {
@@ -867,6 +795,7 @@ test('settings centralizes password, real connection health, and light/dark pref
   await expect(page.getByRole('heading', { name: 'تنظیمات مدار' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'اتصال مدار' })).toBeVisible();
   await expect(page.getByText('پاسخ‌گو')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'خروج از حساب' })).toBeVisible();
   await expect(page.getByText('دستگاه‌های شناخته‌شده')).toBeVisible();
   await expect(page.locator('.nav-tools-box')).toContainText('بخش‌های اصلی');
   await expect(page.locator('.sidebar-status')).toHaveCount(0);
@@ -886,5 +815,5 @@ test('settings centralizes password, real connection health, and light/dark pref
   await page.goto('/simorgh/app/command', { waitUntil: 'domcontentloaded' });
   await expect(page.locator('.dashboard-connect-disclosure')).toHaveCount(0);
   await expect(page.locator('.sidebar-settings-link, .profile-row')).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'خروج از حساب' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'خروج از حساب' })).toHaveCount(0);
 });
