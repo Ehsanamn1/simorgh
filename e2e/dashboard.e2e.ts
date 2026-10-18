@@ -16,7 +16,8 @@ test('the default route is a secure Persian entry, not a clickable dashboard pre
   await expect(page.locator('.simorgh-signin-layer')).toBeVisible();
   await expect(page.locator('.ops-live-app, .ops-live-bottom-nav, .app-frame')).toHaveCount(0);
   await expect(page.getByRole('heading', { name: 'ورود به مدار' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'ساخت حساب و فضای کاری' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'ساخت حساب و فضای کاری' })).toHaveCount(0);
+  await expect(page.getByText(/ثبت‌نام عمومی غیرفعال است/)).toBeVisible();
   await expect(page.locator('.portal-preview')).toHaveCount(0);
   await expect(page.locator('.sim-preview-palette')).toHaveCount(0);
   await expect(page.locator('.simorgh-signin-layer')).toBeVisible();
