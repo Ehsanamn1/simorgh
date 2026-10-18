@@ -431,10 +431,6 @@ jobs:
             '00000000-0000-4000-8000-000000000331',
             'CI blocked task exception probe','blocked',now()+interval '1 hour'
           );
-          UPDATE public.operational_tasks SET status='blocked'
-            WHERE company_id='00000000-0000-4000-8000-000000000332'
-              AND title='CI blocked task exception probe';
-
           DO $operations_ledger$
           DECLARE v_events integer; v_cases integer; v_owner uuid;
           BEGIN
