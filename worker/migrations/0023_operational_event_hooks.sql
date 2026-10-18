@@ -10,11 +10,12 @@ RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = ''
-AS $$
+AS $
+#variable_conflict use_variable
 DECLARE
   row_data jsonb := to_jsonb(NEW);
   old_data jsonb;
-  company_id uuid;
+  v_company_id uuid;
   record_id uuid;
   actor_id uuid;
   owner_id uuid;
@@ -34,9 +35,9 @@ BEGIN
     old_data := to_jsonb(OLD);
     IF old_data IS NOT DISTINCT FROM row_data THEN RETURN NEW; END IF;
   END IF;
-  company_id := nullif(row_data->>'company_id','')::uuid;
+  v_company_id := nullif(row_data->>'company_id','')::uuid;
   record_id := nullif(row_data->>'id','')::uuid;
-  IF company_id IS NULL OR record_id IS NULL THEN RETURN NEW; END IF;
+  IF v_company_id IS NULL OR record_id IS NULL THEN RETURN NEW; END IF;
 
   source_kind := CASE TG_TABLE_NAME
     WHEN 'orders' THEN 'order'
@@ -73,24 +74,28 @@ BEGIN
   INSERT INTO public.medar_operational_events
     (company_id,actor_user_id,event_type,severity,source_type,source_id,title,body,payload,idempotency_key,occurred_at)
   VALUES
-    (company_id,actor_id,event_type,event_severity,source_kind,record_id,event_title,event_body,
+    (v_company_id,actor_id,event_type,event_severity,source_kind,record_id,event_title,event_body,
      jsonb_build_object('table',TG_TABLE_NAME,'operation',TG_OP,'status',current_status),
      left(event_key,240),coalesce(nullif(row_data->>'updated_at','')::timestamptz,nullif(row_data->>'created_at','')::timestamptz,now()))
   ON CONFLICT(company_id,idempotency_key) WHERE idempotency_key IS NOT NULL DO NOTHING
   RETURNING id INTO event_id;
+  IF event_id IS NULL THEN
+    SELECT e.id INTO event_id FROM public.medar_operational_events e
+      WHERE e.company_id=v_company_id AND e.idempotency_key=event_key LIMIT 1;
+  END IF;
 
   should_raise := (TG_TABLE_NAME='operational_incidents' AND current_status NOT IN ('resolved','closed','cancelled'))
     OR (TG_TABLE_NAME='operational_tasks' AND current_status IN ('blocked','rejected'))
     OR (TG_TABLE_NAME='shipments' AND current_status IN ('failed','returned'));
   IF should_raise THEN
     SELECT m.user_id INTO owner_id FROM public.memberships m
-      WHERE m.company_id=company_id AND m.active=true AND m.role::text IN ('owner','admin')
+      WHERE m.company_id=v_company_id AND m.active=true AND m.role::text IN ('owner','admin')
       ORDER BY CASE m.role::text WHEN 'owner' THEN 0 ELSE 1 END,m.created_at LIMIT 1;
     exception_key := 'auto:' || TG_TABLE_NAME || ':' || record_id::text;
     INSERT INTO public.medar_exception_cases
       (company_id,event_id,title,details,severity,status,assigned_user_id,due_at,created_by,dedupe_key)
     VALUES
-      (company_id,event_id,event_title,event_body,
+      (v_company_id,event_id,event_title,event_body,
        CASE WHEN event_severity='critical' THEN 'critical' ELSE 'warning' END,
        'open',owner_id,now()+interval '1 day',actor_id,exception_key)
     ON CONFLICT(company_id,dedupe_key) WHERE dedupe_key IS NOT NULL AND status NOT IN ('resolved','closed')
@@ -98,7 +103,7 @@ BEGIN
     RETURNING id INTO exception_id;
     IF owner_id IS NOT NULL AND exception_id IS NOT NULL THEN
       INSERT INTO public.notifications(company_id,user_id,title,body,href,dedupe_key)
-      VALUES (company_id,owner_id,'مسئلهٔ عملیاتی نیازمند رسیدگی',event_title,'/app/exceptions','exception:'||exception_id::text)
+      VALUES (v_company_id,owner_id,'مسئلهٔ عملیاتی نیازمند رسیدگی',event_title,'/app/exceptions','exception:'||exception_id::text)
       ON CONFLICT(company_id,user_id,dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING;
     END IF;
   END IF;
