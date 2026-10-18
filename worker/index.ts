@@ -2906,7 +2906,7 @@ app.post('/api/data/:table',async c=>{
     if (table === 'production_batches' && nextState === 'completed') {
       const lotId = typeof values?.lot_id === 'string' ? values.lot_id : current.lot_id;
       const qualityStatus = values?.quality_status ?? current.quality_status;
-      if (!isProductionBatchCompletionReady(qualityStatus, lotId, true)) {
+      if (qualityStatus !== 'passed' || typeof lotId !== 'string' || !/^[0-9a-f-]{36}$/i.test(lotId)) {
         return c.json({ message: 'تکمیل بچ فقط با کیفیت تأییدشده و شناسهٔ لات معتبر ممکن است.' }, 422);
       }
       const readyLots = await runForUser(c, user.id,
