@@ -411,7 +411,7 @@ test('supplier directory remains readable from cache when offline', async ({ pag
   apiReachable = true;
 });
 
-est('supplier workspace keeps manager-only routes out of the allowed menu', async ({ page }, testInfo) => {
+test('supplier workspace keeps manager-only routes out of the allowed menu', async ({ page }, testInfo) => {
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   const viewportWidth = Number((testInfo.project.use as { viewport?: { width?: number } }).viewport?.width || 1365);
@@ -496,7 +496,7 @@ test('legacy customer role has no ordering or customer navigation in the supply-
   await expect(page.locator('.side-nav a').filter({ hasText: 'سفارش‌های من' })).toHaveCount(0);
 });
 
-est('driver lands in assigned shipments and does not get customer or manager navigation', async ({ page }, testInfo) => {
+test('driver lands in assigned shipments and does not get customer or manager navigation', async ({ page }, testInfo) => {
   const viewportWidth = Number((testInfo.project.use as { viewport?: { width?: number } }).viewport?.width || 1365);
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
@@ -559,7 +559,7 @@ test('contact import is hidden from the core supply-chain release', async ({ pag
   await expect(page.locator('.side-nav a').filter({ hasText: 'ورود فایل مخاطبین' })).toHaveCount(0);
 });
 
-est('a signed-in user can change their own password from Settings through the protected Worker endpoint', async ({ page }, testInfo) => {
+test('a signed-in user can change their own password from Settings through the protected Worker endpoint', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop-chromium', 'Validate the credential-change request once; responsive settings layout is covered in every viewport.');
   await installIsolatedSession(page, 'owner');
   let submitted: Record<string, unknown> | undefined;
@@ -661,7 +661,7 @@ test('finance module is deferred from the core supply-chain release', async ({ p
   await expect(page.locator('.side-nav a').filter({ hasText: 'مالی و تسویه' })).toHaveCount(0);
 });
 
-est('role home loads the real notification inbox and acknowledges an unread briefing', async ({ page }) => {
+test('role home loads the real notification inbox and acknowledges an unread briefing', async ({ page }) => {
   await installIsolatedSession(page, 'owner');
   const firstId = '00000000-0000-4000-8000-000000000401';
   const secondId = '00000000-0000-4000-8000-000000000402';
