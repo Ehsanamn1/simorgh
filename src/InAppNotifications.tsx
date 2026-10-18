@@ -3,7 +3,6 @@ import { BellRing, Check, CheckCheck, Clock3, LoaderCircle, RefreshCw } from 'lu
 import { Link } from 'react-router-dom';
 import type { Membership } from './lib/types';
 import { api } from './lib/apiClient';
-import { PushNotificationSettings } from './PushNotificationSettings';
 
 type NotificationRow = {
   id: string;
@@ -98,7 +97,6 @@ export function InAppNotifications({ membership }: Props) {
         {unreadCount > 0 && <button type="button" className="notification-mark-all" onClick={() => void markAllRead()} disabled={busy}>{busy ? <LoaderCircle size={14} className="ai-spin"/> : <CheckCheck size={14}/>} خواندن همه</button>}
       </div>
     </div>
-    <PushNotificationSettings membership={membership}/>
     {error && <div className="notification-error" role="alert">{error}<button type="button" onClick={() => void load()}>تلاش دوباره</button></div>}
     {notice && <div className="notification-notice" role="status"><Check size={14}/>{notice}</div>}
     {loading ? <div className="notification-loading"><LoaderCircle size={19} className="ai-spin"/> در حال دریافت اعلان‌ها…</div>
