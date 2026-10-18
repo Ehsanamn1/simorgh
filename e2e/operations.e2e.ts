@@ -347,6 +347,10 @@ test('supplier workspace keeps manager-only routes out of the allowed menu', asy
   const financeGroup = page.locator('.nav-group').filter({ has: page.locator('summary', { hasText: /^مالی/ }) });
   await financeGroup.locator('summary').click();
   await expect(financeGroup.getByRole('link', { name: /تسویه‌های من/ })).toBeVisible();
+  await operationsGroup.getByRole('link', { name: /کارهای واگذارشده/ }).click();
+  await expect(page.getByRole('heading', { name: 'میز کار تأمین‌کننده' })).toBeVisible();
+  await expect(page.locator('.role-ops-metrics-supplier')).toBeVisible();
+  await expect(page.locator('.role-ops-shortcuts')).toBeVisible();
   expect(await page.locator('.nav-group').count()).toBeLessThanOrEqual(8);
   expect(errors).toEqual([]);
 });
