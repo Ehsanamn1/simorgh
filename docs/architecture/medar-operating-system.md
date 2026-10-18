@@ -154,14 +154,14 @@ The implementation should be assessed by observable behavior and successful test
 - Purchase-order lifecycle and inventory movement protections.
 - CSV bank transaction import, duplicate-safe reconciliation, and manual review; no transfer initiation.
 - Company-scoped AI provider settings, provider connection test, chat, inert action proposals, and explicitly confirmed task-creation execution.
-- In-app notifications and an idempotent scheduled daily briefing based on existing records.
+- In-app notifications and an idempotent scheduled daily briefing based on existing records. The branch adds Medar Connect tenant-scoped conversations/messages, explicit participant allowlists, retry-safe client message IDs, unread counts, and message-triggered in-app notifications.
 - Role-specific home views and responsive navigation.
 
 ### Partial capabilities that must not be described as fully complete
-- The “important events” view is currently assembled from role-scoped operational queries and notifications. It is not yet a canonical, durable exception/event ledger with deduplication, ownership, acknowledgement, escalation, and resolution history across every domain.
+- The branch now adds a durable tenant-scoped operational event ledger and exception queue with idempotency keys, assignment, due dates, acknowledgement, resolution notes, and a dedicated UI/API. Existing domain workflows are not yet automatically emitting canonical events for every business transition, and full audit/escalation rules remain to be integrated.
 - Task templates and task status transitions exist, but there is not yet a general-purpose workflow/rules engine with versioned definitions, retry-safe step execution, timers, and compensation.
 - AI task creation is a narrow approved tool, not general natural-language execution across all modules. Read tools must cite the actual records used and must obey the same server-side permissions as the requesting user.
-- Voice requires a configured provider and successful live session test. UI availability is not evidence of a working provider connection.
+- Browser/mobile Push delivery, SMS, and email are not implemented as live delivery channels yet; the current message notification is in-app only. Voice requires a configured provider and successful live session test. UI availability is not evidence of a working provider connection.
 - Private object storage depends on a real R2 binding and verified upload/read/delete flows.
 - Fleet display filters stale and future-dated points, but it does not prove background GPS operation on a physical device or user-consent compliance.
 - Banking is an imported-transaction/reconciliation workflow, not a live bank connector. No bank credentials or transfers are supported.
