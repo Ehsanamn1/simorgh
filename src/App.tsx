@@ -103,7 +103,7 @@ function MobileAccessScreen() {
 }
 
 function AppShell() {
-  const { user, memberships, signOut, loading, error } = useAuth();
+  const { user, memberships, loading, error } = useAuth();
   const location = useLocation();
   const [membershipId, setMembershipId] = useState(''); const [mobileNav, setMobileNav] = useState(false); const [search, setSearch] = useState(''); const [guideOpen, setGuideOpen] = useState(false); const [mobileSearchOpen, setMobileSearchOpen] = useState(false); const [navSearch, setNavSearch] = useState(''); const searchInputRef = useRef<HTMLInputElement>(null);
   const [moduleReadPermissions, setModuleReadPermissions] = useState<Record<string, boolean> | null>(null);
