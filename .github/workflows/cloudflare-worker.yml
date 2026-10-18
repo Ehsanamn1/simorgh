@@ -86,7 +86,7 @@ jobs:
               to_regclass('public.medar_push_subscriptions') is not null and
               to_regclass('public.medar_notification_outbox') is not null and
               exists (select 1 from public.medar_schema_migrations where version='0025_supplier_location_details.sql') and
-              (select count(*) from information_schema.columns where table_schema='public' and table_name='suppliers' and column_name in ('province','address')) = 2 and
+              (select count(*) from information_schema.columns where table_schema='public' and table_name='suppliers' and column_name in ('province','address','latitude','longitude')) = 4 and
               to_regprocedure('public.medar_enqueue_notification_push()') is not null and
               to_regprocedure('public.medar_emit_operational_event()') is not null and
               exists (select 1 from pg_trigger where tgname='medar_emit_operational_event' and not tgisinternal) and
