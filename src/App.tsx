@@ -1464,7 +1464,7 @@ function MembersPage({membership,search}:{membership:Membership;search:string}) 
   setModulePermissions(current=>current.map(module=>module.key===moduleKey?{...module,[field]:value,configured:true}:module));
  };
  const resetPermissionsToRoleDefaults=()=>{
-  setModulePermissions(current=>current.map(module=>({...module,configured:false})));
+  setModulePermissions(current=>current.map(module=>({...module,configured:false,can_read:true,can_create:true,can_update:true,can_delete:false,can_approve:false})));
  };
  const saveModulePermissions=async()=>{
   if(!permissionsMember||permissionsSaving)return;
