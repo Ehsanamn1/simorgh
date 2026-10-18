@@ -886,6 +886,26 @@ app.post('/api/ai/chat', async (c) => {
 });
 
 
+function canonicalContactPhone(value: string): string {
+  const digits = value.replace(/[^0-9]/g, '');
+  if (!digits) return '';
+  if (digits.startsWith('0098') && digits.length > 4) return '98' + digits.slice(4);
+  if (digits.startsWith('0') && digits.length === 11) return '98' + digits.slice(1);
+  return digits;
+}
+function contactPhoneLookupCandidates(value: string): string[] {
+  const digits = value.replace(/[^0-9]/g, '');
+  const canonical = canonicalContactPhone(value);
+  const candidates = new Set<string>();
+  if (digits) candidates.add(digits);
+  if (canonical) candidates.add(canonical);
+  if (canonical.startsWith('98') && canonical.length === 12) {
+    candidates.add('0' + canonical.slice(2));
+    candidates.add('0098' + canonical.slice(2));
+  }
+  return [...candidates];
+}
+
 app.post('/api/contacts/classify', async (c) => {
   const user = await requireUser(c);
   if (user instanceof Response) return user;
