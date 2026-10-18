@@ -33,3 +33,6 @@ No test business records or owner accounts are inserted by these migrations.
 15. `0015_ai_action_approval_ledger.sql` — stores inert company-scoped agent action proposals and adds an idempotent, audited task-creation function. Proposal creation never writes an operational task; executing the tool requires an authenticated active membership and a separate explicit confirmation.
 
 The Cloudflare operational deployment workflow applies this migration after validating the established Medar database. CI verifies the table and function against a fresh PostgreSQL database. This migration does not configure third-party providers and does not initiate financial actions.
+
+
+16. `0016_membership_module_permissions.sql` — creates optional company-scoped module/action overrides for individual memberships and a trigger that rejects cross-company membership IDs. The Worker still applies role and entity-level scopes; per-module overrides only narrow those permissions.
