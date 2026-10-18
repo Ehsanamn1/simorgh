@@ -2532,7 +2532,7 @@ const UPDATE_PROTECTED_FIELDS:Record<string,Set<string>>={
  invoices:new Set(['status','paid_amount','paid_at','paid_by','payment_reference']),
  settlements:new Set(['status','paid_at','paid_by','payment_reference']),
  operational_tasks:new Set(['status','started_at','submitted_at','reviewed_at','reviewed_by','review_note','assigned_by']),
- production_batches:new Set(['status','started_on','quality_status','completed_on','rejected_quantity','lot_id']),
+ production_batches:new Set(['status','farm_site_id','supplier_id','agreement_id','flock_cycle_id','product_id','produced_quantity','started_on','quality_status','completed_on','rejected_quantity','lot_id']),
  partner_financial_entries:new Set(['status','direction','paid_amount','payment_status','submitted_at','approved_by','approved_at','posted_by','posted_at','linked_entry_id','adjustment_effect']),
  partner_settlement_periods:new Set(['status','approved_by','approved_at','settled_by','settled_at','calculation_snapshot','net_result','company_share_amount','partner_share_amount','balance_due_to_partner','balance_due_to_company']),
  inventory_movements:new Set(['company_id','product_id','movement_type','quantity','unit_cost'])
@@ -2704,6 +2704,8 @@ app.post('/api/data/:table',async c=>{
       const supplierId=typeof row.supplier_id==='string'?row.supplier_id:null;
       const agreementId=typeof row.agreement_id==='string'?row.agreement_id:null;
       const flockCycleId=typeof row.flock_cycle_id==='string'?row.flock_cycle_id:null;
+      const validId=(value:unknown)=>value===null||(typeof value==='string'&&/^[0-9a-f-]{36}$/i.test(value));
+      if(!/^[0-9a-f-]{36}$/i.test(siteId)||!validId(supplierId)||!validId(agreementId)||!validId(flockCycleId))return c.json({message:'شناسهٔ مزرعه، تأمین‌کننده، قرارداد یا چرخه معتبر نیست.'},422);
       const scopeRows=await runForUser(c,user.id,
        "select fs.id from public.farm_sites fs where fs.id=$1::uuid and fs.company_id=$2::uuid and fs.supplier_id is not distinct from $3::uuid and ($4::uuid is null or exists (select 1 from public.partnership_agreements a where a.id=$4::uuid and a.company_id=$2::uuid and a.supplier_id is not distinct from $3::uuid and a.status='active')) and ($5::uuid is null or exists (select 1 from public.flock_cycles fc where fc.id=$5::uuid and fc.company_id=$2::uuid and fc.farm_site_id=fs.id))",
        [siteId,companyId,supplierId,agreementId,flockCycleId]);
@@ -2793,6 +2795,7 @@ app.post('/api/data/:table',async c=>{
       transitionFields.add('quality_status');
       transitionFields.add('rejected_quantity');
     }
+    if (requestedState === 'submitted_for_review') transitionFields.add('produced_quantity');
     if (requestedState === 'completed') {
       transitionFields.add('quality_status');
       transitionFields.add('completed_on');
@@ -2849,8 +2852,11 @@ app.post('/api/data/:table',async c=>{
     const guardedRows = await runForUser(c, user.id,
       'select status from ' + tableName + ' where ' + condition + ' limit 501', params
     ) as Array<{ status: string }>;
-    if (table === 'partner_financial_entries' && guardedRows.some(row => row.status === 'posted')) {
-      return c.json({ message: 'رکورد مالی ثبت‌شده قابل ویرایش یا حذف نیست؛ برای اصلاح، سند تعدیلی ثبت کن.' }, 409);
+    if (table === 'partner_financial_entries' && action === 'update' && guardedRows.some(row => row.status !== 'draft')) {
+      return c.json({ message: 'سند مالی فقط در وضعیت پیش‌نویس قابل ویرایش است؛ برای اصلاح، آن را به پیش‌نویس برگردان یا سند تعدیلی ثبت کن.' }, 409);
+    }
+    if (table === 'partner_financial_entries' && action === 'delete' && guardedRows.some(row => !['draft','rejected'].includes(row.status))) {
+      return c.json({ message: 'سند مالی ارسال‌شده یا ثبت‌شده قابل حذف نیست.' }, 409);
     }
     if (table === 'production_batches' && guardedRows.some(row => row.status === 'completed')) {
       return c.json({ message: 'بچ تولید تکمیل‌شده قابل ویرایش یا حذف نیست.' }, 409);
@@ -2870,8 +2876,9 @@ app.post('/api/data/:table',async c=>{
       return c.json({ message: 'این انتقال وضعیت با گردش‌کار فعلی مجاز نیست.' }, 422);
     }
     if (table === 'production_batches' && nextState === 'submitted_for_review') {
+      const produced = values?.produced_quantity ?? current.produced_quantity;
       const rejected = values?.rejected_quantity ?? current.rejected_quantity ?? 0;
-      if (!isProductionBatchSubmissionValid(current.produced_quantity, rejected)) {
+      if (!isProductionBatchSubmissionValid(produced, rejected)) {
         return c.json({ message: 'برای ارسال بچ به بازبینی، مقدار تولید باید مثبت و مقدار مردودی در بازهٔ مجاز باشد.' }, 422);
       }
     }
@@ -2882,8 +2889,8 @@ app.post('/api/data/:table',async c=>{
         return c.json({ message: 'تکمیل بچ فقط با کیفیت تأییدشده و شناسهٔ لات معتبر ممکن است.' }, 422);
       }
       const readyLots = await runForUser(c, user.id,
-        "select l.id from public.lots l where l.id=$1::uuid and l.company_id=$2::uuid and l.status='released' and l.product_id is not distinct from $3::uuid and l.supplier_id is not distinct from $4::uuid and exists (select 1 from public.quality_reviews q where q.company_id=l.company_id and q.lot_id=l.id and q.result='pass') and exists (select 1 from public.farm_sites fs where fs.id=$5::uuid and fs.company_id=l.company_id and fs.supplier_id is not distinct from $4::uuid) limit 1",
-        [lotId, current.company_id, current.product_id, current.supplier_id, current.farm_site_id],
+        "select l.id from public.lots l where l.id=$1::uuid and l.company_id=$2::uuid and l.status='released' and l.product_id is not distinct from $3::uuid and l.supplier_id is not distinct from $4::uuid and exists (select 1 from public.quality_reviews q where q.company_id=l.company_id and q.lot_id=l.id and q.result='pass') and exists (select 1 from public.farm_sites fs where fs.id=$5::uuid and fs.company_id=l.company_id and fs.supplier_id is not distinct from $4::uuid) and ($6::uuid is null or exists (select 1 from public.partnership_agreements a where a.id=$6::uuid and a.company_id=l.company_id and a.supplier_id is not distinct from $4::uuid and a.status='active')) and ($7::uuid is null or exists (select 1 from public.flock_cycles fc where fc.id=$7::uuid and fc.company_id=l.company_id and fc.farm_site_id=$5::uuid)) limit 1",
+        [lotId, current.company_id, current.product_id, current.supplier_id, current.farm_site_id, current.agreement_id ?? null, current.flock_cycle_id ?? null],
       );
       if (!isProductionBatchCompletionReady(qualityStatus, lotId, readyLots.length > 0)) {
         return c.json({ message: 'برای تکمیل بچ، لات باید متعلق به همین شرکت/تأمین‌کننده/محصول، آزادشده و دارای بازبینی موفق باشد.' }, 422);
@@ -2917,6 +2924,7 @@ app.post('/api/data/:table',async c=>{
       }
       if (nextState === 'submitted_for_review') {
         safeValues.quality_status = 'pending';
+        safeValues.produced_quantity = Number(values?.produced_quantity ?? current.produced_quantity);
         safeValues.rejected_quantity = Number(values?.rejected_quantity ?? current.rejected_quantity ?? 0);
       }
       if (nextState === 'approved') {
