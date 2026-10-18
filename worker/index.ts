@@ -1543,6 +1543,136 @@ app.post('/api/workspace/join', async (c) => {
   return c.json({ membership: joined, memberships: await getMemberships(c, user.id) }, 201);
 });
 
+
+app.get('/api/workspace/members/:membershipId/permissions', async (c) => {
+  const user = await requireUser(c);
+  if (user instanceof Response) return user;
+  const companyId = c.req.query('companyId') ?? '';
+  const membershipId = c.req.param('membershipId');
+  if (!COMPANY_ID_RE.test(companyId) || !COMPANY_ID_RE.test(membershipId)) {
+    return c.json({ message: 'شناسه مجموعه یا عضویت معتبر نیست.' }, 422);
+  }
+  const sql = sqlFor(c);
+  const actorRows = await sql.query(
+    "select role::text as role from public.memberships where user_id=$1::uuid and company_id=$2::uuid and active=true limit 1",
+    [user.id, companyId],
+  );
+  const actorRole = (actorRows[0] as { role: string } | undefined)?.role;
+  if (!actorRole || !['owner','admin'].includes(actorRole)) {
+    return c.json({ message: 'فقط مالک یا مدیر می‌تواند مجوزهای اعضا را مدیریت کند.' }, 403);
+  }
+  const targets = await sql.query(
+    "select id::text as membership_id,role::text as role,active from public.memberships where id=$1::uuid and company_id=$2::uuid limit 1",
+    [membershipId, companyId],
+  );
+  const target = targets[0] as { membership_id: string; role: string; active: boolean } | undefined;
+  if (!target || !target.active) return c.json({ message: 'عضویت فعال در این مجموعه پیدا نشد.' }, 404);
+  if (target.role === 'owner' || target.role === 'admin') {
+    return c.json({ message: 'مجوزهای مالک و مدیر از این صفحه قابل محدودکردن نیستند.' }, 403);
+  }
+  const rows = await sql.query(
+    'select membership_id::text,module_key,inherit_role_defaults,can_read,can_create,can_update,can_delete,can_approve from public.medar_membership_module_permissions where company_id=$1::uuid and membership_id=$2::uuid',
+    [companyId, membershipId],
+  ) as ModulePermissionRow[];
+  const byKey = new Map(rows.map(row => [row.module_key, row]));
+  const modules = MODULE_PERMISSION_CATALOG.map(module => {
+    const saved = byKey.get(module.key);
+    return {
+      key: module.key,
+      label: module.label,
+      configured: Boolean(saved && !saved.inherit_role_defaults),
+      can_read: saved?.can_read ?? true,
+      can_create: saved?.can_create ?? true,
+      can_update: saved?.can_update ?? true,
+      can_delete: saved?.can_delete ?? false,
+      can_approve: saved?.can_approve ?? false,
+    };
+  });
+  return c.json({ companyId, membership: { id: target.membership_id, role: target.role }, modules });
+});
+
+app.post('/api/workspace/members/:membershipId/permissions', async (c) => {
+  const user = await requireUser(c);
+  if (user instanceof Response) return user;
+  const companyId = typeof (await c.req.json<Record<string, unknown>>().catch(() => null))?.companyId === 'string'
+    ? String((await c.req.json<Record<string, unknown>>().catch(() => null))?.companyId) : '';
+  // Re-read once below so the request body is parsed only once in normal operation.
+  const body = await c.req.json<Record<string, unknown>>().catch(() => null);
+  if (!body) return c.json({ message: 'درخواست مجوزها معتبر نیست.' }, 400);
+  const actualCompanyId = typeof body.companyId === 'string' ? body.companyId : companyId;
+  const membershipId = c.req.param('membershipId');
+  if (!COMPANY_ID_RE.test(actualCompanyId) || !COMPANY_ID_RE.test(membershipId)) {
+    return c.json({ message: 'شناسه مجموعه یا عضویت معتبر نیست.' }, 422);
+  }
+  if (!Array.isArray(body.modules) || body.modules.length !== MODULE_PERMISSION_CATALOG.length) {
+    return c.json({ message: 'همه ماژول‌ها باید در درخواست مجوز حضور داشته باشند.' }, 422);
+  }
+  const catalogKeys = new Set(MODULE_PERMISSION_CATALOG.map(module => module.key));
+  const seen = new Set<string>();
+  const modules: Array<{ key: string; configured: boolean; can_read: boolean; can_create: boolean; can_update: boolean; can_delete: boolean; can_approve: boolean }> = [];
+  for (const item of body.modules) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) return c.json({ message: 'ساختار یک مجوز معتبر نیست.' }, 422);
+    const raw = item as Record<string, unknown>;
+    const key = typeof raw.key === 'string' ? raw.key : '';
+    if (!catalogKeys.has(key as typeof MODULE_PERMISSION_CATALOG[number]['key']) || seen.has(key)) {
+      return c.json({ message: 'کلید ماژول ناشناخته یا تکراری است.' }, 422);
+    }
+    const fields = ['configured','can_read','can_create','can_update','can_delete','can_approve'];
+    if (fields.some(field => typeof raw[field] !== 'boolean')) {
+      return c.json({ message: 'تمام مجوزها باید مقدار روشن یا خاموش داشته باشند.' }, 422);
+    }
+    seen.add(key);
+    modules.push({
+      key,
+      configured: raw.configured as boolean,
+      can_read: raw.can_read as boolean,
+      can_create: raw.can_create as boolean,
+      can_update: raw.can_update as boolean,
+      can_delete: raw.can_delete as boolean,
+      can_approve: raw.can_approve as boolean,
+    });
+  }
+  const sql = sqlFor(c);
+  const actorRows = await sql.query(
+    "select role::text as role from public.memberships where user_id=$1::uuid and company_id=$2::uuid and active=true limit 1",
+    [user.id, actualCompanyId],
+  );
+  const actorRole = (actorRows[0] as { role: string } | undefined)?.role;
+  if (!actorRole || !['owner','admin'].includes(actorRole)) {
+    return c.json({ message: 'فقط مالک یا مدیر می‌تواند مجوزهای اعضا را مدیریت کند.' }, 403);
+  }
+  const targets = await sql.query(
+    "select id::text as membership_id,role::text as role,active from public.memberships where id=$1::uuid and company_id=$2::uuid limit 1",
+    [membershipId, actualCompanyId],
+  );
+  const target = targets[0] as { membership_id: string; role: string; active: boolean } | undefined;
+  if (!target || !target.active) return c.json({ message: 'عضویت فعال در این مجموعه پیدا نشد.' }, 404);
+  if (target.role === 'owner' || target.role === 'admin' || (target.role === 'admin' && actorRole !== 'owner')) {
+    return c.json({ message: 'مجوزهای مالک یا مدیر از این صفحه قابل محدودکردن نیستند.' }, 403);
+  }
+  const records = modules.map(module => ({
+    module_key: module.key,
+    configured: module.configured,
+    can_read: module.can_read,
+    can_create: module.can_create,
+    can_update: module.can_update,
+    can_delete: module.can_delete,
+    can_approve: module.can_approve,
+  }));
+  await sql.query(
+    'insert into public.medar_membership_module_permissions(company_id,membership_id,module_key,inherit_role_defaults,can_read,can_create,can_update,can_delete,can_approve,updated_by,updated_at) ' +
+    'select $1::uuid,$2::uuid,x.module_key,not x.configured,x.can_read,x.can_create,x.can_update,x.can_delete,x.can_approve,$3::uuid,now() ' +
+    'from jsonb_to_recordset($4::jsonb) as x(module_key text,configured boolean,can_read boolean,can_create boolean,can_update boolean,can_delete boolean,can_approve boolean) ' +
+    'on conflict(company_id,membership_id,module_key) do update set inherit_role_defaults=excluded.inherit_role_defaults,can_read=excluded.can_read,can_create=excluded.can_create,can_update=excluded.can_update,can_delete=excluded.can_delete,can_approve=excluded.can_approve,updated_by=excluded.updated_by,updated_at=now()',
+    [actualCompanyId, membershipId, user.id, JSON.stringify(records)],
+  );
+  await sql.query(
+    "insert into public.medar_audit_log(actor_user_id,action,entity_type,entity_id,metadata) values($1::uuid,'membership.permissions_updated','membership',$2::text,jsonb_build_object('company_id',$3::text,'configured_modules',$4::int))",
+    [user.id, membershipId, actualCompanyId, modules.filter(module => module.configured).length],
+  );
+  return c.json({ ok: true, configuredModules: modules.filter(module => module.configured).length });
+});
+
 app.get('/api/workspace/members', async (c) => {
   const user = await requireUser(c);
   if (user instanceof Response) return user;
