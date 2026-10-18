@@ -202,7 +202,7 @@ export function OperationsWorkspacePage({kind,membership,search}:{kind:Operation
       dataApi.from('production_batches').select('id,batch_code,farm_site_id,supplier_id,status,production_kind,unit').eq('company_id',membership.company_id).order('created_at',{ascending:false}).limit(300),
       dataApi.from('task_templates').select('id,template_code,version,title,instructions,category,priority,evidence_required,expected_evidence_types,status').eq('company_id',membership.company_id).order('created_at',{ascending:false}).limit(200),
       dataApi.from('partnership_agreements').select('id,supplier_id,agreement_code,version,status,effective_from,effective_to,shared_expense_categories,settlement_basis,company_profit_share_pct,partner_profit_share_pct').eq('company_id',membership.company_id).order('created_at',{ascending:false}).limit(200),
-      dataApi.from('partner_financial_entries').select('id,agreement_id,supplier_id,entry_type,status,amount,paid_amount,external_reference,recognized_on').eq('company_id',membership.company_id).order('created_at',{ascending:false}).limit(300),
+      dataApi.from('partner_financial_entries').select('id,agreement_id,supplier_id,entry_type,status,amount,paid_amount,payment_status,external_reference,recognized_on').eq('company_id',membership.company_id).order('created_at',{ascending:false}).limit(300),
       dataApi.from('products').select('id,name,sku').eq('company_id',membership.company_id).order('name').limit(300),
     ]);
     let lotsData:Row[]=[];
