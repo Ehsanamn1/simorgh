@@ -1788,6 +1788,66 @@ app.post('/api/auth/signup', async (c) => {
   }
 });
 
+app.post('/api/auth/signup-with-invite', async (c) => {
+  const body = await c.req.json<Record<string, unknown>>().catch(() => null);
+  if (!body) return c.json({ message: 'اطلاعات ثبت‌نام معتبر نیست.' }, 400);
+  const username = normalizeUsername(body.username);
+  const password = typeof body.password === 'string' ? body.password : '';
+  const inviteCode = typeof body.inviteCode === 'string' ? body.inviteCode.trim().toLowerCase() : '';
+  if (!username) return c.json({ message: 'نام کاربری باید ۳ تا ۳۲ نویسه باشد و با نقطه یا خط تیره شروع یا تمام نشود.' }, 422);
+  if (password.length < 8 || password.length > 128) return c.json({ message: 'رمز عبور باید بین ۸ تا ۱۲۸ نویسه باشد.' }, 422);
+  if (!/^[a-f0-9]{64}$/.test(inviteCode)) return c.json({ message: 'برای پیوستن به مجموعه، کد دعوت معتبر ۶۴ نویسه‌ای وارد کن.' }, 422);
+
+  const signupIp = c.req.header('cf-connecting-ip') ?? 'unknown';
+  const signupBucket = await sha256('signup-ip-v2:' + signupIp);
+  if (await isRateLimited(c, [signupBucket])) return c.json({ message: 'تلاش‌های ثبت‌نام از این اتصال بیش از حد است؛ ۱۵ دقیقه دیگر دوباره امتحان کن.' }, 429);
+
+  const sql = sqlFor(c);
+  try {
+    const passwordHash = await hashPassword(password);
+    const tokenHash = await sha256(inviteCode);
+    // Consume the invitation and create the account + membership in one statement.
+    // A duplicate username or invalid invite rolls back the whole statement, including uses++.
+    const result = await sql.query(
+      "with invite as (" +
+        "update public.company_invites set uses=uses+1,updated_at=now() " +
+        "where token_hash=$3 and revoked_at is null and expires_at>now() and uses<max_uses " +
+        "returning company_id,role,customer_id,supplier_id" +
+      "), new_user as (" +
+        "insert into public.medar_users(username,display_name,password_hash,requested_role,account_status) " +
+        "select $1,$1,$2,i.role,'active' from invite i " +
+        "returning id,username,username_normalized,display_name" +
+      "), new_profile as (" +
+        "insert into public.profiles(id,full_name,phone) select id,display_name,null from new_user " +
+        "on conflict(id) do update set full_name=excluded.full_name returning id" +
+      "), new_membership as (" +
+        "insert into public.memberships(company_id,user_id,role,active,created_by,customer_id,supplier_id) " +
+        "select i.company_id,u.id,i.role,true,u.id,i.customer_id,i.supplier_id from invite i cross join new_user u " +
+        "returning id,company_id,role" +
+      ") select u.id,u.username_normalized as username,null::text as phone,u.display_name as full_name," +
+      "m.company_id as \"companyId\" from new_user u cross join new_membership m",
+      [username, passwordHash, tokenHash],
+    );
+    const created = result[0] as (Record<string, unknown> & { id: string; companyId: string }) | undefined;
+    if (!created) {
+      await recordSignupFailure(c, signupBucket);
+      return c.json({ message: 'کد دعوت نامعتبر، منقضی یا مصرف‌شده است.' }, 422);
+    }
+    await createSession(c, created.id);
+    const memberships = await getMemberships(c, created.id);
+    await sql.query("delete from public.medar_rate_limits where key_hash=$1", [signupBucket]);
+    return c.json({ user: safeUser(created), companyId: created.companyId, memberships }, 201);
+  } catch (error) {
+    const databaseError = error as { code?: string; constraint?: string };
+    if (databaseError.code === '23505') {
+      await recordSignupFailure(c, signupBucket);
+      return c.json({ message: 'این نام کاربری قبلاً ثبت شده است.' }, 409);
+    }
+    await recordSignupFailure(c, signupBucket);
+    throw error;
+  }
+});
+
 app.post('/api/auth/login', async (c) => {
   const body = await c.req.json<Record<string, unknown>>().catch(() => null);
   if (!body) return c.json({ message: 'اطلاعات ورود معتبر نیست.' }, 400);
