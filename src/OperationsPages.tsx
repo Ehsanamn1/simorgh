@@ -63,7 +63,7 @@ const batchOpt = (r: Row): Option => ({value:String(r.id),label:String(r.batch_c
 const agreementOpt = (r: Row): Option => ({value:String(r.id),label:String(r.agreement_code ?? '') + ' · نسخه ' + String(r.version ?? 1) + ' · ' + fa(r.status)});
 
 const configs: Record<OperationsKind, Config> = {
-  'farm-sites': {title:'سایت‌های مزرعه',eyebrow:'مزارع و سایت‌ها',description:'نوع فعالیت، مسئولیت، مجوز و مختصات جغرافیایی هر سایت را ثبت کنید.',table:'farm_sites',icon:Warehouse,columns:[
+  'farm-sites': {title:'سایت‌های مزرعه',eyebrow:'مزارع و سایت‌ها',description:'نوع فعالیت، مسئول، استان، شهر و نشانی قابل‌فهم را ثبت کنید؛ واردکردن مختصات دقیق اجباری نیست.',table:'farm_sites',icon:Warehouse,columns:[
     {key:'site_code',label:'کد سایت'},{key:'name',label:'نام سایت'},{key:'site_type',label:'نوع فعالیت',value:r=>fa(r.site_type)},
     {key:'supplier_id',label:'مسئول / شریک',value:(r,refs)=>refName(refs.suppliers,r.supplier_id,'name')},
     {key:'city',label:'شهر'},{key:'license_expires_on',label:'انقضای مجوز',value:r=>dateValue(r.license_expires_on)},{key:'active',label:'فعال',value:r=>r.active?'بله':'خیر'}]},
@@ -240,8 +240,6 @@ export function OperationsWorkspacePage({kind,membership,search}:{kind:Operation
         {name:'site_type',label:'نوع فعالیت',type:'select',required:true,options:siteTypes,defaultValue:'mixed'},
         {name:'supplier_id',label:'مسئول / شریک (اختیاری)',type:'select',options:suppliers},
         {name:'province',label:'استان'},{name:'city',label:'شهر'},
-        {name:'latitude',label:'عرض جغرافیایی',type:'number',min:'-90',max:'90',step:'0.000001'},
-        {name:'longitude',label:'طول جغرافیایی',type:'number',min:'-180',max:'180',step:'0.000001'},
         {name:'address',label:'نشانی',type:'textarea',full:true},{name:'registration_reference',label:'شناسه یا مجوز'},
         {name:'license_expires_on',label:'تاریخ انقضای مجوز',type:'date'},
       ],
@@ -341,9 +339,6 @@ export function OperationsWorkspacePage({kind,membership,search}:{kind:Operation
     const yes=(k:string)=>draft[k]===true;
     const base:Record<string,unknown>={company_id:membership.company_id};
     let payload:Record<string,unknown>=base;
-    if(kind==='farm-sites' && Boolean(str('latitude'))!==Boolean(str('longitude'))){
-      setBusy(false);setError('برای نمایش سایت روی نقشه، عرض و طول جغرافیایی را با هم وارد کن.');return;
-    }
     if(kind==='flock-cycles' && str('cycle_type')==='poultry' && num('initial_quantity')!==null && !Number.isInteger(num('initial_quantity'))){
       setBusy(false);setError('تعداد اولیه طیور باید عدد صحیح باشد.');return;
     }
@@ -361,7 +356,7 @@ export function OperationsWorkspacePage({kind,membership,search}:{kind:Operation
     if(kind==='farm-sites'){
       payload={...base,site_code:str('site_code'),name:str('name'),site_type:str('site_type')||'mixed',
         supplier_id:str('supplier_id')||null,province:str('province')||'نامشخص',
-        city:str('city')||null,latitude:num('latitude'),longitude:num('longitude'),
+        city:str('city')||null,
         address:str('address')||null,registration_reference:str('registration_reference')||null,
         license_expires_on:date('license_expires_on'),created_by:membership.user_id,active:true};
     }else if(kind==='flock-cycles'){
