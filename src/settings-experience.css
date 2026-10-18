@@ -156,3 +156,31 @@ html[data-theme] textarea { background:var(--obs-bg); border-color:var(--obs-bor
 html[data-theme] input::placeholder, html[data-theme] textarea::placeholder { color:var(--obs-subtle); }
 html[data-theme] .nav-tools-box, html[data-theme] .settings-section { color:var(--obs-text); }
 html[data-theme] .form-error, html[data-theme] .form-success { border-radius:10px; padding:10px 12px; }
+
+
+/* Compact account action and explicit network state; colors follow the active theme tokens. */
+.topbar-logout { flex:none; }
+.network-status {
+  display:inline-flex; align-items:center; gap:6px; min-height:27px; padding:4px 9px;
+  border:1px solid var(--obs-border); border-radius:999px; background:var(--obs-surface);
+  color:var(--obs-muted); font-size:10px; white-space:nowrap;
+}
+.network-status i { width:6px; height:6px; border-radius:50%; background:var(--obs-positive); flex:none; }
+.network-status.is-offline { color:var(--obs-critical); border-color:color-mix(in srgb,var(--obs-critical) 35%,var(--obs-border)); }
+.network-status.is-offline i { background:var(--obs-critical); }
+.offline-notice {
+  display:flex; align-items:flex-start; gap:10px; margin:12px clamp(13px,2.5vw,31px) 0;
+  padding:11px 14px; border:1px solid color-mix(in srgb,var(--obs-warning) 35%,var(--obs-border));
+  border-radius:12px; background:var(--sim-warning-bg); color:var(--obs-text); font-size:11px; line-height:1.9;
+}
+.offline-notice > svg { flex:none; margin-top:3px; color:var(--obs-warning); }
+.offline-notice b { margin-inline-end:5px; color:var(--obs-warning); }
+html[data-theme="light"] .network-status { background:var(--obs-surface); }
+@media(max-width:860px) {
+  .network-status { min-height:25px; padding:3px 7px; font-size:9px; }
+  .offline-notice { margin-inline:12px; font-size:10px; }
+}
+@media(max-width:390px) {
+  .network-status { padding:3px 6px; gap:4px; }
+  .topbar-logout { display:none; }
+}
