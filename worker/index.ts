@@ -1918,7 +1918,7 @@ app.post('/api/workspace/join', async (c) => {
   const rows = await sql`
     with invite as (
       update public.company_invites set uses = uses + 1, updated_at = now()
-      where token_hash = ${tokenHash} and revoked_at is null and expires_at > now() and uses < max_uses
+      where token_hash = ${tokenHash} and role <> 'customer'::public.app_role and revoked_at is null and expires_at > now() and uses < max_uses
       returning company_id, role, customer_id, supplier_id
     ), membership as (
       insert into public.memberships(company_id, user_id, role, active, created_by, customer_id, supplier_id)
