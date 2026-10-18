@@ -1072,10 +1072,11 @@ app.post('/api/contacts/import', async (c) => {
     // Cache the existing company-scoped phone index once for this category. Normalization
     // handles Iranian local (09…), international (+98/0098), and Persian digits.
     const existingRows = await sql.query(
-      'select id::text as id,name,phone from public.' + kind + ' where company_id=$1::uuid and phone is not null',
+      'select id::text as id,name,phone from public.' + kind + ' where company_id=$1::uuid',
       [companyId],
     ) as Array<{ id: string; name: string; phone: string }>;
     const existingByPhone = new Map<string, Array<{ id: string; name: string; phone: string }>>();
+    const existingNames = new Set(existingRows.map(row => row.name.toLocaleLowerCase('fa-IR')));
     for (const row of existingRows) {
       const canonical = canonicalContactPhone(row.phone);
       if (!canonical) continue;
@@ -1089,18 +1090,20 @@ app.post('/api/contacts/import', async (c) => {
         const canonical = canonicalContactPhone(contact.phone);
         const matches = canonical ? (existingByPhone.get(canonical) ?? []) : [];
         const exactNameMatch = matches.find(row => row.name === contact.name);
+        const sameNameExists = existingNames.has(contact.name.toLocaleLowerCase('fa-IR'));
         if (exactNameMatch) {
           // Let the unique company/name constraint update this exact record normally.
           toUpsert.push(contact);
-        } else if (matches.length === 1) {
+        } else if (matches.length === 0) {
+          // No phone match; an existing name (if any) is handled by the unique-name upsert.
+          toUpsert.push(contact);
+        } else if (matches.length === 1 && !sameNameExists) {
           // One existing row owns this number under a different label. Enrich it rather
           // than creating a second customer/supplier; preserve its canonical name.
           phoneUpdates.push({ id: matches[0].id, contact });
-        } else if (matches.length > 1) {
-          // A shared/ambiguous number must never merge unrelated company records silently.
-          ambiguousPhoneSkipped++;
         } else {
-          toUpsert.push(contact);
+          // Never reassign a number between records or auto-merge a shared number.
+          ambiguousPhoneSkipped++;
         }
       }
       if (phoneUpdates.length) {
