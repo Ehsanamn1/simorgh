@@ -111,11 +111,17 @@ function AppShell() {
   const { theme, setTheme } = useAppTheme();
   useEffect(() => {
     const updateNetworkState = () => setIsOnline(navigator.onLine);
+    const markApiOnline = () => setIsOnline(true);
+    const markApiOffline = () => setIsOnline(false);
     window.addEventListener('online', updateNetworkState);
     window.addEventListener('offline', updateNetworkState);
+    window.addEventListener('medar:api-online', markApiOnline);
+    window.addEventListener('medar:api-offline', markApiOffline);
     return () => {
       window.removeEventListener('online', updateNetworkState);
       window.removeEventListener('offline', updateNetworkState);
+      window.removeEventListener('medar:api-online', markApiOnline);
+      window.removeEventListener('medar:api-offline', markApiOffline);
     };
   }, []);
   const membership = memberships.find(m => m.id === membershipId) ?? memberships[0];
