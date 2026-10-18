@@ -184,3 +184,8 @@ html[data-theme="light"] .network-status { background:var(--obs-surface); }
   .network-status { padding:3px 6px; gap:4px; }
   .topbar-logout { display:none; }
 }
+
+.invite-link-code { display:flex; align-items:center; gap:9px; flex-wrap:wrap; padding:10px 14px; border-top:1px solid var(--obs-border); }
+.invite-link-code small { color:var(--obs-muted); font-size:10px; }
+.invite-link-code code { color:var(--obs-muted); font:10px ui-monospace,Consolas,monospace; overflow-wrap:anywhere; }
+.invite-link-code .button-ghost { min-height:30px; margin-inline-start:auto; }
