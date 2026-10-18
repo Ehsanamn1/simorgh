@@ -117,7 +117,7 @@ Required gates for new operational workflows:
 - make conversation/thread persistence deliberate rather than component-local,
 - add proposal rendering to the conversation and keep confirmation visible,
 - task templates, due-date policies, assignments, reminders, and exception deduplication,
-- granular per-module and per-operation permissions.
+- granular per-member/per-module and per-operation overrides (migration 0016 adds the ledger; its administrative interface and universal enforcement are the next validation step).
 
 ### Phase C — realtime voice and field evidence
 - evaluate a realtime speech provider for natural interruption and low latency,
