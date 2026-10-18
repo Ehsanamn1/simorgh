@@ -504,7 +504,7 @@ export function AIAssistant({ companyId, role, userName }: AIAssistantProps) {
       // the transcript so retrying will not duplicate it and the send button becomes usable again.
       setMessages(current => current.filter(message => message !== outgoing));
       setDraft(currentDraft => currentDraft.trim() && content.trim()
-        ? content + '\\n' + currentDraft
+        ? content + '\n' + currentDraft
         : (currentDraft.trim() || content));
       setError(caught instanceof Error ? caught.message : 'دستیار پاسخ نداد؛ اتصال یا تنظیمات پرووایدر را بررسی کن.');
       setNotice('پیام ارسال نشد؛ متن و فایل پیوست حفظ شده‌اند. پس از بررسی اتصال، دوباره ارسال کن.');
