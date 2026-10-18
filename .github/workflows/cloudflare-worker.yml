@@ -477,20 +477,38 @@ jobs:
           printf '%s' "$name" | grep -q 'id="root"' || { echo "The live Worker root is missing the frontend root element."; exit 1; }
           asset_results="$(WORKER_URL="$worker_url" node --input-type=module <<'NODE'
           const base = process.env.WORKER_URL;
-          const htmlResponse = await fetch(base + '/');
-          if (!htmlResponse.ok) throw new Error('Root HTML failed: ' + htmlResponse.status);
-          const html = await htmlResponse.text();
-          const linkedJsPaths = [...new Set([...html.matchAll(/(?:src|href)="([^"]+\.js)"/g)].map(match => new URL(match[1], base + '/').pathname))];
-          const linkedCssPaths = [...new Set([...html.matchAll(/href="([^"]+\.css)"/g)].map(match => new URL(match[1], base + '/').pathname))];
-          if (!linkedJsPaths.length || !linkedCssPaths.length) throw new Error('Root HTML is missing JS/CSS assets.');
-          // Vite emits shared and lazy chunks that are not all linked directly from index.html.
-          // Scan every JS/CSS asset emitted by this very build, not only entrypoint tags.
+          // Build the expected manifest before requesting the deployed HTML.
+          // Cloudflare's edge can briefly serve an older index.html just after a new
+          // Worker version is published; retry with cache-busting rather than fail on
+          // the first stale HTML response.
           const assetNames = await (await import('node:fs/promises')).readdir('dist/assets');
           const jsPaths = assetNames.filter(name => name.endsWith('.js')).map(name => '/assets/' + name);
           const cssPaths = assetNames.filter(name => name.endsWith('.css')).map(name => '/assets/' + name);
           if (!jsPaths.length || !cssPaths.length) throw new Error('The local production build contains no JS/CSS assets.');
-          for (const path of [...linkedJsPaths, ...linkedCssPaths]) {
-            if (!assetNames.includes(path.split('/').pop())) throw new Error('Published HTML references an asset missing from this build: ' + path);
+          let html = '';
+          let linkedJsPaths = [];
+          let linkedCssPaths = [];
+          let lastHtmlPrefix = '';
+          let manifestMatches = false;
+          for (let attempt = 0; attempt < 20; attempt++) {
+            const htmlResponse = await fetch(base + '/?__medar_release_check=' + Date.now() + '-' + attempt, {
+              cache: 'no-store',
+              headers: { 'cache-control': 'no-cache, no-store, max-age=0', pragma: 'no-cache' },
+            });
+            if (!htmlResponse.ok) throw new Error('Root HTML failed: ' + htmlResponse.status);
+            html = await htmlResponse.text();
+            lastHtmlPrefix = html.slice(0, 900);
+            linkedJsPaths = [...new Set([...html.matchAll(/(?:src|href)="([^"]+\.js)"/g)].map(match => new URL(match[1], base + '/').pathname))];
+            linkedCssPaths = [...new Set([...html.matchAll(/href="([^"]+\.css)"/g)].map(match => new URL(match[1], base + '/').pathname))];
+            manifestMatches = linkedJsPaths.length > 0 && linkedCssPaths.length > 0 &&
+              [...linkedJsPaths, ...linkedCssPaths].every(path => assetNames.includes(path.split('/').pop()));
+            if (manifestMatches) break;
+            if (attempt < 19) await new Promise(resolve => setTimeout(resolve, 2000));
+          }
+          if (!manifestMatches) {
+            throw new Error('Published root HTML still references assets outside the current build after cache-busted retries. JS=' +
+              JSON.stringify(linkedJsPaths) + '; CSS=' + JSON.stringify(linkedCssPaths) + '; localAssets=' +
+              JSON.stringify(assetNames) + '; html=' + lastHtmlPrefix);
           }
           const resolve = path => new URL(path, base + '/').toString();
           const fetchTexts = async (paths, expectedType) => Promise.all(paths.map(async path => {
