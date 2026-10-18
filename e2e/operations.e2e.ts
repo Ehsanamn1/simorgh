@@ -230,8 +230,13 @@ test('an existing account must join a workspace using an invitation code', async
 test('supplier workspace keeps manager-only routes out of the allowed menu', async ({ page }, testInfo) => {
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
+  const viewportWidth = Number((testInfo.project.use as { viewport?: { width?: number } }).viewport?.width || 1365);
   await installIsolatedSession(page, 'supplier');
   await page.goto('/simorgh/app', { waitUntil: 'domcontentloaded' });
+  if (viewportWidth <= 860) {
+    await page.getByRole('button', { name: 'بازکردن منو' }).click();
+    await expect(page.locator('.app-sidebar')).toHaveClass(/open/);
+  }
   await expect(page.getByRole('heading', { name: 'وظایف عملیاتی' })).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath('supplier-task-workspace-viewport.png') });
   await page.screenshot({ path: testInfo.outputPath('supplier-task-workspace.png'), fullPage: true });
@@ -394,7 +399,7 @@ test('AI assistant sends a PDF attachment through the selected provider boundary
       ],
     }),
   }));
-  const pdf = Buffer.from('%PDF-1.7\\n1 0 obj\\n<< /Type /Catalog >>\\nendobj\\n%%EOF', 'utf8');
+  const pdf = Buffer.from('%PDF-1.7\n1 0 obj\n<< /Type /Catalog >>\nendobj\n%%EOF', 'utf8');
   let submitted: Record<string, unknown> | undefined;
   await page.route('**/api/ai/chat', async route => {
     submitted = route.request().postDataJSON() as Record<string, unknown>;
@@ -445,7 +450,7 @@ test('manager can preview and import a mixed supplier/customer CSV with duplicat
   });
   await expect(page.getByText('Supplier One')).toBeVisible();
   await expect(page.getByText('Customer Two')).toBeVisible();
-  await expect(page.getByText('تکراری')).toBeVisible();
+  await expect(page.locator('.contact-preview-list .contact-duplicate-tag')).toBeVisible();
   await page.getByRole('button', { name: /ثبت .* مخاطب در فضای کاری/ }).click();
   await expect(page.getByRole('status')).toContainText('واردکردن مخاطبین کامل شد');
   expect(Array.isArray(submitted?.contacts)).toBe(true);
