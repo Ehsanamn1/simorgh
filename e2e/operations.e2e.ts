@@ -238,7 +238,9 @@ test('supplier workspace keeps manager-only routes out of the allowed menu', asy
   await expect(page.getByRole('link', { name: /وظایف عملیاتی/ })).toBeVisible();
   await expect(page.getByRole('link', { name: /دستورالعمل‌های کاری/ })).toHaveCount(0);
   await expect(page.getByRole('link', { name: /دسترسی کاربران/ })).toHaveCount(0);
-  await expect(page.getByRole('link', { name: /دوره‌های تسویه/ })).toBeVisible();
+  const settlementGroup = page.locator('.nav-group').filter({ has: page.locator('summary', { hasText: 'مشارکت و مالی' }) });
+  await settlementGroup.locator('summary').click();
+  await expect(settlementGroup.getByRole('link', { name: /دوره‌های تسویه/ })).toBeVisible();
   expect(errors).toEqual([]);
 });
 
