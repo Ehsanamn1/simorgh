@@ -42,7 +42,7 @@ const PAGE_PERMISSION_MODULE: Record<PageKey, string> = {
   'partner-settlements': 'partner-settlements', 'contacts-import': 'contacts', goals: 'goals',
 };
 
-const DEFERRED_NAV_KEYS = new Set<PageKey>(['agents', 'goals', 'audit', 'contacts-import']);
+const DEFERRED_NAV_KEYS = new Set<PageKey>(['agents', 'goals', 'audit', 'contacts-import', 'exceptions', 'command', 'capacity', 'quality', 'task-templates', 'incidents', 'partnership-agreements', 'partner-finance', 'partner-settlements', 'supplier-capacity']);
 
 const navDefinitions: { key: PageKey; label: string; group: string; icon: typeof LayoutDashboard; roles: AppRole[] }[] = [
   { key: 'home', label: 'صفحه من', group: 'شروع', icon: LayoutDashboard, roles: ['owner', 'admin', 'staff', 'supplier', 'driver', 'customer'] },
