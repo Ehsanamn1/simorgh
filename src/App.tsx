@@ -1358,8 +1358,8 @@ function WorkspaceGate() {
 export default function App() {
   const authUiEnabled = import.meta.env.VITE_ENABLE_AUTH_UI === 'true';
   if (!isApiConfigured) return <ConfigScreen/>;
-  const home = authUiEnabled ? <Navigate to="/app/home" replace/> : <DemoWorkspace/>;
-  const protectedFallback = authUiEnabled ? <Navigate to="/app/home" replace/> : <Navigate to="/demo" replace/>;
+  const home = authUiEnabled ? <Navigate to="/app/command" replace/> : <DemoWorkspace/>;
+  const protectedFallback = authUiEnabled ? <Navigate to="/app/command" replace/> : <Navigate to="/demo" replace/>;
   return <Routes>
     <Route path="/" element={home}/>
     <Route path="/demo" element={<DemoWorkspace/>}/>
