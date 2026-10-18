@@ -195,7 +195,7 @@ export function OperationsWorkspacePage({kind,membership,search}:{kind:Operation
   const load=async()=>{
     if(!dataApi){setError('اتصال API مدار در این build تنظیم نشده است.');setLoading(false);return;}
     setLoading(true);setError('');
-    const [main,suppliers,sites,batches,templates,agreements,entries,products,lots,qualityReviews]=await Promise.all([
+    const [main,suppliers,sites,batches,templates,agreements,entries,products]=await Promise.all([
       dataApi.from(cfg.table).select('*').eq('company_id',membership.company_id).order('created_at',{ascending:false}).limit(200),
       dataApi.from('suppliers').select('id,name,city,active').eq('company_id',membership.company_id).order('name').limit(300),
       dataApi.from('farm_sites').select('id,site_code,name,supplier_id,active').eq('company_id',membership.company_id).order('name').limit(300),
@@ -204,20 +204,27 @@ export function OperationsWorkspacePage({kind,membership,search}:{kind:Operation
       dataApi.from('partnership_agreements').select('id,supplier_id,agreement_code,version,status,effective_from,effective_to,shared_expense_categories,settlement_basis,company_profit_share_pct,partner_profit_share_pct').eq('company_id',membership.company_id).order('created_at',{ascending:false}).limit(200),
       dataApi.from('partner_financial_entries').select('id,agreement_id,supplier_id,entry_type,status,amount,paid_amount,external_reference,recognized_on').eq('company_id',membership.company_id).order('created_at',{ascending:false}).limit(300),
       dataApi.from('products').select('id,name,sku').eq('company_id',membership.company_id).order('name').limit(300),
-      dataApi.from('lots').select('id,code,supplier_id,product_id,status').eq('company_id',membership.company_id).order('created_at',{ascending:false}).limit(300),
-      dataApi.from('quality_reviews').select('id,lot_id,result').eq('company_id',membership.company_id).order('reviewed_at',{ascending:false}).limit(500),
     ]);
+    let lotsData:Row[]=[];
+    let qualityReviewsData:Row[]=[];
+    if(kind==='production-batches'&&manager){
+      const [lots,qualityReviews]=await Promise.all([
+        dataApi.from('lots').select('id,code,supplier_id,product_id,status').eq('company_id',membership.company_id).order('created_at',{ascending:false}).limit(300),
+        dataApi.from('quality_reviews').select('id,lot_id,result').eq('company_id',membership.company_id).order('reviewed_at',{ascending:false}).limit(500),
+      ]);
+      lotsData=(lots.data??[]) as unknown as Row[];
+      qualityReviewsData=(qualityReviews.data??[]) as unknown as Row[];
+      if(!main.error&&(lots.error||qualityReviews.error)){
+        setError(lots.error?.message??qualityReviews.error?.message??'دریافت لات‌ها و نتایج کنترل کیفیت ناموفق بود.');
+      }
+    }
     if(main.error){setError(main.error.message);setRows([]);}else setRows((main.data??[]) as unknown as Row[]);
     setRefs({
       suppliers:(suppliers.data??[]) as unknown as Row[],sites:(sites.data??[]) as unknown as Row[],
       batches:(batches.data??[]) as unknown as Row[],templates:(templates.data??[]) as unknown as Row[],
       agreements:(agreements.data??[]) as unknown as Row[],financeEntries:(entries.data??[]) as unknown as Row[],
-      products:(products.data??[]) as unknown as Row[],lots:(lots.data??[]) as unknown as Row[],
-      qualityReviews:(qualityReviews.data??[]) as unknown as Row[],
+      products:(products.data??[]) as unknown as Row[],lots:lotsData,qualityReviews:qualityReviewsData,
     });
-    if(kind==='production-batches'&&manager&&(lots.error||qualityReviews.error)){
-      setError(lots.error?.message??qualityReviews.error?.message??'دریافت لات‌ها و نتایج کنترل کیفیت ناموفق بود.');
-    }
     setLoading(false);
   };
   useEffect(()=>{void load();},[kind,membership.company_id,membership.role]);
