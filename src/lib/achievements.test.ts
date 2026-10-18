@@ -5,7 +5,7 @@ import {
   type SetupCounts,
 } from './achievements';
 
-const empty: SetupCounts = { customers: 0, suppliers: 0, orders: 0, capacity: 0, goals: 0 };
+const empty: SetupCounts = { suppliers: 0, capacity: 0, members: 0, tasks: 0, shipments: 0 };
 
 describe('workspace setup milestones', () => {
   it('shows all milestones as locked when the company has no operational records', () => {
@@ -23,12 +23,12 @@ describe('workspace setup milestones', () => {
   it('unlocks milestones only from their corresponding real record counts', () => {
     const milestones = evaluateSetupMilestones({
       ...empty,
-      customers: 1,
+      members: 1,
       suppliers: 4,
     });
-    expect(milestones.find(milestone => milestone.id === 'customers')?.achieved).toBe(true);
+    expect(milestones.find(milestone => milestone.id === 'members')?.achieved).toBe(true);
     expect(milestones.find(milestone => milestone.id === 'suppliers')?.achieved).toBe(true);
-    expect(milestones.find(milestone => milestone.id === 'orders')?.achieved).toBe(false);
+    expect(milestones.find(milestone => milestone.id === 'tasks')?.achieved).toBe(false);
     expect(summarizeSetupMilestones(milestones)).toEqual({
       total: 5,
       achieved: 2,
@@ -39,11 +39,11 @@ describe('workspace setup milestones', () => {
 
   it('marks the baseline setup complete only when every defined milestone is achieved', () => {
     const milestones = evaluateSetupMilestones({
-      customers: 2,
       suppliers: 1,
-      orders: 8,
       capacity: 3,
-      goals: 1,
+      members: 2,
+      tasks: 8,
+      shipments: 1,
     });
     expect(summarizeSetupMilestones(milestones)).toEqual({
       total: 5,
@@ -55,12 +55,12 @@ describe('workspace setup milestones', () => {
 
   it('does not unlock a milestone from NaN, Infinity or negative counts', () => {
     const milestones = evaluateSetupMilestones({
-      customers: Number.NaN,
-      suppliers: Number.POSITIVE_INFINITY,
-      orders: -2,
-      capacity: 0,
-      goals: 1,
+      suppliers: Number.NaN,
+      capacity: Number.POSITIVE_INFINITY,
+      members: -2,
+      tasks: 0,
+      shipments: 1,
     });
-    expect(milestones.filter(milestone => milestone.achieved).map(milestone => milestone.id)).toEqual(['goals']);
+    expect(milestones.filter(milestone => milestone.achieved).map(milestone => milestone.id)).toEqual(['shipments']);
   });
 });
