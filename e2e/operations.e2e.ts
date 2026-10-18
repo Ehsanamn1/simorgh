@@ -637,3 +637,99 @@ test('assistant send control remains visible and sends a message through the aut
   await expect(page.getByText('کارهای امروز از داده‌های واقعی بررسی می‌شوند.')).toBeVisible();
   await expect(composer).toHaveValue('');
 });
+
+
+test('agent center creates an inert proposal and only creates a task after explicit approval', async ({ page }) => {
+  await installIsolatedSession(page, 'owner');
+  const actionId = '00000000-0000-4000-8000-000000000099';
+  const taskId = '00000000-0000-4000-8000-000000000098';
+  const requestedBy = '00000000-0000-4000-8000-000000000011';
+  let action: {
+    id: string;
+    toolKey: 'create_operational_task';
+    status: 'proposed' | 'executed' | 'cancelled' | 'failed';
+    arguments: Record<string, unknown>;
+    result: { taskId?: string; title?: string; status?: string } | null;
+    createdAt: string;
+    executedAt?: string | null;
+    requestedByName: string;
+    requestedBy: string;
+  } | null = null;
+  let createdTasks = 0;
+
+  await page.route('**/api/workspace/members*', async route => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        members: [{
+          membership_id: '00000000-0000-4000-8000-000000000044',
+          company_id: companyId,
+          user_id: requestedBy,
+          role: 'owner',
+          active: true,
+          username: 'owner_test',
+          full_name: 'مالک آزمایشی مدار',
+        }],
+      }),
+    });
+  });
+  await page.route('**/api/ai/actions*', async route => {
+    const url = new URL(route.request().url());
+    const method = route.request().method();
+    if (url.pathname === '/api/ai/actions' && method === 'GET') {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ actions: action ? [action] : [] }) });
+      return;
+    }
+    if (url.pathname === '/api/ai/actions/propose' && method === 'POST') {
+      const body = route.request().postDataJSON() as { companyId?: string; toolKey?: string; arguments?: Record<string, unknown> };
+      expect(body.companyId).toBe(companyId);
+      expect(body.toolKey).toBe('create_operational_task');
+      expect(body.arguments?.title).toBe('پیگیری تأمین خوراک فردا');
+      action = {
+        id: actionId,
+        toolKey: 'create_operational_task',
+        status: 'proposed',
+        arguments: body.arguments ?? {},
+        result: null,
+        createdAt: new Date().toISOString(),
+        requestedByName: 'مالک آزمایشی مدار',
+        requestedBy,
+      };
+      await route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ action, requiresConfirmation: true }) });
+      return;
+    }
+    if (url.pathname === '/api/ai/actions/' + actionId + '/execute' && method === 'POST') {
+      const body = route.request().postDataJSON() as { companyId?: string; confirmed?: boolean };
+      expect(body.companyId).toBe(companyId);
+      expect(body.confirmed).toBe(true);
+      expect(action?.status).toBe('proposed');
+      createdTasks += 1;
+      action = { ...action!, status: 'executed', result: { taskId, title: 'پیگیری تأمین خوراک فردا', status: 'pending' }, executedAt: new Date().toISOString() };
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, result: action.result }) });
+      return;
+    }
+    if (url.pathname === '/api/ai/actions/' + actionId + '/cancel' && method === 'POST') {
+      action = { ...action!, status: 'cancelled' };
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true }) });
+      return;
+    }
+    await route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ message: 'Unexpected agent API route in test' }) });
+  });
+
+  page.on('dialog', dialog => dialog.accept());
+  await page.goto('/simorgh/app/agents', { waitUntil: 'domcontentloaded' });
+  await expect(page.getByRole('heading', { name: 'مرکز ایجنت‌ها و اقدامات' })).toBeVisible();
+  await page.getByLabel('عنوان وظیفه').fill('پیگیری تأمین خوراک فردا');
+  await page.getByLabel('شرح و نتیجهٔ مورد انتظار').fill('موجودی را بررسی و نتیجه را ثبت کن.');
+  await page.getByRole('button', { name: 'ثبت پیشنهاد برای تأیید' }).click();
+  await expect(page.getByText('پیشنهاد ذخیره شد؛ هنوز هیچ وظیفه‌ای در عملیات ایجاد نشده است.')).toBeVisible();
+  await expect(page.getByText('در انتظار تأیید')).toBeVisible();
+  expect(createdTasks).toBe(0);
+
+  await page.getByRole('button', { name: 'تأیید و ایجاد وظیفه' }).click();
+  await expect(page.getByText('وظیفه پس از تأیید در مدار ایجاد شد.')).toBeVisible();
+  await expect(page.getByText('اجرا شد')).toBeVisible();
+  await expect(page.getByText('شناسه وظیفه:')).toBeVisible();
+  expect(createdTasks).toBe(1);
+});
