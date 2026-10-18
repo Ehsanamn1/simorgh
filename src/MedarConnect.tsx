@@ -122,7 +122,7 @@ export function MedarConnect({ membership }: { membership: Membership }) {
       <div className="medar-connect-mission-icon"><ClipboardCheck size={20}/></div>
       <div className="medar-connect-mission-copy"><b>واگذاری و پیگیری مأموریت</b><span>برای تعیین مسئول، موعد و بررسی تکمیل کار وارد وظایف عملیاتی شو؛ تغییر وضعیت مأموریت برای افراد مجاز اعلان ایجاد می‌کند.</span></div>
       <Link to="/app/operational-tasks">مدیریت مأموریت‌ها <ArrowLeft size={15}/></Link>
-    </div>
+    </div>}
     {error && <div className="medar-connect-alert" role="alert">{error}</div>}
     {notice && <div className="medar-connect-notice" role="status">{notice}</div>}
     <div className="medar-connect-layout">
