@@ -901,6 +901,7 @@ app.post('/api/contacts/classify', async (c) => {
   }
   // Only non-sensitive business context is sent to the model. Never include phones,
   // emails, street addresses, IDs, or existing customer/supplier records.
+  const contactCount = body.contacts.length;
   const contacts: Array<{ index: number; name: string; organization: string; city: string; notes: string; tags: string[]; hintedKind: string }> = [];
   let inputChars = 0;
   for (let index = 0; index < body.contacts.length; index++) {
@@ -920,7 +921,7 @@ app.post('/api/contacts/classify', async (c) => {
       city: pick('city', 80),
       notes: pick('notes', 300),
       tags,
-      hintedKind: item.kind === 'customers' ? 'customer' : item.kind === 'suppliers' ? 'supplier' : '',
+      hintedKind: item.kindDetected === true && item.kind === 'customers' ? 'customer' : item.kindDetected === true && item.kind === 'suppliers' ? 'supplier' : '',
     };
     inputChars += JSON.stringify(record).length;
     contacts.push(record);
@@ -963,13 +964,17 @@ app.post('/api/contacts/classify', async (c) => {
       [companyId, user.id, provider, config.model, inputChars],
     );
     const responseText = await requestAiProvider(provider, config.model, apiKey, [{ role: 'user', content: message }], systemPrompt, null);
-    const parsed = JSON.parse(responseText.trim()) as { results?: unknown };
+    const rawResponse = responseText.trim();
+    const jsonStart = rawResponse.indexOf('{');
+    const jsonEnd = rawResponse.lastIndexOf('}');
+    if (jsonStart < 0 || jsonEnd <= jsonStart) throw new Error('AI classification response was not JSON');
+    const parsed = JSON.parse(rawResponse.slice(jsonStart, jsonEnd + 1)) as { results?: unknown };
     if (!Array.isArray(parsed.results)) throw new Error('AI classification response did not include results');
     const sanitized = parsed.results.flatMap(raw => {
       if (!raw || typeof raw !== 'object') return [];
       const item = raw as Record<string, unknown>;
       const index = Number(item.index);
-      if (!Number.isInteger(index) || index < 0 || index >= body.contacts!.length) return [];
+      if (!Number.isInteger(index) || index < 0 || index >= contactCount) return [];
       const kind = item.kind === 'customers' || item.kind === 'suppliers' ? item.kind : 'unknown';
       const confidence = Number.isFinite(Number(item.confidence)) ? Math.max(0, Math.min(1, Number(item.confidence))) : 0;
       const reason = typeof item.reason === 'string' ? item.reason.replace(/[\\r\\n]/g, ' ').trim().slice(0, 180) : '';
