@@ -275,7 +275,7 @@ function FarmMapPanel({sites,schemaWarning,membership}:{sites:Row[];schemaWarnin
     return latitude >= 24 && latitude <= 41 && longitude >= 43 && longitude <= 65;
   }), [mapped]);
   const [selectedId, setSelectedId] = useState('');
-  const [mapMode, setMapMode] = useState<'iran'|'street'>('iran');
+  const showIranPaper = false;
   const [fleetShipments,setFleetShipments] = useState<Row[]>([]);
   const [fleetLatest,setFleetLatest] = useState<Record<string,Row>>({});
   const [fleetLastRefresh,setFleetLastRefresh] = useState('');
@@ -374,11 +374,7 @@ function FarmMapPanel({sites,schemaWarning,membership}:{sites:Row[];schemaWarnin
       <div><span className="section-number">۰۳</span><div><h3>نقشه‌ی عملیات و سایت‌ها</h3><p>{showIranPaper?'نمای شماتیک ایران با مختصات واقعی سایت‌ها و آخرین نقاط GPS تازهٔ رانندگان.':'نشانگرها از موقعیت‌های واقعی ثبت‌شده خوانده می‌شوند؛ برای انتخاب هر موقعیت، روی نشانگر یا نام آن بزن.'}</p></div></div>
       <span className="status-badge neutral">{numberFa(visibleMapped.length + visibleFleetPoints.length)} موقعیت زنده/ثبت‌شده</span>
     </div>
-    <div className="farm-map-mode-toggle" role="group" aria-label="حالت نمایش نقشه">
-      <button type="button" className={showIranPaper?'active':''} aria-pressed={showIranPaper} onClick={()=>setMapMode('iran')}>نقشه کاغذی ایران</button>
-      <button type="button" className={!showIranPaper?'active':''} aria-pressed={!showIranPaper} disabled={!mapped.length && !freshFleetPoints.length} onClick={()=>setMapMode('street')}>نقشه دقیق</button>
-    </div>
-    {schemaWarning && <div className="farm-map-warning"><MapPin size={18}/><div><b>داده‌های مختصات هنوز کامل نیستند</b><p>{schemaWarning}</p><small>نقشه کاغذی ایران همچنان قابل استفاده است؛ پس از ثبت مختصات واقعی، نشانگر سایت‌ها و رانندگان نمایش داده می‌شوند.</small></div></div>}
+    {schemaWarning && <div className="farm-map-warning"><MapPin size={18}/><div><b>داده‌های مختصات هنوز کامل نیستند</b><p>{schemaWarning}</p><small>پس از ثبت موقعیت نقشه یا دریافت GPS مجاز راننده، نشانگر واقعی نمایش داده می‌شود.</small></div></div>}
     {(showIranPaper || mapped.length > 0 || visibleFleetPoints.length > 0) ? <div className="farm-map-layout">
       <div className={'farm-map-canvas'+(showIranPaper?' farm-map-canvas-iran':'')}>
         {showIranPaper ? <svg className="iran-paper-illustration" viewBox="0 0 600 380" role="img" aria-label="نمای شماتیک قلمرو ایران">
@@ -419,7 +415,7 @@ function FarmMapPanel({sites,schemaWarning,membership}:{sites:Row[];schemaWarnin
           </button>;
         })}
       </div>
-      {visibleMapped.length ? <div className="farm-map-sites" aria-label="فهرست موقعیت‌های ثبت‌شده">{visibleMapped.map(site=><button type="button" key={String(site.id)} className={'farm-map-site'+(String(site.id)===selectedId?' active':'')} aria-pressed={String(site.id)===selectedId} onClick={()=>setSelectedId(String(site.id))}><span className="farm-map-pin">{farmSiteIcon(site.site_type,16)}</span><span><b>{siteName(site)}</b><small>{[site.city,site.province].filter(Boolean).map(String).join(' · ') || 'نشانی ثبت نشده'}</small><small>{farmSiteTypeLabels[String(site.site_type ?? 'mixed')] ?? 'سایر'}</small></span></button>)}</div> : <div className="farm-map-sites farm-map-sites-empty"><EmptyState title="موقعیت ثبت‌شده‌ای در محدوده ایران نیست" description="نقشه کاغذی فعال است؛ برای نمایش نشانگرها، مختصات واقعی سایت‌های ایران را در بخش سایت‌های مزرعه ثبت کن." icon={MapPin}/></div>}      <div className="farm-map-sites farm-map-fleet-list" aria-label="رانندگان و موقعیت مأموریت‌های فعال">
+      {visibleMapped.length ? <div className="farm-map-sites" aria-label="فهرست موقعیت‌های ثبت‌شده">{visibleMapped.map(site=><button type="button" key={String(site.id)} className={'farm-map-site'+(String(site.id)===selectedId?' active':'')} aria-pressed={String(site.id)===selectedId} onClick={()=>setSelectedId(String(site.id))}><span className="farm-map-pin">{farmSiteIcon(site.site_type,16)}</span><span><b>{siteName(site)}</b><small>{[site.city,site.province].filter(Boolean).map(String).join(' · ') || 'نشانی ثبت نشده'}</small><small>{farmSiteTypeLabels[String(site.site_type ?? 'mixed')] ?? 'سایر'}</small></span></button>)}</div> : <div className="farm-map-sites farm-map-sites-empty"><EmptyState title="موقعیت ثبت‌شده‌ای در محدوده ایران نیست" description="برای نمایش نشانگر مزرعه، موقعیت نقشه باید ثبت شود؛ استان و شهر به‌تنهایی برای تعیین نقطه دقیق کافی نیستند." icon={MapPin}/></div>}      <div className="farm-map-sites farm-map-fleet-list" aria-label="رانندگان و موقعیت مأموریت‌های فعال">
         <div className="farm-map-fleet-heading"><Truck size={15}/><b>مأموریت‌های در حال حرکت</b><span>{numberFa(Object.keys(fleetLatest).length)} موقعیت</span></div>
         {fleetNotice&&<p className="farm-map-fleet-notice">{fleetNotice}</p>}
         {fleetShipments.length===0?<p className="helper-note">در حال حاضر مأموریت فعالی برای نمایش نیست.</p>:fleetShipments.map(shipment=>{
@@ -436,9 +432,9 @@ function FarmMapPanel({sites,schemaWarning,membership}:{sites:Row[];schemaWarnin
         <small className="farm-map-fleet-updated">آخرین بررسی: {fleetLastRefresh?dateTimeFa(fleetLastRefresh):'در حال دریافت'}</small>
       </div>
     </div>
-    : <EmptyState title="مختصات جغرافیایی ثبت نشده" description="از بخش سایت‌های مزرعه، مختصات واقعی را ذخیره کن تا موقعیت سایت‌ها روی نقشه نمایش داده شود. هیچ نقطه‌ی ساختگی نمایش داده نمی‌شود." icon={MapPin}/>}
+    : <EmptyState title="هنوز نقطه‌ای برای نمایش روی نقشه ثبت نشده" description="برای راننده‌ها موقعیت فقط از GPS واقعی و با اجازه دستگاه نمایش داده می‌شود. برای سایت‌ها می‌توان استان، شهر و نشانی را بدون مختصات دقیق ثبت کرد؛ در این حالت نقطه‌ای حدس زده نمی‌شود." icon={MapPin}/>}
     <div className="farm-map-operational-note"><ShieldCheck size={14}/><span>نقاط راننده فقط از GPS واقعی ثبت‌شده با اجازهٔ دستگاه دریافت می‌شوند؛ مختصات قدیمی‌تر از ۵ دقیقه از نقشهٔ زنده پنهان می‌شوند. ردیابی خودکار فقط هنگام فعال‌بودن صفحهٔ راننده ادامه دارد.</span></div>
-    <div className="farm-map-footer"><span>{showIranPaper?'نقشه شماتیک ایران · سایت‌ها و GPS تازهٔ رانندگان':'نقشه‌ی دقیق: OpenStreetMap'}</span><Link to="/app/farm-sites">مدیریت سایت‌ها <ArrowLeft size={14}/></Link></div>
+    <div className="farm-map-footer"><span>{showIranPaper?'نقشه واقعی OpenStreetMap · موقعیت‌های ثبت‌شده':'نقشه‌ی دقیق: OpenStreetMap'}</span><Link to="/app/farm-sites">مدیریت سایت‌ها <ArrowLeft size={14}/></Link></div>
   </section>;
 }
 
