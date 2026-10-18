@@ -711,7 +711,7 @@ app.post('/api/finance/bank/accounts', async (c) => {
   if (!COMPANY_ID_RE.test(companyId)) return c.json({ message: 'شناسه مجموعه معتبر نیست.' }, 422);
   if (!(await financeAdminForCompany(c, user.id, companyId))) return c.json({ message: 'فقط مالک یا مدیر می‌تواند حساب بانکی اضافه کند.' }, 403);
   if (label.length < 2 || label.length > 120) return c.json({ message: 'عنوان حساب باید بین ۲ تا ۱۲۰ نویسه باشد.' }, 422);
-  if (bankName.length > 120 || masked.length > 40 || (masked && !/^[\d*Xx\- ]{2,40}$/.test(masked))) {
+  if (bankName.length > 120 || masked.length > 40 || (masked && (!/^[\d*Xx\- ]{2,40}$/.test(masked) || masked.replace(/\D/g,'').length > 4))) {
     return c.json({ message: 'نام بانک یا نمایش پوشیدهٔ حساب معتبر نیست. شمارهٔ کامل یا اطلاعات ورود بانکی وارد نکن.' }, 422);
   }
   if (!/^[A-Z]{3}$/.test(currency)) return c.json({ message: 'کد ارز باید سه حرف انگلیسی باشد.' }, 422);
@@ -813,7 +813,7 @@ app.get('/api/finance/bank/match-targets', async (c) => {
   const [invoices, purchaseOrders, settlements] = await Promise.all([
     sql.query("select id::text,reference as label,status::text as status,amount::text as amount,paid_amount::text as paid_amount,'invoice' as type from public.invoices where company_id=$1::uuid order by created_at desc limit 200",[companyId]),
     sql.query("select id::text,reference as label,status,'purchase_order' as type,null::text as amount,null::text as paid_amount from public.purchase_orders where company_id=$1::uuid and status<>'cancelled' order by created_at desc limit 200",[companyId]),
-    sql.query("select id::text,coalesce(reference,id::text) as label,status::text as status,null::text as amount,null::text as paid_amount,'settlement' as type from public.settlements where company_id=$1::uuid order by created_at desc limit 200",[companyId]),
+    sql.query("select id::text,coalesce(invoice_ref,id::text) as label,status::text as status,amount::text as amount,null::text as paid_amount,'settlement' as type from public.settlements where company_id=$1::uuid order by created_at desc limit 200",[companyId]),
   ]);
   return c.json({ targets: [...invoices, ...purchaseOrders, ...settlements] });
 });
