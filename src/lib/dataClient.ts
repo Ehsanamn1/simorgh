@@ -4,6 +4,11 @@ import { readOfflineResponse, writeOfflineResponse } from './offlineCache';
 
 export const isDataApiConfigured = import.meta.env.VITE_DISABLE_API_UI !== 'true' && !MEDAR_API_CONFIGURATION_ERROR;
 
+function dispatchApiConnectivity(online: boolean) {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new Event(online ? 'medar:api-online' : 'medar:api-offline'));
+}
+
 type Filter = { column: string; op: string; value?: unknown };
 type Order = { column: string; ascending: boolean };
 type ApiError = { message: string; code?: string; details?: string };
@@ -105,6 +110,7 @@ class DataQuery implements PromiseLike<ApiResult> {
           headers: { 'content-type': 'application/json', 'x-application-name': 'medar-network' },
           body: JSON.stringify(requestBody),
         });
+        dispatchApiConnectivity(true);
         const payload = await readJson(response);
         if (!response.ok) {
           const message = typeof payload.message === 'string' ? payload.message : 'درخواست داده ناموفق بود.';
@@ -122,6 +128,7 @@ class DataQuery implements PromiseLike<ApiResult> {
         }
         return { data: data as any, error: null, count: payload.count == null ? null : Number(payload.count) };
       } catch (caught) {
+        dispatchApiConnectivity(caught instanceof HttpError);
         if (this.action === 'select') {
           const requestBody = {
             action: this.action, selection: this.selection, values: this.values, filters: this.filters,
