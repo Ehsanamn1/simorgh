@@ -364,7 +364,7 @@ test('manager AI assistant opens in-panel with provider settings but no client k
         providers: [
           { provider: 'openai', model: 'gpt-6-luna', configured: false, isDefault: false, updatedAt: null },
           { provider: 'gemini', model: 'gemini-4-argon', configured: false, isDefault: false, updatedAt: null },
-          { provider: 'deepseek', model: 'deepseek-v4-flash', configured: false, isDefault: false, updatedAt: null },
+          { provider: 'deepseek', model: 'deepseek-flash', configured: false, isDefault: false, updatedAt: null },
           { provider: 'anthropic', model: 'claude-sonnet-5', configured: false, isDefault: false, updatedAt: null },
         ],
       }),
@@ -405,7 +405,7 @@ test('AI assistant sends a PDF attachment through the selected provider boundary
       providers: [
         { provider: 'openai', model: 'gpt-6-luna', configured: true, isDefault: true, updatedAt: null },
         { provider: 'gemini', model: 'gemini-4-argon', configured: false, isDefault: false, updatedAt: null },
-        { provider: 'deepseek', model: 'deepseek-v4-flash', configured: false, isDefault: false, updatedAt: null },
+        { provider: 'deepseek', model: 'deepseek-flash', configured: false, isDefault: false, updatedAt: null },
         { provider: 'anthropic', model: 'claude-sonnet-5', configured: false, isDefault: false, updatedAt: null },
       ],
     }),
@@ -462,7 +462,7 @@ test('assistant can enter and stop automatic turn-taking voice mode', async ({ p
       providers: [
         { provider: 'openai', model: 'gpt-6-luna', configured: true, isDefault: true, updatedAt: null },
         { provider: 'gemini', model: 'gemini-4-argon', configured: false, isDefault: false, updatedAt: null },
-        { provider: 'deepseek', model: 'deepseek-v4-flash', configured: false, isDefault: false, updatedAt: null },
+        { provider: 'deepseek', model: 'deepseek-flash', configured: false, isDefault: false, updatedAt: null },
         { provider: 'anthropic', model: 'claude-sonnet-5', configured: false, isDefault: false, updatedAt: null },
       ],
     }),
