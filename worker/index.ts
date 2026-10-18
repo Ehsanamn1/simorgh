@@ -596,7 +596,7 @@ app.post('/api/finance/bank-accounts', async (c) => {
   const maskedAccount=typeof body.maskedAccount==='string'?body.maskedAccount.trim():'';
   const currency=typeof body.currency==='string'?body.currency.trim().toUpperCase():'IRR';
   if(!COMPANY_ID_RE.test(companyId)||label.length<2||label.length>120||bankName.length>120||maskedAccount.length>40||!/^[A-Z]{3}$/.test(currency))return c.json({message:'اطلاعات حساب یا ارز معتبر نیست.'},422);
-  if(maskedAccount.replace(/\D/g,'').length>4||/\d{5,}/.test(maskedAccount))return c.json({message:'فقط چهار رقم پایانی را وارد کن؛ شماره کامل حساب ذخیره نمی‌شود.'},422);
+  if(!isMaskedBankAccountValid(maskedAccount))return c.json({message:'فقط چهار رقم پایانی را وارد کن؛ شماره کامل حساب ذخیره نمی‌شود.'},422);
   const membership=await aiCompanyMembership(c,companyId,user.id);
   if(!membership||!['owner','admin','staff'].includes(membership.role))return c.json({message:'فقط اعضای داخلی می‌توانند حساب تعریف کنند.'},403);
   if(!(await userHasModulePermission(c,user.id,companyId,'finance','can_create')))return c.json({message:'مجوز ایجاد حساب مالی نداری.'},403);
@@ -640,8 +640,9 @@ app.post('/api/finance/bank-transactions/import', async (c) => {
   if(!(await userHasModulePermission(c,user.id,companyId,'finance','can_create')))return c.json({message:'مجوز ورود تراکنش مالی نداری.'},403);
   if(!Array.isArray(body.transactions)||body.transactions.length<1||body.transactions.length>500)return c.json({message:'در هر بار باید بین ۱ تا ۵۰۰ تراکنش وارد شود.'},422);
   const sql=sqlFor(c);
-  const account=await sql.query('select id from public.medar_bank_accounts where id=$1::uuid and company_id=$2::uuid and active=true limit 1',[accountId,companyId]);
+  const account=await sql.query('select id,currency from public.medar_bank_accounts where id=$1::uuid and company_id=$2::uuid and active=true limit 1',[accountId,companyId]);
   if(!account.length)return c.json({message:'حساب فعال در این مجموعه پیدا نشد.'},404);
+  const accountCurrency = String((account[0] as {currency?:string}).currency ?? '');
   const ids=new Set<string>(), rows:Array<Record<string,string>>=[];
   for(let index=0;index<body.transactions.length;index++){
     const raw=body.transactions[index];
@@ -659,7 +660,7 @@ app.post('/api/finance/bank-transactions/import', async (c) => {
     ids.add(externalId);
     if(!bookedAt||!Number.isFinite(parsedDate.getTime()))return c.json({message:'تاریخ یک تراکنش معتبر نیست.'},422);
     if(!Number.isFinite(amount)||Math.abs(amount)<0.01||Math.abs(amount)>1e15||Math.abs(amount*100-Math.round(amount*100))>0.0001)return c.json({message:'مبلغ باید غیرصفر و حداکثر با دو رقم اعشار باشد.'},422);
-    if(!/^[A-Z]{3}$/.test(currency)||description.length>1500||counterparty.length>300||reference.length>240)return c.json({message:'توضیح، مرجع یا ارز یک تراکنش معتبر نیست.'},422);
+    if(!/^[A-Z]{3}$/.test(currency)||!isBankTransactionCurrencyCompatible(accountCurrency,currency)||description.length>1500||counterparty.length>300||reference.length>240)return c.json({message:'ارز تراکنش باید با ارز حساب مقصد یکسان باشد و توضیح یا مرجع معتبر باشد.'},422);
     rows.push({external_transaction_id:externalId,booked_at:parsedDate.toISOString(),amount:amount.toFixed(2),currency,description,counterparty,reference,direction:amount>0?'incoming':'outgoing'});
   }
   try {
@@ -2446,6 +2447,18 @@ export function isBankReconciliationDirectionCompatible(
     if (transactionDirection === 'outgoing') return targetDirection === 'outflow_from_company' || targetDirection === 'company_to_partner';
   }
   return false;
+}
+
+export function isBankTransactionCurrencyCompatible(accountCurrency: string, transactionCurrency: string): boolean {
+  return /^[A-Z]{3}$/.test(accountCurrency) && accountCurrency === transactionCurrency;
+}
+
+export function isMaskedBankAccountValid(value: string): boolean {
+  const asciiDigits = value.replace(/[۰-۹٠-٩]/g, digit => {
+    const code = digit.charCodeAt(0);
+    return String(code >= 0x06f0 && code <= 0x06f9 ? code - 0x06f0 : code - 0x0660);
+  }).replace(/\D/g, '');
+  return value.length <= 40 && asciiDigits.length <= 4;
 }
 
 function applyInsertActorFields(table:string,row:Record<string,unknown>,columns:Set<string>,userId:string):Record<string,unknown> {

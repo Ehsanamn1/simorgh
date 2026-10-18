@@ -8,6 +8,8 @@ import {
   resolveApiModeAccess,
   aggregateModulePermissionRows,
   isBankReconciliationDirectionCompatible,
+  isBankTransactionCurrencyCompatible,
+  isMaskedBankAccountValid,
   scopeHasModulePermission,
   verifyPassword,
 } from './index';
@@ -102,6 +104,23 @@ describe('server-side username normalization', () => {
     expect(normalizeUsername('@@')).toBeNull();
     expect(normalizeUsername('_starts_with_punctuation')).toBeNull();
     expect(normalizeUsername('a'.repeat(33))).toBeNull();
+  });
+});
+
+describe('bank account and transaction input safeguards', () => {
+  it('requires imported transaction currency to match the destination account', () => {
+    expect(isBankTransactionCurrencyCompatible('IRR', 'IRR')).toBe(true);
+    expect(isBankTransactionCurrencyCompatible('USD', 'USD')).toBe(true);
+    expect(isBankTransactionCurrencyCompatible('IRR', 'USD')).toBe(false);
+    expect(isBankTransactionCurrencyCompatible('IRR', 'irr')).toBe(false);
+  });
+
+  it('rejects full account numbers even when digits use Persian or Arabic numerals', () => {
+    expect(isMaskedBankAccountValid('****1234')).toBe(true);
+    expect(isMaskedBankAccountValid('****۱۲۳۴')).toBe(true);
+    expect(isMaskedBankAccountValid('****١٢٣٤')).toBe(true);
+    expect(isMaskedBankAccountValid('123456789012')).toBe(false);
+    expect(isMaskedBankAccountValid('۱۲۳۴۵۶۷۸۹۰۱۲')).toBe(false);
   });
 });
 
