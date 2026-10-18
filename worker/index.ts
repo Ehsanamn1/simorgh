@@ -546,7 +546,7 @@ type AiChatMessage = { role: 'user' | 'assistant'; content: string };
 type AiAttachmentPayload = { name: string; mimeType: string; base64?: string };
 export const AI_PROVIDERS: Record<AiProvider, { label: string; model: string }> = {
   openai: { label: 'OpenAI', model: 'gpt-6-luna' },
-  gemini: { label: 'Gemini', model: 'gemini-4-argon' },
+  gemini: { label: 'Gemini', model: 'gemini-3.8-flash' },
   deepseek: { label: 'DeepSeek', model: 'deepseek-flash' },
   anthropic: { label: 'Claude', model: 'claude-sonnet-5' },
 };
