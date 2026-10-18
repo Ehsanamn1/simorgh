@@ -161,7 +161,7 @@ jobs:
         env:
           MEDAR_AI_ENCRYPTION_KEY: ${{ secrets.MEDAR_AI_ENCRYPTION_KEY }}
         run: printf '%s' "$MEDAR_AI_ENCRYPTION_KEY" | npx wrangler@4 secret put AI_ENCRYPTION_KEY --name medar-ops
-      - name: Configure optional Web Push credentials for the operational Worker
+      - name: Configure Web Push credentials for the operational Worker
         working-directory: worker
         shell: bash
         env:
@@ -169,6 +169,7 @@ jobs:
           MEDAR_VAPID_PRIVATE_KEY: ${{ secrets.MEDAR_VAPID_PRIVATE_KEY }}
           MEDAR_VAPID_SUBJECT: ${{ secrets.MEDAR_VAPID_SUBJECT }}
         run: |
+          set -euo pipefail
           if [[ -n "$MEDAR_VAPID_PUBLIC_KEY" || -n "$MEDAR_VAPID_PRIVATE_KEY" || -n "$MEDAR_VAPID_SUBJECT" ]]; then
             test -n "$MEDAR_VAPID_PUBLIC_KEY" || { echo "MEDAR_VAPID_PUBLIC_KEY is required when configuring Web Push"; exit 1; }
             test -n "$MEDAR_VAPID_PRIVATE_KEY" || { echo "MEDAR_VAPID_PRIVATE_KEY is required when configuring Web Push"; exit 1; }
@@ -176,9 +177,43 @@ jobs:
             printf '%s' "$MEDAR_VAPID_PUBLIC_KEY" | npx wrangler@4 secret put VAPID_PUBLIC_KEY --name medar-ops
             printf '%s' "$MEDAR_VAPID_PRIVATE_KEY" | npx wrangler@4 secret put VAPID_PRIVATE_KEY --name medar-ops
             printf '%s' "$MEDAR_VAPID_SUBJECT" | npx wrangler@4 secret put VAPID_SUBJECT --name medar-ops
-            echo "Web Push credentials configured for medar-ops."
+            echo "Web Push credentials configured from repository secrets."
           else
-            echo "Web Push delivery remains disabled because VAPID credentials were not supplied; in-app notifications remain available."
+            existing="$(npx wrangler@4 secret list --name medar-ops)"
+            has_public=0; has_private=0; has_subject=0
+            grep -q 'VAPID_PUBLIC_KEY' <<< "$existing" && has_public=1 || true
+            grep -q 'VAPID_PRIVATE_KEY' <<< "$existing" && has_private=1 || true
+            grep -q 'VAPID_SUBJECT' <<< "$existing" && has_subject=1 || true
+            if [[ "$has_public$has_private$has_subject" == "111" ]]; then
+              echo "Existing Web Push credentials are preserved."
+            elif [[ "$has_public$has_private$has_subject" != "000" ]]; then
+              echo "Worker has an incomplete VAPID secret set. Configure all three repository secrets or repair the Worker secrets before deployment."
+              exit 1
+            else
+              echo "No VAPID credentials exist; generating a stable key pair for browser Push."
+              umask 077
+              node --input-type=module <<'NODE'
+          import { generateKeyPairSync } from 'node:crypto';
+          import { writeFileSync } from 'node:fs';
+          const { publicKey, privateKey } = generateKeyPairSync('ec', { namedCurve: 'prime256v1' });
+          const pub = publicKey.export({ format: 'jwk' });
+          const priv = privateKey.export({ format: 'jwk' });
+          const point = Buffer.concat([Buffer.from([4]), Buffer.from(pub.x, 'base64url'), Buffer.from(pub.y, 'base64url')]).toString('base64url');
+          const directory = process.env.RUNNER_TEMP;
+          writeFileSync(directory + '/medar-vapid-public', point, { mode: 0o600 });
+          writeFileSync(directory + '/medar-vapid-private', priv.d, { mode: 0o600 });
+          writeFileSync(directory + '/medar-vapid-subject', 'https://medar-ops.dengxiao445.workers.dev', { mode: 0o600 });
+          NODE
+              public_key="$(cat "$RUNNER_TEMP/medar-vapid-public")"
+              private_key="$(cat "$RUNNER_TEMP/medar-vapid-private")"
+              subject="$(cat "$RUNNER_TEMP/medar-vapid-subject")"
+              echo "::add-mask::$private_key"
+              printf '%s' "$public_key" | npx wrangler@4 secret put VAPID_PUBLIC_KEY --name medar-ops
+              printf '%s' "$private_key" | npx wrangler@4 secret put VAPID_PRIVATE_KEY --name medar-ops
+              printf '%s' "$subject" | npx wrangler@4 secret put VAPID_SUBJECT --name medar-ops
+              rm -f "$RUNNER_TEMP/medar-vapid-public" "$RUNNER_TEMP/medar-vapid-private" "$RUNNER_TEMP/medar-vapid-subject"
+              echo "A persistent VAPID key pair is configured for browser Push."
+            fi
           fi
       - name: Build the protected operational app with sign-in enabled and shared API
         run: npm run build
