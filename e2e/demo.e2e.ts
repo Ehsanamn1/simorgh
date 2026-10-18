@@ -23,7 +23,6 @@ test('public demo is navigable, searchable and clearly read-only', async ({ page
 
   const enableLightMode = page.getByRole('button', { name: 'تغییر حالت نمایش' });
   await expect(enableLightMode).toBeVisible();
-  await enableLightMode.click();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
   await expect(page.getByRole('button', { name: 'تغییر حالت نمایش' })).toHaveAttribute('aria-pressed', 'true');
   await expect.poll(() => page.evaluate(() => localStorage.getItem('simorgh-theme'))).toBe('light');
@@ -84,13 +83,14 @@ test('mobile demo has four bottom navigation items, all key modules, and working
   await expect(page.locator('.demo-quick-action')).toHaveCount(4);
   await expect(page.getByRole('link', { name: 'ورود به فضای عملیاتی مدار' })).toBeVisible();
 
-  await page.getByRole('button', { name: 'تغییر حالت نمایش' }).click();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
   const lightMobileDimensions = await page.evaluate(() => ({ viewport: innerWidth, document: document.documentElement.scrollWidth, body: document.body.scrollWidth }));
   expect(lightMobileDimensions.document).toBeLessThanOrEqual(lightMobileDimensions.viewport);
   expect(lightMobileDimensions.body).toBeLessThanOrEqual(lightMobileDimensions.viewport);
   await page.getByRole('button', { name: 'تغییر حالت نمایش' }).click();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  await page.getByRole('button', { name: 'تغییر حالت نمایش' }).click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
 
   await bottomNav.getByRole('button', { name: 'سفارش‌ها', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'سفارش‌ها', exact: true })).toBeVisible();
