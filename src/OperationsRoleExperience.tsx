@@ -113,7 +113,7 @@ export function OperationsRoleExperience({ role, membership, children }: Props) 
     ? [{ label: 'سفارش‌ها', to: '/app/orders' }, { label: 'ارسال و رانندگان', to: '/app/shipments' }, { label: 'رخدادها', to: '/app/exceptions' }, { label: 'مالی و تسویه', to: '/app/partner-settlements' }]
     : role === 'supplier'
       ? [{ label: 'سفارش‌های من', to: '/app/supplier-work' }, { label: 'ظرفیت تأمین', to: '/app/supplier-capacity' }, { label: 'تسویه من', to: '/app/supplier-settlement' }]
-      : [{ label: 'مأموریت‌ها', to: '/app/driver-work' }, { label: 'ارسال مشکل', to: '/app/exceptions' }];
+      : [{ label: 'مأموریت‌ها', to: '/app/driver-work' }, { label: 'ارتباط با مدیر', to: '/app/connect' }];
 
   return <section className={'role-ops role-ops-' + role} aria-label={title}>
     <div className="role-ops-hero">
