@@ -452,11 +452,10 @@ type ClientPresenceRow = {
 type SystemHealthSnapshot = { ok?: boolean; database?: boolean; service?: string };
 
 function Dashboard({ membership }: { membership: Membership }) {
-  const [orders, setOrders] = useState<Row[]>([]);
   const [mapSites, setMapSites] = useState<Row[]>([]);
   const [mapError, setMapError] = useState('');
-  const [counts, setCounts] = useState({ orders: 0, customers: 0, suppliers: 0, shipments: 0, capacity: 0, lateOrders: 0, overdueTasks: 0, reviewTasks: 0, incidents: 0, invoices: 0, failedShipments: 0, expiringLicenses: 0, pendingRequests: 0, goals: 0 });
-  const [signals, setSignals] = useState({ lateOrders: [] as Row[], overdueTasks: [] as Row[], reviewTasks: [] as Row[], incidents: [] as Row[], invoices: [] as Row[], failedShipments: [] as Row[], expiringLicenses: [] as Row[], pendingRequests: [] as Row[], audit: [] as Row[], goals: [] as Row[] });
+  const [counts, setCounts] = useState({ suppliers: 0, shipments: 0, capacity: 0, openTasks: 0, members: 0, overdueTasks: 0, reviewTasks: 0, incidents: 0, failedShipments: 0, expiringLicenses: 0 });
+  const [signals, setSignals] = useState({ overdueTasks: [] as Row[], reviewTasks: [] as Row[], incidents: [] as Row[], failedShipments: [] as Row[], expiringLicenses: [] as Row[], audit: [] as Row[] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [lastUpdated, setLastUpdated] = useState('');
@@ -472,43 +471,35 @@ function Dashboard({ membership }: { membership: Membership }) {
     const horizon = `${horizonParts.year}-${horizonParts.month}-${horizonParts.day}`;
     const now = new Date().toISOString();
     const company = membership.company_id;
-    const [o, c, s, sh, cap, late, due, review, incidents, invoices, failed, licenses, requests, audit, goals, map, supplierMap] = await Promise.all([
-      dataApi.from('orders').select('id,reference,status,requested_delivery,created_at,customers(name)', { count: 'exact' }).eq('company_id', company).order('created_at', { ascending: false }).limit(8),
-      dataApi.from('customers').select('id', { count: 'exact', head: true }).eq('company_id', company),
-      dataApi.from('suppliers').select('id', { count: 'exact', head: true }).eq('company_id', company),
+    const [s, sh, cap, openTasks, members, due, review, incidents, failed, licenses, audit, map, supplierMap] = await Promise.all([
+      dataApi.from('suppliers').select('id', { count: 'exact', head: true }).eq('company_id', company).eq('active', true),
       dataApi.from('shipments').select('id', { count: 'exact', head: true }).eq('company_id', company).not('stage', 'in', '(delivered,returned,failed)'),
       dataApi.from('capacity_commitments').select('id', { count: 'exact', head: true }).eq('company_id', company).in('status', ['confirmed','committed']).gte('period_end', today),
-      dataApi.from('orders').select('id,reference,status,requested_delivery', { count: 'exact' }).eq('company_id', company).lt('requested_delivery', today).not('status', 'in', '(delivered,cancelled)').order('requested_delivery', { ascending: true }).limit(4),
+      dataApi.from('operational_tasks').select('id', { count: 'exact', head: true }).eq('company_id', company).not('status', 'in', '(approved,cancelled)'),
+      dataApi.from('memberships').select('id', { count: 'exact', head: true }).eq('company_id', company).eq('active', true),
       dataApi.from('operational_tasks').select('id,title,status,priority,due_at', { count: 'exact' }).eq('company_id', company).lt('due_at', now).not('status', 'in', '(approved,cancelled)').order('due_at', { ascending: true }).limit(4),
       dataApi.from('operational_tasks').select('id,title,status,priority,due_at,submitted_at', { count: 'exact' }).eq('company_id', company).eq('status', 'submitted').order('submitted_at', { ascending: true }).limit(4),
       dataApi.from('operational_incidents').select('id,title,severity,status,created_at', { count: 'exact' }).eq('company_id', company).not('status', 'in', '(resolved,closed,cancelled)').order('created_at', { ascending: false }).limit(4),
-      dataApi.from('invoices').select('id,reference,amount,due_date,status', { count: 'exact' }).eq('company_id', company).lt('due_date', today).in('status', ['issued','partially_paid','overdue']).order('due_date', { ascending: true }).limit(4),
       dataApi.from('shipments').select('id,stage,failure_reason,order_id', { count: 'exact' }).eq('company_id', company).eq('stage', 'failed').order('updated_at', { ascending: false }).limit(3),
       dataApi.from('farm_sites').select('id,name,license_expires_on', { count: 'exact' }).eq('company_id', company).eq('active', true).not('license_expires_on', 'is', null).lte('license_expires_on', horizon).order('license_expires_on', { ascending: true }).limit(3),
-      dataApi.from('access_requests').select('id,email,full_name,requested_role,organization_name,created_at', { count: 'exact' }).eq('company_id', company).eq('status', 'pending').order('created_at', { ascending: true }).limit(3),
-      dataApi.from('audit_events').select('id,table_name,action,record_id,occurred_at', { count: 'exact' }).eq('company_id', company).order('occurred_at', { ascending: false }).limit(5),
-      dataApi.from('company_goals').select('id,title,description,category,status,baseline_value,target_value,current_value,unit,due_date,priority,created_at', { count: 'exact' }).eq('company_id', company).not('status', 'in', '(achieved,cancelled)').order('created_at', { ascending: false }).limit(4),
+      dataApi.from('audit_events').select('id,table_name,action,record_id,occurred_at', { count: 'exact' }).eq('company_id', company).order('occurred_at', { ascending: false }).limit(8),
       dataApi.from('farm_sites').select('id,name,site_type,city,province,latitude,longitude', { count: 'exact' }).eq('company_id', company).eq('active', true).not('latitude', 'is', null).not('longitude', 'is', null).order('name').limit(30),
       dataApi.from('suppliers').select('id,name,city,province,address,latitude,longitude', { count: 'exact' }).eq('company_id', company).eq('active', true).not('latitude', 'is', null).not('longitude', 'is', null).order('name').limit(200),
     ]);
-    const dbError = o.error ?? c.error ?? s.error ?? sh.error ?? cap.error ?? late.error ?? due.error ?? review.error ?? incidents.error ?? invoices.error ?? failed.error ?? licenses.error ?? requests.error ?? audit.error ?? goals.error;
+    const dbError = s.error ?? sh.error ?? cap.error ?? openTasks.error ?? members.error ?? due.error ?? review.error ?? incidents.error ?? failed.error ?? licenses.error ?? audit.error ?? map.error ?? supplierMap.error;
     if (dbError) setError(dbError.message);
     setMapError(map.error || supplierMap.error ? 'برای نمایش سایت‌ها و تأمین‌کنندگان روی نقشه، مهاجرت‌های موقعیت را روی پایگاه داده اجرا کن.' : '');
     const rowCount = (result: { count: number | null; data: unknown[] | null }) => result.count ?? result.data?.length ?? 0;
-    setOrders((o.data ?? []) as Row[]);
     setMapSites([...((map.data ?? []) as Row[]), ...((supplierMap.data ?? []) as Row[]).map(site => ({ ...site, site_type: 'supplier' }))]);
     setCounts({
-      orders: rowCount(o), customers: rowCount(c), suppliers: rowCount(s), shipments: rowCount(sh), capacity: rowCount(cap),
-      lateOrders: rowCount(late), overdueTasks: rowCount(due), reviewTasks: canManage ? rowCount(review) : 0,
-      incidents: rowCount(incidents), invoices: rowCount(invoices), failedShipments: rowCount(failed),
-      expiringLicenses: rowCount(licenses), pendingRequests: canManage ? rowCount(requests) : 0, goals: rowCount(goals),
+      suppliers: rowCount(s), shipments: rowCount(sh), capacity: rowCount(cap), openTasks: rowCount(openTasks),
+      members: canManage ? rowCount(members) : 0, overdueTasks: rowCount(due), reviewTasks: canManage ? rowCount(review) : 0,
+      incidents: rowCount(incidents), failedShipments: rowCount(failed), expiringLicenses: rowCount(licenses),
     });
     setSignals({
-      lateOrders: (late.data ?? []) as Row[], overdueTasks: (due.data ?? []) as Row[],
-      reviewTasks: (review.data ?? []) as Row[], incidents: (incidents.data ?? []) as Row[],
-      invoices: (invoices.data ?? []) as Row[], failedShipments: (failed.data ?? []) as Row[],
-      expiringLicenses: (licenses.data ?? []) as Row[], pendingRequests: (requests.data ?? []) as Row[],
-      audit: (audit.data ?? []) as Row[], goals: (goals.data ?? []) as Row[],
+      overdueTasks: (due.data ?? []) as Row[], reviewTasks: (review.data ?? []) as Row[],
+      incidents: (incidents.data ?? []) as Row[], failedShipments: (failed.data ?? []) as Row[],
+      expiringLicenses: (licenses.data ?? []) as Row[], audit: (audit.data ?? []) as Row[],
     });
     setLastUpdated(new Date().toISOString());
     setLoading(false);
@@ -521,56 +512,48 @@ function Dashboard({ membership }: { membership: Membership }) {
     window.addEventListener('focus', onFocus);
     return () => { window.clearInterval(timer); window.removeEventListener('focus', onFocus); };
   }, [membership.company_id, membership.role]);
-  const chart = useMemo(() => {
-    const names = ['draft','submitted','confirmed','allocated','in_fulfillment','dispatched','delivered','cancelled'];
-    return names.map(key => ({ name: orderLabel[key], count: orders.filter(order => order.status === key).length })).filter(item => item.count > 0);
-  }, [orders]);
-
   const alerts: { id: string; title: string; detail: string; to: string; tone: 'critical' | 'warning' | 'info'; rank: number }[] = [];
   signals.incidents.forEach(row => alerts.push({ id: 'incident-' + String(row.id), title: 'رخداد نیازمند بررسی: ' + String(row.title ?? 'بدون عنوان'), detail: 'شدت: ' + String(row.severity ?? 'ثبت‌نشده') + ' · وضعیت: ' + (statusLabel[String(row.status)] ?? String(row.status ?? 'ثبت‌نشده')), to: '/app/incidents', tone: ['critical','high','urgent'].includes(String(row.severity).toLowerCase()) ? 'critical' : 'warning', rank: 1 }));
   signals.failedShipments.forEach(row => alerts.push({ id: 'shipment-' + String(row.id), title: 'محموله با وضعیت خطا ثبت شده است', detail: String(row.failure_reason ?? 'علت خطا ثبت نشده') + ' · شناسه ' + String(row.id).slice(0, 8), to: '/app/shipments', tone: 'critical', rank: 2 }));
-  signals.lateOrders.forEach(row => alerts.push({ id: 'late-order-' + String(row.id), title: 'سفارش ' + String(row.reference ?? String(row.id).slice(0,8)) + ' از موعد گذشته', detail: 'موعد تحویل: ' + dateFa(String(row.requested_delivery ?? '')), to: '/app/orders', tone: 'critical', rank: 3 }));
-  signals.invoices.forEach(row => alerts.push({ id: 'invoice-' + String(row.id), title: 'فاکتور ' + String(row.reference ?? String(row.id).slice(0,8)) + ' سررسید گذشته', detail: 'مبلغ: ' + moneyFa(String(row.amount ?? 0)) + ' · سررسید: ' + dateFa(String(row.due_date ?? '')), to: '/app/finance', tone: 'warning', rank: 4 }));
   if (canManage) signals.reviewTasks.forEach(row => alerts.push({ id: 'review-task-' + String(row.id), title: 'وظیفه منتظر بررسی مدیر: ' + String(row.title ?? 'بدون عنوان'), detail: 'اولویت: ' + (statusLabel[String(row.priority)] ?? String(row.priority ?? 'ثبت‌نشده')) + ' · ارسال: ' + dateTimeFa(String(row.submitted_at ?? row.due_at ?? '')), to: '/app/operational-tasks', tone: 'warning', rank: 5 }));
   signals.overdueTasks.forEach(row => alerts.push({ id: 'due-task-' + String(row.id), title: 'وظیفه از موعد گذشته: ' + String(row.title ?? 'بدون عنوان'), detail: 'سررسید: ' + dateTimeFa(String(row.due_at ?? '')) + ' · وضعیت: ' + (statusLabel[String(row.status)] ?? String(row.status ?? '')), to: '/app/operational-tasks', tone: 'warning', rank: 6 }));
   signals.expiringLicenses.forEach(row => { const expiry = String(row.license_expires_on ?? ''); const expired = expiry !== '' && expiry < todayForDisplay(); alerts.push({ id: 'license-' + String(row.id), title: (expired ? 'مجوز سایت منقضی شده: ' : 'مجوز سایت نزدیک به انقضا: ') + String(row.name ?? 'بدون نام'), detail: 'انقضا: ' + dateFa(expiry), to: '/app/farm-sites', tone: expired ? 'critical' : 'warning', rank: 7 }); });
-  if (canManage) signals.pendingRequests.forEach(row => alerts.push({ id: 'request-' + String(row.id), title: 'درخواست دسترسی: ' + String(row.full_name ?? row.username ?? 'کاربر جدید'), detail: (roleLabel[String(row.requested_role)] ?? String(row.requested_role ?? '')) + ' · ثبت ' + dateFa(String(row.created_at ?? '')), to: '/app/members', tone: 'info', rank: 8 }));
   alerts.sort((a,b) => a.rank - b.rank);
   const visibleAlerts = alerts.slice(0,12);
-  const actionCount = counts.lateOrders + counts.overdueTasks + counts.reviewTasks + counts.incidents + counts.invoices + counts.failedShipments + counts.expiringLicenses + counts.pendingRequests;
+  const actionCount = counts.overdueTasks + counts.reviewTasks + counts.incidents + counts.failedShipments + counts.expiringLicenses;
   const setupMilestones = evaluateSetupMilestones({
-    customers: counts.customers,
     suppliers: counts.suppliers,
-    orders: counts.orders,
     capacity: counts.capacity,
-    goals: counts.goals,
+    members: counts.members,
+    tasks: counts.openTasks,
+    shipments: counts.shipments,
   });
   const setupSummary = summarizeSetupMilestones(setupMilestones);
-  const setupMilestoneIcons = { customers: Users, suppliers: Factory, orders: FileText, capacity: Warehouse, goals: Target };
+  const setupMilestoneIcons = { suppliers: Factory, capacity: Warehouse, members: Users, tasks: ClipboardCheck, shipments: Truck };
 
   return <>
     <PageHeading eyebrow="مدیریت عملیات" title="مرکز فرمان شبکه" description="نمای عملیاتی بر مبنای رکوردهای واقعی؛ هشدارهای برجسته به محل پیگیری متصل هستند." action={<Button variant="soft" onClick={() => void load()} disabled={loading}><Activity size={15}/> {loading ? 'در حال تازه‌سازی…' : 'تازه‌سازی داده‌ها'}</Button>}/>
     {error && <InlineError error={error} retry={() => void load()}/>}
     <div className="tower-freshness"><span className="tower-live-dot"/><span>آخرین دریافت: {lastUpdated ? dateTimeFa(lastUpdated) : 'در انتظار دریافت'}</span><span>شاخص‌ها بر پایه‌ی رکوردهای ثبت‌شده به‌روز می‌شوند.</span></div>
     <section className="stats-grid tower-stats">
-      <article className="stat-card"><div className="stat-card-top"><span>سفارش‌ها</span><span className="stat-icon"><FileText size={17}/></span></div><b>{loading ? '—' : numberFa(counts.orders)}</b><small>رکوردهای این مجموعه</small></article>
-      <article className="stat-card"><div className="stat-card-top"><span>مشتریان</span><span className="stat-icon"><Users size={17}/></span></div><b>{loading ? '—' : numberFa(counts.customers)}</b><small>حساب‌های ثبت‌شده</small></article>
-      <article className="stat-card"><div className="stat-card-top"><span>تأمین‌کنندگان</span><span className="stat-icon"><Factory size={17}/></span></div><b>{loading ? '—' : numberFa(counts.suppliers)}</b><small>شبکه تأمین ثبت‌شده</small></article>
-      <article className="stat-card"><div className="stat-card-top"><span>ارسال‌های باز</span><span className="stat-icon"><Truck size={17}/></span></div><b>{loading ? '—' : numberFa(counts.shipments)}</b><small>تحویل‌نشده و در جریان</small></article>
-      <article className="stat-card"><div className="stat-card-top"><span>بازه‌های ظرفیت</span><span className="stat-icon"><Warehouse size={17}/></span></div><b>{loading ? '—' : numberFa(counts.capacity)}</b><small>تأییدشده یا متعهد و جاری</small></article>
+      <article className="stat-card"><div className="stat-card-top"><span>تأمین‌کنندگان فعال</span><span className="stat-icon"><Factory size={17}/></span></div><b>{loading ? '—' : numberFa(counts.suppliers)}</b><small>شبکه تأمین ثبت‌شده</small></article>
+      <article className="stat-card"><div className="stat-card-top"><span>محموله‌های فعال</span><span className="stat-icon"><Truck size={17}/></span></div><b>{loading ? '—' : numberFa(counts.shipments)}</b><small>تحویل‌نشده و در جریان</small></article>
+      <article className="stat-card"><div className="stat-card-top"><span>تعهدهای ظرفیت</span><span className="stat-icon"><Warehouse size={17}/></span></div><b>{loading ? '—' : numberFa(counts.capacity)}</b><small>تأییدشده یا متعهد و جاری</small></article>
+      <article className="stat-card"><div className="stat-card-top"><span>وظایف باز</span><span className="stat-icon"><ClipboardCheck size={17}/></span></div><b>{loading ? '—' : numberFa(counts.openTasks)}</b><small>نیازمند پیگیری و تکمیل</small></article>
+      <article className="stat-card"><div className="stat-card-top"><span>اعضای فعال</span><span className="stat-icon"><Users size={17}/></span></div><b>{loading ? '—' : numberFa(counts.members)}</b><small>کاربران مجاز مجموعه</small></article>
     </section>
     <section className="tower-quick-access" aria-label="دسترسی سریع">
-      <div className="tower-quick-head"><div><span className="section-number">۰۱</span><div><h3>دسترسی سریع</h3><p>ورود مستقیم به کارهای پرتکرار</p></div></div></div>
+      <div className="tower-quick-head"><div><span className="section-number">۰۱</span><div><h3>دسترسی سریع</h3><p>مسیرهای اصلی زنجیره تأمین و مدیریت همکاران</p></div></div></div>
       <div className="tower-quick-grid">
-        <Link to="/app/orders"><span><FileText size={18}/></span><b>سفارش‌ها</b><small>ثبت و پیگیری</small><ArrowLeft size={14}/></Link>
-        <Link to="/app/inventory"><span><Warehouse size={18}/></span><b>انبار و خرید</b><small>موجودی و گردش کالا</small><ArrowLeft size={14}/></Link>
-        <Link to="/app/operational-tasks"><span><ClipboardCheck size={18}/></span><b>وظایف عملیاتی</b><small>کارهای باز و موعد</small><ArrowLeft size={14}/></Link>
-        <Link to="/app/finance"><span><CreditCard size={18}/></span><b>مالی و تسویه</b><small>دفتر و اسناد مالی</small><ArrowLeft size={14}/></Link>
-        <Link to="/app/goals"><span><Target size={18}/></span><b>اهداف و برنامه</b><small>شاخص، موعد و مسئول</small><ArrowLeft size={14}/></Link>
-        {(membership.role === 'owner' || membership.role === 'admin') && <Link to="/app/contacts-import"><span><Users size={18}/></span><b>ورود مخاطبین</b><small>VCF و CSV</small><ArrowLeft size={14}/></Link>}
+        <Link to="/app/suppliers"><span><Factory size={18}/></span><b>شبکه تأمین‌کنندگان</b><small>پرونده‌ها و ظرفیت</small><ArrowLeft size={14}/></Link>
+        <Link to="/app/members"><span><Users size={18}/></span><b>دسترسی کاربران</b><small>حساب‌ها و نقش‌ها</small><ArrowLeft size={14}/></Link>
+        <Link to="/app/connect"><span><MessageCircle size={18}/></span><b>مرکز ارتباطات</b><small>مأموریت و پیگیری</small><ArrowLeft size={14}/></Link>
+        <Link to="/app/shipments"><span><Truck size={18}/></span><b>حمل‌ونقل و رانندگان</b><small>مسیر و وضعیت تحویل</small><ArrowLeft size={14}/></Link>
+        <Link to="/app/capacity"><span><Warehouse size={18}/></span><b>ظرفیت تأمین</b><small>تعهدهای تأییدشده</small><ArrowLeft size={14}/></Link>
+        <Link to="/app/operational-tasks"><span><ClipboardCheck size={18}/></span><b>وظایف و مأموریت‌ها</b><small>واگذاری و تکمیل کار</small><ArrowLeft size={14}/></Link>
       </div>
     </section>
-    {counts.orders === 0 && counts.customers === 0 && counts.suppliers === 0 && <div className="tower-onboarding"><ShieldCheck size={18}/><div><b>داده‌ی عملیاتی هنوز ثبت نشده</b><p>برای شروع، محصولات، تأمین‌کنندگان و مشتریان واقعی را ثبت کن. سامانه تا آن زمان عدد ساختگی نمایش نمی‌دهد.</p></div><div className="tower-onboarding-links"><Link to="/app/products">تعریف محصول</Link><Link to="/app/suppliers">ثبت تأمین‌کننده</Link><Link to="/app/customers">ثبت مشتری</Link></div></div>}
+    {counts.suppliers === 0 && counts.capacity === 0 && counts.shipments === 0 && <div className="tower-onboarding"><ShieldCheck size={18}/><div><b>راه‌اندازی زنجیره تأمین را شروع کن</b><p>برای شروع، یک تأمین‌کننده ثبت کن، ظرفیت قابل اتکا را مشخص کن و حساب همکاران را از پنل مالک بساز. سامانه تا آن زمان عدد ساختگی نمایش نمی‌دهد.</p></div><div className="tower-onboarding-links"><Link to="/app/suppliers">ثبت تأمین‌کننده</Link><Link to="/app/capacity">ثبت ظرفیت</Link><Link to="/app/members">ساخت حساب همکار</Link></div></div>}
     <details className="dashboard-disclosure"><summary className="dashboard-disclosure-summary"><span><Zap size={17}/> پیشرفت راه‌اندازی مجموعه</span><small>{loading ? 'در حال بررسی' : numberFa(String(setupSummary.percentage)) + '٪ تکمیل'}</small></summary><section className="panel tower-achievements" aria-labelledby="tower-achievements-title">
       <div className="panel-heading">
         <div><span className="section-number">۰۳</span><div><h3 id="tower-achievements-title">نشان‌های پیشرفت مجموعه</h3><p>هر نشان از روی رکورد واقعی این فضای کاری باز می‌شود؛ امتیاز نمایشی یا پاداش مالی نیست.</p></div></div>
@@ -602,24 +585,18 @@ function Dashboard({ membership }: { membership: Membership }) {
         })}
       </div>
     </section></details>
-    <details className="dashboard-disclosure"><summary className="dashboard-disclosure-summary"><span><Target size={17}/> اهداف و مسیر اجرا</span><small>{loading ? 'در حال بررسی' : numberFa(String(signals.goals.length)) + ' هدف ثبت‌شده'}</small></summary><section className="panel tower-goals-summary">
-      <div className="panel-heading"><div><span className="section-number">۰۲</span><div><h3>اهداف و مسیر اجرا</h3><p>شاخص فعلی، مقدار هدف، موعد و مسئولیت؛ از دفتر اهداف مجموعه</p></div></div><Link className="tower-panel-link" to="/app/goals">مدیریت اهداف <ArrowLeft size={14}/></Link></div>
-      {loading ? <div className="panel-loading"><span className="spinner small"/></div> : signals.goals.length ? <div className="tower-goal-list">{signals.goals.map(goal => {
-        const baseline = Number(goal.baseline_value ?? 0), target = Number(goal.target_value ?? 0), current = Number(goal.current_value ?? 0);
-        const progress = goalProgressPercent(baseline, target, current);
-        const isOverdue = isGoalOverdue(goal.due_date ? String(goal.due_date) : null, todayForDisplay(), String(goal.status));
-        return <Link className={'tower-goal-row' + (isOverdue ? ' overdue' : '')} to="/app/goals" key={String(goal.id)}>
-          <span className="tower-goal-dot"><Target size={16}/></span><span className="tower-goal-main"><b>{String(goal.title ?? 'هدف بدون عنوان')}</b><small>{String(goal.due_date ? 'موعد ' + dateFa(String(goal.due_date)) : 'بدون موعد')} · {String(goal.unit ?? '')}</small></span>
-          <span className="tower-goal-progress"><i><span style={{width:(progress ?? 0)+'%'}}/></i><b>{progress === null ? '—' : numberFa(String(Math.round(progress)))+'٪'}</b></span>
-        </Link>;
-      })}</div> : <EmptyState title="هدف قابل‌پیگیری ثبت نشده" description="در بخش اهداف و برنامه، مقدار مبنا، هدف، موعد و مسئول را ثبت کن تا مسیر اجرا در مرکز فرمان نمایش داده شود." icon={Target}/>}
-    </section></details>
     <div className="dashboard-grid tower-map-grid"><FarmMapPanel sites={mapSites} schemaWarning={mapError} membership={membership}/></div>
     <div className="dashboard-grid tower-main-grid">
-      <details className="dashboard-disclosure"><summary className="dashboard-disclosure-summary"><span><Activity size={17}/> نمودار سفارش‌ها و سابقه‌ی اخیر</span><small>{loading ? 'در حال دریافت' : numberFa(orders.length) + ' سفارش'}</small></summary><section className="panel chart-panel"><div className="panel-heading"><div><span className="section-number">۰۱</span><div><h3>وضعیت سفارش‌های اخیر</h3><p>توزیع رکوردهای واقعی، بدون پیش‌بینی</p></div></div><Badge value={loading ? 'در حال دریافت' : numberFa(orders.length) + ' رکورد'}/></div>
-        {loading ? <div className="panel-loading"><span className="spinner small"/></div> : chart.length ? <div className="chart-wrap"><ResponsiveContainer width="100%" height={270}><BarChart data={chart} margin={{top:8,right:8,left:-14,bottom:8}}><CartesianGrid stroke="#29373B" strokeDasharray="4 4" vertical={false}/><XAxis dataKey="name" tick={{fill:'#A0B0B2',fontSize:11}} axisLine={{stroke:'#29373B'}} tickLine={{stroke:'#29373B'}}/><YAxis allowDecimals={false} tick={{fill:'#77898C',fontSize:10}} axisLine={false} tickLine={false}/><Tooltip contentStyle={{backgroundColor:'#11191C',border:'1px solid #29373B',borderRadius:12,color:'#EAF0F0'}} labelStyle={{color:'#EAF0F0'}} cursor={{fill:'#1D292D'}}/><Bar dataKey="count" name="تعداد سفارش" fill="#6EB9AC" radius={[6,6,0,0]} maxBarSize={54}/></BarChart></ResponsiveContainer></div> : <EmptyState title="هنوز سفارش ثبت نشده" description="با ثبت سفارش واقعی، نمودار وضعیت‌ها اینجا ظاهر می‌شود." icon={FileText}/>}
-        {orders.length > 0 && <div className="tower-recent-orders"><div><b>آخرین سفارش‌ها</b><small>تا چهار رکورد اخیر</small></div>{orders.slice(0,4).map(row => <Link to="/app/orders" className="tower-order-row" key={String(row.id)}><span><b>{String(row.reference ?? 'بدون شماره')}</b><small>{dateFa(String(row.created_at ?? ''))}</small></span><Badge value={String(row.status ?? 'ثبت‌نشده')}/></Link>)}</div>}
-      </section></details>
+      <section className="panel tower-recent-activity"><div className="panel-heading"><div><span className="section-number">۰۲</span><div><h3>فعالیت‌های اخیر مجموعه</h3><p>ثبت‌ها و تغییرهای واقعی کاربران، به ترتیب زمان</p></div></div><Link className="tower-panel-link" to="/app/members">کاربران <ArrowLeft size={14}/></Link></div>
+        {loading ? <div className="panel-loading"><span className="spinner small"/></div> : signals.audit.length ? <div className="tower-recent-activity-list">{signals.audit.map(row => {
+          const tableKey = String(row.table_name ?? '');
+          const tableLabels: Record<string,string> = { suppliers:'تأمین‌کنندگان', memberships:'دسترسی کاربران', shipments:'حمل‌ونقل', operational_tasks:'وظایف عملیاتی', capacity_commitments:'ظرفیت تأمین', farm_sites:'موقعیت‌های کاری', operational_incidents:'رخدادها', medar_conversations:'مرکز ارتباطات', medar_messages:'پیام‌ها' };
+          const routeMap: Record<string,string> = { suppliers:'/app/suppliers', memberships:'/app/members', shipments:'/app/shipments', operational_tasks:'/app/operational-tasks', capacity_commitments:'/app/capacity', farm_sites:'/app/farm-sites', operational_incidents:'/app/incidents', medar_conversations:'/app/connect', medar_messages:'/app/connect' };
+          const action = String(row.action ?? '').toLowerCase();
+          const actionLabel = action === 'insert' || action === 'create' ? 'ثبت' : action === 'delete' ? 'حذف' : action === 'update' ? 'ویرایش' : 'به‌روزرسانی';
+          return <Link to={routeMap[tableKey] ?? '/app/command'} className="tower-recent-activity-row" key={String(row.id)}><span className="tower-recent-activity-icon"><Activity size={15}/></span><span><b>{actionLabel} · {tableLabels[tableKey] ?? tableKey}</b><small>{dateTimeFa(String(row.occurred_at ?? ''))}</small></span><ArrowLeft size={14}/></Link>;
+        })}</div> : <EmptyState title="فعالیتی برای نمایش ثبت نشده" description="با ایجاد حساب همکاران، ثبت ظرفیت و واگذاری مأموریت، سوابق واقعی در این بخش نمایش داده می‌شوند." icon={Activity}/>}
+      </section>
       <section className="panel action-panel"><div className="panel-heading"><div><span className="section-number orange">۰۲</span><div><h3>استثناهای نیازمند اقدام</h3><p>با لینک مستقیم به محل پیگیری</p></div></div><Badge value={numberFa(actionCount) + ' وضعیت'}/></div>
         {loading ? <div className="panel-loading"><span className="spinner small"/></div> : visibleAlerts.length ? <div className="tower-alert-list">{visibleAlerts.map(alert => <Link className={'tower-alert-row ' + alert.tone} to={alert.to} key={alert.id}><span className="tower-alert-mark"><AlertTriangle size={16}/></span><span className="tower-alert-copy"><b>{alert.title}</b><small>{alert.detail}</small></span><span className="tower-alert-go">پیگیری <ArrowLeft size={14}/></span></Link>)}</div> : <EmptyState title="استثنای فعالی برای نمایش پیدا نشد" description="بر اساس داده‌های موجود، وضعیت بازِ قابل نمایش در دسته‌های پیگیری پیدا نشد." icon={CheckCircle2}/>}
         {actionCount > visibleAlerts.length && <div className="tower-alert-foot">حداکثر ۱۲ ردیف برجسته نمایش داده می‌شود. ممکن است یک رکورد هم‌زمان چند وضعیت پیگیری داشته باشد.</div>}
