@@ -568,6 +568,9 @@ app.get('/api/ai/providers', async (c) => {
   if (!COMPANY_ID_RE.test(companyId)) return c.json({ message: 'شناسه مجموعه معتبر نیست.' }, 422);
   const membership = await aiCompanyMembership(c, companyId, user.id);
   if (!membership) return c.json({ message: 'به این فضای کاری دسترسی فعال نداری.' }, 403);
+  if (!(await userHasModulePermission(c, user.id, companyId, 'agents', 'can_read'))) {
+    return c.json({ message: 'برای مشاهده تنظیمات و وضعیت دستیار مجوز نداری.' }, 403);
+  }
   const rows = await sqlFor(c).query('select provider,model,is_default as "isDefault",updated_at as "updatedAt" from public.medar_ai_provider_configs where company_id=$1::uuid order by is_default desc,provider', [companyId]);
   const byProvider = new Map((rows as Array<{ provider: string; model: string; isDefault: boolean; updatedAt: string }>).map(row => [row.provider, row]));
   const providers = (Object.keys(AI_PROVIDERS) as AiProvider[]).map(provider => {
@@ -1178,6 +1181,9 @@ app.post('/api/ai/chat', async (c) => {
   const membership = await aiCompanyMembership(c, companyId, user.id);
   if (!membership) return c.json({ message: 'به این فضای کاری دسترسی فعال نداری.' }, 403);
   const role = membership.role;
+  if (!(await userHasModulePermission(c, user.id, companyId, 'agents', 'can_read'))) {
+    return c.json({ message: 'برای استفاده از دستیار هوشمند مجوز مشاهده نداری.' }, 403);
+  }
   if (!Array.isArray(body.messages) || body.messages.length < 1 || body.messages.length > 12) return c.json({ message: 'گفتگو باید بین ۱ تا ۱۲ پیام آخر را داشته باشد.' }, 422);
   const messages: AiChatMessage[] = [];
   let inputChars = 0;
@@ -2306,7 +2312,7 @@ async function loadModulePermissionOverrides(
   return new Map((rows as ModulePermissionRow[]).map(row => [row.membership_id, row]));
 }
 
-function scopeHasModulePermission(
+export function scopeHasModulePermission(
   scope: MembershipScope,
   overrides: Map<string, ModulePermissionRow>,
   capability: ModulePermissionCapability,
