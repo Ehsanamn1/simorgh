@@ -369,7 +369,7 @@ function FarmMapPanel({sites,schemaWarning,membership}:{sites:Row[];schemaWarnin
           if(!showIranPaper&&(latitude<bounds.south||latitude>bounds.north||longitude<bounds.west||longitude>bounds.east))return null;
           const position=showIranPaper
             ? {x:Math.min(83.3,Math.max(25.5,25.5+((longitude-43)/22)*57.8)),y:Math.min(83.2,Math.max(5.3,5.3+((40-latitude)/16)*77.9))}
-            : {x:Math.min(98,Math.max(2,(longitude-bounds.west)/(bounds.east-bounds.west)*100)),y:Math.min(98,Math.max(2,mapY(latitude))};
+            : {x:Math.min(98,Math.max(2,(longitude-bounds.west)/(bounds.east-bounds.west)*100)),y:Math.min(98,Math.max(2,mapY(latitude)))};
           const label='راننده '+String(shipmentId).slice(0,8).toUpperCase();
           return <button type="button" key={'gps-'+shipmentId} className="farm-map-driver-marker" style={{left:position.x+'%',top:position.y+'%'}} title={label+' · '+dateTimeFa(String(point.captured_at))} aria-label={label+' · '+dateTimeFa(String(point.captured_at))} onClick={()=>setSelectedId('gps:'+shipmentId)}>
             <span className="farm-map-driver-marker-icon"><Truck size={15}/></span><span className="farm-map-driver-marker-label">{label}</span>
