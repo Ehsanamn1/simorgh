@@ -1,10 +1,11 @@
 import { useMemo, useRef, useState } from 'react';
-import { CheckCircle2, FileUp, FileText, LoaderCircle, Phone, RefreshCw, ShieldCheck, Users, Warehouse } from 'lucide-react';
+import { CheckCircle2, FileUp, FileText, LoaderCircle, Phone, RefreshCw, ShieldCheck, Sparkles, Users, Warehouse } from 'lucide-react';
 import { api } from './lib/apiClient';
 
 type ImportKind = 'customers' | 'suppliers';
-type ContactRow = { name: string; phone: string; city: string; address: string; email?: string; kind: ImportKind; kindDetected?: boolean };
+type ContactRow = { name: string; phone: string; city: string; address: string; email?: string; organization?: string; notes?: string; tags?: string[]; kind: ImportKind; kindDetected?: boolean; aiConfidence?: number; aiReason?: string; aiAnalyzed?: boolean };
 type ImportResult = { imported: number; updated: number; skipped: number; kind?: ImportKind; byKind?: Record<ImportKind, { imported: number; updated: number }> };
+type ClassificationResult = { results: Array<{ index: number; kind: ImportKind | 'unknown'; confidence: number; reason: string; tags: string[] }>; analyzed: number; provider: string; model: string };
 
 function csvRows(input: string): string[][] {
   const rows: string[][] = [];
