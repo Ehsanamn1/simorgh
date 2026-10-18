@@ -449,6 +449,38 @@ jobs:
             END IF;
           END $operations_ledger$;
 
+          INSERT INTO public.orders (id,company_id,customer_id,reference,created_by)
+          VALUES (
+            '00000000-0000-4000-8000-000000000342',
+            '00000000-0000-4000-8000-000000000332',
+            '00000000-0000-4000-8000-000000000340',
+            'CI-ORDER-FAILED-001',
+            '00000000-0000-4000-8000-000000000331'
+          );
+          INSERT INTO public.shipments (id,company_id,order_id,driver_user_id,vehicle,stage,failure_reason)
+          VALUES (
+            '00000000-0000-4000-8000-000000000344',
+            '00000000-0000-4000-8000-000000000332',
+            '00000000-0000-4000-8000-000000000342',
+            '00000000-0000-4000-8000-000000000339',
+            'CI delivery vehicle','failed','CI simulated delivery failure'
+          );
+
+          DO $delivery_exception$
+          DECLARE v_cases integer; v_owner uuid;
+          BEGIN
+            SELECT count(*) INTO v_cases FROM public.medar_exception_cases
+              WHERE company_id='00000000-0000-4000-8000-000000000332'
+                AND title='CI delivery vehicle' AND status='open';
+            SELECT assigned_user_id INTO v_owner FROM public.medar_exception_cases
+              WHERE company_id='00000000-0000-4000-8000-000000000332'
+                AND title='CI delivery vehicle' AND status='open'
+              ORDER BY created_at DESC LIMIT 1;
+            IF v_cases<>1 OR v_owner IS DISTINCT FROM '00000000-0000-4000-8000-000000000331'::uuid THEN
+              RAISE EXCEPTION 'Failed-shipment exception automation failed: cases %, owner %',v_cases,v_owner;
+            END IF;
+          END $delivery_exception$;
+
           DO $settlement$
           DECLARE
             v_period uuid;
@@ -557,7 +589,7 @@ jobs:
           END $bank_ledger$;
           ROLLBACK;
           SQL
-          echo "Role matrix, event-to-exception automation, partner settlement calculation/authorization/approval/payment caps, bank-import idempotency, and ledger constraints passed."
+          echo "Role matrix, blocked-task and failed-shipment exception automation, partner settlement calculation/authorization/approval/payment caps, bank-import idempotency, and ledger constraints passed."
       - name: Summarize all dependency advisories
         shell: bash
         run: |
