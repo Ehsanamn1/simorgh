@@ -127,7 +127,7 @@ Required gates for new operational workflows:
 
 ### Phase D — finance integrations
 - select a bank/provider for the specific account and jurisdiction,
-- implement read-only import, duplicate-safe transaction ledger, and reconciliation review,
+- use migration 0018 for bank account metadata, duplicate-safe transaction import, and auditable manual reconciliation review; the current first vertical slice uses CSV imports only, not a live bank API,
 - reconcile invoices and settlements,
 - consider payment initiation only after a separate security and reliability review.
 
