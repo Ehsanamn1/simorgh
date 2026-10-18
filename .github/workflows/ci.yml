@@ -52,7 +52,8 @@ jobs:
             worker/migrations/0012_client_presence.sql worker/migrations/0013_ai_assistant_and_contacts.sql worker/migrations/0014_contact_intelligence.sql worker/migrations/0015_ai_action_approval_ledger.sql worker/migrations/0016_membership_module_permissions.sql worker/migrations/0017_delivery_video_evidence.sql worker/migrations/0018_bank_reconciliation_ledger.sql worker/migrations/0019_daily_briefing_notifications.sql \
             worker/migrations/0020_operational_event_exception_ledger.sql \
             worker/migrations/0021_medar_connect_messaging.sql \
-            worker/migrations/0022_web_push_delivery_queue.sql; do
+            worker/migrations/0022_web_push_delivery_queue.sql \
+            worker/migrations/0023_operational_event_hooks.sql; do
             echo "Applying $migration"
             psql -h 127.0.0.1 -U postgres -d medar_test -v ON_ERROR_STOP=1 -1 -f "$migration"
             version="$(basename "$migration")"
@@ -82,6 +83,9 @@ jobs:
               to_regclass('public.medar_push_subscriptions') is not null and
               to_regclass('public.medar_notification_outbox') is not null and
               to_regprocedure('public.medar_enqueue_notification_push()') is not null and
+              to_regprocedure('public.medar_emit_operational_event()') is not null and
+              exists (select 1 from pg_trigger where tgname='medar_emit_operational_event' and not tgisinternal) and
+              exists (select 1 from public.medar_schema_migrations where version='0023_operational_event_hooks.sql') and
               to_regprocedure('public.medar_check_membership_permission_company()') is not null and
               (select count(*) from information_schema.columns where table_schema='public' and table_name in ('customers','suppliers') and column_name in ('email','organization_name','contact_notes','contact_tags','contact_source')) = 10 and
               (select is_nullable = 'YES' from information_schema.columns where table_schema='public' and table_name='medar_users' and column_name='phone_e164') and
