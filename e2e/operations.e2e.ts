@@ -83,7 +83,7 @@ test('manager workspace retains operations and captures a real rendered control-
 
 test('manager map shows every saved farm coordinate and allows marker selection', async ({ page }) => {
   await installIsolatedSession(page, 'owner');
-  const sites = [
+  let sites = [
     { id: '00000000-0000-4000-8000-000000000101', name: 'مزرعه تهران', site_type: 'crop', city: 'تهران', province: 'تهران', latitude: 35.6892, longitude: 51.3890, license_expires_on: null, active: true },
     { id: '00000000-0000-4000-8000-000000000102', name: 'واحد کرمان', site_type: 'livestock', city: 'کرمان', province: 'کرمان', latitude: 30.2839, longitude: 57.0834, license_expires_on: null, active: true },
   ];
@@ -115,6 +115,13 @@ test('manager map shows every saved farm coordinate and allows marker selection'
   await map.getByRole('button', { name: 'انتخاب واحد کرمان' }).click();
   await expect(map.locator('.farm-map-marker.active .farm-map-marker-label')).toHaveText('واحد کرمان');
   await expect(map.locator('.farm-map-site.active b')).toHaveText('واحد کرمان');
+
+  sites = [];
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await expect(map.locator('.iran-paper-illustration')).toBeVisible();
+  await expect(map.getByRole('button', { name: 'نقشه کاغذی ایران' })).toBeEnabled();
+  await expect(map.locator('.farm-map-sites-empty')).toBeVisible();
+  await expect(map.getByRole('button', { name: 'نقشه دقیق' })).toBeDisabled();
 });
 
 test('generic farm types and daily rejected quantities are validated before writes', async ({ page }) => {
