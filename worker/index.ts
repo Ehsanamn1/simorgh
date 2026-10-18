@@ -2532,8 +2532,8 @@ const UPDATE_PROTECTED_FIELDS:Record<string,Set<string>>={
  invoices:new Set(['status','paid_amount','paid_at','paid_by','payment_reference']),
  settlements:new Set(['status','paid_at','paid_by','payment_reference']),
  operational_tasks:new Set(['status','started_at','submitted_at','reviewed_at','reviewed_by','review_note','assigned_by']),
- production_batches:new Set(['status','quality_status','completed_on','rejected_quantity']),
- partner_financial_entries:new Set(['status','direction','paid_amount','payment_status','approved_by','approved_at','posted_by','posted_at','linked_entry_id','adjustment_effect']),
+ production_batches:new Set(['status','started_on','quality_status','completed_on','rejected_quantity']),
+ partner_financial_entries:new Set(['status','direction','paid_amount','payment_status','submitted_at','approved_by','approved_at','posted_by','posted_at','linked_entry_id','adjustment_effect']),
  partner_settlement_periods:new Set(['status','approved_by','approved_at','settled_by','settled_at','calculation_snapshot','net_result','company_share_amount','partner_share_amount','balance_due_to_partner','balance_due_to_company']),
  inventory_movements:new Set(['company_id','product_id','movement_type','quantity','unit_cost'])
 };
@@ -2563,9 +2563,41 @@ export const MEDAR_STATUS_TRANSITIONS: Record<string, Record<string, readonly st
     approved: ['paid', 'disputed'],
     disputed: ['pending', 'approved'],
   },
+  production_batches: {
+    planned: ['active', 'cancelled'],
+    active: ['submitted_for_review', 'on_hold', 'cancelled'],
+    submitted_for_review: ['approved', 'on_hold', 'rejected'],
+    approved: ['completed', 'on_hold'],
+    on_hold: ['active', 'rejected', 'cancelled'],
+    rejected: ['active', 'cancelled'],
+  },
+  partner_financial_entries: {
+    draft: ['submitted', 'rejected'],
+    submitted: ['approved', 'rejected'],
+    approved: ['posted', 'rejected'],
+    rejected: ['draft'],
+  },
 };
 export function canTransitionMedarStatus(table: string, current: string, next: string): boolean {
   return (MEDAR_STATUS_TRANSITIONS[table]?.[current] ?? []).includes(next);
+}
+
+export function isProductionBatchSubmissionValid(producedQuantity: unknown, rejectedQuantity: unknown): boolean {
+  const produced = Number(producedQuantity);
+  const rejected = Number(rejectedQuantity ?? 0);
+  return Number.isFinite(produced) && produced > 0 &&
+    Number.isFinite(rejected) && rejected >= 0 && rejected <= produced;
+}
+
+export function isProductionBatchCompletionReady(
+  qualityStatus: unknown,
+  lotId: unknown,
+  hasReleasedLotAndPassingReview: boolean,
+): boolean {
+  return qualityStatus === 'passed' &&
+    typeof lotId === 'string' &&
+    /^[0-9a-f-]{36}$/i.test(lotId) &&
+    hasReleasedLotAndPassingReview;
 }
 
 export function isBankReconciliationDirectionCompatible(
@@ -2666,7 +2698,8 @@ app.post('/api/data/:table',async c=>{
      if(table==='orders'){row.status='draft';row.created_by=user.id;}
      if(table==='shipments')row.stage='planned';
      if(table==='operational_tasks')row.status='pending';
-     if(table==='partner_financial_entries'){row.status='submitted';row.submitted_by=user.id;}
+     if(table==='partner_financial_entries'){row.status='submitted';row.submitted_by=user.id;if(columns.has('submitted_at'))row.submitted_at=new Date().toISOString();}
+     if(table==='production_batches'){row.status='planned';row.quality_status='not_inspected';row.started_on=null;row.completed_on=null;row.rejected_quantity=0;row.created_by=user.id;}
      if(table==='invoices'){row.status='draft';row.paid_amount=0;}
      sanitized.push(row);continue;
     }
@@ -2725,6 +2758,7 @@ app.post('/api/data/:table',async c=>{
     : null;
   const transitionField: Record<string, string> = {
     orders: 'status', shipments: 'stage', invoices: 'status', settlements: 'status',
+    production_batches: 'status', partner_financial_entries: 'status',
   };
   const stateField = transitionField[table];
   const requestedState = stateField && values ? values[stateField] : undefined;
@@ -2737,6 +2771,18 @@ app.post('/api/data/:table',async c=>{
     if (requestedState === 'partially_paid') transitionFields.add('paid_amount');
   }
   if (isTransition && table === 'settlements' && requestedState === 'paid') transitionFields.add('payment_reference');
+  if (isTransition && table === 'production_batches') {
+    if (requestedState === 'active') transitionFields.add('started_on');
+    if (['submitted_for_review','approved','rejected'].includes(String(requestedState))) {
+      transitionFields.add('quality_status');
+      transitionFields.add('rejected_quantity');
+    }
+    if (requestedState === 'completed') {
+      transitionFields.add('quality_status');
+      transitionFields.add('completed_on');
+      transitionFields.add('lot_id');
+    }
+  }
 
   const ordinaryProtected = (key: string) =>
     protectedKeys.has(key) ||
@@ -2758,9 +2804,14 @@ app.post('/api/data/:table',async c=>{
     scopes.some(m => m.role === 'customer' && m.customer_id);
   const externalDriverUpdate = isTransition && table === 'shipments' &&
     scopes.some(m => m.role === 'driver');
+  const approvalRequired = isTransition && (
+    ['approved','paid'].includes(String(requestedState)) ||
+    (table === 'partner_financial_entries' && ['posted','rejected'].includes(String(requestedState))) ||
+    (table === 'production_batches' && ['rejected','completed'].includes(String(requestedState)))
+  );
   const mutationCapability: ModulePermissionCapability = action === 'delete'
     ? 'can_delete'
-    : (isTransition && ['approved','paid'].includes(String(requestedState)) ? 'can_approve' : 'can_update');
+    : (approvalRequired ? 'can_approve' : 'can_update');
   const permissionFilteredScopes = scopes.filter(scope => hasPermission(scope, mutationCapability));
   const mutationScopes = isTransition
     ? permissionFilteredScopes.filter(m => INTERNAL_ROLES.has(m.role) ||
@@ -2777,6 +2828,19 @@ app.post('/api/data/:table',async c=>{
   const scope = buildMembershipScopeSql(table, columns, mutationScopes, user.id, params, 1);
   const condition = [scope, where, orWhere].filter(Boolean).map(part => '(' + part + ')').join(' and ');
 
+  if ((action === 'update' || action === 'delete') && !isTransition &&
+      (table === 'partner_financial_entries' || table === 'production_batches')) {
+    const guardedRows = await runForUser(c, user.id,
+      'select status from ' + tableName + ' where ' + condition + ' limit 501', params
+    ) as Array<{ status: string }>;
+    if (table === 'partner_financial_entries' && guardedRows.some(row => row.status === 'posted')) {
+      return c.json({ message: 'رکورد مالی ثبت‌شده قابل ویرایش یا حذف نیست؛ برای اصلاح، سند تعدیلی ثبت کن.' }, 409);
+    }
+    if (table === 'production_batches' && guardedRows.some(row => row.status === 'completed')) {
+      return c.json({ message: 'بچ تولید تکمیل‌شده قابل ویرایش یا حذف نیست.' }, 409);
+    }
+  }
+
   if (action === 'update' && isTransition && stateField) {
     const currentRows = await runForUser(c, user.id,
       'select * from ' + tableName + ' where ' + condition + ' limit 501', params);
@@ -2789,7 +2853,27 @@ app.post('/api/data/:table',async c=>{
     if (!canTransitionMedarStatus(table, currentState, nextState)) {
       return c.json({ message: 'این انتقال وضعیت با گردش‌کار فعلی مجاز نیست.' }, 422);
     }
-        const rowScopes = mutationScopes.filter(m => m.company_id === String(current.company_id));
+    if (table === 'production_batches' && nextState === 'submitted_for_review') {
+      const rejected = values?.rejected_quantity ?? current.rejected_quantity ?? 0;
+      if (!isProductionBatchSubmissionValid(current.produced_quantity, rejected)) {
+        return c.json({ message: 'برای ارسال بچ به بازبینی، مقدار تولید باید مثبت و مقدار مردودی در بازهٔ مجاز باشد.' }, 422);
+      }
+    }
+    if (table === 'production_batches' && nextState === 'completed') {
+      const lotId = typeof values?.lot_id === 'string' ? values.lot_id : current.lot_id;
+      const qualityStatus = values?.quality_status ?? current.quality_status;
+      if (!isProductionBatchCompletionReady(qualityStatus, lotId, true)) {
+        return c.json({ message: 'تکمیل بچ فقط با کیفیت تأییدشده و شناسهٔ لات معتبر ممکن است.' }, 422);
+      }
+      const readyLots = await runForUser(c, user.id,
+        "select l.id from public.lots l where l.id=$1::uuid and l.company_id=$2::uuid and l.status='released' and l.product_id is not distinct from $3::uuid and l.supplier_id is not distinct from $4::uuid and exists (select 1 from public.quality_reviews q where q.company_id=l.company_id and q.lot_id=l.id and q.result='pass') and exists (select 1 from public.farm_sites fs where fs.id=$5::uuid and fs.company_id=l.company_id and fs.supplier_id is not distinct from $4::uuid) limit 1",
+        [lotId, current.company_id, current.product_id, current.supplier_id, current.farm_site_id],
+      );
+      if (!readyLots.length) {
+        return c.json({ message: 'برای تکمیل بچ، لات باید متعلق به همین شرکت/تأمین‌کننده/محصول، آزادشده و دارای بازبینی موفق باشد.' }, 422);
+      }
+    }
+    const rowScopes = mutationScopes.filter(m => m.company_id === String(current.company_id));
     const rowHasInternalRole = rowScopes.some(m => INTERNAL_ROLES.has(m.role));
     if (table === 'orders' && !rowHasInternalRole) {
       if (!rowScopes.some(m => m.role === 'customer' && m.customer_id === String(current.customer_id)) ||
@@ -2805,6 +2889,49 @@ app.post('/api/data/:table',async c=>{
     }
     const safeValues: Record<string, unknown> = { [stateField]: nextState };
     if (table === 'orders' && nextState === 'submitted' && columns.has('updated_at')) safeValues.updated_at = new Date().toISOString();
+    if (table === 'production_batches') {
+      const today = new Date().toISOString().slice(0, 10);
+      if (nextState === 'active') {
+        safeValues.started_on = current.started_on || today;
+        if (currentState === 'rejected') {
+          safeValues.quality_status = 'not_inspected';
+          safeValues.completed_on = null;
+          safeValues.rejected_quantity = 0;
+        }
+      }
+      if (nextState === 'submitted_for_review') {
+        safeValues.quality_status = 'pending';
+        safeValues.rejected_quantity = Number(values?.rejected_quantity ?? current.rejected_quantity ?? 0);
+      }
+      if (nextState === 'rejected') safeValues.quality_status = 'failed';
+      if (nextState === 'completed') {
+        safeValues.quality_status = 'passed';
+        safeValues.completed_on = today;
+        safeValues.lot_id = typeof values?.lot_id === 'string' ? values.lot_id : current.lot_id;
+      }
+      if (columns.has('updated_at')) safeValues.updated_at = new Date().toISOString();
+    }
+    if (table === 'partner_financial_entries') {
+      const now = new Date().toISOString();
+      if (nextState === 'submitted') {
+        if (columns.has('submitted_at')) safeValues.submitted_at = now;
+        if (columns.has('submitted_by')) safeValues.submitted_by = user.id;
+      }
+      if (nextState === 'approved') {
+        if (columns.has('approved_at')) safeValues.approved_at = now;
+        if (columns.has('approved_by')) safeValues.approved_by = user.id;
+      }
+      if (nextState === 'posted') {
+        if (columns.has('posted_at')) safeValues.posted_at = now;
+        if (columns.has('posted_by')) safeValues.posted_by = user.id;
+      }
+      if (nextState === 'draft') {
+        for (const key of ['submitted_at','submitted_by','approved_at','approved_by','posted_at','posted_by']) {
+          if (columns.has(key)) safeValues[key] = null;
+        }
+      }
+      if (columns.has('updated_at')) safeValues.updated_at = now;
+    }
     if (table === 'shipments') {
       if (nextState === 'failed') {
         const reason = typeof values?.failure_reason === 'string' ? values.failure_reason.trim() : '';
