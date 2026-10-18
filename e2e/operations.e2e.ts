@@ -453,6 +453,11 @@ test('manager bottom navigation stays manager-specific on mobile and tablet', as
   await installIsolatedSession(page, 'owner');
   await page.goto('/simorgh/app/command', { waitUntil: 'domcontentloaded' });
   await expect(page.getByRole('heading', { name: /مرکز فرمان شبکه/ })).toBeVisible();
+  await expect(page.locator('.tower-quick-access a').filter({ hasText: 'شبکه تأمین‌کنندگان' })).toBeVisible();
+  await expect(page.locator('.tower-quick-access a').filter({ hasText: 'دسترسی کاربران' })).toBeVisible();
+  await expect(page.locator('.tower-quick-access a').filter({ hasText: 'مرکز ارتباطات' })).toBeVisible();
+  await expect(page.locator('.tower-quick-access a').filter({ hasText: 'مالی و تسویه' })).toHaveCount(0);
+  await expect(page.locator('.tower-stats')).not.toContainText('مشتریان');
   const mobileNav = page.locator('.mobile-workspace-nav');
   if (viewportWidth <= 860) {
     await expect(mobileNav).toBeVisible();
