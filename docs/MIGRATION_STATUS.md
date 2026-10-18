@@ -2,16 +2,16 @@
 
 **آخرین بازبینی:** ۱۸ اکتبر ۲۰۲۶  
 **شاخه:** `main`  
-**نسخهٔ بررسی‌شده:** `0c92ca575fedbef2e746729d5af07adbbab7fa90`  
-**تغییرات اخیر:** [PR #73](https://github.com/Ehsanamn1/simorgh/pull/73)، [PR #74](https://github.com/Ehsanamn1/simorgh/pull/74)
+**نسخهٔ بررسی‌شده:** `b21902a42d` (commit کامل در GitHub Actions)  
+**تغییرات اخیر:** [PR #74](https://github.com/Ehsanamn1/simorgh/pull/74)، [PR #75](https://github.com/Ehsanamn1/simorgh/pull/75)
 
 ## وضعیت انتشار زنده
 
-- [انتشار Cloudflare Workers](https://github.com/Ehsanamn1/simorgh/actions/runs/39144233955) — موفق
-- [CI اصلی](https://github.com/Ehsanamn1/simorgh/actions/runs/39144233984) — موفق
-- [انتشار GitHub Pages](https://github.com/Ehsanamn1/simorgh/actions/runs/39144234059) — موفق
-- [ساخت Android](https://github.com/Ehsanamn1/simorgh/actions/runs/39144233916) — موفق
-- [ساخت شبیه‌ساز iOS](https://github.com/Ehsanamn1/simorgh/actions/runs/39144233888) — موفق
+- [انتشار Cloudflare Workers](https://github.com/Ehsanamn1/simorgh/actions/runs/39145188615) — موفق
+- [CI اصلی](https://github.com/Ehsanamn1/simorgh/actions/runs/39145188620) — موفق
+- [انتشار GitHub Pages](https://github.com/Ehsanamn1/simorgh/actions/runs/39145188677) — موفق
+- [ساخت Android](https://github.com/Ehsanamn1/simorgh/actions/runs/39145188645) — موفق
+- [ساخت شبیه‌ساز iOS](https://github.com/Ehsanamn1/simorgh/actions/runs/39145188644) — موفق
 
 نشانی‌های فعلی:
 
