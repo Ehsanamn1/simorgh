@@ -851,7 +851,7 @@ html[data-theme="dark"] .ai-primary-button { color: #202a38; background: linear-
 .contact-import-result svg { flex: none; color: var(--obs-positive); }
 .contact-import-result b { font-size: 12px; }
 .contact-import-result p, .contact-import-result small { margin: 5px 0 0; color: var(--obs-muted); font-size: 10px; line-height: 1.8; }
-@media (max-width: 720px) {
+@media (max-width: 860px) {
   .ai-assistant-launcher { left: 12px; bottom: calc(86px + env(safe-area-inset-bottom)); min-height: 51px; gap: 7px; padding: 6px 10px 6px 6px; border-radius: 17px; }
   .ai-launcher-orb { width: 37px; height: 37px; }
   .ai-launcher-label b { font-size: 10px; }
