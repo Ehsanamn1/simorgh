@@ -397,6 +397,15 @@ test('supplier directory remains readable from cache when offline', async ({ pag
   await page.context().setOffline(true);
   await page.evaluate(() => window.dispatchEvent(new Event('offline')));
   await expect(page.locator('.offline-notice')).toBeVisible();
+  await page.evaluate(() => {
+    window.history.pushState({}, '', '/simorgh/app/home');
+    window.dispatchEvent(new PopStateEvent('popstate', { state: {} }));
+  });
+  await expect(page).toHaveURL(/home$/);
+  await page.evaluate(() => {
+    window.history.pushState({}, '', '/simorgh/app/suppliers');
+    window.dispatchEvent(new PopStateEvent('popstate', { state: {} }));
+  });
   await expect(page.getByText('تأمین‌کننده آفلاین')).toBeVisible();
   await page.context().setOffline(false);
   apiReachable = true;
