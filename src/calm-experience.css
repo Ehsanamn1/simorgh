@@ -1644,8 +1644,13 @@ html[data-theme="dark"] .bank-primary-button { color:#202a38; }
   .app-sidebar {
     position: fixed;
     inset-block: 0;
+    /* In RTL, inline-end resolves to the left. Anchor the drawer physically to the right
+       so its closed transform moves the entire panel off-canvas instead of leaving a
+       narrow, invisible strip over the content that steals pointer events. */
+    right: 0;
+    left: auto;
     inset-inline-start: auto;
-    inset-inline-end: 0;
+    inset-inline-end: auto;
     width: min(320px, 90vw);
     height: 100dvh;
     min-height: 0;
