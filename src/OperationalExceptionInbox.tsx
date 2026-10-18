@@ -59,12 +59,15 @@ export function OperationalExceptionInbox({ membership }: { membership: Membersh
     } catch (caught) { setError(caught instanceof Error ? caught.message : 'ثبت مسئله ناموفق بود.'); }
   }
 
-  async function updateCase(item: ExceptionCase, action: 'acknowledge'|'resolve') {
+  async function updateCase(item: ExceptionCase, action: 'acknowledge'|'start'|'resolve') {
     setBusyId(item.id);setError('');setNotice('');
     try {
       if (action === 'acknowledge') {
         await api.post('/api/operational/exceptions/'+encodeURIComponent(item.id)+'/acknowledge',{companyId});
         setNotice('دریافت مسئله ثبت شد.');
+      } else if (action === 'start') {
+        await api.post('/api/operational/exceptions/'+encodeURIComponent(item.id)+'/start',{companyId});
+        setNotice('رسیدگی به مسئله شروع شد.');
       } else {
         const note = (resolutionNotes[item.id] ?? '').trim();
         await api.post('/api/operational/exceptions/'+encodeURIComponent(item.id)+'/resolve',{companyId,resolutionNote:note});
@@ -92,7 +95,7 @@ export function OperationalExceptionInbox({ membership }: { membership: Membersh
       </form>
       <section className="medar-exception-list-panel"><div className="medar-exception-list-title"><h2><AlertTriangle size={18}/> موارد نیازمند اقدام</h2><span>{cases.length.toLocaleString('fa-IR')}</span></div>
         {loading ? <p className="medar-exception-empty">در حال دریافت اطلاعات…</p> : cases.length===0 ? <div className="medar-exception-empty"><CheckCircle2 size={25}/><b>مسئلهٔ بازی ثبت نشده است</b><span>با ثبت یک مسئله، مسئول و نتیجهٔ رسیدگی را در همین صفحه پیگیری می‌کنی.</span></div> :
-          <div className="medar-exception-list">{cases.map(item=><article key={item.id} className={'medar-exception-card '+item.severity}><div className="medar-exception-card-heading"><div><span className={'medar-exception-severity '+item.severity}>{item.severity==='critical'?'بحرانی':'پیگیری'}</span><h3>{item.title}</h3></div><span className="medar-exception-status">{statusNames[item.status]||item.status}</span></div>{item.details&&<p>{item.details}</p>}<div className="medar-exception-meta"><span>مسئول: {item.assignedUsername||'تعیین نشده'}</span><span><Clock3 size={13}/>{timeLabel(item.dueAt)}</span></div>{item.resolutionNote&&<p className="medar-exception-resolution">نتیجه: {item.resolutionNote}</p>}{!['resolved','closed'].includes(item.status)&&<div className="medar-exception-actions">{item.status==='open'&&<button type="button" disabled={busyId===item.id} onClick={()=>void updateCase(item,'acknowledge')}>ثبت دریافت</button>}<input aria-label={'شرح نتیجه '+item.title} value={resolutionNotes[item.id]??''} onChange={e=>setResolutionNotes(prev=>({...prev,[item.id]:e.target.value}))} placeholder="نتیجهٔ رسیدگی برای بستن مسئله"/><button type="button" disabled={busyId===item.id||(resolutionNotes[item.id]??'').trim().length<3} onClick={()=>void updateCase(item,'resolve')}>{busyId===item.id?'در حال ثبت…':'حل و بستن'}</button></div>}</article>)}</div>}
+          <div className="medar-exception-list">{cases.map(item=><article key={item.id} className={'medar-exception-card '+item.severity}><div className="medar-exception-card-heading"><div><span className={'medar-exception-severity '+item.severity}>{item.severity==='critical'?'بحرانی':'پیگیری'}</span><h3>{item.title}</h3></div><span className="medar-exception-status">{statusNames[item.status]||item.status}</span></div>{item.details&&<p>{item.details}</p>}<div className="medar-exception-meta"><span>مسئول: {item.assignedUsername||'تعیین نشده'}</span><span><Clock3 size={13}/>{timeLabel(item.dueAt)}</span></div>{item.resolutionNote&&<p className="medar-exception-resolution">نتیجه: {item.resolutionNote}</p>}{!['resolved','closed'].includes(item.status)&&<div className="medar-exception-actions">{item.status==='open'&&<button type="button" disabled={busyId===item.id} onClick={()=>void updateCase(item,'acknowledge')}>ثبت دریافت</button>}{item.status==='acknowledged'&&<button type="button" disabled={busyId===item.id} onClick={()=>void updateCase(item,'start')}>شروع رسیدگی</button>}<input aria-label={'شرح نتیجه '+item.title} value={resolutionNotes[item.id]??''} onChange={e=>setResolutionNotes(prev=>({...prev,[item.id]:e.target.value}))} placeholder="نتیجهٔ رسیدگی برای بستن مسئله"/><button type="button" disabled={busyId===item.id||(resolutionNotes[item.id]??'').trim().length<3} onClick={()=>void updateCase(item,'resolve')}>{busyId===item.id?'در حال ثبت…':'حل و بستن'}</button></div>}</article>)}</div>}
       </section>
     </div>
     <section className="medar-exception-events"><div className="medar-exception-list-title"><h2>رویدادهای ثبت‌شده</h2><span>{events.length.toLocaleString('fa-IR')}</span></div>{events.length===0?<p className="medar-exception-empty">هنوز رویداد عملیاتی از مسیرهای ثبت‌شده دریافت نشده است.</p>:events.slice(0,12).map(event=><article key={event.id}><span className={'medar-exception-event-dot '+event.severity}/><div><b>{event.title}</b><p>{event.body||event.eventType}</p></div><time>{timeLabel(event.occurredAt)}</time></article>)}</section>
