@@ -406,7 +406,15 @@ test('operations can show cached order reads after the browser goes offline', as
   await expect(page.getByText('ORD-OFF-001')).toBeVisible();
   await expect(page.getByText('خریدار آفلاین')).toBeVisible();
   await page.context().setOffline(true);
-  await page.getByRole('button', { name: /تازه‌سازی/ }).click();
+  await page.evaluate(() => {
+    window.history.pushState({}, '', '/simorgh/app/home');
+    window.dispatchEvent(new PopStateEvent('popstate', { state: {} }));
+  });
+  await expect(page).toHaveURL(/home$/);
+  await page.evaluate(() => {
+    window.history.pushState({}, '', '/simorgh/app/orders');
+    window.dispatchEvent(new PopStateEvent('popstate', { state: {} }));
+  });
   await expect(page.locator('.offline-notice')).toBeVisible();
   await expect(page.getByText('ORD-OFF-001')).toBeVisible();
   await page.context().setOffline(false);
