@@ -3,7 +3,7 @@ import { Geolocation } from '@capacitor/geolocation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import {
-  Activity, AlertTriangle, ArrowLeft, ArrowUpLeft, Bot, Boxes, Building2, CalendarDays, CheckCircle2,
+  Activity, AlertTriangle, ArrowLeft, ArrowUpLeft, Boxes, Building2, CalendarDays, CheckCircle2,
   ChevronDown, CircleHelp, ClipboardCheck, CreditCard, Factory, FileCheck2, FileText, House, LayoutDashboard,
   LockKeyhole, LogOut, MapPin, Menu, Monitor, Moon, Package, Plus, RefreshCw, Search, Settings2, ShieldCheck, Smartphone, Sun, Target, Truck, Users, Warehouse, X, Zap, MessageCircle,
 } from 'lucide-react';
