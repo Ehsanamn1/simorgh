@@ -3180,4 +3180,13 @@ app.onError((error, c) => {
   console.error(`[medar:${requestId}] ${c.req.method} ${path} ${detail}`);
   return c.json({ message: 'درخواست انجام نشد. دوباره تلاش کن.', requestId }, 500);
 });
-export default app;
+const medarWorker = {
+  fetch: app.fetch,
+  scheduled(_controller: { scheduledTime: number }, env: Bindings, context: { waitUntil(promise: Promise<unknown>): void }) {
+    context.waitUntil(runDailyBriefingNotifications(env).catch(error => {
+      console.error('[medar:daily-briefing] scheduled notification generation failed', error);
+      throw error;
+    }));
+  },
+};
+export default medarWorker;
