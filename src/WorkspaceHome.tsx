@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import {
   Activity, ArrowLeft, Building2, CalendarClock, CheckCircle2, ClipboardCheck,
   CreditCard, Factory, FileText, LayoutDashboard, MapPin, Package, ShieldCheck,
-  Target, Truck, Users, Warehouse,
+  Truck, Users, Warehouse,
 } from 'lucide-react';
 import type { AppRole, Membership, Row } from './lib/types';
 import { dataApi } from './lib/dataClient';
@@ -69,7 +69,7 @@ export function WorkspaceHome({ membership, userName }: { membership: Membership
       const companyId = membership.company_id;
       const today = new Date().toISOString().slice(0, 10);
       let nextMetrics: Metric[] = [];
-      let nextItems: BriefingItem[] = [];
+      const nextItems: BriefingItem[] = [];
 
       if (role === 'owner' || role === 'admin' || role === 'staff') {
         const [tasks, overdueOrders, incidents] = await Promise.all([
