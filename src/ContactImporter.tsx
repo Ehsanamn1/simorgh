@@ -214,7 +214,7 @@ export function ContactImporter({companyId}:{companyId:string}) {
       const total: ImportResult = { imported: 0, updated: 0, skipped: contacts.length-ready.length,
         byKind: { customers: { imported: 0, updated: 0 }, suppliers: { imported: 0, updated: 0 } } };
       for(let start=0;start<ready.length;start+=1000){
-        const chunk=ready.slice(start,start+1000).map(({name,phone,city,address,kind:contactKind})=>({name,phone,city,address,kind:contactKind}));
+        const chunk=ready.slice(start,start+1000).map(({name,phone,city,address,email,organization,notes,tags,kind:contactKind})=>({name,phone,city,address,email,organization,notes,tags,kind:contactKind}));
         const response=await api.post<ImportResult>('/api/contacts/import',{companyId,kind,contacts:chunk});
         total.imported+=response.imported;total.updated+=response.updated;total.skipped+=response.skipped;
         for(const target of ['customers','suppliers'] as const){
