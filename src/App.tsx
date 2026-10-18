@@ -1,6 +1,6 @@
 import type * as React from 'react';
 import { Geolocation } from '@capacitor/geolocation';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import {
   Activity, AlertTriangle, ArrowLeft, ArrowUpLeft, Bot, Boxes, Building2, CalendarDays, CheckCircle2,
@@ -123,7 +123,7 @@ function AppShell() {
   }, [membership?.id, membership?.company_id]);
   const navItems = useMemo(() => navDefinitions.filter(n =>
     Boolean(role && n.roles.includes(role)) &&
-    (moduleReadPermissions === null || moduleReadPermissions[PAGE_PERMISSION_MODULE[n.key]] !== false)
+    (n.key === 'settings' || moduleReadPermissions === null || moduleReadPermissions[PAGE_PERMISSION_MODULE[n.key]] !== false)
   ), [role, moduleReadPermissions]);
   const filteredNavItems = useMemo(() => {
     const query = navSearch.trim().toLocaleLowerCase('fa-IR');
@@ -178,15 +178,15 @@ function SettingsPage({ membership }: { membership: Membership }) {
   const [health, setHealth] = useState<SystemHealthSnapshot | null>(null); const [clients, setClients] = useState<ClientPresenceRow[]>([]);
   const [connectionLoading, setConnectionLoading] = useState(false); const [connectionError, setConnectionError] = useState('');
   const canManage = membership.role === 'owner' || membership.role === 'admin';
-  const refreshConnection = async () => {
+  const refreshConnection = useCallback(async () => {
     setConnectionLoading(true); setConnectionError('');
     const checks = await Promise.allSettled([api.get<SystemHealthSnapshot>('/api/health'), canManage ? api.get<{ clients: ClientPresenceRow[] }>('/api/admin/system/clients?companyId=' + encodeURIComponent(membership.company_id)) : Promise.resolve({ clients: [] as ClientPresenceRow[] })]);
     const issues: string[] = [];
     if (checks[0].status === 'fulfilled') setHealth(checks[0].value); else { setHealth(null); issues.push('وضعیت سرویس مرکزی دریافت نشد.'); }
     if (checks[1].status === 'fulfilled') setClients(checks[1].value.clients ?? []); else { setClients([]); issues.push('وضعیت دستگاه‌های این مجموعه دریافت نشد.'); }
     setConnectionError(issues.join(' ')); setConnectionLoading(false);
-  };
-  useEffect(() => { void refreshConnection(); }, [membership.company_id, canManage]);
+  }, [canManage, membership.company_id]);
+  useEffect(() => { void refreshConnection(); }, [refreshConnection]);
   async function changePassword(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault(); setPasswordError(''); setPasswordNotice('');
     if (newPassword.length < 8 || newPassword.length > 128) { setPasswordError('گذرواژه جدید باید بین ۸ تا ۱۲۸ نویسه باشد.'); return; }
