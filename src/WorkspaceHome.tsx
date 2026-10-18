@@ -148,32 +148,8 @@ export function WorkspaceHome({ membership, userName }: { membership: Membership
           tone: 'info',
         }));
       } else {
-        const [orders, invoices] = await Promise.all([
-          dataApi.from('orders').select('id,reference,status,requested_delivery,created_at', { count: 'exact' }).eq('company_id', companyId).eq('customer_id', membership.customer_id ?? '').not('status', 'in', '(delivered,cancelled)').order('created_at', { ascending: false }).limit(6),
-          dataApi.from('invoices').select('id,reference,status,amount,due_date', { count: 'exact' }).eq('company_id', companyId).eq('customer_id', membership.customer_id ?? '').not('status', 'in', '(paid,cancelled)').order('due_date', { ascending: true }).limit(4),
-        ]);
-        const failure = orders.error ?? invoices.error;
-        if (failure) throw new Error(failure.message);
-        const orderRows = (orders.data ?? []) as Row[];
-        const invoiceRows = (invoices.data ?? []) as Row[];
-        nextMetrics = [
-          { label: 'سفارش‌های در جریان', value: orders.count ?? orderRows.length, detail: 'سفارش‌های فعال حساب شما', icon: Package, to: '/app/my-orders' },
-          { label: 'فاکتورهای تسویه‌نشده', value: invoices.count ?? invoiceRows.length, detail: 'برای بررسی مالی', icon: CreditCard, to: '/app/my-orders' },
-        ];
-        orderRows.slice(0, 5).forEach(row => nextItems.push({
-          id: 'customer-order-' + String(row.id),
-          title: 'سفارش ' + String(row.reference ?? String(row.id).slice(0, 8)),
-          detail: (statusLabel[String(row.status)] ?? String(row.status ?? 'ثبت‌نشده')) + (row.requested_delivery ? ' · تحویل درخواستی ' + dateFa(String(row.requested_delivery)) : ''),
-          to: '/app/my-orders',
-          tone: 'info',
-        }));
-        invoiceRows.filter(row => row.due_date && String(row.due_date) < today).forEach(row => nextItems.push({
-          id: 'customer-invoice-' + String(row.id),
-          title: 'فاکتور سررسیدگذشته ' + String(row.reference ?? ''),
-          detail: moneyFa(String(row.amount ?? 0)) + ' · سررسید ' + dateFa(String(row.due_date)),
-          to: '/app/my-orders',
-          tone: 'warning',
-        }));
+        nextMetrics = [{ label: 'دسترسی عملیاتی', value: 0, detail: 'نقش سفارش‌دهنده در نسخه فعلی غیرفعال است', icon: ShieldCheck, to: '/app/settings' }];
+        nextItems.push({ id: 'customer-disabled', title: 'دسترسی سفارش‌گیری غیرفعال است', detail: 'مدار برای مدیریت زنجیره تأمین، تأمین‌کنندگان و رانندگان استفاده می‌شود. برای تغییر نقش با مالک مجموعه هماهنگ کن.', to: '/app/settings', tone: 'info' });
       }
       const urgency: Record<NonNullable<BriefingItem['tone']>, number> = { critical: 0, warning: 1, info: 2 };
       nextItems.sort((a, b) => urgency[a.tone ?? 'info'] - urgency[b.tone ?? 'info']);
@@ -196,7 +172,7 @@ export function WorkspaceHome({ membership, userName }: { membership: Membership
     staff: { title: 'کارهای امروز شما', description: 'وظایف باز و مواردی که برای تکمیل عملیات نیاز به اقدام دارند.' },
     supplier: { title: 'برنامه‌ی امروز تأمین‌کننده', description: 'کارهای واگذارشده و ظرفیت‌هایی که هنوز نیازمند پیگیری‌اند.' },
     driver: { title: 'برنامه‌ی امروز راننده', description: 'محموله‌های فعال و کارهای ثبت‌شده برای شما.' },
-    customer: { title: 'وضعیت سفارش‌های سازمان شما', description: 'سفارش‌های در جریان و فاکتورهای باز حساب سازمانی.' },
+    customer: { title: 'دسترسی محدود', description: 'نقش سفارش‌دهنده در نسخه فعلی فعال نیست؛ مدار روی مدیریت زنجیره تأمین متمرکز است.' },
   };
   const heading = roleHeading[role];
 
