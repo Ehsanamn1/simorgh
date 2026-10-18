@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import type { AppRole, Membership, Row } from './lib/types';
 import { dataApi } from './lib/dataClient';
+import { InAppNotifications } from './InAppNotifications';
 import { dateFa, dateTimeFa, moneyFa, numberFa, roleLabel, statusLabel } from './lib/format';
 
 type QuickLink = { key: string; title: string; detail: string; icon: typeof LayoutDashboard };
@@ -210,6 +211,8 @@ export function WorkspaceHome({ membership, userName }: { membership: Membership
       <p className="workspace-home-description">{heading.description}</p>
       <div className="workspace-home-meta"><span><ShieldCheck size={15}/> دسترسی بر پایه‌ی نقش تأییدشده</span><span><CalendarClock size={15}/> خلاصه‌ی به‌روزشونده از رکوردهای سیستم</span></div>
     </section>
+
+    <InAppNotifications membership={membership}/>
 
     <section className="workspace-home-section">
       <div className="workspace-home-section-heading"><div><span className="workspace-home-eyebrow">نگاه سریع</span><h2>بخش‌های پرکاربرد شما</h2></div><small>{links.length.toLocaleString('fa-IR')} میان‌بر</small></div>
