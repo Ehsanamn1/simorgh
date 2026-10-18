@@ -177,7 +177,9 @@ export function WorkspaceHome({ membership, userName }: { membership: Membership
           tone: 'warning',
         }));
       }
-      setMetrics(nextMetrics);
+      const urgency: Record<NonNullable<BriefingItem['tone']>, number> = { critical: 0, warning: 1, info: 2 };
+      nextItems.sort((a, b) => urgency[a.tone ?? 'info'] - urgency[b.tone ?? 'info']);
+      setMetrics(nextMetrics.slice(0, 3));
       setItems(nextItems);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'خلاصه‌ی امروز دریافت نشد.');
