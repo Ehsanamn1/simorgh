@@ -28,3 +28,35 @@ No test business records or owner accounts are inserted by these migrations.
 12. `0012_client_presence.sql` — track authenticated web/mobile clients in the central manager panel.
 13. `0013_ai_assistant_and_contacts.sql` — company-scoped AI provider keys and usage accounting.
 14. `0014_contact_intelligence.sql` — keep organization, email, notes, tags, address and source metadata on imported customer/supplier records, with company-scoped phone lookup indexes.
+
+
+15. `0015_ai_action_approval_ledger.sql` — stores inert company-scoped agent action proposals and adds an idempotent, audited task-creation function. Proposal creation never writes an operational task; executing the tool requires an authenticated active membership and a separate explicit confirmation.
+
+The Cloudflare operational deployment workflow applies this migration after validating the established Medar database. CI verifies the table and function against a fresh PostgreSQL database. This migration does not configure third-party providers and does not initiate financial actions.
+
+
+16. `0016_membership_module_permissions.sql` — creates optional company-scoped module/action overrides for individual memberships and a trigger that rejects cross-company membership IDs. The Worker still applies role and entity-level scopes; per-module overrides only narrow those permissions.
+
+
+17. `0017_delivery_video_evidence.sql` — adds the `video` delivery-evidence kind so private shipment evidence can describe video files. The Worker accepts MP4, WebM and QuickTime/MOV in the private evidence buckets up to 50 MiB; access still requires a valid company/mission relationship and the private R2 binding.
+
+
+18. `0018_bank_reconciliation_ledger.sql` — creates company-scoped bank account metadata and an idempotent imported-transaction ledger with an auditable manual reconciliation link. It stores no online banking credentials and never initiates transfers.
+
+
+19. `0019_daily_briefing_notifications.sql` — adds a nullable idempotency key and a partial unique index to notifications so daily in-app summaries do not duplicate for the same user, role, and business date. The Cloudflare Worker runs the daily briefing at 01:30 UTC; summaries are produced only from actual role-scoped records and are stored for in-app review. No external messages are sent by this schedule.
+
+
+17. `0017_delivery_video_evidence.sql` — video delivery evidence.
+18. `0018_bank_reconciliation_ledger.sql` — read-only bank statement import and reconciliation.
+19. `0019_daily_briefing_notifications.sql` — idempotent daily in-app notifications.
+20. `0020_operational_event_exception_ledger.sql` — tenant-scoped operational event history and deduplicated exception queue.
+21. `0021_medar_connect_messaging.sql` — explicit-participant conversations and idempotent messages.
+
+The clean-database CI chain and guarded Cloudflare deployment migration list must include every numbered migration. Production migration is intentionally not run from this branch until the PR has passed review and the main-branch deployment is authorized.
+
+22. `0022_web_push_delivery_queue.sql` — opted-in browser push subscriptions and a durable outbox fed by in-app notifications.
+
+23. `0023_operational_event_hooks.sql` — emits idempotent events for core state changes and opens actionable cases for incidents, blocked tasks, and failed shipments.
+
+24. `0024_connect_task_notifications.sql` — creates idempotent in-app notifications when tasks are assigned/reassigned and when an explicit conversation participant receives a message. The existing outbox fans these notifications out to opted-in Push subscriptions; senders are excluded from message notifications.

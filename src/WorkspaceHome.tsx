@@ -3,10 +3,11 @@ import { Link } from 'react-router-dom';
 import {
   Activity, ArrowLeft, Building2, CalendarClock, CheckCircle2, ClipboardCheck,
   CreditCard, Factory, FileText, LayoutDashboard, MapPin, Package, ShieldCheck,
-  Truck, Users, Warehouse,
+  Truck, Warehouse,
 } from 'lucide-react';
 import type { AppRole, Membership, Row } from './lib/types';
 import { dataApi } from './lib/dataClient';
+import { InAppNotifications } from './InAppNotifications';
 import { dateFa, dateTimeFa, moneyFa, numberFa, roleLabel, statusLabel } from './lib/format';
 
 type QuickLink = { key: string; title: string; detail: string; icon: typeof LayoutDashboard };
@@ -15,24 +16,19 @@ type Metric = { label: string; value: number; detail: string; icon: typeof Layou
 
 const roleQuickLinks: Record<AppRole, QuickLink[]> = {
   owner: [
-    { key: 'command', title: 'نمای کلی کسب‌وکار', detail: 'هشدارها و شاخص‌های واقعی', icon: LayoutDashboard },
+    { key: 'command', title: 'نمای کلی کسب‌وکار', detail: 'اولویت‌ها و موارد نیازمند اقدام', icon: LayoutDashboard },
     { key: 'orders', title: 'سفارش‌ها', detail: 'جریان سفارش تا تحویل', icon: FileText },
-    { key: 'contacts', title: 'دفترچه مخاطبین', detail: 'مشتری و تأمین‌کننده', icon: Users },
-    { key: 'farm-sites', title: 'نقشه و سایت‌ها', detail: 'موقعیت‌های ثبت‌شده', icon: MapPin },
+    { key: 'operational-tasks', title: 'کارها و پیگیری', detail: 'وظایف، سررسیدها و رخدادها', icon: ClipboardCheck },
     { key: 'finance', title: 'مالی و تسویه', detail: 'فاکتور و مغایرت‌گیری', icon: CreditCard },
-    { key: 'members', title: 'دسترسی کاربران', detail: 'عضویت و نقش‌های تأییدشده', icon: ShieldCheck },
   ],
   admin: [
-    { key: 'command', title: 'نمای کلی کسب‌وکار', detail: 'هشدارها و شاخص‌های واقعی', icon: LayoutDashboard },
+    { key: 'command', title: 'نمای کلی کسب‌وکار', detail: 'اولویت‌ها و موارد نیازمند اقدام', icon: LayoutDashboard },
     { key: 'orders', title: 'سفارش‌ها', detail: 'جریان سفارش تا تحویل', icon: FileText },
-    { key: 'contacts', title: 'دفترچه مخاطبین', detail: 'مشتری و تأمین‌کننده', icon: Users },
-    { key: 'farm-sites', title: 'نقشه و سایت‌ها', detail: 'موقعیت‌های ثبت‌شده', icon: MapPin },
+    { key: 'operational-tasks', title: 'کارها و پیگیری', detail: 'وظایف، سررسیدها و رخدادها', icon: ClipboardCheck },
     { key: 'finance', title: 'مالی و تسویه', detail: 'فاکتور و مغایرت‌گیری', icon: CreditCard },
-    { key: 'members', title: 'دسترسی کاربران', detail: 'عضویت و نقش‌های تأییدشده', icon: ShieldCheck },
   ],
   staff: [
     { key: 'command', title: 'نمای کلی عملیات', detail: 'کارهای باز و هشدارها', icon: LayoutDashboard },
-    { key: 'orders', title: 'سفارش‌ها', detail: 'پیگیری وضعیت سفارش', icon: FileText },
     { key: 'operational-tasks', title: 'وظایف عملیاتی', detail: 'کارهای در جریان', icon: ClipboardCheck },
     { key: 'shipments', title: 'ارسال و تحویل', detail: 'محموله‌های فعال', icon: Truck },
     { key: 'inventory', title: 'موجودی و انبار', detail: 'گردش کالا', icon: Warehouse },
@@ -60,7 +56,7 @@ export function WorkspaceHome({ membership, userName }: { membership: Membership
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const role = membership.role;
-  const links = roleQuickLinks[role];
+  const links = roleQuickLinks[role].slice(0, 4);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -181,7 +177,9 @@ export function WorkspaceHome({ membership, userName }: { membership: Membership
           tone: 'warning',
         }));
       }
-      setMetrics(nextMetrics);
+      const urgency: Record<NonNullable<BriefingItem['tone']>, number> = { critical: 0, warning: 1, info: 2 };
+      nextItems.sort((a, b) => urgency[a.tone ?? 'info'] - urgency[b.tone ?? 'info']);
+      setMetrics(nextMetrics.slice(0, 3));
       setItems(nextItems);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'خلاصه‌ی امروز دریافت نشد.');
@@ -211,13 +209,15 @@ export function WorkspaceHome({ membership, userName }: { membership: Membership
       <div className="workspace-home-meta"><span><ShieldCheck size={15}/> دسترسی بر پایه‌ی نقش تأییدشده</span><span><CalendarClock size={15}/> خلاصه‌ی به‌روزشونده از رکوردهای سیستم</span></div>
     </section>
 
+    <InAppNotifications membership={membership}/>
+
     <section className="workspace-home-section">
       <div className="workspace-home-section-heading"><div><span className="workspace-home-eyebrow">نگاه سریع</span><h2>بخش‌های پرکاربرد شما</h2></div><small>{links.length.toLocaleString('fa-IR')} میان‌بر</small></div>
       <div className="workspace-home-links">{links.map(link => { const Icon = link.icon; return <Link to={'/app/' + link.key} className="workspace-home-link" key={link.key}><span className="workspace-home-link-icon"><Icon size={20}/></span><span><b>{link.title}</b><small>{link.detail}</small></span><ArrowLeft size={16} className="workspace-home-link-arrow"/></Link>; })}</div>
     </section>
 
     <section className="workspace-home-section workspace-home-today">
-      <div className="workspace-home-section-heading"><div><span className="workspace-home-eyebrow">مرکز پیگیری</span><h2>کارهای امروز و هشدارها</h2><p>فقط مواردی نمایش داده می‌شود که در پایگاه داده ثبت شده‌اند؛ موقعیت GPS یا اعلان خارجی بدون اتصال واقعی ساخته نمی‌شود.</p></div><button type="button" className="workspace-home-refresh" onClick={() => void load()} disabled={loading}><Activity size={15}/>{loading ? 'در حال دریافت' : 'به‌روزرسانی'}</button></div>
+      <div className="workspace-home-section-heading"><div><span className="workspace-home-eyebrow">مرکز پیگیری</span><h2>موارد مهم و اقدام بعدی</h2><p>ابتدا موارد پرریسک و نزدیک به سررسید را بررسی کن. فقط مواردی نمایش داده می‌شود که در پایگاه داده ثبت شده‌اند؛ موقعیت GPS یا اعلان خارجی بدون اتصال واقعی ساخته نمی‌شود.</p></div><button type="button" className="workspace-home-refresh" onClick={() => void load()} disabled={loading}><Activity size={15}/>{loading ? 'در حال دریافت' : 'به‌روزرسانی'}</button></div>
       {error && <div className="workspace-home-error" role="alert">{error}<button type="button" onClick={() => void load()}>تلاش دوباره</button></div>}
       {loading ? <div className="workspace-home-loading"><span className="spinner small"/><span>در حال گردآوری وضعیت فضای کاری…</span></div> : <>
         <div className="workspace-home-metrics">{metrics.map(metric => { const Icon = metric.icon; return <Link to={metric.to} className="workspace-home-metric" key={metric.label}><span className="workspace-home-metric-icon"><Icon size={19}/></span><span><small>{metric.label}</small><b>{numberFa(metric.value)}</b><em>{metric.detail}</em></span><ArrowLeft size={14}/></Link>; })}</div>

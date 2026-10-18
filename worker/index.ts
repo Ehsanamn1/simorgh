@@ -12,6 +12,9 @@ type Bindings = {
   ALLOWED_ORIGINS?: string;
   FILE_STORE?: PrivateFileStore;
   AI_ENCRYPTION_KEY?: string;
+  VAPID_PUBLIC_KEY?: string;
+  VAPID_PRIVATE_KEY?: string;
+  VAPID_SUBJECT?: string;
   ASSETS?: { fetch(request: Request): Promise<Response> };
 };
 type AppEnv = { Bindings: Bindings };
@@ -92,6 +95,130 @@ function toHex(bytes: Uint8Array): string {
 
 async function sha256(value: string): Promise<string> {
   return toHex(new Uint8Array(await crypto.subtle.digest('SHA-256', encoder.encode(value))));
+}
+
+
+function base64UrlToBytes(value: string): Uint8Array {
+  const normalized = value.replace(/-/g, '+').replace(/_/g, '/');
+  return base64ToBytes(normalized + '='.repeat((4 - normalized.length % 4) % 4));
+}
+function bytesToBase64Url(bytes: Uint8Array): string {
+  return bytesToBase64(bytes).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+}
+function asArrayBuffer(bytes: Uint8Array): ArrayBuffer { return bytes.slice().buffer as ArrayBuffer; }
+function concatBytes(...parts: Uint8Array[]): Uint8Array {
+  const length = parts.reduce((total, part) => total + part.length, 0);
+  const result = new Uint8Array(length);
+  let offset = 0;
+  for (const part of parts) { result.set(part, offset); offset += part.length; }
+  return result;
+}
+async function hmacSha256(keyBytes: Uint8Array, data: Uint8Array): Promise<Uint8Array> {
+  const key = await crypto.subtle.importKey('raw', asArrayBuffer(keyBytes), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  return new Uint8Array(await crypto.subtle.sign('HMAC', key, asArrayBuffer(data)));
+}
+async function hkdfExpand(prk: Uint8Array, info: Uint8Array, length: number): Promise<Uint8Array> {
+  const output: Uint8Array[] = [];
+  let previous: Uint8Array = new Uint8Array(0);
+  let total = 0;
+  for (let counter = 1; total < length; counter += 1) {
+    previous = await hmacSha256(prk, concatBytes(previous, info, new Uint8Array([counter])));
+    output.push(previous);
+    total += previous.length;
+  }
+  return concatBytes(...output).slice(0, length);
+}
+export function allowedWebPushEndpoint(value: string): URL | null {
+  try {
+    const url = new URL(value);
+    const host = url.hostname.toLowerCase();
+    const allowed = host === 'fcm.googleapis.com' ||
+      host === 'updates.push.services.mozilla.com' ||
+      host.endsWith('.push.services.mozilla.com') ||
+      host === 'web.push.apple.com' || host.endsWith('.push.apple.com') ||
+      host.endsWith('.notify.windows.com');
+    if (url.protocol !== 'https:' || !allowed || url.username || url.password || (url.port && url.port !== '443')) return null;
+    return url;
+  } catch { return null; }
+}
+async function vapidAuthorization(endpoint: URL, env: Bindings): Promise<string> {
+  const publicKey = env.VAPID_PUBLIC_KEY ?? '';
+  const privateKey = env.VAPID_PRIVATE_KEY ?? '';
+  if (!publicKey || !privateKey || !env.VAPID_SUBJECT) throw new Error('Web Push VAPID credentials are not configured');
+  const publicBytes = base64UrlToBytes(publicKey);
+  if (publicBytes.length !== 65 || publicBytes[0] !== 4) throw new Error('Invalid VAPID public key');
+  const privateBytes = base64UrlToBytes(privateKey);
+  if (privateBytes.length !== 32) throw new Error('Invalid VAPID private key');
+  const jwk: JsonWebKey = {
+    kty: 'EC', crv: 'P-256',
+    x: bytesToBase64Url(publicBytes.slice(1, 33)),
+    y: bytesToBase64Url(publicBytes.slice(33, 65)),
+    d: bytesToBase64Url(privateBytes),
+    ext: true, key_ops: ['sign'],
+  };
+  const key = await crypto.subtle.importKey('jwk', jwk, { name: 'ECDSA', namedCurve: 'P-256' }, false, ['sign']);
+  const encodePart = (value: unknown) => bytesToBase64Url(encoder.encode(JSON.stringify(value)));
+  const header = encodePart({ typ: 'JWT', alg: 'ES256' });
+  const payload = encodePart({ aud: endpoint.origin, exp: Math.floor(Date.now() / 1000) + 12 * 60 * 60, sub: env.VAPID_SUBJECT });
+  const unsigned = header + '.' + payload;
+  const signature = new Uint8Array(await crypto.subtle.sign({ name: 'ECDSA', hash: 'SHA-256' }, key, encoder.encode(unsigned)));
+  return 'vapid t=' + unsigned + '.' + bytesToBase64Url(signature) + ', k=' + publicKey;
+}
+async function encryptWebPushPayload(payload: string, subscriptionPublicKey: string, authSecret: string): Promise<Uint8Array> {
+  const uaPublic = base64UrlToBytes(subscriptionPublicKey);
+  const auth = base64UrlToBytes(authSecret);
+  if (uaPublic.length !== 65 || uaPublic[0] !== 4 || auth.length < 16) throw new Error('Invalid browser push encryption keys');
+  const uaKey = await crypto.subtle.importKey('raw', asArrayBuffer(uaPublic), { name: 'ECDH', namedCurve: 'P-256' }, false, []);
+  const pair = await crypto.subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveBits']) as CryptoKeyPair;
+  const asPublic = new Uint8Array(await crypto.subtle.exportKey('raw', pair.publicKey));
+  const shared = new Uint8Array(await crypto.subtle.deriveBits({ name: 'ECDH', public: uaKey }, pair.privateKey, 256));
+  const keyPrk = await hmacSha256(auth, shared);
+  const keyInfo = concatBytes(encoder.encode('WebPush: info\0'), uaPublic, asPublic);
+  const ikm = await hkdfExpand(keyPrk, keyInfo, 32);
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const prk = await hmacSha256(salt, ikm);
+  const cek = await hkdfExpand(prk, encoder.encode('Content-Encoding: aes128gcm\0'), 16);
+  const nonce = await hkdfExpand(prk, encoder.encode('Content-Encoding: nonce\0'), 12);
+  const plain = concatBytes(encoder.encode(payload), new Uint8Array([2]));
+  const aesKey = await crypto.subtle.importKey('raw', asArrayBuffer(cek), 'AES-GCM', false, ['encrypt']);
+  const encrypted = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv: asArrayBuffer(nonce), tagLength: 128 }, aesKey, asArrayBuffer(plain)));
+  const recordHeader = new Uint8Array(21);
+  recordHeader.set(salt, 0);
+  new DataView(recordHeader.buffer).setUint32(16, 4096, false);
+  recordHeader[20] = asPublic.length;
+  return concatBytes(recordHeader, asPublic, encrypted);
+}
+async function decryptPushAuthSecret(env: Bindings, packed: string): Promise<string> {
+  const master = env.AI_ENCRYPTION_KEY || env.DATABASE_URL;
+  if (!master) throw new Error('AI_ENCRYPTION_KEY is not configured');
+  const raw = base64ToBytes(packed);
+  if (raw.length < 29) throw new Error('Stored push subscription secret is invalid');
+  const digest = await crypto.subtle.digest('SHA-256', encoder.encode('medar-ai-key-v1:' + master));
+  const key = await crypto.subtle.importKey('raw', digest, { name: 'AES-GCM' }, false, ['decrypt']);
+  const clear = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: raw.slice(0,12) }, key, toArrayBuffer(raw.slice(12)));
+  return new TextDecoder().decode(clear);
+}
+async function sendWebPush(subscription: { endpoint: string; p256dh_key: string; auth_secret: string }, payload: Record<string, unknown>, env: Bindings): Promise<{ ok: boolean; gone: boolean; status: number }> {
+  const endpoint = allowedWebPushEndpoint(subscription.endpoint);
+  if (!endpoint) throw new Error('Push endpoint host is not allowed');
+  const body = JSON.stringify(payload);
+  if (encoder.encode(body).length > 3500) throw new Error('Push payload is too large');
+  const authSecret = await decryptPushAuthSecret(env, subscription.auth_secret);
+  const encrypted = await encryptWebPushPayload(body, subscription.p256dh_key, authSecret);
+  const response = await fetch(endpoint.toString(), {
+    method: 'POST',
+    redirect: 'manual',
+    headers: {
+      Authorization: await vapidAuthorization(endpoint, env),
+      'Content-Type': 'application/octet-stream',
+      'Content-Encoding': 'aes128gcm',
+      TTL: '60',
+      Urgency: 'normal',
+    },
+    body: asArrayBuffer(encrypted),
+    signal: AbortSignal.timeout(10000),
+  });
+  return { ok: response.status >= 200 && response.status < 300, gone: response.status === 404 || response.status === 410, status: response.status };
 }
 
 async function hashPassword(password: string): Promise<string> {
@@ -417,7 +544,7 @@ app.get('/api/admin/system/clients', async (c) => {
 type AiProvider = 'openai' | 'gemini' | 'deepseek' | 'anthropic';
 type AiChatMessage = { role: 'user' | 'assistant'; content: string };
 type AiAttachmentPayload = { name: string; mimeType: string; base64?: string };
-const AI_PROVIDERS: Record<AiProvider, { label: string; model: string }> = {
+export const AI_PROVIDERS: Record<AiProvider, { label: string; model: string }> = {
   openai: { label: 'OpenAI', model: 'gpt-6-luna' },
   gemini: { label: 'Gemini', model: 'gemini-4-argon' },
   deepseek: { label: 'DeepSeek', model: 'deepseek-flash' },
@@ -430,7 +557,7 @@ function aiProvider(value: unknown): AiProvider | null {
 type AiCompanyMembership = { role: string; supplierId: string | null; customerId: string | null };
 async function aiCompanyMembership(c: Ctx, companyId: string, userId: string): Promise<AiCompanyMembership | null> {
   const rows = await sqlFor(c).query(
-    'select role::text as role,supplier_id::text as "supplierId",customer_id::text as "customerId" from public.memberships where company_id=$1::uuid and user_id=$2::uuid and active=true limit 1',
+    'select role::text as role,supplier_id::text as "supplierId",customer_id::text as "customerId" from public.memberships where company_id=$1::uuid and user_id=$2::uuid and active=true order by case role::text when \'owner\' then 0 when \'admin\' then 1 when \'staff\' then 2 when \'supplier\' then 3 when \'driver\' then 4 else 5 end, created_at, id limit 1',
     [companyId, userId],
   );
   return rows[0] as AiCompanyMembership | undefined ?? null;
@@ -561,6 +688,214 @@ async function requestAiProvider(provider: AiProvider, model: string, key: strin
   return text.trim();
 }
 
+app.get('/api/finance/bank-accounts', async (c) => {
+  const user = await requireUser(c);
+  if (user instanceof Response) return user;
+  const companyId = c.req.query('companyId') ?? '';
+  if (!COMPANY_ID_RE.test(companyId)) return c.json({ message: 'شناسه مجموعه معتبر نیست.' }, 422);
+  if (!(await aiCompanyMembership(c, companyId, user.id))) return c.json({ message: 'به این فضای کاری دسترسی فعال نداری.' }, 403);
+  if (!(await userHasModulePermission(c, user.id, companyId, 'finance', 'can_read'))) return c.json({ message: 'مجوز مشاهده مالی نداری.' }, 403);
+  const sql = sqlFor(c);
+  const accounts = await sql.query(
+    'select a.id::text as id,a.label,a.bank_name as "bankName",a.masked_account as "maskedAccount",a.currency,a.provider,a.connection_status as "connectionStatus",a.active,a.last_imported_at as "lastImportedAt",a.created_at as "createdAt",' +
+    '(select count(*)::int from public.medar_bank_transactions t where t.company_id=a.company_id and t.bank_account_id=a.id) as "transactionCount",' +
+    "(select count(*)::int from public.medar_bank_transactions t where t.company_id=a.company_id and t.bank_account_id=a.id and t.reconciliation_status in ('unmatched','suggested')) as \"unmatchedCount\" " +
+    'from public.medar_bank_accounts a where a.company_id=$1::uuid and a.active=true order by a.created_at desc limit 100', [companyId]);
+  const summary = await sql.query(
+    "select count(*)::int as total,count(*) filter(where reconciliation_status in ('unmatched','suggested'))::int as unmatched,count(*) filter(where reconciliation_status='reconciled')::int as reconciled from public.medar_bank_transactions where company_id=$1::uuid",
+    [companyId]);
+  const [canCreate,canUpdate,canReconcile]=await Promise.all([
+    userHasModulePermission(c,user.id,companyId,'finance','can_create'),
+    userHasModulePermission(c,user.id,companyId,'finance','can_update'),
+    userHasModulePermission(c,user.id,companyId,'finance','can_approve')
+  ]);
+  return c.json({accounts,summary:summary[0]??{total:0,unmatched:0,reconciled:0},capabilities:{canCreate,canUpdate,canDelete:false,canReconcile}});
+});
+
+app.post('/api/finance/bank-accounts', async (c) => {
+  const user = await requireUser(c);
+  if (user instanceof Response) return user;
+  const body = await c.req.json<Record<string,unknown>>().catch(()=>null);
+  if (!body) return c.json({message:'اطلاعات حساب معتبر نیست.'},400);
+  const companyId=typeof body.companyId==='string'?body.companyId:'';
+  const label=typeof body.label==='string'?body.label.trim():'';
+  const bankName=typeof body.bankName==='string'?body.bankName.trim():'';
+  const maskedAccount=typeof body.maskedAccount==='string'?body.maskedAccount.trim():'';
+  const currency=typeof body.currency==='string'?body.currency.trim().toUpperCase():'IRR';
+  if(!COMPANY_ID_RE.test(companyId)||label.length<2||label.length>120||bankName.length>120||maskedAccount.length>40||!/^[A-Z]{3}$/.test(currency))return c.json({message:'اطلاعات حساب یا ارز معتبر نیست.'},422);
+  if(!isMaskedBankAccountValid(maskedAccount))return c.json({message:'فقط چهار رقم پایانی را وارد کن؛ شماره کامل حساب ذخیره نمی‌شود.'},422);
+  const membership=await aiCompanyMembership(c,companyId,user.id);
+  if(!membership||!['owner','admin','staff'].includes(membership.role))return c.json({message:'فقط اعضای داخلی می‌توانند حساب تعریف کنند.'},403);
+  if(!(await userHasModulePermission(c,user.id,companyId,'finance','can_create')))return c.json({message:'مجوز ایجاد حساب مالی نداری.'},403);
+  const rows=await sqlFor(c).query(
+    "insert into public.medar_bank_accounts(company_id,label,bank_name,masked_account,currency,provider,connection_status,created_by) values($1::uuid,$2,$3,$4,$5,'manual_csv','manual_import',$6::uuid) returning id::text as id,label,bank_name as \"bankName\",masked_account as \"maskedAccount\",currency,provider,connection_status as \"connectionStatus\",active,created_at as \"createdAt\"",
+    [companyId,label,bankName,maskedAccount,currency,user.id]);
+  const account=rows[0];
+  await sqlFor(c).query("insert into public.medar_audit_log(actor_user_id,action,entity_type,entity_id,metadata) values($1::uuid,'bank_account.created','medar_bank_account',$2::text,jsonb_build_object('company_id',$3::text,'provider','manual_csv','currency',$4::text))",[user.id,String(account.id),companyId,currency]);
+  return c.json({account},201);
+});
+
+app.get('/api/finance/bank-transactions', async (c) => {
+  const user=await requireUser(c);
+  if(user instanceof Response)return user;
+  const companyId=c.req.query('companyId')??'',accountId=c.req.query('accountId')??'',status=c.req.query('status')??'all';
+  if(!COMPANY_ID_RE.test(companyId)||(accountId&&!COMPANY_ID_RE.test(accountId)))return c.json({message:'شناسه حساب معتبر نیست.'},422);
+  if(!['all','unmatched','suggested','reconciled','ignored'].includes(status))return c.json({message:'فیلتر وضعیت نامعتبر است.'},422);
+  if(!(await aiCompanyMembership(c,companyId,user.id)))return c.json({message:'به این فضای کاری دسترسی فعال نداری.'},403);
+  if(!(await userHasModulePermission(c,user.id,companyId,'finance','can_read')))return c.json({message:'مجوز مشاهده مالی نداری.'},403);
+  const params:unknown[]=[companyId];let where='company_id=$1::uuid';
+  if(accountId){params.push(accountId);where+=' and bank_account_id=$'+params.length+'::uuid';}
+  if(status!=='all'){params.push(status);where+=' and reconciliation_status=$'+params.length;}
+  params.push(500);
+  const transactions=await sqlFor(c).query(
+    'select id::text as id,bank_account_id::text as "bankAccountId",external_transaction_id as "externalTransactionId",booked_at as "bookedAt",amount::text as amount,currency,description,counterparty,reference,direction,reconciliation_status as "reconciliationStatus",matched_entity_type as "matchedEntityType",matched_entity_id::text as "matchedEntityId",matched_at as "matchedAt",imported_at as "importedAt" '+
+    'from public.medar_bank_transactions where '+where+' order by booked_at desc limit $'+params.length,params);
+  return c.json({transactions});
+});
+
+
+app.post('/api/finance/bank-transactions/import', async (c) => {
+  const user=await requireUser(c);
+  if(user instanceof Response)return user;
+  const body=await c.req.json<Record<string,unknown>>().catch(()=>null);
+  if(!body)return c.json({message:'اطلاعات ورود صورت‌حساب معتبر نیست.'},400);
+  const companyId=typeof body.companyId==='string'?body.companyId:'';
+  const accountId=typeof body.accountId==='string'?body.accountId:'';
+  if(!COMPANY_ID_RE.test(companyId)||!COMPANY_ID_RE.test(accountId))return c.json({message:'شناسه حساب یا مجموعه معتبر نیست.'},422);
+  const membership=await aiCompanyMembership(c,companyId,user.id);
+  if(!membership||!['owner','admin','staff'].includes(membership.role))return c.json({message:'فقط اعضای داخلی می‌توانند صورت‌حساب وارد کنند.'},403);
+  if(!(await userHasModulePermission(c,user.id,companyId,'finance','can_create')))return c.json({message:'مجوز ورود تراکنش مالی نداری.'},403);
+  if(!Array.isArray(body.transactions)||body.transactions.length<1||body.transactions.length>500)return c.json({message:'در هر بار باید بین ۱ تا ۵۰۰ تراکنش وارد شود.'},422);
+  const sql=sqlFor(c);
+  const account=await sql.query('select id,currency from public.medar_bank_accounts where id=$1::uuid and company_id=$2::uuid and active=true limit 1',[accountId,companyId]);
+  if(!account.length)return c.json({message:'حساب فعال در این مجموعه پیدا نشد.'},404);
+  const accountCurrency = String((account[0] as {currency?:string}).currency ?? '');
+  const ids=new Set<string>(), rows:Array<Record<string,string>>=[];
+  for(let index=0;index<body.transactions.length;index++){
+    const raw=body.transactions[index];
+    if(!raw||typeof raw!=='object'||Array.isArray(raw))return c.json({message:'ساختار تراکنش معتبر نیست.'},422);
+    const item=raw as Record<string,unknown>;
+    const externalId=typeof item.externalTransactionId==='string'?item.externalTransactionId.trim():'';
+    const bookedAt=typeof item.bookedAt==='string'?item.bookedAt:'';
+    const parsedDate=new Date(bookedAt);
+    const amount=Number(item.amount);
+    const currency=typeof item.currency==='string'?item.currency.trim().toUpperCase():'IRR';
+    const description=typeof item.description==='string'?item.description.trim():'';
+    const counterparty=typeof item.counterparty==='string'?item.counterparty.trim():'';
+    const reference=typeof item.reference==='string'?item.reference.trim():'';
+    if(externalId.length<8||externalId.length>240||/[\r\n\0]/.test(externalId)||ids.has(externalId))return c.json({message:'شناسه تراکنش خالی، تکراری یا نامعتبر است.'},422);
+    ids.add(externalId);
+    if(!bookedAt||!Number.isFinite(parsedDate.getTime()))return c.json({message:'تاریخ یک تراکنش معتبر نیست.'},422);
+    if(!Number.isFinite(amount)||Math.abs(amount)<0.01||Math.abs(amount)>1e15||Math.abs(amount*100-Math.round(amount*100))>0.0001)return c.json({message:'مبلغ باید غیرصفر و حداکثر با دو رقم اعشار باشد.'},422);
+    if(!/^[A-Z]{3}$/.test(currency)||!isBankTransactionCurrencyCompatible(accountCurrency,currency)||description.length>1500||counterparty.length>300||reference.length>240)return c.json({message:'ارز تراکنش باید با ارز حساب مقصد یکسان باشد و توضیح یا مرجع معتبر باشد.'},422);
+    rows.push({external_transaction_id:externalId,booked_at:parsedDate.toISOString(),amount:amount.toFixed(2),currency,description,counterparty,reference,direction:amount>0?'incoming':'outgoing'});
+  }
+  try {
+    const results=await sql.transaction([
+      sql.query(
+        'insert into public.medar_bank_transactions(company_id,bank_account_id,external_transaction_id,booked_at,amount,currency,description,counterparty,reference,direction,imported_by) '+
+        'select $1::uuid,$2::uuid,x.external_transaction_id,x.booked_at,x.amount,x.currency,x.description,x.counterparty,x.reference,x.direction,$3::uuid '+
+        'from jsonb_to_recordset($4::jsonb) as x(external_transaction_id text,booked_at timestamptz,amount numeric,currency text,description text,counterparty text,reference text,direction text) '+
+        'on conflict(company_id,bank_account_id,external_transaction_id) do nothing returning id',
+        [companyId,accountId,user.id,JSON.stringify(rows)]),
+      sql.query('update public.medar_bank_accounts set last_imported_at=now(),updated_at=now() where id=$1::uuid and company_id=$2::uuid',[accountId,companyId]),
+      sql.query("insert into public.medar_audit_log(actor_user_id,action,entity_type,entity_id,metadata) values($1::uuid,'bank_transactions.imported','medar_bank_account',$2::text,jsonb_build_object('company_id',$3::text,'submitted_count',$4::int))",[user.id,accountId,companyId,rows.length]),
+    ]);
+    const inserted=(results[0]??[]) as Array<{id:string}>;
+    return c.json({inserted:inserted.length,skippedDuplicates:rows.length-inserted.length,submitted:rows.length});
+  } catch {
+    return c.json({message:'ورود صورت‌حساب ثبت نشد؛ این دسته تراکنش‌ها به‌صورت ناقص ذخیره نشده‌اند.'},500);
+  }
+});
+
+app.get('/api/finance/bank-transactions/:id/candidates', async (c) => {
+  const user=await requireUser(c);
+  if(user instanceof Response)return user;
+  const companyId=c.req.query('companyId')??'',transactionId=c.req.param('id');
+  if(!COMPANY_ID_RE.test(companyId)||!COMPANY_ID_RE.test(transactionId))return c.json({message:'شناسه تراکنش معتبر نیست.'},422);
+  if(!(await aiCompanyMembership(c,companyId,user.id)))return c.json({message:'به این فضای کاری دسترسی فعال نداری.'},403);
+  if(!(await userHasModulePermission(c,user.id,companyId,'finance','can_read')))return c.json({message:'برای مشاهده اسناد مالی مجوز نداری.'},403);
+  const sql=sqlFor(c);
+  const rows=await sql.query('select id::text as id,direction,amount::text as amount,currency,reconciliation_status as status from public.medar_bank_transactions where id=$1::uuid and company_id=$2::uuid limit 1',[transactionId,companyId]);
+  const transaction=rows[0] as {id:string;direction:string;amount:string;currency:string;status:string}|undefined;
+  if(!transaction)return c.json({message:'تراکنش بانکی پیدا نشد.'},404);
+  if(['reconciled','ignored'].includes(transaction.status))return c.json({candidates:[]});
+  let candidates:Array<Record<string,unknown>>=[];
+  if(transaction.direction==='incoming'){
+    const invoices=await sql.query(
+      "select 'invoice' as \"entityType\",i.id::text as \"entityId\",'فاکتور '||i.reference||' · '||coalesce(c.name,'مشتری') as label,(i.amount-i.paid_amount)::text as amount,i.due_date::text as \"dueAt\",i.status "+
+      "from public.invoices i left join public.customers c on c.company_id=i.company_id and c.id=i.customer_id where i.company_id=$1::uuid and i.status in ('issued','partially_paid','overdue') order by i.due_date asc nulls last limit 50",[companyId]);
+    const partners=await sql.query(
+      "select 'partner_financial_entry' as \"entityType\",e.id::text as \"entityId\",'سند شریک '||e.entry_type as label,(e.amount-e.paid_amount)::text as amount,e.recognized_on::text as \"dueAt\",e.status from public.partner_financial_entries e where e.company_id=$1::uuid and e.status in ('submitted','approved') and e.direction in ('inflow_to_company','partner_to_company') order by e.recognized_on desc limit 30",[companyId]);
+    candidates=[...invoices,...partners];
+  } else {
+    const settlements=await sql.query(
+      "select 'settlement' as \"entityType\",s.id::text as \"entityId\",'تسویه '||coalesce(nullif(s.invoice_ref,''),'تأمین‌کننده') as label,s.amount::text as amount,s.due_date::text as \"dueAt\",s.status from public.settlements s where s.company_id=$1::uuid and s.status in ('pending','approved') order by s.due_date asc nulls last limit 50",[companyId]);
+    const orders=await sql.query(
+      "select 'purchase_order' as \"entityType\",po.id::text as \"entityId\",'سفارش خرید '||po.reference as label,coalesce(sum(i.ordered_quantity*i.unit_cost),0)::text as amount,po.expected_delivery::text as \"dueAt\",po.status from public.purchase_orders po left join public.purchase_order_items i on i.company_id=po.company_id and i.purchase_order_id=po.id where po.company_id=$1::uuid and po.status in ('approved','partially_received') group by po.id order by po.expected_delivery asc nulls last limit 50",[companyId]);
+    const partners=await sql.query(
+      "select 'partner_financial_entry' as \"entityType\",e.id::text as \"entityId\",'سند شریک '||e.entry_type as label,(e.amount-e.paid_amount)::text as amount,e.recognized_on::text as \"dueAt\",e.status from public.partner_financial_entries e where e.company_id=$1::uuid and e.status in ('submitted','approved') and e.direction in ('outflow_from_company','company_to_partner') order by e.recognized_on desc limit 30",[companyId]);
+    candidates=[...settlements,...orders,...partners];
+  }
+  return c.json({candidates:candidates.slice(0,100),transaction:{direction:transaction.direction,amount:transaction.amount,currency:transaction.currency}});
+});
+
+app.post('/api/finance/bank-transactions/:id/reconcile', async (c) => {
+  const user=await requireUser(c);
+  if(user instanceof Response)return user;
+  const transactionId=c.req.param('id');
+  const body=await c.req.json<Record<string,unknown>>().catch(()=>null);
+  if(!body)return c.json({message:'اطلاعات تطبیق معتبر نیست.'},400);
+  const companyId=typeof body.companyId==='string'?body.companyId:'';
+  const entityType=typeof body.entityType==='string'?body.entityType:'';
+  const entityId=typeof body.entityId==='string'?body.entityId:'';
+  if(!COMPANY_ID_RE.test(transactionId)||!COMPANY_ID_RE.test(companyId)||!COMPANY_ID_RE.test(entityId))return c.json({message:'شناسه تراکنش، مجموعه یا سند معتبر نیست.'},422);
+  const targets:Record<string,string>={invoice:'invoices',purchase_order:'purchase_orders',settlement:'settlements',partner_financial_entry:'partner_financial_entries'};
+  const table=targets[entityType];
+  if(!table)return c.json({message:'نوع سند برای تطبیق پشتیبانی نمی‌شود.'},422);
+  const membership=await aiCompanyMembership(c,companyId,user.id);
+  if(!membership||!['owner','admin','staff'].includes(membership.role))return c.json({message:'فقط اعضای داخلی می‌توانند تطبیق دهند.'},403);
+  if(!(await userHasModulePermission(c,user.id,companyId,'finance','can_approve')))return c.json({message:'مجوز تأیید تطبیق مالی نداری.'},403);
+  const sql=sqlFor(c);
+  const [txn,target]=await Promise.all([
+    sql.query('select direction,reconciliation_status from public.medar_bank_transactions where id=$1::uuid and company_id=$2::uuid limit 1',[transactionId,companyId]),
+    sql.query(
+      entityType === 'partner_financial_entry'
+        ? 'select id,direction from public.'+table+' where id=$1::uuid and company_id=$2::uuid limit 1'
+        : 'select id from public.'+table+' where id=$1::uuid and company_id=$2::uuid limit 1',
+      [entityId,companyId]),
+  ]);
+  const transaction=txn[0] as {direction:string;reconciliation_status:string}|undefined;
+  if(!transaction||!target.length)return c.json({message:'تراکنش یا سند در همین مجموعه پیدا نشد.'},404);
+  if(transaction.reconciliation_status==='reconciled')return c.json({message:'این تراکنش قبلاً تطبیق نهایی شده است.'},409);
+  if(transaction.reconciliation_status==='ignored')return c.json({message:'این تراکنش نادیده گرفته شده است.'},409);
+  const targetDirection = (target[0] as { direction?: string }).direction;
+  if (!isBankReconciliationDirectionCompatible(entityType, transaction.direction, targetDirection)) {
+    return c.json({message:'جهت تراکنش با نوع سند هماهنگ نیست.'},422);
+  }
+  const changed=await sql.query(
+    "update public.medar_bank_transactions set reconciliation_status='reconciled',matched_entity_type=$1,matched_entity_id=$2::uuid,matched_by=$3::uuid,matched_at=now() where id=$4::uuid and company_id=$5::uuid and reconciliation_status in ('unmatched','suggested') returning id",
+    [entityType,entityId,user.id,transactionId,companyId]);
+  if(!changed.length)return c.json({message:'تراکنش هم‌زمان تغییر کرده است؛ دوباره تازه‌سازی کن.'},409);
+  await sql.query("insert into public.medar_audit_log(actor_user_id,action,entity_type,entity_id,metadata) values($1::uuid,'bank_transaction.reconciled','medar_bank_transaction',$2::text,jsonb_build_object('company_id',$3::text,'matched_entity_type',$4::text,'matched_entity_id',$5::text))",[user.id,transactionId,companyId,entityType,entityId]);
+  return c.json({ok:true,status:'reconciled'});
+});
+
+app.post('/api/finance/bank-transactions/:id/ignore', async (c) => {
+  const user=await requireUser(c);
+  if(user instanceof Response)return user;
+  const transactionId=c.req.param('id'),body=await c.req.json<Record<string,unknown>>().catch(()=>null);
+  const companyId=typeof body?.companyId==='string'?body.companyId:'';
+  if(!COMPANY_ID_RE.test(transactionId)||!COMPANY_ID_RE.test(companyId))return c.json({message:'شناسه تراکنش یا مجموعه نامعتبر است.'},422);
+  const membership=await aiCompanyMembership(c,companyId,user.id);
+  if(!membership||!['owner','admin','staff'].includes(membership.role))return c.json({message:'فقط اعضای داخلی می‌توانند وضعیت تراکنش را تغییر دهند.'},403);
+  if(!(await userHasModulePermission(c,user.id,companyId,'finance','can_update')))return c.json({message:'مجوز ویرایش مالی نداری.'},403);
+  const rows=await sqlFor(c).query("update public.medar_bank_transactions set reconciliation_status='ignored' where id=$1::uuid and company_id=$2::uuid and reconciliation_status in ('unmatched','suggested') returning id",[transactionId,companyId]);
+  if(!rows.length)return c.json({message:'تراکنش پیدا نشد یا نهایی شده است.'},409);
+  await sqlFor(c).query("insert into public.medar_audit_log(actor_user_id,action,entity_type,entity_id,metadata) values($1::uuid,'bank_transaction.ignored','medar_bank_transaction',$2::text,jsonb_build_object('company_id',$3::text))",[user.id,transactionId,companyId]);
+  return c.json({ok:true,status:'ignored'});
+});
+
 app.get('/api/ai/providers', async (c) => {
   const user = await requireUser(c);
   if (user instanceof Response) return user;
@@ -568,6 +903,9 @@ app.get('/api/ai/providers', async (c) => {
   if (!COMPANY_ID_RE.test(companyId)) return c.json({ message: 'شناسه مجموعه معتبر نیست.' }, 422);
   const membership = await aiCompanyMembership(c, companyId, user.id);
   if (!membership) return c.json({ message: 'به این فضای کاری دسترسی فعال نداری.' }, 403);
+  if (!(await userHasModulePermission(c, user.id, companyId, 'agents', 'can_read'))) {
+    return c.json({ message: 'برای مشاهده تنظیمات و وضعیت دستیار مجوز نداری.' }, 403);
+  }
   const rows = await sqlFor(c).query('select provider,model,is_default as "isDefault",updated_at as "updatedAt" from public.medar_ai_provider_configs where company_id=$1::uuid order by is_default desc,provider', [companyId]);
   const byProvider = new Map((rows as Array<{ provider: string; model: string; isDefault: boolean; updatedAt: string }>).map(row => [row.provider, row]));
   const providers = (Object.keys(AI_PROVIDERS) as AiProvider[]).map(provider => {
@@ -667,6 +1005,334 @@ app.post('/api/ai/provider-test', async (c) => {
   }
 });
 
+
+/**
+ * AI/automation action proposals are inert records. No business write occurs until
+ * the authenticated user explicitly confirms the proposal through /execute.
+ */
+
+/* Removed obsolete /api/finance/bank/* endpoints; the canonical /api/finance/bank-accounts and /api/finance/bank-transactions routes above enforce module permissions. */
+
+app.get('/api/ai/actions', async (c) => {
+  const user = await requireUser(c);
+  if (user instanceof Response) return user;
+  const companyId = c.req.query('companyId') ?? '';
+  if (!COMPANY_ID_RE.test(companyId)) return c.json({ message: 'شناسه مجموعه معتبر نیست.' }, 422);
+  const membership = await aiCompanyMembership(c, companyId, user.id);
+  if (!membership) return c.json({ message: 'به این فضای کاری دسترسی فعال نداری.' }, 403);
+  if (!['owner','admin','staff'].includes(membership.role)) {
+    return c.json({ message: 'این بخش فقط برای اعضای داخلی مجموعه فعال است.' }, 403);
+  }
+  if (!(await userHasModulePermission(c, user.id, companyId, 'agents', 'can_read'))) {
+    return c.json({ message: 'برای مشاهده مرکز ایجنت‌ها مجوز نداری.' }, 403);
+  }
+  const rows = await sqlFor(c).query(
+    `select a.id, a.tool_key as "toolKey", a.status, a.arguments, a.result,
+            a.created_at as "createdAt", a.executed_at as "executedAt",
+            u.display_name as "requestedByName", a.requested_by::text as "requestedBy"
+       from public.medar_ai_action_runs a
+       join public.medar_users u on u.id = a.requested_by
+      where a.company_id = $1::uuid and ($2 in ('owner','admin') or a.requested_by = $3::uuid)
+      order by a.created_at desc limit 50`,
+    [companyId, membership.role, user.id],
+  );
+  return c.json({ actions: rows });
+});
+
+app.post('/api/ai/actions/propose', async (c) => {
+  const user = await requireUser(c);
+  if (user instanceof Response) return user;
+  const body = await c.req.json<Record<string, unknown>>().catch(() => null);
+  if (!body) return c.json({ message: 'درخواست پیشنهاد اقدام معتبر نیست.' }, 400);
+  const companyId = typeof body.companyId === 'string' ? body.companyId : '';
+  if (!COMPANY_ID_RE.test(companyId)) return c.json({ message: 'شناسه مجموعه معتبر نیست.' }, 422);
+  const membership = await aiCompanyMembership(c, companyId, user.id);
+  if (!membership) return c.json({ message: 'به این فضای کاری دسترسی فعال نداری.' }, 403);
+  if (!['owner','admin','staff'].includes(membership.role)) {
+    return c.json({ message: 'فقط اعضای داخلی مجموعه می‌توانند اقدام عملیاتی پیشنهاد کنند.' }, 403);
+  }
+  if (!(await userHasModulePermission(c, user.id, companyId, 'agents', 'can_create')) ||
+      !(await userHasModulePermission(c, user.id, companyId, 'operational-tasks', 'can_create'))) {
+    return c.json({ message: 'برای پیشنهاد وظیفه در این مجموعه مجوز ایجاد نداری.' }, 403);
+  }
+  const toolKey = typeof body.toolKey === 'string' ? body.toolKey : 'create_operational_task';
+  if (toolKey !== 'create_operational_task') return c.json({ message: 'این نوع اقدام هنوز پشتیبانی نمی‌شود.' }, 422);
+  const rawArgs = body.arguments && typeof body.arguments === 'object' && !Array.isArray(body.arguments)
+    ? body.arguments as Record<string, unknown> : {};
+  const title = typeof rawArgs.title === 'string' ? rawArgs.title.trim() : '';
+  const instructions = typeof rawArgs.instructions === 'string' ? rawArgs.instructions.trim() : '';
+  const priority = typeof rawArgs.priority === 'string' ? rawArgs.priority : 'normal';
+  const dueAtRaw = typeof rawArgs.dueAt === 'string' ? rawArgs.dueAt.trim() : '';
+  const assigneeUserIdRaw = typeof rawArgs.assigneeUserId === 'string' ? rawArgs.assigneeUserId.trim() : '';
+  const assigneeSupplierIdRaw = typeof rawArgs.assigneeSupplierId === 'string' ? rawArgs.assigneeSupplierId.trim() : '';
+  if (title.length < 2 || title.length > 180) return c.json({ message: 'عنوان وظیفه باید بین ۲ تا ۱۸۰ نویسه باشد.' }, 422);
+  if (instructions.length > 3000) return c.json({ message: 'شرح وظیفه نباید بیشتر از ۳۰۰۰ نویسه باشد.' }, 422);
+  if (!['low','normal','high','critical'].includes(priority)) return c.json({ message: 'اولویت وظیفه معتبر نیست.' }, 422);
+  if (dueAtRaw && (!Number.isFinite(Date.parse(dueAtRaw)) || dueAtRaw.length > 80)) {
+    return c.json({ message: 'زمان سررسید معتبر نیست.' }, 422);
+  }
+  if (assigneeUserIdRaw && !COMPANY_ID_RE.test(assigneeUserIdRaw)) return c.json({ message: 'شناسه مسئول وظیفه معتبر نیست.' }, 422);
+  if (assigneeSupplierIdRaw && !COMPANY_ID_RE.test(assigneeSupplierIdRaw)) return c.json({ message: 'شناسه تأمین‌کننده معتبر نیست.' }, 422);
+  if (assigneeUserIdRaw && assigneeSupplierIdRaw) return c.json({ message: 'وظیفه فقط می‌تواند یک مسئول داشته باشد.' }, 422);
+  const assigneeUserId = assigneeUserIdRaw || (!assigneeSupplierIdRaw ? user.id : '');
+  const sql = sqlFor(c);
+  if (assigneeUserId) {
+    const assignee = await sql.query(
+      "select 1 from public.memberships where user_id=$1::uuid and company_id=$2::uuid and active=true and role::text in ('owner','admin','staff','driver') limit 1",
+      [assigneeUserId, companyId],
+    );
+    if (!assignee.length) return c.json({ message: 'مسئول انتخاب‌شده عضو فعال و مجاز این مجموعه نیست.' }, 422);
+  }
+  if (assigneeSupplierIdRaw) {
+    const supplier = await sql.query(
+      'select 1 from public.suppliers where id=$1::uuid and company_id=$2::uuid and active=true limit 1',
+      [assigneeSupplierIdRaw, companyId],
+    );
+    if (!supplier.length) return c.json({ message: 'تأمین‌کننده انتخاب‌شده فعال نیست یا به این مجموعه تعلق ندارد.' }, 422);
+  }
+  const argumentsJson = {
+    title, instructions, priority,
+    ...(dueAtRaw ? { dueAt: new Date(dueAtRaw).toISOString() } : {}),
+    ...(assigneeUserId ? { assigneeUserId } : {}),
+    ...(assigneeSupplierIdRaw ? { assigneeSupplierId: assigneeSupplierIdRaw } : {}),
+  };
+  try {
+    const rows = await sql.query(
+      "insert into public.medar_ai_action_runs(company_id,requested_by,tool_key,status,arguments) values($1::uuid,$2::uuid,'create_operational_task','proposed',$3::jsonb) returning id,status,tool_key as \"toolKey\",arguments,created_at as \"createdAt\"",
+      [companyId, user.id, JSON.stringify(argumentsJson)],
+    );
+    const action = rows[0];
+    await sql.query(
+      "insert into public.medar_audit_log(actor_user_id,action,entity_type,entity_id,metadata) values($1::uuid,'ai_action.proposed','ai_action_run',$2::text,jsonb_build_object('company_id',$3::text,'tool_key','create_operational_task'))",
+      [user.id, String(action.id), companyId],
+    );
+    return c.json({ action, requiresConfirmation: true }, 201);
+  } catch {
+    return c.json({ message: 'پیشنهاد اقدام ذخیره نشد. تغییری در وظایف کسب‌وکار ایجاد نشده است.' }, 500);
+  }
+});
+
+app.post('/api/ai/actions/:id/execute', async (c) => {
+  const user = await requireUser(c);
+  if (user instanceof Response) return user;
+  const actionId = c.req.param('id');
+  const body = await c.req.json<Record<string, unknown>>().catch(() => null);
+  const companyId = typeof body?.companyId === 'string' ? body.companyId : '';
+  if (!COMPANY_ID_RE.test(actionId) || !COMPANY_ID_RE.test(companyId)) {
+    return c.json({ message: 'شناسه اقدام یا مجموعه معتبر نیست.' }, 422);
+  }
+  if (body?.confirmed !== true) return c.json({ message: 'برای اجرای اقدام باید تأیید صریح ارسال شود.' }, 422);
+  const membership = await aiCompanyMembership(c, companyId, user.id);
+  if (!membership) return c.json({ message: 'به این فضای کاری دسترسی فعال نداری.' }, 403);
+  if (!['owner','admin','staff'].includes(membership.role)) {
+    return c.json({ message: 'برای اجرای اقدام عملیاتی دسترسی لازم وجود ندارد.' }, 403);
+  }
+  if (!(await userHasModulePermission(c, user.id, companyId, 'agents', 'can_approve')) ||
+      !(await userHasModulePermission(c, user.id, companyId, 'operational-tasks', 'can_create'))) {
+    return c.json({ message: 'برای تأیید این اقدام یا ایجاد وظیفه مجوز نداری.' }, 403);
+  }
+  try {
+    const rows = await sqlFor(c).query(
+      'select public.medar_execute_ai_create_task($1::uuid,$2::uuid,$3::uuid) as result',
+      [user.id, companyId, actionId],
+    );
+    if (!rows.length) return c.json({ message: 'نتیجه اجرای اقدام دریافت نشد.' }, 502);
+    return c.json({ ok: true, result: (rows[0] as { result: unknown }).result });
+  } catch {
+    return c.json({ message: 'اقدام اجرا نشد؛ پیشنهاد تغییری در داده‌های عملیاتی ایجاد نکرد. دسترسی و اطلاعات پیشنهاد را بررسی کن.' }, 409);
+  }
+});
+
+app.post('/api/ai/actions/:id/cancel', async (c) => {
+  const user = await requireUser(c);
+  if (user instanceof Response) return user;
+  const actionId = c.req.param('id');
+  const body = await c.req.json<Record<string, unknown>>().catch(() => null);
+  const companyId = typeof body?.companyId === 'string' ? body.companyId : '';
+  if (!COMPANY_ID_RE.test(actionId) || !COMPANY_ID_RE.test(companyId)) {
+    return c.json({ message: 'شناسه اقدام یا مجموعه معتبر نیست.' }, 422);
+  }
+  const membership = await aiCompanyMembership(c, companyId, user.id);
+  if (!membership) return c.json({ message: 'به این فضای کاری دسترسی فعال نداری.' }, 403);
+  if (!['owner','admin','staff'].includes(membership.role)) return c.json({ message: 'دسترسی لغو پیشنهاد را نداری.' }, 403);
+  if (!(await userHasModulePermission(c, user.id, companyId, 'agents', 'can_update'))) {
+    return c.json({ message: 'برای لغو پیشنهاد مجوز ویرایش نداری.' }, 403);
+  }
+  const sql = sqlFor(c);
+  const rows = await sql.query(
+    "update public.medar_ai_action_runs set status='cancelled',updated_at=now() where id=$1::uuid and company_id=$2::uuid and status='proposed' and (requested_by=$3::uuid or $4 in ('owner','admin')) returning id",
+    [actionId, companyId, user.id, membership.role],
+  );
+  if (!rows.length) return c.json({ message: 'پیشنهاد پیدا نشد یا دیگر قابل لغو نیست.' }, 409);
+  await sql.query(
+    "insert into public.medar_audit_log(actor_user_id,action,entity_type,entity_id,metadata) values($1::uuid,'ai_action.cancelled','ai_action_run',$2::text,jsonb_build_object('company_id',$3::text))",
+    [user.id, actionId, companyId],
+  );
+  return c.json({ ok: true });
+});
+
+
+/**
+ * Real-time Persian voice over WebRTC. The main provider key stays server-side;
+ * the browser sends SDP only after authenticated tenant membership is checked.
+ */
+app.post('/api/ai/realtime/session', async (c) => {
+  const user = await requireUser(c);
+  if (user instanceof Response) return user;
+  const companyId = c.req.query('companyId') ?? '';
+  if (!COMPANY_ID_RE.test(companyId)) return c.json({ message: 'شناسه مجموعه معتبر نیست.' }, 422);
+  const membership = await aiCompanyMembership(c, companyId, user.id);
+  if (!membership) return c.json({ message: 'به این فضای کاری دسترسی فعال نداری.' }, 403);
+  if (!(await userHasModulePermission(c, user.id, companyId, 'agents', 'can_read'))) {
+    return c.json({ message: 'برای استفاده از دستیار هوشمند مجوز مشاهده نداری.' }, 403);
+  }
+
+  const sdp = await c.req.text().catch(() => '');
+  if (!sdp || sdp.length < 100 || sdp.length > 100000 || !sdp.startsWith('v=0')) {
+    return c.json({ message: 'درخواست شروع مکالمه صوتی معتبر نیست.' }, 422);
+  }
+
+  const sql = sqlFor(c);
+  const limits = await sql.query([
+    "select (select count(*)::int from public.medar_ai_usage_log where user_id=$1::uuid and model='gpt-realtime-2.1' and created_at>now()-interval '1 minute') as minute_count,",
+    "(select count(*)::int from public.medar_ai_usage_log where user_id=$1::uuid and model='gpt-realtime-2.1' and created_at>now()-interval '1 day') as day_count",
+  ].join(' '), [user.id]);
+  const usage = limits[0] as { minute_count: number; day_count: number } | undefined;
+  if (Number(usage?.minute_count ?? 0) >= 4 || Number(usage?.day_count ?? 0) >= 40) {
+    return c.json({ message: 'تعداد شروع مکالمه صوتی به سقف موقت رسیده است. کمی بعد دوباره تلاش کن.' }, 429);
+  }
+
+  const configs = await sql.query(
+    "select model,encrypted_api_key from public.medar_ai_provider_configs where company_id=$1::uuid and provider='openai' order by is_default desc,updated_at desc limit 1",
+    [companyId],
+  );
+  const config = configs[0] as { model: string; encrypted_api_key: string } | undefined;
+  if (!config) {
+    return c.json({ message: 'برای مکالمه صوتی realtime باید یک کلید OpenAI در تنظیمات همین مجموعه ذخیره شده باشد.' }, 409);
+  }
+  let apiKey: string;
+  try {
+    apiKey = await decryptAiKey(c, config.encrypted_api_key);
+  } catch {
+    return c.json({ message: 'کلید OpenAI قابل خواندن نیست؛ آن را دوباره در تنظیمات دستیار ذخیره کن.' }, 503);
+  }
+
+  let voiceContext: Record<string, unknown> = {};
+  try {
+    if (['owner','admin','staff'].includes(membership.role)) {
+      const metrics = await sql.query([
+        'select',
+        "(select count(*)::int from public.operational_tasks where company_id=$1::uuid and status not in ('approved','cancelled')) as active_tasks,",
+        "(select count(*)::int from public.operational_tasks where company_id=$1::uuid and due_at<now() and status not in ('approved','cancelled')) as overdue_tasks,",
+        "(select count(*)::int from public.operational_incidents where company_id=$1::uuid and status not in ('resolved','closed','cancelled')) as open_incidents,",
+        "(select count(*)::int from public.orders where company_id=$1::uuid and requested_delivery<current_date and status not in ('delivered','cancelled')) as late_orders",
+      ].join(' '), [companyId]);
+      const [tasks, incidents] = await Promise.all([
+        sql.query("select title,status,priority,due_at from public.operational_tasks where company_id=$1::uuid and status not in ('approved','cancelled') order by due_at asc nulls last limit 8", [companyId]),
+        sql.query("select title,severity,status,created_at from public.operational_incidents where company_id=$1::uuid and status not in ('resolved','closed','cancelled') order by created_at desc limit 4", [companyId]),
+      ]);
+      voiceContext = { metrics: metrics[0] ?? {}, activeTasks: tasks, openIncidents: incidents };
+      if (['owner','admin'].includes(membership.role)) {
+        const finance = await sql.query([
+          'select',
+          "(select count(*)::int from public.invoices where company_id=$1::uuid and status in ('issued','partially_paid','overdue')) as open_invoices,",
+          "(select count(*)::int from public.purchase_orders where company_id=$1::uuid and status in ('draft','approved','partially_received')) as open_purchase_orders",
+        ].join(' '), [companyId]);
+        voiceContext = { ...voiceContext, ownerMetrics: finance[0] ?? {} };
+      }
+    } else if (membership.role === 'supplier' && membership.supplierId) {
+      const [tasks, commitments] = await Promise.all([
+        sql.query("select title,status,priority,due_at from public.operational_tasks where company_id=$1::uuid and assignee_supplier_id=$2::uuid and status not in ('approved','cancelled') order by due_at asc nulls last limit 8", [companyId, membership.supplierId]),
+        sql.query("select count(*)::int as active_commitments from public.capacity_commitments where company_id=$1::uuid and supplier_id=$2::uuid and status in ('confirmed','committed') and period_end>=current_date", [companyId, membership.supplierId]),
+      ]);
+      voiceContext = { activeTasks: tasks, capacity: commitments[0] ?? {} };
+    } else if (membership.role === 'driver') {
+      const shipments = await sql.query("select s.stage,s.planned_departure,s.delivered_at,o.reference as order_reference from public.shipments s join public.orders o on o.company_id=s.company_id and o.id=s.order_id where s.company_id=$1::uuid and s.driver_user_id=$2::uuid and s.stage not in ('delivered','returned','failed') order by s.planned_departure asc nulls last limit 8", [companyId, user.id]);
+      voiceContext = { assignedOpenShipments: shipments.length, assignedShipments: shipments };
+    } else if (membership.role === 'customer' && membership.customerId) {
+      const orders = await sql.query("select reference,status,requested_delivery from public.orders where company_id=$1::uuid and customer_id=$2::uuid order by created_at desc limit 8", [companyId, membership.customerId]);
+      voiceContext = { ownRecentOrders: orders };
+    }
+  } catch {
+    voiceContext = { note: 'بعضی داده‌های نقش فعلی برای این مکالمه خوانده نشدند. درباره آن‌ها حدس نزن.' };
+  }
+
+  const canProposeOperationalTasks = ['owner', 'admin', 'staff'].includes(membership.role) &&
+    await userHasModulePermission(c, user.id, companyId, 'agents', 'can_create') &&
+    await userHasModulePermission(c, user.id, companyId, 'operational-tasks', 'can_create');
+  const instructions = [
+    'تو دستیار صوتی عملیاتی مدار هستی و با فارسی روان، طبیعی و کوتاه صحبت می‌کنی.',
+    'ابتدا پاسخ مستقیم بده؛ هنگام توضیح چند مرحله، جمله‌ها را کوتاه و قابل شنیدن نگه دار.',
+    'از اطلاعات زمینه فقط برای همین مجموعه و همین نقش استفاده کن. عدد، وضعیت، شخص یا رویداد نساز و زمان داده‌ها را در صورت نیاز توضیح بده.',
+    canProposeOperationalTasks
+      ? 'وقتی کاربر صریحاً درخواست ساخت یک وظیفه عملیاتی را دارد و عنوان و نتیجه مورد انتظار روشن است، می‌توانی ابزار propose_operational_task را فقط برای ایجاد پیش‌نویس پیشنهاد استفاده کنی. اگر اطلاعات اصلی مبهم است ابتدا سؤال بپرس. ابزار صرفاً پیشنهاد می‌سازد و وظیفه واقعی را ایجاد نمی‌کند. پس از نتیجه ابزار صریحاً بگو پیشنهاد برای بررسی در مرکز ایجنت‌ها آماده است و کاربر باید آن را جداگانه تأیید کند.'
+      : 'در این نشست ابزار تغییر داده‌ها فعال نیست. هیچ وظیفه یا تغییر عملیاتی را اجراشده معرفی نکن. فقط درباره اطلاعات مجاز و موجود پاسخ بده.',
+    'هیچ پرداخت، انتقال وجه، تغییر مالی، ارسال بیرونی یا عملیات برگشت‌ناپذیری را انجام نده. اطلاعات تماس خصوصی و رازها را افشا نکن. اگر اطلاعات لازم وجود ندارد، واضح بگو.',
+    'نقش فعلی: ' + membership.role + '. زمان سرور: ' + new Date().toISOString() + '.',
+    'داده‌های مجاز و محدود همین مجموعه: ' + JSON.stringify(voiceContext),
+  ].join(' ');
+  const voiceTools = canProposeOperationalTasks ? [{
+    type: 'function',
+    name: 'propose_operational_task',
+    description: 'Create a reviewable, inert proposal for one operational task. Never execute the task, payments, or external actions. Use only after the user explicitly requests creating a task and the title and expected outcome are clear.',
+    parameters: {
+      type: 'object',
+      properties: {
+        title: { type: 'string', description: 'Short task title in Persian, 2 to 180 characters.' },
+        instructions: { type: 'string', description: 'Task instructions and expected outcome in Persian, up to 3000 characters.' },
+        priority: { type: 'string', enum: ['low', 'normal', 'high', 'critical'] },
+        dueAt: { type: 'string', description: 'Optional ISO 8601 date-time with timezone; omit it if the date or timezone is unclear.' },
+      },
+      required: ['title', 'instructions', 'priority'],
+      additionalProperties: false,
+    },
+  }] : [];
+
+  const safetyDigest = await crypto.subtle.digest('SHA-256', encoder.encode('medar-realtime-safety-v1:' + user.id));
+  const safetyIdentifier = Array.from(new Uint8Array(safetyDigest), byte => byte.toString(16).padStart(2, '0')).join('');
+  const sessionConfig = {
+    type: 'realtime',
+    model: 'gpt-realtime-2.1',
+    instructions,
+    audio: {
+      input: {
+        transcription: { model: 'gpt-4o-mini-transcribe', language: 'fa' },
+        turn_detection: { type: 'semantic_vad' },
+      },
+      output: { voice: 'marin' },
+    },
+    ...(voiceTools.length ? { tools: voiceTools, tool_choice: 'auto' } : {}),
+  };
+  const form = new FormData();
+  form.set('sdp', sdp);
+  form.set('session', JSON.stringify(sessionConfig));
+  try {
+    const upstream = await fetch('https://api.openai.com/v1/realtime/calls', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + apiKey, 'OpenAI-Safety-Identifier': safetyIdentifier },
+      body: form,
+    });
+    const answer = await upstream.text();
+    if (!upstream.ok || !answer.startsWith('v=0')) {
+      console.warn('Medar realtime voice session initialization failed with status', upstream.status);
+      return c.json({
+        message: upstream.status === 401 || upstream.status === 403
+          ? 'دسترسی API برای مکالمه realtime تأیید نشد؛ کلید و دسترسی مدل را بررسی کن.'
+          : upstream.status === 429
+            ? 'سرویس صوتی به سقف درخواست رسیده است؛ کمی بعد دوباره تلاش کن.'
+            : 'ارتباط realtime با سرویس صوتی برقرار نشد؛ اتصال و دسترسی مدل OpenAI را بررسی کن.',
+      }, upstream.status === 429 ? 429 : 502);
+    }
+    await sql.query(
+      'insert into public.medar_ai_usage_log(company_id,user_id,provider,model,input_chars) values($1::uuid,$2::uuid,$3,$4,$5)',
+      [companyId, user.id, 'openai', 'gpt-realtime-2.1', sdp.length],
+    );
+    return c.body(answer, 200, { 'Content-Type': 'application/sdp', 'Cache-Control': 'no-store' });
+  } catch {
+    return c.json({ message: 'اتصال realtime قطع شد؛ مجوز میکروفون، شبکه و تنظیمات OpenAI را بررسی کن.' }, 502);
+  }
+});
+
 app.post('/api/ai/chat', async (c) => {
   const user = await requireUser(c);
   if (user instanceof Response) return user;
@@ -677,6 +1343,9 @@ app.post('/api/ai/chat', async (c) => {
   const membership = await aiCompanyMembership(c, companyId, user.id);
   if (!membership) return c.json({ message: 'به این فضای کاری دسترسی فعال نداری.' }, 403);
   const role = membership.role;
+  if (!(await userHasModulePermission(c, user.id, companyId, 'agents', 'can_read'))) {
+    return c.json({ message: 'برای استفاده از دستیار هوشمند مجوز مشاهده نداری.' }, 403);
+  }
   if (!Array.isArray(body.messages) || body.messages.length < 1 || body.messages.length > 12) return c.json({ message: 'گفتگو باید بین ۱ تا ۱۲ پیام آخر را داشته باشد.' }, 422);
   const messages: AiChatMessage[] = [];
   let inputChars = 0;
@@ -1237,6 +1906,162 @@ app.post('/api/workspace/join', async (c) => {
   return c.json({ membership: joined, memberships: await getMemberships(c, user.id) }, 201);
 });
 
+
+app.get('/api/workspace/my-module-permissions', async (c) => {
+  const user = await requireUser(c);
+  if (user instanceof Response) return user;
+  const companyId = c.req.query('companyId') ?? '';
+  if (!COMPANY_ID_RE.test(companyId)) return c.json({ message: 'شناسه مجموعه معتبر نیست.' }, 422);
+  const sql = sqlFor(c);
+  const memberships = await sql.query(
+    "select m.id::text as membership_id,m.role::text as role,p.module_key,p.inherit_role_defaults,p.can_read " +
+    "from public.memberships m left join public.medar_membership_module_permissions p " +
+    "on p.membership_id=m.id and p.company_id=m.company_id " +
+    "where m.user_id=$1::uuid and m.company_id=$2::uuid and m.active=true",
+    [user.id, companyId],
+  ) as Array<{ membership_id: string; role: string; module_key: string | null; inherit_role_defaults: boolean | null; can_read: boolean | null }>;
+  if (!memberships.length) return c.json({ message: 'به این فضای کاری دسترسی فعال نداری.' }, 403);
+  const uniqueMemberships = Array.from(new Map(memberships.map(row => [row.membership_id, row])).values());
+  const permissions: Record<string, boolean> = {};
+  for (const module of MODULE_PERMISSION_CATALOG) {
+    permissions[module.key] = uniqueMemberships.some(row => row.role === 'owner' || row.role === 'admin') ||
+      uniqueMemberships.length > 0 && uniqueMemberships.every(member => {
+        if (member.role === 'owner' || member.role === 'admin') return true;
+        const policy = memberships.find(row => row.membership_id === member.membership_id && row.module_key === module.key);
+        // Read is inherited by default, but an explicit denial on any delegated membership wins.
+        return !policy || policy.inherit_role_defaults === true || policy.inherit_role_defaults === null || policy.can_read === true;
+      });
+  }
+  return c.json({ companyId, permissions });
+});
+
+app.get('/api/workspace/members/:membershipId/permissions', async (c) => {
+  const user = await requireUser(c);
+  if (user instanceof Response) return user;
+  const companyId = c.req.query('companyId') ?? '';
+  const membershipId = c.req.param('membershipId');
+  if (!COMPANY_ID_RE.test(companyId) || !COMPANY_ID_RE.test(membershipId)) {
+    return c.json({ message: 'شناسه مجموعه یا عضویت معتبر نیست.' }, 422);
+  }
+  const sql = sqlFor(c);
+  const actorRows = await sql.query(
+    "select role::text as role from public.memberships where user_id=$1::uuid and company_id=$2::uuid and active=true limit 1",
+    [user.id, companyId],
+  );
+  const actorRole = (actorRows[0] as { role: string } | undefined)?.role;
+  if (!actorRole || !['owner','admin'].includes(actorRole)) {
+    return c.json({ message: 'فقط مالک یا مدیر می‌تواند مجوزهای اعضا را مدیریت کند.' }, 403);
+  }
+  const targets = await sql.query(
+    "select id::text as membership_id,role::text as role,active from public.memberships where id=$1::uuid and company_id=$2::uuid limit 1",
+    [membershipId, companyId],
+  );
+  const target = targets[0] as { membership_id: string; role: string; active: boolean } | undefined;
+  if (!target || !target.active) return c.json({ message: 'عضویت فعال در این مجموعه پیدا نشد.' }, 404);
+  if (target.role === 'owner' || target.role === 'admin') {
+    return c.json({ message: 'مجوزهای مالک و مدیر از این صفحه قابل محدودکردن نیستند.' }, 403);
+  }
+  const rows = await sql.query(
+    'select membership_id::text,module_key,inherit_role_defaults,can_read,can_create,can_update,can_delete,can_approve from public.medar_membership_module_permissions where company_id=$1::uuid and membership_id=$2::uuid',
+    [companyId, membershipId],
+  ) as ModulePermissionRow[];
+  const byKey = new Map(rows.map(row => [row.module_key, row]));
+  const modules = MODULE_PERMISSION_CATALOG.map(module => {
+    const saved = byKey.get(module.key);
+    const configured = Boolean(saved && !saved.inherit_role_defaults);
+    return {
+      key: module.key,
+      label: module.label,
+      configured,
+      can_read: configured ? saved!.can_read : true,
+      can_create: configured ? saved!.can_create : true,
+      can_update: configured ? saved!.can_update : true,
+      can_delete: configured ? saved!.can_delete : false,
+      can_approve: configured ? saved!.can_approve : false,
+    };
+  });
+  return c.json({ companyId, membership: { id: target.membership_id, role: target.role }, modules });
+});
+
+app.post('/api/workspace/members/:membershipId/permissions', async (c) => {
+  const user = await requireUser(c);
+  if (user instanceof Response) return user;
+  const body = await c.req.json<Record<string, unknown>>().catch(() => null);
+  if (!body) return c.json({ message: 'درخواست مجوزها معتبر نیست.' }, 400);
+  const actualCompanyId = typeof body.companyId === 'string' ? body.companyId : '';
+  const membershipId = c.req.param('membershipId');
+  if (!COMPANY_ID_RE.test(actualCompanyId) || !COMPANY_ID_RE.test(membershipId)) {
+    return c.json({ message: 'شناسه مجموعه یا عضویت معتبر نیست.' }, 422);
+  }
+  if (!Array.isArray(body.modules) || body.modules.length !== MODULE_PERMISSION_CATALOG.length) {
+    return c.json({ message: 'همه ماژول‌ها باید در درخواست مجوز حضور داشته باشند.' }, 422);
+  }
+  const catalogKeys = new Set(MODULE_PERMISSION_CATALOG.map(module => module.key));
+  const seen = new Set<string>();
+  const modules: Array<{ key: string; configured: boolean; can_read: boolean; can_create: boolean; can_update: boolean; can_delete: boolean; can_approve: boolean }> = [];
+  for (const item of body.modules) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) return c.json({ message: 'ساختار یک مجوز معتبر نیست.' }, 422);
+    const raw = item as Record<string, unknown>;
+    const key = typeof raw.key === 'string' ? raw.key : '';
+    if (!catalogKeys.has(key as typeof MODULE_PERMISSION_CATALOG[number]['key']) || seen.has(key)) {
+      return c.json({ message: 'کلید ماژول ناشناخته یا تکراری است.' }, 422);
+    }
+    const fields = ['configured','can_read','can_create','can_update','can_delete','can_approve'];
+    if (fields.some(field => typeof raw[field] !== 'boolean')) {
+      return c.json({ message: 'تمام مجوزها باید مقدار روشن یا خاموش داشته باشند.' }, 422);
+    }
+    seen.add(key);
+    modules.push({
+      key,
+      configured: raw.configured as boolean,
+      can_read: raw.can_read as boolean,
+      can_create: raw.can_create as boolean,
+      can_update: raw.can_update as boolean,
+      can_delete: raw.can_delete as boolean,
+      can_approve: raw.can_approve as boolean,
+    });
+  }
+  const sql = sqlFor(c);
+  const actorRows = await sql.query(
+    "select role::text as role from public.memberships where user_id=$1::uuid and company_id=$2::uuid and active=true limit 1",
+    [user.id, actualCompanyId],
+  );
+  const actorRole = (actorRows[0] as { role: string } | undefined)?.role;
+  if (!actorRole || !['owner','admin'].includes(actorRole)) {
+    return c.json({ message: 'فقط مالک یا مدیر می‌تواند مجوزهای اعضا را مدیریت کند.' }, 403);
+  }
+  const targets = await sql.query(
+    "select id::text as membership_id,role::text as role,active from public.memberships where id=$1::uuid and company_id=$2::uuid limit 1",
+    [membershipId, actualCompanyId],
+  );
+  const target = targets[0] as { membership_id: string; role: string; active: boolean } | undefined;
+  if (!target || !target.active) return c.json({ message: 'عضویت فعال در این مجموعه پیدا نشد.' }, 404);
+  if (target.role === 'owner' || target.role === 'admin' || (target.role === 'admin' && actorRole !== 'owner')) {
+    return c.json({ message: 'مجوزهای مالک یا مدیر از این صفحه قابل محدودکردن نیستند.' }, 403);
+  }
+  const records = modules.map(module => ({
+    module_key: module.key,
+    configured: module.configured,
+    can_read: module.can_read,
+    can_create: module.can_create,
+    can_update: module.can_update,
+    can_delete: module.can_delete,
+    can_approve: module.can_approve,
+  }));
+  await sql.query(
+    'insert into public.medar_membership_module_permissions(company_id,membership_id,module_key,inherit_role_defaults,can_read,can_create,can_update,can_delete,can_approve,updated_by,updated_at) ' +
+    'select $1::uuid,$2::uuid,x.module_key,not x.configured,x.can_read,x.can_create,x.can_update,x.can_delete,x.can_approve,$3::uuid,now() ' +
+    'from jsonb_to_recordset($4::jsonb) as x(module_key text,configured boolean,can_read boolean,can_create boolean,can_update boolean,can_delete boolean,can_approve boolean) ' +
+    'on conflict(company_id,membership_id,module_key) do update set inherit_role_defaults=excluded.inherit_role_defaults,can_read=excluded.can_read,can_create=excluded.can_create,can_update=excluded.can_update,can_delete=excluded.can_delete,can_approve=excluded.can_approve,updated_by=excluded.updated_by,updated_at=now()',
+    [actualCompanyId, membershipId, user.id, JSON.stringify(records)],
+  );
+  await sql.query(
+    "insert into public.medar_audit_log(actor_user_id,action,entity_type,entity_id,metadata) values($1::uuid,'membership.permissions_updated','membership',$2::text,jsonb_build_object('company_id',$3::text,'configured_modules',$4::int))",
+    [user.id, membershipId, actualCompanyId, modules.filter(module => module.configured).length],
+  );
+  return c.json({ ok: true, configuredModules: modules.filter(module => module.configured).length });
+});
+
 app.get('/api/workspace/members', async (c) => {
   const user = await requireUser(c);
   if (user instanceof Response) return user;
@@ -1381,6 +2206,21 @@ const RPC_TARGETS: Record<string, string> = {
   approve_purchase_order: 'medar_approve_purchase_order',
   receive_purchase_order: 'medar_receive_purchase_order',
 };
+const RPC_MODULE_PERMISSIONS: Record<string, { module: string; capability: ModulePermissionCapability }> = {
+  allocate_order_item: { module: 'orders', capability: 'can_update' },
+  record_inventory_movement: { module: 'inventory', capability: 'can_create' },
+  record_quality_review: { module: 'quality', capability: 'can_approve' },
+  start_operational_task: { module: 'operational-tasks', capability: 'can_update' },
+  submit_operational_task: { module: 'operational-tasks', capability: 'can_update' },
+  review_operational_task: { module: 'operational-tasks', capability: 'can_approve' },
+  create_partner_settlement_period: { module: 'partner-settlements', capability: 'can_create' },
+  refresh_partner_settlement_period: { module: 'partner-settlements', capability: 'can_update' },
+  approve_partner_settlement_period: { module: 'partner-settlements', capability: 'can_approve' },
+  record_partner_settlement_payment: { module: 'partner-settlements', capability: 'can_approve' },
+  create_purchase_order: { module: 'purchase-orders', capability: 'can_create' },
+  approve_purchase_order: { module: 'purchase-orders', capability: 'can_approve' },
+  receive_purchase_order: { module: 'purchase-orders', capability: 'can_update' },
+};
 function quoteSqlIdentifier(value: string): string {
  if(!/^[a-z_][a-z0-9_]*$/.test(value)) throw new Error('شناسه دیتابیس معتبر نیست.');
  return '"' + value + '"';
@@ -1428,13 +2268,25 @@ async function expandRelations(c:Ctx,userId:string,table:string,rows:Record<stri
  const links=RELATIONS[table]??{};
  for(const part of splitSelection(selection)){
   const match=part.match(/^([a-z_][a-z0-9_]*)\((.*)\)$/s);if(!match||!links[match[1]])continue;
-  const name=match[1],cfg=links[name],ids=Array.from(new Set(rows.map(row=>row[cfg.local]).filter(v=>typeof v==='string'&&v.length)));
+  const name=match[1],cfg=links[name],childModule=MODULE_KEY_BY_TABLE[cfg.target];
+  const allowedCompanyIds=new Set<string>();
+  if(childModule){
+   const companyIds=Array.from(new Set(rows.map(row=>String(row.company_id??'')).filter(Boolean)));
+   for(const companyId of companyIds){
+    if(await userHasModulePermission(c,userId,companyId,childModule,'can_read'))allowedCompanyIds.add(companyId);
+   }
+  }
+  const eligibleRows=childModule?rows.filter(row=>allowedCompanyIds.has(String(row.company_id??''))):rows;
+  const ids=Array.from(new Set(eligibleRows.map(row=>row[cfg.local]).filter(v=>typeof v==='string'&&v.length)));
   if(!ids.length){for(const row of rows)row[name]=cfg.many?[]:null;continue;}
   const marks=ids.map((_,i)=>'$'+(i+1)).join(',');
   const child=await runForUser(c,userId,'select * from public.'+quoteSqlIdentifier(cfg.target)+' where '+quoteSqlIdentifier(cfg.foreign)+' in ('+marks+') limit 500',ids);
-  const expanded=await expandRelations(c,userId,cfg.target,child,match[2],depth+1), group=new Map<string,Record<string,unknown>[]>();
+  const expanded=await expandRelations(c,userId,cfg.target,child,match[2],depth+1),group=new Map<string,Record<string,unknown>[]>();
   for(const row of expanded){const key=String(row[cfg.foreign]??''),arr=group.get(key)??[];arr.push(row);group.set(key,arr);}
-  for(const row of rows){const found=group.get(String(row[cfg.local]??''))??[];row[name]=cfg.many?found:(found[0]??null);}
+  for(const row of rows){
+   if(childModule&&!allowedCompanyIds.has(String(row.company_id??''))){row[name]=cfg.many?[]:null;continue;}
+   const found=group.get(String(row[cfg.local]??''))??[];row[name]=cfg.many?found:(found[0]??null);
+  }
  }
  return rows;
 }
@@ -1462,6 +2314,7 @@ function buildFilterSql(filters:DataFilter[],columns:Set<string>,params:unknown[
 }
 
 type MembershipScope = {
+ membership_id?: string;
  company_id: string;
  role: string;
  customer_id: string | null;
@@ -1478,7 +2331,7 @@ const RPC_ONLY_TABLES = new Set(['inventory_movements','quality_reviews','partne
 async function loadMembershipScopes(c:Ctx,userId:string):Promise<MembershipScope[]> {
  const sql=sqlFor(c);
  const rows=await sql.query(
-  "select company_id::text,role::text,customer_id::text,supplier_id::text from public.memberships where user_id=$1::uuid and active=true",
+  "select id::text as membership_id,company_id::text,role::text,customer_id::text,supplier_id::text from public.memberships where user_id=$1::uuid and active=true",
   [userId]
  );
  return rows as MembershipScope[];
@@ -1552,6 +2405,121 @@ export function sanitizeExternalRows(table:string,rows:Record<string,unknown>[],
 function companyRole(memberships:MembershipScope[],companyId:string):MembershipScope|undefined {
  return memberships.find(m=>m.company_id===companyId);
 }
+
+const MODULE_PERMISSION_CATALOG = [
+  { key: 'home', label: 'صفحه اصلی و کارهای روزانه' },
+  { key: 'command', label: 'مرکز فرمان و گزارش‌ها' },
+  { key: 'agents', label: 'دستیار و مرکز ایجنت‌ها' },
+  { key: 'contacts', label: 'دفترچه مخاطبین و واردکردن مخاطب' },
+  { key: 'customers', label: 'مشتریان و قراردادهای مشتری' },
+  { key: 'suppliers', label: 'تأمین‌کنندگان و ظرفیت' },
+  { key: 'orders', label: 'سفارش‌ها و اقلام سفارش' },
+  { key: 'purchase-orders', label: 'خرید و سفارش خرید' },
+  { key: 'products', label: 'محصولات و کاتالوگ' },
+  { key: 'inventory', label: 'موجودی و گردش انبار' },
+  { key: 'capacity', label: 'ظرفیت و تعهد تأمین' },
+  { key: 'quality', label: 'کیفیت و کنترل محموله' },
+  { key: 'shipments', label: 'حمل‌ونقل، رانندگان و مدارک' },
+  { key: 'finance', label: 'امور مالی و تسویه‌ها' },
+  { key: 'farm-sites', label: 'سایت‌ها و نقشه' },
+  { key: 'flock-cycles', label: 'چرخه‌های کشت و پرورش' },
+  { key: 'production-batches', label: 'دوره‌های تولید' },
+  { key: 'daily-production', label: 'ثبت روزانهٔ تولید' },
+  { key: 'operational-tasks', label: 'وظایف و شواهد کار' },
+  { key: 'task-templates', label: 'الگوهای وظیفه' },
+  { key: 'incidents', label: 'رخدادها و مغایرت‌ها' },
+  { key: 'partnership-agreements', label: 'قراردادهای مشارکت' },
+  { key: 'partner-finance', label: 'دفتر مالی شریک' },
+  { key: 'partner-settlements', label: 'دوره‌ها و تسویهٔ شریک' },
+  { key: 'goals', label: 'اهداف و برنامه' },
+  { key: 'members', label: 'اعضا و دعوت‌ها' },
+  { key: 'audit', label: 'تاریخچه و ممیزی' },
+] as const;
+type ModulePermissionCapability = 'can_read' | 'can_create' | 'can_update' | 'can_delete' | 'can_approve';
+type UserModulePermissionRow = { role: string; inherit_role_defaults: boolean | null } & Partial<Record<ModulePermissionCapability, boolean | null>>;
+
+/** Resolve one capability conservatively when a user has several active roles in one company. */
+export function aggregateModulePermissionRows(rows: UserModulePermissionRow[], capability: ModulePermissionCapability): boolean {
+  if (!rows.length) return false;
+  // Owner/admin authority is explicit and intentionally not configurable through member overrides.
+  if (rows.some(row => row.role === 'owner' || row.role === 'admin')) return true;
+  const inheritedDefault = capability !== 'can_delete' && capability !== 'can_approve';
+  // Deny wins across delegated memberships: a permissive or unconfigured membership cannot
+  // override a restriction saved against another active membership for the same user/company.
+  return rows.every(row => {
+    if (row.inherit_role_defaults === null || row.inherit_role_defaults === true) return inheritedDefault;
+    return row[capability] === true;
+  });
+}
+type ModulePermissionRow = {
+  membership_id: string;
+  module_key: string;
+  inherit_role_defaults: boolean;
+  can_read: boolean;
+  can_create: boolean;
+  can_update: boolean;
+  can_delete: boolean;
+  can_approve: boolean;
+};
+const MODULE_KEY_BY_TABLE: Record<string, string> = {
+  access_requests: 'members', customers: 'customers', suppliers: 'suppliers', products: 'products',
+  price_agreements: 'customers', orders: 'orders', order_items: 'orders',
+  capacity_commitments: 'capacity', lots: 'inventory', quality_reviews: 'quality',
+  shipments: 'shipments', shipment_locations: 'shipments', delivery_evidence: 'shipments',
+  invoices: 'finance', settlements: 'finance', inventory_movements: 'inventory',
+  inventory_balances: 'inventory', notifications: 'home', audit_events: 'audit',
+  farm_sites: 'farm-sites', partnership_agreements: 'partnership-agreements',
+  purchase_orders: 'purchase-orders', purchase_order_items: 'purchase-orders',
+  flock_cycles: 'flock-cycles', production_batches: 'production-batches',
+  daily_production_records: 'daily-production', task_templates: 'task-templates',
+  operational_tasks: 'operational-tasks', task_evidence: 'operational-tasks',
+  operational_incidents: 'incidents', partner_financial_entries: 'partner-finance',
+  partner_settlement_periods: 'partner-settlements', company_goals: 'goals',
+};
+
+async function loadModulePermissionOverrides(
+  c: Ctx,
+  scopes: MembershipScope[],
+  moduleKey: string,
+): Promise<Map<string, ModulePermissionRow>> {
+  const ids = scopes.map(scope => scope.membership_id).filter((id): id is string => Boolean(id));
+  if (!ids.length) return new Map();
+  const rows = await sqlFor(c).query(
+    'select membership_id::text,module_key,inherit_role_defaults,can_read,can_create,can_update,can_delete,can_approve from public.medar_membership_module_permissions where membership_id=any($1::uuid[]) and module_key=$2',
+    [ids, moduleKey],
+  );
+  return new Map((rows as ModulePermissionRow[]).map(row => [row.membership_id, row]));
+}
+
+export function scopeHasModulePermission(
+  scope: MembershipScope,
+  overrides: Map<string, ModulePermissionRow>,
+  capability: ModulePermissionCapability,
+): boolean {
+  if (scope.role === 'owner' || scope.role === 'admin') return true;
+  const override = scope.membership_id ? overrides.get(scope.membership_id) : undefined;
+  if (!override || override.inherit_role_defaults) {
+    // Match the permission editor's inherited defaults: read/create/update are inherited;
+    // delete and approve require explicit grants for delegated roles.
+    return capability !== 'can_delete' && capability !== 'can_approve';
+  }
+  return override[capability] === true;
+}
+
+async function userHasModulePermission(
+  c: Ctx,
+  userId: string,
+  companyId: string,
+  moduleKey: string,
+  capability: ModulePermissionCapability,
+): Promise<boolean> {
+  const rows = await sqlFor(c).query(
+    'select m.role::text as role,p.inherit_role_defaults,p.can_read,p.can_create,p.can_update,p.can_delete,p.can_approve from public.memberships m left join public.medar_membership_module_permissions p on p.membership_id=m.id and p.company_id=m.company_id and p.module_key=$3 where m.user_id=$1::uuid and m.company_id=$2::uuid and m.active=true',
+    [userId, companyId, moduleKey],
+  ) as UserModulePermissionRow[];
+  return aggregateModulePermissionRows(rows, capability);
+}
+
 const UPDATE_PROTECTED_FIELDS:Record<string,Set<string>>={
  orders:new Set(['status','created_by']),
  shipments:new Set(['stage','departed_at','delivered_at','failure_reason','driver_user_id']),
@@ -1594,6 +2562,32 @@ export function canTransitionMedarStatus(table: string, current: string, next: s
   return (MEDAR_STATUS_TRANSITIONS[table]?.[current] ?? []).includes(next);
 }
 
+export function isBankReconciliationDirectionCompatible(
+  entityType: string,
+  transactionDirection: string,
+  targetDirection?: string | null,
+): boolean {
+  if (entityType === 'invoice') return transactionDirection === 'incoming';
+  if (entityType === 'purchase_order' || entityType === 'settlement') return transactionDirection === 'outgoing';
+  if (entityType === 'partner_financial_entry') {
+    if (transactionDirection === 'incoming') return targetDirection === 'inflow_to_company' || targetDirection === 'partner_to_company';
+    if (transactionDirection === 'outgoing') return targetDirection === 'outflow_from_company' || targetDirection === 'company_to_partner';
+  }
+  return false;
+}
+
+export function isBankTransactionCurrencyCompatible(accountCurrency: string, transactionCurrency: string): boolean {
+  return /^[A-Z]{3}$/.test(accountCurrency) && accountCurrency === transactionCurrency;
+}
+
+export function isMaskedBankAccountValid(value: string): boolean {
+  const asciiDigits = value.replace(/[۰-۹٠-٩]/g, digit => {
+    const code = digit.charCodeAt(0);
+    return String(code >= 0x06f0 && code <= 0x06f9 ? code - 0x06f0 : code - 0x0660);
+  }).replace(/\D/g, '');
+  return value.length <= 40 && asciiDigits.length <= 4;
+}
+
 function applyInsertActorFields(table:string,row:Record<string,unknown>,columns:Set<string>,userId:string):Record<string,unknown> {
  const out={...row};
  for(const field of ['id','user_id','created_at','updated_at','deleted_at','created_by','updated_by','recorded_by','captured_by','uploaded_by','reported_by','submitted_by'])delete out[field];
@@ -1618,13 +2612,17 @@ app.post('/api/data/:table',async c=>{
   const columns=await listTableColumns(c,table);
   if(!columns.has('company_id'))return c.json({message:'جدول فاقد محدوده شرکت است و از API عمومی قابل دسترسی نیست.'},403);
   const tableName='public.'+quoteSqlIdentifier(table);
+  const moduleKey=MODULE_KEY_BY_TABLE[table];
+  const moduleOverrides=moduleKey?await loadModulePermissionOverrides(c,scopes,moduleKey):new Map<string,ModulePermissionRow>();
+  const hasPermission=(scope:MembershipScope,capability:ModulePermissionCapability)=>!moduleKey||scopeHasModulePermission(scope,moduleOverrides,capability);
   if(action==='select'){
+   const readableScopes=scopes.filter(scope=>hasPermission(scope,'can_read'));
    const params:unknown[]=[];
    const filters=Array.isArray(body.filters)?body.filters as DataFilter[]:[];
    const where=buildFilterSql(filters,columns,params,1);
    const ors=Array.isArray(body.orFilters)?body.orFilters as DataFilter[]:[];
    const orWhere=buildFilterSql(ors,columns,params,1,'or');
-   const scope=buildMembershipScopeSql(table,columns,scopes,user.id,params,1);
+   const scope=buildMembershipScopeSql(table,columns,readableScopes,user.id,params,1);
    const condition=[scope,where,orWhere].filter(Boolean).map(x=>'('+x+')').join(' and ');
    const whereSql=' where '+condition;
    const counts=body.count===true?await runForUser(c,user.id,'select count(*)::int as count from '+tableName+whereSql,[...params]):[];
@@ -1655,6 +2653,7 @@ app.post('/api/data/:table',async c=>{
     const companyId=typeof original.company_id==='string'?original.company_id:'';
     const membership=companyRole(scopes,companyId);
     if(!membership)return c.json({message:'این شرکت به حساب فعلی تعلق ندارد.'},403);
+    if(!hasPermission(membership,'can_create'))return c.json({message:'برای ایجاد رکورد در این ماژول مجوز نداری.'},403);
     const row=applyInsertActorFields(table,original,columns,user.id);
     if(INTERNAL_ROLES.has(membership.role)){
      if(RPC_ONLY_TABLES.has(table))return c.json({message:'این رکورد باید از عملیات معتبر سمت سرور ثبت شود.'},403);
@@ -1753,11 +2752,15 @@ app.post('/api/data/:table',async c=>{
     scopes.some(m => m.role === 'customer' && m.customer_id);
   const externalDriverUpdate = isTransition && table === 'shipments' &&
     scopes.some(m => m.role === 'driver');
+  const mutationCapability: ModulePermissionCapability = action === 'delete'
+    ? 'can_delete'
+    : (isTransition && ['approved','paid'].includes(String(requestedState)) ? 'can_approve' : 'can_update');
+  const permissionFilteredScopes = scopes.filter(scope => hasPermission(scope, mutationCapability));
   const mutationScopes = isTransition
-    ? scopes.filter(m => INTERNAL_ROLES.has(m.role) ||
+    ? permissionFilteredScopes.filter(m => INTERNAL_ROLES.has(m.role) ||
         (externalOrderSubmit && m.role === 'customer') ||
         (externalDriverUpdate && m.role === 'driver'))
-    : scopes.filter(m => INTERNAL_ROLES.has(m.role));
+    : permissionFilteredScopes.filter(m => INTERNAL_ROLES.has(m.role));
   if (!mutationScopes.length) return c.json({ message: 'ویرایش یا حذف برای نقش فعلی مجاز نیست.' }, 403);
 
   const params: unknown[] = [];
@@ -1894,6 +2897,7 @@ app.post('/api/rpc/:name', async (c) => {
       );
       const role = (manager[0] as { role: string } | undefined)?.role;
       if (!role || !['owner', 'admin', 'staff'].includes(role)) return c.json({ message: 'برای فهرست اعضای مجموعه دسترسی داخلی لازم است.' }, 403);
+      if (!(await userHasModulePermission(c, user.id, companyId, 'members', 'can_read'))) return c.json({ message: 'برای مشاهده اعضای مجموعه مجوز نداری.' }, 403);
       const members = await sql.query(
         "select m.id as membership_id,m.company_id,m.user_id,coalesce(u.username_normalized,u.username) as username," +
         "u.phone_e164 as phone,u.display_name as full_name,m.role::text,m.customer_id,m.supplier_id,m.active,m.created_at " +
@@ -1904,6 +2908,15 @@ app.post('/api/rpc/:name', async (c) => {
       return c.json({ data: members, error: null });
     }
 
+    const permission = RPC_MODULE_PERMISSIONS[requestedName];
+    if (permission) {
+      const companyValue = args._company ?? args.companyId ?? args.company_id ?? args._company_id;
+      const companyId = typeof companyValue === 'string' ? companyValue : '';
+      if (!COMPANY_ID_RE.test(companyId)) return c.json({ message: 'شناسه مجموعه برای این عملیات الزامی است.' }, 422);
+      if (!(await userHasModulePermission(c, user.id, companyId, permission.module, permission.capability))) {
+        return c.json({ message: 'مجوز لازم برای این عملیات در ماژول مربوطه وجود ندارد.' }, 403);
+      }
+    }
     const targetName = RPC_TARGETS[requestedName];
     const suppliedArgs: Record<string, unknown> = { ...args, _actor: user.id };
     if (requestedName === 'record_partner_settlement_payment' && suppliedArgs._paid_at == null) {
@@ -1941,8 +2954,8 @@ app.post('/api/access-requests',async c=>{
  return c.json({message:'درخواست نقش عمومی فعال نیست؛ با کد دعوت به یک مجموعه بپیوند.',account:user.username},410);
 });
 const PRIVATE_BUCKET_RULES:Record<string,{maxBytes:number;contentTypes:Set<string>}>={
- 'delivery-evidence':{maxBytes:10*1024*1024,contentTypes:new Set(['image/jpeg','image/png','image/webp','application/pdf'])},
- 'operational-evidence':{maxBytes:10*1024*1024,contentTypes:new Set(['image/jpeg','image/png','image/webp','application/pdf'])},
+ 'delivery-evidence':{maxBytes:50*1024*1024,contentTypes:new Set(['image/jpeg','image/png','image/webp','video/mp4','video/webm','video/quicktime','application/pdf'])},
+ 'operational-evidence':{maxBytes:50*1024*1024,contentTypes:new Set(['image/jpeg','image/png','image/webp','video/mp4','video/webm','video/quicktime','application/pdf'])},
  'contract-documents':{maxBytes:20*1024*1024,contentTypes:new Set(['application/pdf','image/jpeg','image/png'])}
 };
 function normalizePrivatePath(value:string):string|null{
@@ -1979,15 +2992,20 @@ async function canAccessPrivateFile(c: Ctx, userId: string, bucket: string, path
       ")" +
     ") " +
     "when $4='operational-evidence' then (" +
-      "exists(select 1 from public.memberships m where m.user_id=$1::uuid and m.company_id=$2::uuid and m.active=true and m.role::text in ('owner','admin','staff')) " +
-      "or exists(select 1 from public.operational_tasks t where t.id=$3::uuid and t.company_id=$2::uuid and (t.assignee_user_id=$1::uuid or exists(select 1 from public.memberships m where m.user_id=$1::uuid and m.company_id=$2::uuid and m.active=true and m.role::text='supplier' and m.supplier_id=t.assignee_supplier_id))) " +
+      "exists(select 1 from public.operational_tasks t where t.id=$3::uuid and t.company_id=$2::uuid and (" +
+        "exists(select 1 from public.memberships m where m.user_id=$1::uuid and m.company_id=$2::uuid and m.active=true and m.role::text in ('owner','admin','staff')) " +
+        "or t.assignee_user_id=$1::uuid " +
+        "or exists(select 1 from public.memberships m where m.user_id=$1::uuid and m.company_id=$2::uuid and m.active=true and m.role::text='supplier' and m.supplier_id=t.assignee_supplier_id)" +
+      ")) " +
     ") " +
     "when $4='delivery-evidence' then (" +
-      "exists(select 1 from public.memberships m where m.user_id=$1::uuid and m.company_id=$2::uuid and m.active=true and m.role::text in ('owner','admin','staff')) " +
-      (action === 'read'
-        ? "or exists(select 1 from public.shipments s where s.id=$3::uuid and s.company_id=$2::uuid and s.driver_user_id=$1::uuid) " +
-          "or exists(select 1 from public.shipments s join public.orders o on o.id=s.order_id and o.company_id=s.company_id join public.memberships m on m.company_id=o.company_id and m.customer_id=o.customer_id where s.id=$3::uuid and s.company_id=$2::uuid and m.user_id=$1::uuid and m.active=true and m.role::text='customer') "
-        : "or exists(select 1 from public.shipments s where s.id=$3::uuid and s.company_id=$2::uuid and s.driver_user_id=$1::uuid) ") +
+      "exists(select 1 from public.shipments s where s.id=$3::uuid and s.company_id=$2::uuid and (" +
+        "exists(select 1 from public.memberships m where m.user_id=$1::uuid and m.company_id=$2::uuid and m.active=true and m.role::text in ('owner','admin','staff')) " +
+        (action === 'read'
+          ? "or s.driver_user_id=$1::uuid " +
+            "or exists(select 1 from public.orders o join public.memberships m on m.company_id=o.company_id and m.customer_id=o.customer_id where o.id=s.order_id and o.company_id=s.company_id and m.user_id=$1::uuid and m.active=true and m.role::text='customer') "
+          : "or s.driver_user_id=$1::uuid ") +
+      ")) " +
     ") else false end as allowed",
     [userId, companyId, resourceId, bucket, path],
   );
@@ -2001,6 +3019,8 @@ app.put('/api/storage/:bucket',async c=>{
  const path=normalizePrivatePath(c.req.query('path')??'');if(!path)return c.json({message:'مسیر فایل معتبر نیست.'},422);
  const companyId=path.split('/')[0],role=await memberRoleForCompany(c,user.id,companyId);
  if(!role)return c.json({message:'برای این مجموعه دسترسی فعال نداری.'},403);
+ const moduleKey = bucket === 'delivery-evidence' ? 'shipments' : bucket === 'contract-documents' ? 'suppliers' : 'operational-tasks';
+ if(!(await userHasModulePermission(c,user.id,companyId,moduleKey,'can_create')))return c.json({message:'برای بارگذاری مدرک در این ماژول مجوز ایجاد نداری.'},403);
  if(!(await canAccessPrivateFile(c,user.id,bucket,path,'write')))return c.json({message:'نقش فعلی اجازه بارگذاری این مدرک در این مسیر را ندارد.'},403);
  const contentType=(c.req.header('content-type')??'application/octet-stream').split(';')[0].trim().toLowerCase();
  if(!rules.contentTypes.has(contentType))return c.json({message:'نوع فایل پشتیبانی نمی‌شود.'},415);
@@ -2020,6 +3040,9 @@ app.get('/api/storage/:bucket',async c=>{
  if(!c.env.FILE_STORE)return c.json({message:'فضای فایل خصوصی Cloudflare R2 هنوز پیکربندی نشده است.'},503);
  const bucket=c.req.param('bucket');if(!PRIVATE_BUCKET_RULES[bucket])return c.json({message:'مخزن فایل مجاز نیست.'},404);
  const path=normalizePrivatePath(c.req.query('path')??'');if(!path)return c.json({message:'مسیر فایل معتبر نیست.'},422);
+ const companyId=path.split('/')[0];
+ const moduleKey = bucket === 'delivery-evidence' ? 'shipments' : bucket === 'contract-documents' ? 'suppliers' : 'operational-tasks';
+ if(!(await userHasModulePermission(c,user.id,companyId,moduleKey,'can_read')))return c.json({message:'فایل پیدا نشد یا دسترسی به آن مجاز نیست.'},404);
  if(!(await canAccessPrivateFile(c,user.id,bucket,path,'read')))return c.json({message:'فایل پیدا نشد یا دسترسی به آن مجاز نیست.'},404);
  const meta=await runForUser(c,user.id,'select content_type from public.medar_files where bucket_id=$1 and name=$2 limit 1',[bucket,path]);
  if(!meta.length)return c.json({message:'فایل پیدا نشد یا دسترسی به آن مجاز نیست.'},404);
@@ -2042,7 +3065,9 @@ app.post('/api/storage/:bucket/remove',async c=>{
   const candidatesNames=candidates.map(row=>String(row.name));
   const names:string[]=[];
   for(const candidate of candidatesNames){
-   if(await canAccessPrivateFile(c,user.id,bucket,candidate,'delete'))names.push(candidate);
+   const companyId=candidate.split('/')[0];
+   const moduleKey = bucket === 'delivery-evidence' ? 'shipments' : bucket === 'contract-documents' ? 'suppliers' : 'operational-tasks';
+   if(await userHasModulePermission(c,user.id,companyId,moduleKey,'can_delete') && await canAccessPrivateFile(c,user.id,bucket,candidate,'delete'))names.push(candidate);
   }
   if(!names.length)return c.json({data:[],error:null});
   await c.env.FILE_STORE.delete(names.map(name=>bucket+'/'+name));
@@ -2052,6 +3077,469 @@ app.post('/api/storage/:bucket/remove',async c=>{
  }catch{return c.json({message:'حذف فایل یا مشخصات آن ناموفق بود.'},400);}
 });
 
+
+
+
+const OPERATIONAL_EVENT_SOURCES: Record<string, string> = {
+  order: 'orders', purchase_order: 'purchase_orders', task: 'operational_tasks',
+  shipment: 'shipments', invoice: 'invoices', inventory: 'inventory_movements',
+  production: 'production_batches', quality: 'quality_reviews', supplier: 'suppliers', incident: 'operational_incidents',
+};
+
+app.get('/api/operational/events', async (c) => {
+  const user = await requireUser(c);
+  if (user instanceof Response) return user;
+  const companyId = c.req.query('companyId') ?? '';
+  if (!COMPANY_ID_RE.test(companyId)) return c.json({ message: 'شناسه مجموعه معتبر نیست.' }, 422);
+  const membership = await aiCompanyMembership(c, companyId, user.id);
+  if (!membership) return c.json({ message: 'به این فضای کاری دسترسی فعال نداری.' }, 403);
+  if (!(await userHasModulePermission(c, user.id, companyId, 'operational-tasks', 'can_read'))) return c.json({ message: 'برای مشاهده رویدادها مجوز نداری.' }, 403);
+  const rows = await sqlFor(c).query(
+    'select e.id::text as id,e.event_type as "eventType",e.severity,e.source_type as "sourceType",e.source_id::text as "sourceId",e.title,e.body,e.payload,e.occurred_at as "occurredAt",e.actor_user_id::text as "actorUserId",u.username as "actorUsername" from public.medar_operational_events e left join public.medar_users u on u.id=e.actor_user_id where e.company_id=$1::uuid order by e.occurred_at desc limit 100',
+    [companyId],
+  );
+  return c.json({ events: rows });
+});
+
+app.post('/api/operational/events', async (c) => {
+  const user = await requireUser(c);
+  if (user instanceof Response) return user;
+  const body = await c.req.json<Record<string, unknown>>().catch(() => null);
+  if (!body) return c.json({ message: 'درخواست رویداد معتبر نیست.' }, 400);
+  const companyId = typeof body.companyId === 'string' ? body.companyId : '';
+  if (!COMPANY_ID_RE.test(companyId)) return c.json({ message: 'شناسه مجموعه معتبر نیست.' }, 422);
+  const membership = await aiCompanyMembership(c, companyId, user.id);
+  if (!membership || !['owner','admin','staff'].includes(membership.role) || !(await userHasModulePermission(c, user.id, companyId, 'operational-tasks', 'can_create'))) return c.json({ message: 'برای ثبت رویداد عملیاتی مجوز نداری.' }, 403);
+  const eventType = typeof body.eventType === 'string' ? body.eventType.trim() : '';
+  const severity = typeof body.severity === 'string' ? body.severity : 'info';
+  const sourceType = typeof body.sourceType === 'string' ? body.sourceType : 'system';
+  const sourceId = typeof body.sourceId === 'string' ? body.sourceId : '';
+  const title = typeof body.title === 'string' ? body.title.trim() : '';
+  const description = typeof body.body === 'string' ? body.body.trim() : '';
+  const idempotencyKey = typeof body.idempotencyKey === 'string' ? body.idempotencyKey.trim() : '';
+  const payload = body.payload && typeof body.payload === 'object' && !Array.isArray(body.payload) ? body.payload : {};
+  if (!/^[a-z][a-z0-9_.-]{1,79}$/.test(eventType)) return c.json({ message: 'نوع رویداد معتبر نیست.' }, 422);
+  if (!['info','warning','critical'].includes(severity)) return c.json({ message: 'شدت رویداد معتبر نیست.' }, 422);
+  if (!['order','purchase_order','task','shipment','invoice','inventory','production','quality','supplier','incident','system','other'].includes(sourceType)) return c.json({ message: 'منبع رویداد معتبر نیست.' }, 422);
+  if (title.length < 2 || title.length > 180 || description.length > 4000) return c.json({ message: 'عنوان یا شرح رویداد معتبر نیست.' }, 422);
+  if (idempotencyKey && (idempotencyKey.length < 8 || idempotencyKey.length > 240)) return c.json({ message: 'کلید ثبت تکراری معتبر نیست.' }, 422);
+  if (sourceId && !COMPANY_ID_RE.test(sourceId)) return c.json({ message: 'شناسه رکورد مرتبط معتبر نیست.' }, 422);
+  if (sourceId) {
+    const sourceTable = OPERATIONAL_EVENT_SOURCES[sourceType];
+    if (!sourceTable) return c.json({ message: 'این نوع رویداد نمی‌تواند به رکورد عملیاتی متصل شود.' }, 422);
+    const found = await sqlFor(c).query('select 1 from public.' + sourceTable + ' where id=$1::uuid and company_id=$2::uuid limit 1', [sourceId, companyId]);
+    if (!found.length) return c.json({ message: 'رکورد مرتبط در این شرکت پیدا نشد.' }, 404);
+  }
+  const rows = await sqlFor(c).query(
+    'insert into public.medar_operational_events (company_id,actor_user_id,event_type,severity,source_type,source_id,title,body,payload,idempotency_key) values ($1::uuid,$2::uuid,$3,$4,$5,$6::uuid,$7,$8,$9::jsonb,$10) on conflict (company_id,idempotency_key) where idempotency_key is not null do update set idempotency_key=excluded.idempotency_key returning id::text as id,company_id::text as "companyId",event_type as "eventType",severity,source_type as "sourceType",source_id::text as "sourceId",title,body,payload,occurred_at as "occurredAt",actor_user_id::text as "actorUserId"',
+    [companyId,user.id,eventType,severity,sourceType,sourceId || null,title,description,JSON.stringify(payload),idempotencyKey || null],
+  );
+  const event = rows[0];
+  if (severity === 'warning' || severity === 'critical' || body.createException === true) {
+    const dedupeKey = idempotencyKey ? 'event:' + idempotencyKey : null;
+    await sqlFor(c).query(
+      "insert into public.medar_exception_cases(company_id,event_id,title,details,severity,created_by,dedupe_key) values ($1::uuid,$2::uuid,$3,$4,$5,$6::uuid,$7) on conflict (company_id,dedupe_key) where dedupe_key is not null and status not in ('resolved','closed') do update set updated_at=now() returning id",
+      [companyId,event.id,title,description,severity === 'critical' ? 'critical' : 'warning',user.id,dedupeKey],
+    );
+  }
+  return c.json({ ok: true, event }, 201);
+});
+
+app.get('/api/operational/exceptions', async (c) => {
+  const user = await requireUser(c);
+  if (user instanceof Response) return user;
+  const companyId = c.req.query('companyId') ?? '';
+  if (!COMPANY_ID_RE.test(companyId)) return c.json({ message: 'شناسه مجموعه معتبر نیست.' }, 422);
+  const membership = await aiCompanyMembership(c, companyId, user.id);
+  if (!membership || !['owner','admin','staff'].includes(membership.role) || !(await userHasModulePermission(c, user.id, companyId, 'operational-tasks', 'can_read'))) return c.json({ message: 'برای مشاهده صندوق استثناها مجوز نداری.' }, 403);
+  const status = c.req.query('status') ?? '';
+  if (status && !['open','acknowledged','in_progress','resolved','closed'].includes(status)) return c.json({ message: 'وضعیت مسئله معتبر نیست.' }, 422);
+  const rows = await sqlFor(c).query(
+    `select x.id::text as id,x.event_id::text as "eventId",x.title,x.details,x.severity,x.status,x.assigned_user_id::text as "assignedUserId",u.username as "assignedUsername",x.due_at as "dueAt",x.acknowledged_at as "acknowledgedAt",x.resolved_at as "resolvedAt",x.resolved_by::text as "resolvedBy",x.resolution_note as "resolutionNote",x.created_at as "createdAt",x.updated_at as "updatedAt" from public.medar_exception_cases x left join public.medar_users u on u.id=x.assigned_user_id where x.company_id=$1::uuid and ($2='' or x.status=$2) order by case x.severity when 'critical' then 0 else 1 end,x.due_at asc nulls last,x.created_at desc limit 100`,
+    [companyId,status],
+  );
+  return c.json({ exceptions: rows });
+});
+
+app.post('/api/operational/exceptions', async (c) => {
+  const user = await requireUser(c);
+  if (user instanceof Response) return user;
+  const body = await c.req.json<Record<string, unknown>>().catch(() => null);
+  if (!body) return c.json({ message: 'درخواست ایجاد مسئله معتبر نیست.' }, 400);
+  const companyId = typeof body.companyId === 'string' ? body.companyId : '';
+  if (!COMPANY_ID_RE.test(companyId)) return c.json({ message: 'شناسه مجموعه معتبر نیست.' }, 422);
+  const membership = await aiCompanyMembership(c, companyId, user.id);
+  if (!membership || !['owner','admin','staff'].includes(membership.role) || !(await userHasModulePermission(c, user.id, companyId, 'operational-tasks', 'can_create'))) return c.json({ message: 'برای ایجاد مسئله عملیاتی مجوز نداری.' }, 403);
+  const title = typeof body.title === 'string' ? body.title.trim() : '';
+  const details = typeof body.details === 'string' ? body.details.trim() : '';
+  const severity = typeof body.severity === 'string' ? body.severity : 'warning';
+  const eventId = typeof body.eventId === 'string' ? body.eventId : '';
+  const assignedUserId = typeof body.assignedUserId === 'string' ? body.assignedUserId : '';
+  const dueAt = typeof body.dueAt === 'string' ? body.dueAt : '';
+  const dedupeKey = typeof body.dedupeKey === 'string' ? body.dedupeKey.trim() : '';
+  if (title.length < 2 || title.length > 180 || details.length > 4000) return c.json({ message: 'عنوان یا شرح مسئله معتبر نیست.' }, 422);
+  if (!['warning','critical'].includes(severity)) return c.json({ message: 'شدت مسئله معتبر نیست.' }, 422);
+  if (eventId && !COMPANY_ID_RE.test(eventId)) return c.json({ message: 'شناسه رویداد معتبر نیست.' }, 422);
+  if (assignedUserId && !COMPANY_ID_RE.test(assignedUserId)) return c.json({ message: 'شناسه مسئول معتبر نیست.' }, 422);
+  if (dueAt && !Number.isFinite(Date.parse(dueAt))) return c.json({ message: 'مهلت مسئله معتبر نیست.' }, 422);
+  if (dedupeKey && (dedupeKey.length < 8 || dedupeKey.length > 240)) return c.json({ message: 'کلید جلوگیری از تکرار معتبر نیست.' }, 422);
+  if (eventId) {
+    const found = await sqlFor(c).query('select 1 from public.medar_operational_events where id=$1::uuid and company_id=$2::uuid limit 1', [eventId,companyId]);
+    if (!found.length) return c.json({ message: 'رویداد مرتبط در این شرکت پیدا نشد.' }, 404);
+  }
+  if (assignedUserId) {
+    const found = await sqlFor(c).query('select 1 from public.memberships where company_id=$1::uuid and user_id=$2::uuid and active=true limit 1', [companyId,assignedUserId]);
+    if (!found.length) return c.json({ message: 'مسئول باید عضو فعال همین شرکت باشد.' }, 422);
+  }
+  const rows = await sqlFor(c).query(
+    "insert into public.medar_exception_cases(company_id,event_id,title,details,severity,assigned_user_id,due_at,created_by,dedupe_key) values ($1::uuid,$2::uuid,$3,$4,$5,$6::uuid,$7::timestamptz,$8::uuid,$9) on conflict (company_id,dedupe_key) where dedupe_key is not null and status not in ('resolved','closed') do update set updated_at=now() returning id::text as id,company_id::text as \"companyId\",event_id::text as \"eventId\",title,details,severity,status,assigned_user_id::text as \"assignedUserId\",due_at as \"dueAt\",created_at as \"createdAt\",updated_at as \"updatedAt\"",
+    [companyId,eventId || null,title,details,severity,assignedUserId || null,dueAt || null,user.id,dedupeKey || null],
+  );
+  return c.json({ ok: true, exception: rows[0] }, 201);
+});
+
+app.post('/api/operational/exceptions/:id/acknowledge', async (c) => {
+  const user = await requireUser(c);
+  if (user instanceof Response) return user;
+  const id = c.req.param('id');
+  const body = await c.req.json<Record<string, unknown>>().catch(() => null);
+  const companyId = typeof body?.companyId === 'string' ? body.companyId : '';
+  if (!COMPANY_ID_RE.test(id) || !COMPANY_ID_RE.test(companyId)) return c.json({ message: 'شناسه مسئله یا مجموعه معتبر نیست.' }, 422);
+  const membership = await aiCompanyMembership(c, companyId, user.id);
+  if (!membership || !['owner','admin','staff'].includes(membership.role)) return c.json({ message: 'برای رسیدگی به این مسئله دسترسی نداری.' }, 403);
+  if (!(await userHasModulePermission(c, user.id, companyId, 'operational-tasks', 'can_update'))) return c.json({ message: 'مجوز به‌روزرسانی مسئله را نداری.' }, 403);
+  const rows = await sqlFor(c).query("update public.medar_exception_cases set status='acknowledged',acknowledged_at=coalesce(acknowledged_at,now()),updated_at=now() where id=$1::uuid and company_id=$2::uuid and status in ('open','acknowledged') returning id::text as id,status,acknowledged_at as \"acknowledgedAt\"",[id,companyId]);
+  if (!rows.length) return c.json({ message: 'مسئله پیدا نشد یا وضعیت آن اجازه تأیید دریافت نمی‌دهد.' }, 409);
+  return c.json({ ok: true, exception: rows[0] });
+});
+
+app.post('/api/operational/exceptions/:id/resolve', async (c) => {
+  const user = await requireUser(c);
+  if (user instanceof Response) return user;
+  const id = c.req.param('id');
+  const body = await c.req.json<Record<string, unknown>>().catch(() => null);
+  const companyId = typeof body?.companyId === 'string' ? body.companyId : '';
+  const resolutionNote = typeof body?.resolutionNote === 'string' ? body.resolutionNote.trim() : '';
+  if (!COMPANY_ID_RE.test(id) || !COMPANY_ID_RE.test(companyId)) return c.json({ message: 'شناسه مسئله یا مجموعه معتبر نیست.' }, 422);
+  if (resolutionNote.length < 3 || resolutionNote.length > 2000) return c.json({ message: 'برای بستن مسئله، شرح نتیجهٔ حداقل ۳ نویسه‌ای لازم است.' }, 422);
+  const membership = await aiCompanyMembership(c, companyId, user.id);
+  if (!membership || !['owner','admin','staff'].includes(membership.role)) return c.json({ message: 'برای رسیدگی به این مسئله دسترسی نداری.' }, 403);
+  if (!(await userHasModulePermission(c, user.id, companyId, 'operational-tasks', 'can_update'))) return c.json({ message: 'مجوز به‌روزرسانی مسئله را نداری.' }, 403);
+  const rows = await sqlFor(c).query("update public.medar_exception_cases set status='resolved',resolved_at=now(),resolved_by=$3::uuid,resolution_note=$4,updated_at=now() where id=$1::uuid and company_id=$2::uuid and status not in ('resolved','closed') returning id::text as id,status,resolved_at as \"resolvedAt\",resolved_by::text as \"resolvedBy\",resolution_note as \"resolutionNote\"",[id,companyId,user.id,resolutionNote]);
+  if (!rows.length) return c.json({ message: 'مسئله پیدا نشد یا قبلاً بسته شده است.' }, 409);
+  return c.json({ ok: true, exception: rows[0] });
+});
+
+
+
+app.get('/api/connect/people', async (c) => {
+  const user = await requireUser(c);
+  if (user instanceof Response) return user;
+  const companyId = c.req.query('companyId') ?? '';
+  if (!COMPANY_ID_RE.test(companyId)) return c.json({ message: 'شناسه مجموعه معتبر نیست.' }, 422);
+  const membership = await aiCompanyMembership(c,companyId,user.id);
+  if (!membership || !['owner','admin','staff'].includes(membership.role)) return c.json({ message: 'فهرست همکاران فقط برای اعضای داخلی مجاز است.' }, 403);
+  if (!(await userHasModulePermission(c,user.id,companyId,'operational-tasks','can_create'))) return c.json({ message: 'برای ایجاد ارتباط مجوز نداری.' }, 403);
+  const rows = await sqlFor(c).query(
+    "select distinct u.id::text as id,u.username,u.display_name as \"displayName\",m.role::text as role from public.memberships m join public.medar_users u on u.id=m.user_id where m.company_id=$1::uuid and m.active=true and u.account_status='active' order by m.role::text,u.display_name,u.username limit 300",
+    [companyId],
+  );
+  return c.json({ people: rows });
+});
+
+app.get('/api/connect/conversations', async (c) => {
+  const user = await requireUser(c);
+  if (user instanceof Response) return user;
+  const companyId = c.req.query('companyId') ?? '';
+  if (!COMPANY_ID_RE.test(companyId)) return c.json({ message: 'شناسه مجموعه معتبر نیست.' }, 422);
+  if (!(await aiCompanyMembership(c, companyId, user.id))) return c.json({ message: 'به این فضای کاری دسترسی فعال نداری.' }, 403);
+  const rows = await sqlFor(c).query(
+    'select v.id::text as id,v.title,v.related_entity_type as "relatedEntityType",v.related_entity_id::text as "relatedEntityId",v.created_at as "createdAt",v.updated_at as "updatedAt",p.last_read_at as "lastReadAt",(select count(*)::int from public.medar_messages msg where msg.company_id=v.company_id and msg.conversation_id=v.id and msg.deleted_at is null and msg.sender_user_id<>$2::uuid and (p.last_read_at is null or msg.created_at>p.last_read_at)) as "unreadCount",(select left(msg.body,180) from public.medar_messages msg where msg.company_id=v.company_id and msg.conversation_id=v.id and msg.deleted_at is null order by msg.created_at desc limit 1) as "lastMessage" from public.medar_conversation_participants p join public.medar_conversations v on v.company_id=p.company_id and v.id=p.conversation_id where p.company_id=$1::uuid and p.user_id=$2::uuid and v.archived_at is null order by v.updated_at desc limit 100',
+    [companyId,user.id],
+  );
+  return c.json({ conversations: rows });
+});
+
+app.post('/api/connect/conversations', async (c) => {
+  const user = await requireUser(c);
+  if (user instanceof Response) return user;
+  const body = await c.req.json<Record<string, unknown>>().catch(() => null);
+  if (!body) return c.json({ message: 'درخواست گفت‌وگو معتبر نیست.' }, 400);
+  const companyId = typeof body.companyId === 'string' ? body.companyId : '';
+  if (!COMPANY_ID_RE.test(companyId)) return c.json({ message: 'شناسه مجموعه معتبر نیست.' }, 422);
+  const membership = await aiCompanyMembership(c, companyId, user.id);
+  if (!membership || !['owner','admin','staff'].includes(membership.role) || !(await userHasModulePermission(c,user.id,companyId,'operational-tasks','can_create'))) return c.json({ message: 'ایجاد گفت‌وگوی جدید فقط برای اعضای داخلی دارای مجوز مجاز است.' }, 403);
+  const title = typeof body.title === 'string' ? body.title.trim() : '';
+  const relatedEntityType = typeof body.relatedEntityType === 'string' ? body.relatedEntityType : '';
+  const relatedEntityId = typeof body.relatedEntityId === 'string' ? body.relatedEntityId : '';
+  const inputIds = Array.isArray(body.participantUserIds) ? body.participantUserIds.filter((id): id is string => typeof id === 'string') : [];
+  if (title.length > 180 || inputIds.length > 29 || inputIds.some(id => !COMPANY_ID_RE.test(id))) return c.json({ message: 'عنوان یا فهرست اعضای گفت‌وگو معتبر نیست.' }, 422);
+  if (relatedEntityType && !['order','purchase_order','task','shipment','invoice','exception','other'].includes(relatedEntityType)) return c.json({ message: 'نوع رکورد مرتبط معتبر نیست.' }, 422);
+  if (relatedEntityId && (!COMPANY_ID_RE.test(relatedEntityId) || !relatedEntityType)) return c.json({ message: 'شناسه یا نوع رکورد مرتبط معتبر نیست.' }, 422);
+  const participantIds = [...new Set([user.id,...inputIds])];
+  const allowed = await sqlFor(c).query('select user_id::text as id from public.memberships where company_id=$1::uuid and active=true and user_id=any($2::uuid[])',[companyId,participantIds]);
+  if (allowed.length !== participantIds.length) return c.json({ message: 'تمام شرکت‌کنندگان باید عضو فعال همین شرکت باشند.' }, 422);
+  if (relatedEntityId) {
+    const sourceTable = ({order:'orders',purchase_order:'purchase_orders',task:'operational_tasks',shipment:'shipments',invoice:'invoices',exception:'medar_exception_cases',other:''} as Record<string,string>)[relatedEntityType] ?? '';
+    if (!sourceTable) return c.json({ message: 'این نوع رکورد برای اتصال گفت‌وگو پشتیبانی نمی‌شود.' }, 422);
+    const found = await sqlFor(c).query('select 1 from public.'+sourceTable+' where id=$1::uuid and company_id=$2::uuid limit 1',[relatedEntityId,companyId]);
+    if (!found.length) return c.json({ message: 'رکورد مرتبط در این شرکت پیدا نشد.' }, 404);
+  }
+  const rows = await sqlFor(c).query(
+    "with created as (insert into public.medar_conversations(company_id,title,related_entity_type,related_entity_id,created_by) values ($1::uuid,$2,$3,$4::uuid,$5::uuid) returning id,company_id), participants as (insert into public.medar_conversation_participants(company_id,conversation_id,user_id,participant_role) select created.company_id,created.id,ids.user_id,case when ids.user_id=$5::uuid then 'owner' else 'member' end from created cross join unnest($6::uuid[]) as ids(user_id) returning user_id) select created.id::text as id,created.company_id::text as \"companyId\" from created",
+    [companyId,title,relatedEntityType || null,relatedEntityId || null,user.id,participantIds],
+  );
+  return c.json({ ok: true, conversation: rows[0] }, 201);
+});
+
+app.get('/api/connect/conversations/:id/messages', async (c) => {
+  const user = await requireUser(c);
+  if (user instanceof Response) return user;
+  const companyId = c.req.query('companyId') ?? '';
+  const conversationId = c.req.param('id');
+  if (!COMPANY_ID_RE.test(companyId) || !COMPANY_ID_RE.test(conversationId)) return c.json({ message: 'شناسه گفت‌وگو یا مجموعه معتبر نیست.' }, 422);
+  if (!(await aiCompanyMembership(c,companyId,user.id))) return c.json({ message: 'به این فضای کاری دسترسی فعال نداری.' }, 403);
+  const participant = await sqlFor(c).query('select 1 from public.medar_conversation_participants where company_id=$1::uuid and conversation_id=$2::uuid and user_id=$3::uuid limit 1',[companyId,conversationId,user.id]);
+  if (!participant.length) return c.json({ message: 'این گفت‌وگو در دسترس حساب فعلی نیست.' }, 403);
+  const rows = await sqlFor(c).query(
+    'select msg.id::text as id,msg.sender_user_id::text as "senderUserId",u.username as "senderUsername",msg.body,msg.created_at as "createdAt",msg.edited_at as "editedAt" from (select * from public.medar_messages where company_id=$1::uuid and conversation_id=$2::uuid and deleted_at is null order by created_at desc limit 100) msg join public.medar_users u on u.id=msg.sender_user_id order by msg.created_at asc',
+    [companyId,conversationId],
+  );
+  await sqlFor(c).query('update public.medar_conversation_participants set last_read_at=now() where company_id=$1::uuid and conversation_id=$2::uuid and user_id=$3::uuid',[companyId,conversationId,user.id]);
+  return c.json({ messages: rows });
+});
+
+app.post('/api/connect/conversations/:id/messages', async (c) => {
+  const user = await requireUser(c);
+  if (user instanceof Response) return user;
+  const conversationId = c.req.param('id');
+  const body = await c.req.json<Record<string, unknown>>().catch(() => null);
+  const companyId = typeof body?.companyId === 'string' ? body.companyId : '';
+  const messageBody = typeof body?.body === 'string' ? body.body.trim() : '';
+  const clientMessageId = typeof body?.clientMessageId === 'string' ? body.clientMessageId.trim() : '';
+  if (!COMPANY_ID_RE.test(companyId) || !COMPANY_ID_RE.test(conversationId)) return c.json({ message: 'شناسه گفت‌وگو یا مجموعه معتبر نیست.' }, 422);
+  if (messageBody.length < 1 || messageBody.length > 8000) return c.json({ message: 'متن پیام باید بین ۱ تا ۸۰۰۰ نویسه باشد.' }, 422);
+  if (body?.clientMessageId !== undefined && (clientMessageId.length < 8 || clientMessageId.length > 120)) return c.json({ message: 'شناسه پیام معتبر نیست.' }, 422);
+  if (!(await aiCompanyMembership(c,companyId,user.id))) return c.json({ message: 'به این فضای کاری دسترسی فعال نداری.' }, 403);
+  const participant = await sqlFor(c).query('select 1 from public.medar_conversation_participants where company_id=$1::uuid and conversation_id=$2::uuid and user_id=$3::uuid limit 1',[companyId,conversationId,user.id]);
+  if (!participant.length) return c.json({ message: 'ارسال پیام به این گفت‌وگو مجاز نیست.' }, 403);
+  const rows = await sqlFor(c).query(
+    'insert into public.medar_messages(company_id,conversation_id,sender_user_id,body,client_message_id) values ($1::uuid,$2::uuid,$3::uuid,$4,$5) on conflict (company_id,conversation_id,sender_user_id,client_message_id) where client_message_id is not null do update set body=medar_messages.body returning id::text as id,company_id::text as "companyId",conversation_id::text as "conversationId",sender_user_id::text as "senderUserId",body,created_at as "createdAt"',
+    [companyId,conversationId,user.id,messageBody,clientMessageId || null],
+  );
+  const message = rows[0];
+  await sqlFor(c).query('update public.medar_conversations set updated_at=now() where company_id=$1::uuid and id=$2::uuid',[companyId,conversationId]);
+  return c.json({ ok: true, message }, 201);
+});
+
+
+app.get('/api/push/config', async (c) => {
+  const user = await requireUser(c);
+  if (user instanceof Response) return user;
+  const companyId = c.req.query('companyId') ?? '';
+  if (!COMPANY_ID_RE.test(companyId)) return c.json({ message: 'شناسه مجموعه معتبر نیست.' }, 422);
+  if (!(await aiCompanyMembership(c,companyId,user.id))) return c.json({ message: 'به این فضای کاری دسترسی فعال نداری.' }, 403);
+  const enabled = Boolean(c.env.VAPID_PUBLIC_KEY && c.env.VAPID_PRIVATE_KEY && c.env.VAPID_SUBJECT);
+  return c.json({ enabled, publicKey: enabled ? c.env.VAPID_PUBLIC_KEY : null });
+});
+
+app.post('/api/push/subscriptions', async (c) => {
+  const user = await requireUser(c);
+  if (user instanceof Response) return user;
+  const body = await c.req.json<Record<string, unknown>>().catch(() => null);
+  if (!body) return c.json({ message: 'درخواست ثبت اعلان گوشی معتبر نیست.' }, 400);
+  const companyId = typeof body.companyId === 'string' ? body.companyId : '';
+  const endpoint = typeof body.endpoint === 'string' ? body.endpoint.trim() : '';
+  const keys = body.keys && typeof body.keys === 'object' && !Array.isArray(body.keys) ? body.keys as Record<string, unknown> : {};
+  const p256dh = typeof keys.p256dh === 'string' ? keys.p256dh : '';
+  const authSecret = typeof keys.auth === 'string' ? keys.auth : '';
+  if (!COMPANY_ID_RE.test(companyId)) return c.json({ message: 'شناسه مجموعه معتبر نیست.' }, 422);
+  if (!(await aiCompanyMembership(c,companyId,user.id))) return c.json({ message: 'به این فضای کاری دسترسی فعال نداری.' }, 403);
+  if (!c.env.VAPID_PUBLIC_KEY || !c.env.VAPID_PRIVATE_KEY || !c.env.VAPID_SUBJECT) return c.json({ message: 'ارسال Push هنوز روی محیط عملیاتی پیکربندی نشده است.' }, 503);
+  if (!allowedWebPushEndpoint(endpoint)) return c.json({ message: 'آدرس سرویس Push معتبر یا پشتیبانی‌شده نیست.' }, 422);
+  try {
+    if (base64UrlToBytes(p256dh).length !== 65 || base64UrlToBytes(authSecret).length < 16) throw new Error('invalid keys');
+  } catch { return c.json({ message: 'کلیدهای رمزنگاری مرورگر معتبر نیستند.' }, 422); }
+  const expiration = typeof body.expirationTime === 'number' && Number.isFinite(body.expirationTime) ? new Date(body.expirationTime) : null;
+  const endpointHash = await sha256(endpoint);
+  const encryptedAuthSecret = await encryptAiKey(c, authSecret);
+  const userAgent = (c.req.header('user-agent') ?? '').slice(0,500);
+  const rows = await sqlFor(c).query(
+    'insert into public.medar_push_subscriptions(company_id,user_id,endpoint,endpoint_hash,p256dh_key,auth_secret,expiration_time,user_agent,active,updated_at) values ($1::uuid,$2::uuid,$3,$4,$5,$6,$7::timestamptz,$8,true,now()) on conflict(endpoint_hash) do update set company_id=excluded.company_id,user_id=excluded.user_id,endpoint=excluded.endpoint,p256dh_key=excluded.p256dh_key,auth_secret=excluded.auth_secret,expiration_time=excluded.expiration_time,user_agent=excluded.user_agent,active=true,last_error=null,updated_at=now() returning id::text as id,active',
+    [companyId,user.id,endpoint,endpointHash,p256dh,encryptedAuthSecret,expiration && Number.isFinite(expiration.getTime()) ? expiration.toISOString() : null,userAgent],
+  );
+  return c.json({ ok: true, subscription: rows[0] }, 201);
+});
+
+app.post('/api/push/subscriptions/remove', async (c) => {
+  const user = await requireUser(c);
+  if (user instanceof Response) return user;
+  const body = await c.req.json<Record<string, unknown>>().catch(() => null);
+  const companyId = typeof body?.companyId === 'string' ? body.companyId : '';
+  const endpoint = typeof body?.endpoint === 'string' ? body.endpoint.trim() : '';
+  if (!COMPANY_ID_RE.test(companyId) || !endpoint) return c.json({ message: 'شناسه مجموعه یا آدرس اشتراک معتبر نیست.' }, 422);
+  if (!(await aiCompanyMembership(c,companyId,user.id))) return c.json({ message: 'به این فضای کاری دسترسی فعال نداری.' }, 403);
+  const endpointHash = await sha256(endpoint);
+  const rows = await sqlFor(c).query(
+    'update public.medar_push_subscriptions set active=false,updated_at=now() where company_id=$1::uuid and user_id=$2::uuid and endpoint_hash=$3 returning id::text as id',
+    [companyId,user.id,endpointHash],
+  );
+  return c.json({ ok: true, removed: rows.length });
+});
+
+app.get('/api/notifications', async (c) => {
+  const user = await requireUser(c);
+  if (user instanceof Response) return user;
+  const companyId = c.req.query('companyId') ?? '';
+  if (!COMPANY_ID_RE.test(companyId)) return c.json({ message: 'شناسه مجموعه معتبر نیست.' }, 422);
+  if (!(await aiCompanyMembership(c, companyId, user.id))) return c.json({ message: 'به این فضای کاری دسترسی فعال نداری.' }, 403);
+  if (!(await userHasModulePermission(c, user.id, companyId, 'home', 'can_read'))) return c.json({ message: 'برای مشاهده اعلان‌ها مجوز نداری.' }, 403);
+  const sql = sqlFor(c);
+  const [rows, counts] = await Promise.all([
+    sql.query(
+      'select id::text as id,title,body,href,read_at as "readAt",created_at as "createdAt" from public.notifications where company_id=$1::uuid and user_id=$2::uuid order by created_at desc limit 30',
+      [companyId, user.id],
+    ),
+    sql.query(
+      'select count(*)::int as total,count(*) filter(where read_at is null)::int as unread from public.notifications where company_id=$1::uuid and user_id=$2::uuid',
+      [companyId, user.id],
+    ),
+  ]);
+  return c.json({ notifications: rows, summary: counts[0] ?? { total: 0, unread: 0 } });
+});
+
+app.post('/api/notifications/read-all', async (c) => {
+  const user = await requireUser(c);
+  if (user instanceof Response) return user;
+  const body = await c.req.json<Record<string, unknown>>().catch(() => null);
+  const companyId = typeof body?.companyId === 'string' ? body.companyId : '';
+  if (!COMPANY_ID_RE.test(companyId)) return c.json({ message: 'شناسه مجموعه معتبر نیست.' }, 422);
+  if (!(await aiCompanyMembership(c, companyId, user.id))) return c.json({ message: 'به این فضای کاری دسترسی فعال نداری.' }, 403);
+  if (!(await userHasModulePermission(c, user.id, companyId, 'home', 'can_update'))) return c.json({ message: 'مجوز ثبت وضعیت خوانده‌شدن اعلان را نداری.' }, 403);
+  const rows = await sqlFor(c).query(
+    'update public.notifications set read_at=now() where company_id=$1::uuid and user_id=$2::uuid and read_at is null returning id',
+    [companyId, user.id],
+  );
+  return c.json({ ok: true, updated: rows.length });
+});
+
+app.post('/api/notifications/:id/read', async (c) => {
+  const user = await requireUser(c);
+  if (user instanceof Response) return user;
+  const notificationId = c.req.param('id');
+  const body = await c.req.json<Record<string, unknown>>().catch(() => null);
+  const companyId = typeof body?.companyId === 'string' ? body.companyId : '';
+  if (!COMPANY_ID_RE.test(notificationId) || !COMPANY_ID_RE.test(companyId)) return c.json({ message: 'شناسه اعلان یا مجموعه معتبر نیست.' }, 422);
+  if (!(await aiCompanyMembership(c, companyId, user.id))) return c.json({ message: 'به این فضای کاری دسترسی فعال نداری.' }, 403);
+  if (!(await userHasModulePermission(c, user.id, companyId, 'home', 'can_update'))) return c.json({ message: 'مجوز ثبت وضعیت خوانده‌شدن اعلان را نداری.' }, 403);
+  const rows = await sqlFor(c).query(
+    'update public.notifications set read_at=coalesce(read_at,now()) where id=$1::uuid and company_id=$2::uuid and user_id=$3::uuid returning id::text as id,read_at as "readAt"',
+    [notificationId, companyId, user.id],
+  );
+  if (!rows.length) return c.json({ message: 'اعلان در حساب فعلی پیدا نشد.' }, 404);
+  return c.json({ ok: true, notification: rows[0] });
+});
+
+
+async function runWebPushOutbox(env: Bindings): Promise<void> {
+  if (!env.DATABASE_URL || !env.VAPID_PUBLIC_KEY || !env.VAPID_PRIVATE_KEY || !env.VAPID_SUBJECT) return;
+  const sql = neon(env.DATABASE_URL);
+  await sql.query(
+    "update public.medar_notification_outbox set status='failed',last_error='Retry limit reached',updated_at=now() where status='queued' and attempts>=8 and next_attempt_at<=now()",
+    [],
+  );
+  const rows = await sql.query(
+    "with candidates as (select o.id from public.medar_notification_outbox o where ((o.status='queued' and o.next_attempt_at<=now()) or (o.status='processing' and o.updated_at<now()-interval '10 minutes')) and o.attempts<8 and exists (select 1 from public.medar_push_subscriptions s where s.company_id=o.company_id and s.user_id=o.user_id and s.active=true and (s.expiration_time is null or s.expiration_time>now())) order by o.created_at asc limit 25 for update skip locked), claimed as (update public.medar_notification_outbox o set status='processing',attempts=o.attempts+1,updated_at=now() from candidates c where o.id=c.id returning o.id,o.company_id,o.user_id,o.payload,o.attempts) select c.id::text as \"outboxId\",c.company_id::text as \"companyId\",c.user_id::text as \"userId\",c.payload,c.attempts,s.id::text as \"subscriptionId\",s.endpoint,s.p256dh_key,s.auth_secret from claimed c join public.medar_push_subscriptions s on s.company_id=c.company_id and s.user_id=c.user_id and s.active=true and (s.expiration_time is null or s.expiration_time>now())",
+    [],
+  );
+  const groups = new Map<string, { companyId: string; userId: string; payload: Record<string, unknown>; attempts: number; subscriptions: Array<{ id: string; endpoint: string; p256dh_key: string; auth_secret: string }> }>();
+  for (const raw of rows as Array<Record<string, unknown>>) {
+    const outboxId = String(raw.outboxId);
+    let group = groups.get(outboxId);
+    if (!group) {
+      const payload = typeof raw.payload === 'string' ? JSON.parse(raw.payload) as Record<string, unknown> : raw.payload as Record<string, unknown>;
+      group = { companyId: String(raw.companyId), userId: String(raw.userId), payload, attempts: Number(raw.attempts), subscriptions: [] };
+      groups.set(outboxId, group);
+    }
+    group.subscriptions.push({ id: String(raw.subscriptionId), endpoint: String(raw.endpoint), p256dh_key: String(raw.p256dh_key), auth_secret: String(raw.auth_secret) });
+  }
+  for (const [outboxId, group] of groups) {
+    let delivered = false;
+    let retryable = false;
+    const errors: string[] = [];
+    for (const subscription of group.subscriptions) {
+      try {
+        const result = await sendWebPush(subscription, group.payload, env);
+        if (result.ok) {
+          delivered = true;
+          await sql.query("update public.medar_push_subscriptions set last_success_at=now(),last_error=null,updated_at=now() where id=$1::uuid", [subscription.id]);
+        } else if (result.gone) {
+          await sql.query("update public.medar_push_subscriptions set active=false,last_failure_at=now(),last_error='Push endpoint expired or was removed',updated_at=now() where id=$1::uuid", [subscription.id]);
+        } else {
+          retryable = retryable || result.status >= 500 || result.status === 429;
+          errors.push('Push service returned HTTP ' + result.status);
+          await sql.query("update public.medar_push_subscriptions set last_failure_at=now(),last_error=$2,updated_at=now() where id=$1::uuid", [subscription.id,errors[errors.length-1]]);
+        }
+      } catch (error) {
+        retryable = true;
+        const message = (error instanceof Error ? error.message : 'Push delivery failed').slice(0,450);
+        errors.push(message);
+        await sql.query("update public.medar_push_subscriptions set last_failure_at=now(),last_error=$2,updated_at=now() where id=$1::uuid", [subscription.id,message]);
+      }
+    }
+    const status = delivered ? 'sent' : group.attempts >= 8 || !retryable ? 'failed' : 'queued';
+    const delay = Math.min(3600, 30 * (2 ** Math.min(group.attempts,7)));
+    await sql.query(
+      "update public.medar_notification_outbox set status=$2,next_attempt_at=now()+($3::int * interval '1 second'),last_error=$4,sent_at=case when $2='sent' then now() else null end,updated_at=now() where id=$1::uuid",
+      [outboxId,status,delay,delivered ? null : (errors.join('; ').slice(0,490) || 'No active push subscription')],
+    );
+  }
+}
+
+async function runDailyBriefingNotifications(env: Bindings): Promise<void> {
+  if (!env.DATABASE_URL) throw new Error('Database is not configured for scheduled daily briefings');
+  const sql = neon(env.DATABASE_URL);
+  await sql.query(
+    "with active_members as (" +
+    " select m.company_id,m.user_id,m.role::text as role,m.customer_id,m.supplier_id " +
+    " from public.memberships m join public.medar_users u on u.id=m.user_id " +
+    " where m.active=true and u.account_status='active' and m.role::text in ('owner','admin','staff','supplier','driver','customer')" +
+    "), metrics as (" +
+    " select m.company_id,m.user_id,m.role," +
+    " case when m.role in ('owner','admin') then (select count(*)::int from public.operational_tasks t where t.company_id=m.company_id and t.status not in ('approved','cancelled')) " +
+    " when m.role in ('staff','driver') then (select count(*)::int from public.operational_tasks t where t.company_id=m.company_id and t.assignee_user_id=m.user_id and t.status not in ('approved','cancelled')) " +
+    " when m.role='supplier' and m.supplier_id is not null then (select count(*)::int from public.operational_tasks t where t.company_id=m.company_id and t.assignee_supplier_id=m.supplier_id and t.status not in ('approved','cancelled')) else 0 end as open_tasks," +
+    " case when m.role in ('owner','admin') then (select count(*)::int from public.orders o where o.company_id=m.company_id and o.requested_delivery<timezone('Asia/Tehran',now())::date and o.status not in ('delivered','cancelled')) " +
+    " when m.role='customer' and m.customer_id is not null then (select count(*)::int from public.orders o where o.company_id=m.company_id and o.customer_id=m.customer_id and o.requested_delivery<timezone('Asia/Tehran',now())::date and o.status not in ('delivered','cancelled')) else 0 end as late_orders," +
+    " case when m.role in ('owner','admin') then (select count(*)::int from public.operational_incidents i where i.company_id=m.company_id and i.status not in ('resolved','closed','cancelled')) else 0 end as open_incidents," +
+    " case when m.role in ('owner','admin') then (select count(*)::int from public.shipments s where s.company_id=m.company_id and s.stage not in ('delivered','returned','failed')) " +
+    " when m.role='driver' then (select count(*)::int from public.shipments s where s.company_id=m.company_id and s.driver_user_id=m.user_id and s.stage not in ('delivered','returned','failed')) else 0 end as active_shipments," +
+    " case when m.role in ('owner','admin') then (select count(*)::int from public.invoices i where i.company_id=m.company_id and i.status in ('issued','partially_paid','overdue')) " +
+    " when m.role='customer' and m.customer_id is not null then (select count(*)::int from public.invoices i where i.company_id=m.company_id and i.customer_id=m.customer_id and i.status in ('issued','partially_paid','overdue')) else 0 end as open_invoices," +
+    " case when m.role in ('owner','admin') then (select count(*)::int from public.capacity_commitments cc where cc.company_id=m.company_id and cc.status='declared') " +
+    " when m.role='supplier' and m.supplier_id is not null then (select count(*)::int from public.capacity_commitments cc where cc.company_id=m.company_id and cc.supplier_id=m.supplier_id and cc.status='declared') else 0 end as pending_capacity" +
+    " from active_members m" +
+    "), candidates as (" +
+    " select company_id,user_id," +
+    " case when role='driver' then 'یادآوری مأموریت‌های امروز' when role='supplier' then 'برنامهٔ امروز تأمین‌کننده' when role='customer' then 'یادآوری سفارش و فاکتور' else 'خلاصهٔ روزانهٔ عملیات' end as title," +
+    " concat_ws(' · '," +
+    " case when open_tasks>0 then open_tasks::text||' وظیفهٔ باز' end," +
+    " case when late_orders>0 then late_orders::text||' سفارش عقب‌افتاده' end," +
+    " case when open_incidents>0 then open_incidents::text||' رخداد باز' end," +
+    " case when active_shipments>0 then active_shipments::text||' محمولهٔ فعال' end," +
+    " case when open_invoices>0 then open_invoices::text||' فاکتور باز' end," +
+    " case when pending_capacity>0 then pending_capacity::text||' ظرفیت در انتظار بررسی' end) as body," +
+    " '/app/home' as href," +
+    " 'daily-briefing:'||to_char(timezone('Asia/Tehran',now())::date,'YYYY-MM-DD')||':'||role as dedupe_key," +
+    " (open_tasks+late_orders+open_incidents+active_shipments+open_invoices+pending_capacity) as action_count" +
+    " from metrics" +
+    ")" +
+    " insert into public.notifications(company_id,user_id,title,body,href,dedupe_key)" +
+    " select company_id,user_id,title,body,href,dedupe_key from candidates where action_count>0" +
+    " on conflict(company_id,user_id,dedupe_key) where dedupe_key is not null do nothing",
+    [],
+  );
+}
 
 app.notFound((c) => {
   if (c.req.path.startsWith('/api/')) return c.json({ message: 'مسیر API پیدا نشد.' }, 404);
@@ -2064,4 +3552,17 @@ app.onError((error, c) => {
   console.error(`[medar:${requestId}] ${c.req.method} ${path} ${detail}`);
   return c.json({ message: 'درخواست انجام نشد. دوباره تلاش کن.', requestId }, 500);
 });
-export default app;
+const medarWorker = {
+  fetch: app.fetch,
+  scheduled(controller: { scheduledTime: number; cron: string }, env: Bindings, context: { waitUntil(promise: Promise<unknown>): void }) {
+    if (env.MEDAR_MODE !== 'operational') return;
+    context.waitUntil((async () => {
+      if (controller.cron === '30 1 * * *') await runDailyBriefingNotifications(env);
+      await runWebPushOutbox(env);
+    })().catch(error => {
+      console.error('[medar:scheduled] notification processing failed', error);
+      throw error;
+    }));
+  },
+};
+export default medarWorker;

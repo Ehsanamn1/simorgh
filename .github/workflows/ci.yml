@@ -36,6 +36,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y postgresql-client
+          psql -h 127.0.0.1 -U postgres -d medar_test -v ON_ERROR_STOP=1 -c "create table if not exists public.medar_schema_migrations (version text primary key, checksum text not null, applied_at timestamptz not null default now())"
           for migration in \
             worker/migrations/0001_foundation.sql \
             worker/migrations/0002_identity_foreign_keys.sql \
@@ -48,9 +49,12 @@ jobs:
             worker/migrations/0009_inventory_movement_concurrency_lock.sql \
             worker/migrations/0010_purchase_order_lifecycle.sql   \
             worker/migrations/0011_username_password_only.sql \
-            worker/migrations/0012_client_presence.sql worker/migrations/0013_ai_assistant_and_contacts.sql worker/migrations/0014_contact_intelligence.sql; do
+            worker/migrations/0012_client_presence.sql worker/migrations/0013_ai_assistant_and_contacts.sql worker/migrations/0014_contact_intelligence.sql worker/migrations/0015_ai_action_approval_ledger.sql worker/migrations/0016_membership_module_permissions.sql worker/migrations/0017_delivery_video_evidence.sql worker/migrations/0018_bank_reconciliation_ledger.sql worker/migrations/0019_daily_briefing_notifications.sql worker/migrations/0020_operational_event_exception_ledger.sql worker/migrations/0021_medar_connect_messaging.sql worker/migrations/0022_web_push_delivery_queue.sql worker/migrations/0023_operational_event_hooks.sql worker/migrations/0024_connect_task_notifications.sql; do
             echo "Applying $migration"
             psql -h 127.0.0.1 -U postgres -d medar_test -v ON_ERROR_STOP=1 -1 -f "$migration"
+            version="$(basename "$migration")"
+            checksum="$(sha256sum "$migration" | awk '{print $1}')"
+            psql -h 127.0.0.1 -U postgres -d medar_test -v ON_ERROR_STOP=1 -c "insert into public.medar_schema_migrations(version,checksum) values ('$version','$checksum') on conflict(version) do update set checksum=excluded.checksum"
           done
           psql -h 127.0.0.1 -U postgres -d medar_test -v ON_ERROR_STOP=1 -Atqc "
             select (
@@ -58,6 +62,32 @@ jobs:
               to_regclass('public.medar_client_presence') is not null and
               to_regclass('public.medar_ai_provider_configs') is not null and
               to_regclass('public.medar_ai_usage_log') is not null and
+              to_regclass('public.medar_ai_action_runs') is not null and
+              to_regprocedure('public.medar_execute_ai_create_task(uuid,uuid,uuid)') is not null and
+              to_regclass('public.medar_membership_module_permissions') is not null and
+              to_regclass('public.medar_bank_accounts') is not null and
+              to_regclass('public.medar_bank_transactions') is not null and
+              to_regclass('public.notifications') is not null and
+              (select count(*) from information_schema.columns where table_schema='public' and table_name='notifications' and column_name='dedupe_key') = 1 and
+              exists (select 1 from pg_indexes where schemaname='public' and indexname='notifications_company_user_dedupe_key_uq') and
+              exists (select 1 from public.medar_schema_migrations where version='0019_daily_briefing_notifications.sql') and
+              to_regclass('public.medar_operational_events') is not null and
+              to_regclass('public.medar_exception_cases') is not null and
+              to_regclass('public.medar_conversations') is not null and
+              to_regclass('public.medar_conversation_participants') is not null and
+              to_regclass('public.medar_messages') is not null and
+              to_regclass('public.medar_push_subscriptions') is not null and
+              to_regclass('public.medar_notification_outbox') is not null and
+              to_regprocedure('public.medar_enqueue_notification_push()') is not null and
+              to_regprocedure('public.medar_emit_operational_event()') is not null and
+              exists (select 1 from pg_trigger where tgname='medar_emit_operational_event' and not tgisinternal) and
+              exists (select 1 from public.medar_schema_migrations where version='0023_operational_event_hooks.sql') and
+              to_regprocedure('public.medar_notify_task_assignee()') is not null and
+              to_regprocedure('public.medar_notify_conversation_participants()') is not null and
+              exists (select 1 from pg_trigger where tgname='medar_notify_task_assignee' and not tgisinternal) and
+              exists (select 1 from pg_trigger where tgname='medar_notify_conversation_participants' and not tgisinternal) and
+              exists (select 1 from public.medar_schema_migrations where version='0024_connect_task_notifications.sql') and
+              to_regprocedure('public.medar_check_membership_permission_company()') is not null and
               (select count(*) from information_schema.columns where table_schema='public' and table_name in ('customers','suppliers') and column_name in ('email','organization_name','contact_notes','contact_tags','contact_source')) = 10 and
               (select is_nullable = 'YES' from information_schema.columns where table_schema='public' and table_name='medar_users' and column_name='phone_e164') and
               (select is_nullable = 'YES' from information_schema.columns where table_schema='public' and table_name='profiles' and column_name='phone') and
@@ -79,6 +109,46 @@ jobs:
               to_regprocedure('public.medar_approve_purchase_order(uuid,uuid,uuid)') is not null and
               to_regprocedure('public.medar_receive_purchase_order(uuid,uuid,uuid,jsonb,text,text)') is not null
             )" | grep -qx t
+      - name: Verify task and conversation notifications on PostgreSQL
+        env:
+          PGPASSWORD: medar_test_password
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql -h 127.0.0.1 -U postgres -d medar_test -v ON_ERROR_STOP=1 <<'SQL'
+          BEGIN;
+          INSERT INTO public.companies (id,name) VALUES
+            ('00000000-0000-4000-8000-000000000122','CI notification company');
+          INSERT INTO public.medar_users (id,username,username_normalized,phone_e164,display_name,password_hash) VALUES
+            ('00000000-0000-4000-8000-000000000111','ci.notify.owner','ci.notify.owner','+989190000121','CI notification owner','not-a-login-hash'),
+            ('00000000-0000-4000-8000-000000000112','ci.notify.staff','ci.notify.staff','+989190000122','CI notification staff','not-a-login-hash');
+          INSERT INTO public.memberships (company_id,user_id,role,active,created_by) VALUES
+            ('00000000-0000-4000-8000-000000000122','00000000-0000-4000-8000-000000000111','owner',true,'00000000-0000-4000-8000-000000000111'),
+            ('00000000-0000-4000-8000-000000000122','00000000-0000-4000-8000-000000000112','staff',true,'00000000-0000-4000-8000-000000000111');
+          INSERT INTO public.operational_tasks (company_id,assignee_user_id,assigned_by,title,due_at)
+          VALUES ('00000000-0000-4000-8000-000000000122','00000000-0000-4000-8000-000000000112','00000000-0000-4000-8000-000000000111','CI task assignment notification',now()+interval '2 hours');
+          INSERT INTO public.medar_conversations (id,company_id,title,created_by)
+          VALUES ('00000000-0000-4000-8000-000000000124','00000000-0000-4000-8000-000000000122','CI notification conversation','00000000-0000-4000-8000-000000000111');
+          INSERT INTO public.medar_conversation_participants (company_id,conversation_id,user_id,participant_role) VALUES
+            ('00000000-0000-4000-8000-000000000122','00000000-0000-4000-8000-000000000124','00000000-0000-4000-8000-000000000111','owner'),
+            ('00000000-0000-4000-8000-000000000122','00000000-0000-4000-8000-000000000124','00000000-0000-4000-8000-000000000112','member');
+          INSERT INTO public.medar_messages (company_id,conversation_id,sender_user_id,body,client_message_id)
+          VALUES ('00000000-0000-4000-8000-000000000122','00000000-0000-4000-8000-000000000124','00000000-0000-4000-8000-000000000111','CI conversation message','ci-message-00000001');
+          DO $verify_notifications$
+          BEGIN
+            IF NOT EXISTS (SELECT 1 FROM public.notifications WHERE company_id='00000000-0000-4000-8000-000000000122' AND user_id='00000000-0000-4000-8000-000000000112' AND title='وظیفهٔ جدید به شما واگذار شد' AND href='/app/home') THEN
+              RAISE EXCEPTION 'Assigned task did not create an in-app notification';
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM public.notifications WHERE company_id='00000000-0000-4000-8000-000000000122' AND user_id='00000000-0000-4000-8000-000000000112' AND title='پیام کاری جدید' AND href='/app/connect') THEN
+              RAISE EXCEPTION 'Conversation message did not notify its other participant';
+            END IF;
+            IF EXISTS (SELECT 1 FROM public.notifications WHERE company_id='00000000-0000-4000-8000-000000000122' AND user_id='00000000-0000-4000-8000-000000000111') THEN
+              RAISE EXCEPTION 'Message sender was incorrectly notified about their own message';
+            END IF;
+          END $verify_notifications$;
+          ROLLBACK;
+          SQL
+          echo "Task assignment and conversation participant notification triggers passed."
       - name: Exercise the exact failed-login upsert SQL on PostgreSQL
         env:
           PGPASSWORD: medar_test_password

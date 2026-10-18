@@ -29,6 +29,17 @@ async function installIsolatedSession(page: Page, role: 'owner' | 'supplier' | '
     status: 200, contentType: 'application/json',
     body: JSON.stringify({ memberships }),
   }));
+  await page.route('**/api/push/config**', route => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({ enabled: false, publicKey: null }),
+  }));
+  await page.route('**/api/notifications**', async route => {
+    if (route.request().method() === 'GET') {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ notifications: [], summary: { total: 0, unread: 0 } }) });
+      return;
+    }
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, updated: 0, notification: { readAt: new Date().toISOString() } }) });
+  });
 
   // All business-data reads are isolated at the Worker API boundary; tests never write to a live database.
   await page.route('**/api/data/**', async route => {
@@ -44,12 +55,16 @@ test('manager workspace retains operations and captures a real rendered control-
   page.on('pageerror', error => errors.push(error.message));
   await installIsolatedSession(page, 'owner');
   await page.goto('/simorgh/app', { waitUntil: 'domcontentloaded' });
-  await expect(page).toHaveURL(/\/simorgh\/app\/home$/);
+    await expect(page).toHaveURL(/home$/);
   await expect(page.getByRole('heading', { name: /سلام مالک آزمایشی مدار/ })).toBeVisible();
   await expect(page.locator('.workspace-home-hero')).toContainText('کنترل امروز کسب‌وکار');
   await expect(page.getByRole('heading', { name: 'بخش‌های پرکاربرد شما' })).toBeVisible();
-  await expect(page.locator('.workspace-home-link').filter({ hasText: 'دفترچه مخاطبین' })).toBeVisible();
-  await expect(page.locator('.workspace-home-section').filter({ hasText: 'کارهای امروز و هشدارها' })).toBeVisible();
+  await expect(page.locator('.workspace-home-link')).toHaveCount(4);
+  await expect(page.locator('.workspace-home-link').filter({ hasText: 'نمای کلی کسب‌وکار' })).toBeVisible();
+  await expect(page.locator('.workspace-home-link').filter({ hasText: 'سفارش‌ها' })).toBeVisible();
+  await expect(page.locator('.workspace-home-link').filter({ hasText: 'کارها و پیگیری' })).toBeVisible();
+  await expect(page.locator('.workspace-home-link').filter({ hasText: 'مالی و تسویه' })).toBeVisible();
+  await expect(page.locator('.workspace-home-section').filter({ hasText: 'موارد مهم و اقدام بعدی' })).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath('manager-role-home-viewport.png') });
   await page.screenshot({ path: testInfo.outputPath('manager-role-home.png'), fullPage: true });
 
@@ -68,6 +83,12 @@ test('manager workspace retains operations and captures a real rendered control-
   for (const [path, title] of paths) {
     await page.goto('/simorgh/app/' + path, { waitUntil: 'domcontentloaded' });
     await expect(page.getByRole('heading', { name: title })).toBeVisible();
+    const homeLink = page.getByRole('link', { name: 'بازگشت به صفحه اصلی' });
+    await expect(homeLink).toBeVisible();
+    await expect(homeLink).toHaveAttribute('href', /home$/);
+    await homeLink.click();
+    await expect(page).toHaveURL(/home$/);
+    await expect(page.getByRole('heading', { name: /سلام مالک آزمایشی مدار/ })).toBeVisible();
   }
   const dimensions = await page.evaluate(() => ({ viewport: innerWidth, document: document.documentElement.scrollWidth, body: document.body.scrollWidth }));
   expect(dimensions.document).toBeLessThanOrEqual(dimensions.viewport);
@@ -77,7 +98,7 @@ test('manager workspace retains operations and captures a real rendered control-
 
 test('manager map shows every saved farm coordinate and allows marker selection', async ({ page }) => {
   await installIsolatedSession(page, 'owner');
-  const sites = [
+  let sites = [
     { id: '00000000-0000-4000-8000-000000000101', name: 'مزرعه تهران', site_type: 'crop', city: 'تهران', province: 'تهران', latitude: 35.6892, longitude: 51.3890, license_expires_on: null, active: true },
     { id: '00000000-0000-4000-8000-000000000102', name: 'واحد کرمان', site_type: 'livestock', city: 'کرمان', province: 'کرمان', latitude: 30.2839, longitude: 57.0834, license_expires_on: null, active: true },
   ];
@@ -109,6 +130,77 @@ test('manager map shows every saved farm coordinate and allows marker selection'
   await map.getByRole('button', { name: 'انتخاب واحد کرمان' }).click();
   await expect(map.locator('.farm-map-marker.active .farm-map-marker-label')).toHaveText('واحد کرمان');
   await expect(map.locator('.farm-map-site.active b')).toHaveText('واحد کرمان');
+
+  sites = [];
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await expect(map.locator('.iran-paper-illustration')).toBeVisible();
+  await expect(map.getByRole('button', { name: 'نقشه کاغذی ایران' })).toBeEnabled();
+  await expect(map.locator('.farm-map-sites-empty')).toBeVisible();
+  await expect(map.getByRole('button', { name: 'نقشه دقیق' })).toBeDisabled();
+});
+
+
+test('operations map shows fresh driver GPS without inventing coordinates and hides stale points', async ({ page }) => {
+  await installIsolatedSession(page, 'owner');
+  const shipmentId = '00000000-0000-4000-8000-000000000211';
+  const driverId = '00000000-0000-4000-8000-000000000212';
+  let ageMs = 0;
+  const shipment = {
+    id: shipmentId,
+    company_id: companyId,
+    driver_user_id: driverId,
+    stage: 'in_transit',
+    vehicle: 'خاور GPS',
+    planned_departure: new Date().toISOString(),
+    order_id: '00000000-0000-4000-8000-000000000213',
+  };
+  await page.route('**/api/data/farm_sites', async route => {
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: [], count: 0, error: null }) });
+  });
+  await page.route('**/api/data/shipments', async route => {
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: [shipment], count: 1, error: null }) });
+  });
+  await page.route('**/api/data/shipment_locations', async route => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: [{
+          id: '00000000-0000-4000-8000-000000000214',
+          company_id: companyId,
+          shipment_id: shipmentId,
+          driver_user_id: driverId,
+          latitude: 35.6892,
+          longitude: 51.3890,
+          accuracy_m: 12,
+          captured_at: new Date(Date.now() - ageMs).toISOString(),
+        }],
+        count: 1,
+        error: null,
+      }),
+    });
+  });
+
+  await page.goto('/simorgh/app/command', { waitUntil: 'domcontentloaded' });
+  const map = page.locator('.farm-map-panel');
+  await expect(map.getByRole('heading', { name: 'نقشه‌ی عملیات و سایت‌ها' })).toBeVisible();
+  await expect(map.locator('.farm-map-driver-marker')).toHaveCount(1);
+  await expect(map.getByRole('button', { name: /مأموریت خاور GPS/ })).toBeVisible();
+  await expect(map.locator('.farm-map-fleet-list')).toContainText('خاور GPS');
+  await map.getByRole('button', { name: 'نقشه دقیق' }).click();
+  await expect(map.locator('.farm-map-canvas iframe')).toBeVisible();
+  await expect(map.locator('.farm-map-canvas iframe')).toHaveAttribute('src', /bbox=/);
+  await expect(map.locator('.farm-map-driver-marker')).toHaveCount(1);
+
+  ageMs = 10 * 60 * 1000;
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await expect(map.locator('.farm-map-driver-marker')).toHaveCount(0);
+  await expect(map.locator('.farm-map-fleet-list')).toContainText('آخرین نقطه قدیمی است');
+
+  ageMs = -10 * 60 * 1000;
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await expect(map.locator('.farm-map-driver-marker')).toHaveCount(0);
+  await expect(map.locator('.farm-map-fleet-list')).toContainText('زمان ثبت موقعیت نامعتبر است');
 });
 
 test('generic farm types and daily rejected quantities are validated before writes', async ({ page }) => {
@@ -236,21 +328,26 @@ test('supplier workspace keeps manager-only routes out of the allowed menu', asy
   const viewportWidth = Number((testInfo.project.use as { viewport?: { width?: number } }).viewport?.width || 1365);
   await installIsolatedSession(page, 'supplier');
   await page.goto('/simorgh/app', { waitUntil: 'domcontentloaded' });
-  await expect(page).toHaveURL(/\/simorgh\/app\/home$/);
+    await expect(page).toHaveURL(/home$/);
   if (viewportWidth <= 860) {
     await page.getByRole('button', { name: 'بازکردن منو' }).click();
     await expect(page.locator('.app-sidebar')).toHaveClass(/open/);
   }
   await expect(page.getByRole('heading', { name: /سلام تأمین‌کننده آزمایشی مدار/ })).toBeVisible();
   await expect(page.locator('.workspace-home-hero')).toContainText('برنامه‌ی امروز تأمین‌کننده');
+  await expect(page.locator('.workspace-home-link')).toHaveCount(4);
+  expect(await page.locator('.workspace-home-action').count()).toBeLessThanOrEqual(5);
   await page.screenshot({ path: testInfo.outputPath('supplier-role-home-viewport.png') });
   await page.screenshot({ path: testInfo.outputPath('supplier-role-home.png'), fullPage: true });
-  const supplierGroup = page.locator('.nav-group').filter({ has: page.locator('summary', { hasText: /^تأمین/ }) });
-  await supplierGroup.locator('summary').click();
-  await expect(supplierGroup.getByRole('link', { name: /کارهای واگذارشده/ })).toBeVisible();
+  const operationsGroup = page.locator('.nav-group').filter({ has: page.locator('summary', { hasText: /^عملیات و تولید/ }) });
+  await operationsGroup.locator('summary').click();
+  await expect(operationsGroup.getByRole('link', { name: /کارهای واگذارشده/ })).toBeVisible();
   await expect(page.getByRole('link', { name: /دستورالعمل‌های کاری/ })).toHaveCount(0);
   await expect(page.getByRole('link', { name: /دسترسی کاربران/ })).toHaveCount(0);
-  await expect(supplierGroup.getByRole('link', { name: /تسویه‌های من/ })).toBeVisible();
+  const financeGroup = page.locator('.nav-group').filter({ has: page.locator('summary', { hasText: /^مالی و دسترسی/ }) });
+  await financeGroup.locator('summary').click();
+  await expect(financeGroup.getByRole('link', { name: /تسویه‌های من/ })).toBeVisible();
+  expect(await page.locator('.nav-group').count()).toBeLessThan(8);
   expect(errors).toEqual([]);
 });
 
@@ -302,7 +399,7 @@ test('customer lands in their authorized catalogue and sees customer-specific mo
   page.on('pageerror', error => errors.push(error.message));
   await installIsolatedSession(page, 'customer');
   await page.goto('/simorgh/app', { waitUntil: 'domcontentloaded' });
-  await expect(page).toHaveURL(/\/simorgh\/app\/home$/);
+    await expect(page).toHaveURL(/home$/);
   await expect(page.getByRole('heading', { name: /سلام مشتری آزمایشی مدار/ })).toBeVisible();
   await expect(page.locator('.workspace-home-hero')).toContainText('وضعیت سفارش‌های سازمان شما');
   await expect(page.locator('.workspace-home-link').filter({ hasText: 'کاتالوگ خرید' })).toBeVisible();
@@ -332,7 +429,7 @@ test('driver lands in assigned shipments and does not get customer or manager na
   page.on('pageerror', error => errors.push(error.message));
   await installIsolatedSession(page, 'driver');
   await page.goto('/simorgh/app', { waitUntil: 'domcontentloaded' });
-  await expect(page).toHaveURL(/\/simorgh\/app\/home$/);
+    await expect(page).toHaveURL(/home$/);
   await expect(page.getByRole('heading', { name: /سلام راننده آزمایشی مدار/ })).toBeVisible();
   await expect(page.locator('.workspace-home-hero')).toContainText('برنامه‌ی امروز راننده');
   await expect(page.locator('.workspace-home-link').filter({ hasText: 'محموله‌های من' })).toBeVisible();
@@ -460,6 +557,41 @@ test('assistant can enter and stop automatic turn-taking voice mode', async ({ p
       stop() { this.onend?.(); }
     }
     Object.defineProperty(window, 'SpeechRecognition', { configurable: true, value: MockSpeechRecognition });
+
+    // CI validates the WebRTC state machine without a real microphone or external API key.
+    const audioTrack = { stop() {}, kind: 'audio', enabled: true };
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: { getUserMedia: async () => ({ getAudioTracks: () => [audioTrack], getTracks: () => [audioTrack] }) },
+    });
+    class MockRTCDataChannel {
+      readyState = 'open';
+      onopen: (() => void) | null = null;
+      onmessage: ((event: { data: string }) => void) | null = null;
+      constructor() { window.setTimeout(() => this.onopen?.(), 0); }
+      send() {}
+      close() { this.readyState = 'closed'; }
+    }
+    class MockRTCPeerConnection {
+      connectionState = 'new';
+      ontrack: ((event: { streams: unknown[] }) => void) | null = null;
+      onconnectionstatechange: (() => void) | null = null;
+      addTrack() {}
+      createDataChannel() { return new MockRTCDataChannel(); }
+      async createOffer() { return { type: 'offer', sdp: 'v=0\r\n' }; }
+      async setLocalDescription() {}
+      async setRemoteDescription() {
+        this.connectionState = 'connected';
+        this.onconnectionstatechange?.();
+      }
+      close() { this.connectionState = 'closed'; this.onconnectionstatechange?.(); }
+    }
+    Object.defineProperty(window, 'RTCPeerConnection', { configurable: true, value: MockRTCPeerConnection });
+  });
+  await page.route('**/api/ai/realtime/session**', async route => {
+    expect(route.request().method()).toBe('POST');
+    expect(route.request().headers()['content-type']).toContain('application/sdp');
+    await route.fulfill({ status: 200, contentType: 'application/sdp', body: 'v=0\r\n' });
   });
   await page.route('**/api/ai/providers*', async route => route.fulfill({
     status: 200,
@@ -481,7 +613,7 @@ test('assistant can enter and stop automatic turn-taking voice mode', async ({ p
   await expect(dialog.getByRole('button', { name: 'شروع مکالمه صوتی خودکار' })).toBeVisible();
   await dialog.getByRole('button', { name: 'شروع مکالمه صوتی خودکار' }).click();
   await expect(dialog.getByRole('button', { name: 'توقف مکالمه صوتی' })).toBeVisible();
-  await expect(dialog.locator('.ai-composer-actions small')).toContainText('مکالمه صوتی فعال');
+  await expect(dialog.locator('.ai-composer-actions small')).toContainText('مکالمه realtime فعال');
   await dialog.getByRole('button', { name: 'توقف مکالمه صوتی' }).click();
   await expect(dialog.getByRole('button', { name: 'شروع مکالمه صوتی خودکار' })).toBeVisible();
 });
@@ -589,4 +721,557 @@ test('a signed-in user can change their own password through the protected Worke
 
   await expect(page.getByRole('status')).toContainText('گذرواژه تغییر کرد');
   expect(submitted).toEqual({ currentPassword: 'Old-pass-2026', newPassword: 'New-pass-2026' });
+});
+
+
+test('assistant send control remains visible and sends a message through the authenticated Worker API', async ({ page }) => {
+  await installIsolatedSession(page, 'owner');
+  await page.route('**/api/ai/providers**', route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    headers: { 'cache-control': 'no-store' },
+    body: JSON.stringify({
+      companyId,
+      activeProvider: 'openai',
+      canConfigure: true,
+      providers: [{ provider: 'openai', model: 'gpt-6-luna', isDefault: true, configured: true, updatedAt: null }],
+    }),
+  }));
+  await page.route('**/api/ai/chat', async route => {
+    const request = route.request();
+    expect(request.method()).toBe('POST');
+    const payload = request.postDataJSON() as { companyId?: string; messages?: Array<{ role: string; content: string }> };
+    expect(payload.companyId).toBe(companyId);
+    expect(payload.messages?.some(message => message.role === 'user' && message.content === 'وضعیت کارهای امروز چیست؟')).toBe(true);
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      headers: { 'cache-control': 'no-store' },
+      body: JSON.stringify({ content: 'کارهای امروز از داده‌های واقعی بررسی می‌شوند.', provider: 'openai', model: 'gpt-6-luna' }),
+    });
+  });
+  await page.goto('/simorgh/app/home', { waitUntil: 'domcontentloaded' });
+  await page.getByRole('button', { name: 'بازکردن دستیار هوش مصنوعی' }).click();
+  const composer = page.getByRole('textbox', { name: 'پیام به دستیار' });
+  await expect(composer).toBeVisible();
+  const send = page.getByRole('button', { name: 'ارسال پیام' });
+  await expect(send).toBeVisible();
+  await expect(send).toBeDisabled();
+  await composer.fill('وضعیت کارهای امروز چیست؟');
+  await expect(send).toBeEnabled();
+  await send.click();
+  await expect(page.getByText('کارهای امروز از داده‌های واقعی بررسی می‌شوند.')).toBeVisible();
+  await expect(composer).toHaveValue('');
+});
+
+
+test('agent center creates an inert proposal and only creates a task after explicit approval', async ({ page }) => {
+  await installIsolatedSession(page, 'owner');
+  const actionId = '00000000-0000-4000-8000-000000000099';
+  const taskId = '00000000-0000-4000-8000-000000000098';
+  const requestedBy = '00000000-0000-4000-8000-000000000011';
+  let action: {
+    id: string;
+    toolKey: 'create_operational_task';
+    status: 'proposed' | 'executed' | 'cancelled' | 'failed';
+    arguments: Record<string, unknown>;
+    result: { taskId?: string; title?: string; status?: string } | null;
+    createdAt: string;
+    executedAt?: string | null;
+    requestedByName: string;
+    requestedBy: string;
+  } | null = null;
+  let createdTasks = 0;
+
+  await page.route('**/api/workspace/members*', async route => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        members: [{
+          membership_id: '00000000-0000-4000-8000-000000000044',
+          company_id: companyId,
+          user_id: requestedBy,
+          role: 'owner',
+          active: true,
+          username: 'owner_test',
+          full_name: 'مالک آزمایشی مدار',
+        }],
+      }),
+    });
+  });
+  await page.route('**/api/ai/actions**', async route => {
+    const url = new URL(route.request().url());
+    const method = route.request().method();
+    if (url.pathname === '/api/ai/actions' && method === 'GET') {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ actions: action ? [action] : [] }) });
+      return;
+    }
+    if (url.pathname === '/api/ai/actions/propose' && method === 'POST') {
+      const body = route.request().postDataJSON() as { companyId?: string; toolKey?: string; arguments?: Record<string, unknown> };
+      expect(body.companyId).toBe(companyId);
+      expect(body.toolKey).toBe('create_operational_task');
+      expect(body.arguments?.title).toBe('پیگیری تأمین خوراک فردا');
+      action = {
+        id: actionId,
+        toolKey: 'create_operational_task',
+        status: 'proposed',
+        arguments: body.arguments ?? {},
+        result: null,
+        createdAt: new Date().toISOString(),
+        requestedByName: 'مالک آزمایشی مدار',
+        requestedBy,
+      };
+      await route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ action, requiresConfirmation: true }) });
+      return;
+    }
+    if (url.pathname === '/api/ai/actions/' + actionId + '/execute' && method === 'POST') {
+      const body = route.request().postDataJSON() as { companyId?: string; confirmed?: boolean };
+      expect(body.companyId).toBe(companyId);
+      expect(body.confirmed).toBe(true);
+      expect(action?.status).toBe('proposed');
+      createdTasks += 1;
+      action = { ...action!, status: 'executed', result: { taskId, title: 'پیگیری تأمین خوراک فردا', status: 'pending' }, executedAt: new Date().toISOString() };
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, result: action.result }) });
+      return;
+    }
+    if (url.pathname === '/api/ai/actions/' + actionId + '/cancel' && method === 'POST') {
+      action = { ...action!, status: 'cancelled' };
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true }) });
+      return;
+    }
+    await route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ message: 'Unexpected agent API route in test' }) });
+  });
+
+  page.on('dialog', dialog => dialog.accept());
+  await page.goto('/simorgh/app/agents', { waitUntil: 'domcontentloaded' });
+  await expect(page.getByRole('heading', { name: 'مرکز ایجنت‌ها و اقدامات' })).toBeVisible();
+  await page.getByLabel('عنوان وظیفه').fill('پیگیری تأمین خوراک فردا');
+  await page.getByLabel('شرح و نتیجهٔ مورد انتظار').fill('موجودی را بررسی و نتیجه را ثبت کن.');
+  await page.getByRole('button', { name: 'ثبت پیشنهاد برای تأیید' }).click();
+  await expect(page.locator('.agent-feedback.notice')).toContainText('پیشنهاد ذخیره شد؛ هنوز هیچ وظیفه‌ای در عملیات ایجاد نشده است.');
+  await expect(page.getByText('در انتظار تأیید')).toBeVisible();
+  expect(createdTasks).toBe(0);
+
+  await page.getByRole('button', { name: 'تأیید و ایجاد وظیفه' }).click();
+  await expect(page.getByText('وظیفه پس از تأیید در مدار ایجاد شد.')).toBeVisible();
+  await expect(page.getByText('اجرا شد')).toBeVisible();
+  await expect(page.getByText('شناسه وظیفه:')).toBeVisible();
+  expect(createdTasks).toBe(1);
+});
+
+test('owner can configure module access for a staff member and restore inherited role defaults', async ({ page }) => {
+  await installIsolatedSession(page, 'owner');
+  const memberId = '00000000-0000-4000-8000-000000000044';
+  const staffUserId = '00000000-0000-4000-8000-000000000045';
+  const modules = [
+    'home','command','agents','contacts','customers','suppliers','orders','purchase-orders','products',
+    'inventory','capacity','quality','shipments','finance','farm-sites','flock-cycles','production-batches',
+    'daily-production','operational-tasks','task-templates','incidents','partnership-agreements','partner-finance',
+    'partner-settlements','goals','members','audit',
+  ].map(key => ({
+    key,
+    label: key === 'agents' ? 'دستیار و مرکز ایجنت‌ها' : key,
+    configured: false,
+    can_read: true, can_create: true, can_update: true, can_delete: false, can_approve: false,
+  }));
+  let saved: Array<Record<string, unknown>> | null = null;
+  await page.route('**/api/workspace/members*', async route => {
+    await route.fulfill({
+      status: 200, contentType: 'application/json',
+      body: JSON.stringify({ members: [
+        { membership_id: '00000000-0000-4000-8000-000000000046', company_id: companyId, user_id: '00000000-0000-4000-8000-000000000011', role: 'owner', active: true, username: 'owner_test', full_name: 'مالک آزمایشی مدار', phone: null, created_at: new Date().toISOString() },
+        { membership_id: memberId, company_id: companyId, user_id: staffUserId, role: 'staff', active: true, username: 'staff_test', full_name: 'کارشناس آزمایشی مدار', phone: null, created_at: new Date().toISOString() },
+      ] }),
+    });
+  });
+  await page.route('**/api/workspace/members/*/permissions*', async route => {
+    if (route.request().method() === 'GET') {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ modules }) });
+      return;
+    }
+    const body = route.request().postDataJSON() as { companyId: string; modules: Array<Record<string, unknown>> };
+    expect(body.companyId).toBe(companyId);
+    saved = body.modules;
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, configuredModules: saved.filter(m => m.configured === true).length }) });
+  });
+  await page.goto('/simorgh/app/members', { waitUntil: 'domcontentloaded' });
+  await expect(page.getByRole('heading', { name: 'دسترسی کاربران' })).toBeVisible();
+  const staffRow = page.locator('.data-table tbody tr').filter({ hasText: '@staff_test' });
+  await staffRow.getByRole('button', { name: 'مجوزها' }).click();
+  const agentRead = page.getByRole('checkbox', { name: 'دستیار و مرکز ایجنت‌ها — مشاهده' });
+  await expect(agentRead).toBeVisible();
+  await expect(agentRead).toBeChecked();
+  await agentRead.uncheck();
+  await page.getByRole('button', { name: 'ذخیره مجوزها' }).click();
+  await expect(page.getByText('مجوزهای ماژول ذخیره شدند؛ محدودیت‌ها در API سمت سرور اعمال می‌شوند.')).toBeVisible();
+  expect(saved).not.toBeNull();
+  const agentsSaved = saved!.find(module => module.key === 'agents');
+  expect(agentsSaved).toMatchObject({ configured: true, can_read: false });
+  await staffRow.getByRole('button', { name: 'مجوزها' }).click();
+  await page.getByRole('button', { name: 'بازگشت به پیش‌فرض نقش' }).click();
+  await page.getByRole('button', { name: 'ذخیره مجوزها' }).click();
+  await expect(page.getByText('مجوزهای ماژول ذخیره شدند؛ محدودیت‌ها در API سمت سرور اعمال می‌شوند.')).toBeVisible();
+  expect(saved!.every(module => module.configured === false)).toBe(true);
+});
+
+
+test('finance imports an actual CSV payload and reconciles only after explicit confirmation', async ({ page }) => {
+  await installIsolatedSession(page, 'owner');
+  const accountId = '00000000-0000-4000-8000-000000000301';
+  const transactionId = '00000000-0000-4000-8000-000000000302';
+  const invoiceId = '00000000-0000-4000-8000-000000000303';
+  let importedRows: Array<Record<string, unknown>> = [];
+  let transactionStatus = 'unmatched';
+  let reconcileCalls = 0;
+  const account = {
+    id: accountId, label: 'حساب تست عملیات', bankName: 'بانک آزمایشی', maskedAccount: '****1234',
+    currency: 'IRR', provider: 'manual_csv', connectionStatus: 'manual_import', active: true,
+    lastImportedAt: null, createdAt: new Date().toISOString(), transactionCount: 1, unmatchedCount: 1,
+  };
+  const transaction = {
+    id: transactionId, bankAccountId: accountId, externalTransactionId: 'TXN-20261018-001',
+    bookedAt: '2026-10-18T08:30:00.000Z', amount: '1250.50', currency: 'IRR',
+    description: 'دریافت مشتری', counterparty: 'مشتری آزمایشی', reference: 'REF-000001',
+    direction: 'incoming', reconciliationStatus: 'unmatched', importedAt: new Date().toISOString(),
+  };
+  await page.route('**/api/finance/bank-accounts*', async route => {
+    if (route.request().method() === 'GET') {
+      await route.fulfill({
+        status: 200, contentType: 'application/json',
+        body: JSON.stringify({
+          accounts: [account],
+          summary: { total: 1, unmatched: transactionStatus === 'unmatched' ? 1 : 0, reconciled: transactionStatus === 'reconciled' ? 1 : 0 },
+          capabilities: { canCreate: true, canUpdate: true, canDelete: false, canReconcile: true },
+        }),
+      });
+      return;
+    }
+    await route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ account }) });
+  });
+  await page.route('**/api/finance/bank-transactions**', async route => {
+    const url = new URL(route.request().url());
+    const method = route.request().method();
+    if (method === 'GET' && url.pathname.endsWith('/candidates')) {
+      await route.fulfill({
+        status: 200, contentType: 'application/json',
+        body: JSON.stringify({ candidates: [{
+          entityType: 'invoice', entityId: invoiceId, label: 'فاکتور INV-900 · مشتری آزمایشی',
+          amount: '1250.50', dueAt: '2026-10-20', status: 'issued',
+        }] }),
+      });
+      return;
+    }
+    if (method === 'GET') {
+      await route.fulfill({
+        status: 200, contentType: 'application/json',
+        body: JSON.stringify({
+          transactions: transactionStatus === 'unmatched' ? [transaction] : [{ ...transaction, reconciliationStatus: transactionStatus, matchedEntityType: 'invoice', matchedEntityId: invoiceId }],
+        }),
+      });
+      return;
+    }
+    if (method === 'POST' && url.pathname.endsWith('/import')) {
+      const body = route.request().postDataJSON() as { companyId: string; accountId: string; transactions: Array<Record<string, unknown>> };
+      expect(body.companyId).toBe(companyId);
+      expect(body.accountId).toBe(accountId);
+      importedRows = body.transactions;
+      await route.fulfill({
+        status: 200, contentType: 'application/json',
+        body: JSON.stringify({ inserted: body.transactions.length, skippedDuplicates: 0, submitted: body.transactions.length }),
+      });
+      return;
+    }
+    if (method === 'POST' && url.pathname.endsWith('/reconcile')) {
+      const body = route.request().postDataJSON() as { companyId: string; entityType: string; entityId: string };
+      expect(body.companyId).toBe(companyId);
+      expect(body.entityType).toBe('invoice');
+      expect(body.entityId).toBe(invoiceId);
+      reconcileCalls += 1;
+      transactionStatus = 'reconciled';
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, status: 'reconciled' }) });
+      return;
+    }
+    if (method === 'POST' && url.pathname.endsWith('/ignore')) {
+      transactionStatus = 'ignored';
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, status: 'ignored' }) });
+      return;
+    }
+    await route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ message: 'Unexpected bank API request in test.' }) });
+  });
+
+  page.on('dialog', dialog => dialog.accept());
+  await page.goto('/simorgh/app/finance', { waitUntil: 'domcontentloaded' });
+  await expect(page.getByRole('heading', { name: 'صورت‌حساب بانکی و تطبیق تراکنش' })).toBeVisible();
+  await expect(page.locator('.bank-account-card').filter({ hasText: 'حساب تست عملیات' })).toBeVisible();
+  const csv = [
+    'transaction_id,date,amount,currency,description,counterparty,reference',
+    'TXN-20261018-001,2026-10-18,1250.50,IRR,"دریافت مشتری",مشتری آزمایشی,REF-000001',
+  ].join('\n');
+  await page.locator('.bank-import-button input[type="file"]').setInputFiles({
+    name: 'statement.csv', mimeType: 'text/csv', buffer: Buffer.from(csv),
+  });
+  await expect(page.getByText(/ورود صورت‌حساب تمام شد/)).toBeVisible();
+  expect(importedRows).toHaveLength(1);
+  expect(importedRows[0]).toMatchObject({ externalTransactionId: 'TXN-20261018-001', amount: 1250.5, direction: 'incoming' });
+  await expect(page.getByText('دریافت مشتری')).toBeVisible();
+
+  await page.getByRole('button', { name: 'تطبیق', exact: true }).click();
+  const candidateSelect = page.getByLabel('سند تجاری مربوط');
+  await expect(candidateSelect.locator('option').filter({ hasText: 'فاکتور INV-900 · مشتری آزمایشی' })).toHaveCount(1);
+  await candidateSelect.selectOption('invoice:' + invoiceId);
+  await expect(candidateSelect).toHaveValue('invoice:' + invoiceId);
+  await page.getByRole('button', { name: 'تأیید و ثبت تطبیق' }).click();
+  await expect(page.getByText(/پیوند تطبیق مالی ثبت/)).toBeVisible();
+  expect(reconcileCalls).toBe(1);
+});
+
+
+test('role home loads the real notification inbox and acknowledges an unread briefing', async ({ page }) => {
+  await installIsolatedSession(page, 'owner');
+  const firstId = '00000000-0000-4000-8000-000000000401';
+  const secondId = '00000000-0000-4000-8000-000000000402';
+  const companyNotifications = [
+    { id: firstId, title: 'خلاصهٔ روزانهٔ عملیات', body: '۲ وظیفهٔ باز · ۱ سفارش عقب‌افتاده', href: '/app/home', readAt: null, createdAt: new Date().toISOString() },
+    { id: secondId, title: 'محمولهٔ فعال', body: 'یک محموله در مسیر است.', href: '/app/driver-work', readAt: new Date(Date.now()-86400000).toISOString(), createdAt: new Date(Date.now()-86400000).toISOString() },
+  ];
+  let markReadCalls = 0;
+  await page.route('**/api/notifications**', async route => {
+    const request = route.request();
+    const url = new URL(request.url());
+    if (request.method() === 'GET') {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ notifications: companyNotifications, summary: { total: 2, unread: companyNotifications.filter(item => !item.readAt).length } }) });
+      return;
+    }
+    if (request.method() === 'POST' && url.pathname.endsWith('/read-all')) {
+      const body = request.postDataJSON() as { companyId: string };
+      expect(body.companyId).toBe(companyId);
+      companyNotifications.forEach(item => { item.readAt ??= new Date().toISOString(); });
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, updated: 1 }) });
+      return;
+    }
+    const body = request.postDataJSON() as { companyId: string };
+    expect(body.companyId).toBe(companyId);
+    expect(url.pathname).toBe('/api/notifications/' + firstId + '/read');
+    markReadCalls += 1;
+    companyNotifications[0].readAt = new Date().toISOString();
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, notification: { readAt: companyNotifications[0].readAt } }) });
+  });
+  await page.goto('/simorgh/app', { waitUntil: 'domcontentloaded' });
+  await expect(page.getByRole('heading', { name: 'اعلان‌های من' })).toBeVisible();
+  await expect(page.getByText('خلاصهٔ روزانهٔ عملیات')).toBeVisible();
+  await expect(page.getByText('محمولهٔ فعال')).toBeVisible();
+  const markRead = page.getByRole('button', { name: 'خوانده‌شده: خلاصهٔ روزانهٔ عملیات' });
+  await expect(markRead).toBeVisible();
+  await markRead.click();
+  await expect(page.locator('.notification-item.unread')).toHaveCount(0);
+  await expect(markRead).toHaveCount(0);
+  await expect(page.locator('.notification-unread-count')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'خواندن همه' })).toHaveCount(0);
+  expect(markReadCalls).toBe(1);
+});
+
+test('finance bank reconciliation imports real CSV rows without duplicating transactions', async ({ page }) => {
+  await installIsolatedSession(page, 'owner');
+  const accountId = '00000000-0000-4000-8000-000000000301';
+  let accountCreated = false;
+  let importedPayload: { companyId?: string; accountId?: string; transactions?: Array<Record<string, unknown>> } | null = null;
+  let importCalls = 0;
+  const account = {
+    id: accountId, label: 'حساب تست عملیات', bankName: 'بانک نمونه', maskedAccount: '****1234',
+    currency: 'IRR', provider: 'manual_csv', connectionStatus: 'manual_import', active: true,
+    lastImportedAt: null, createdAt: new Date().toISOString(), transactionCount: importCalls ? 1 : 0,
+    unmatchedCount: importCalls ? 1 : 0,
+  };
+
+  await page.route('**/api/finance/bank-accounts**', async route => {
+    if (route.request().method() === 'POST') {
+      const body = route.request().postDataJSON() as { companyId: string; label: string; maskedAccount: string };
+      expect(body.companyId).toBe(companyId);
+      expect(body.label).toBe('حساب تست عملیات');
+      expect(body.maskedAccount).toBe('****1234');
+      accountCreated = true;
+      await route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ account }) });
+      return;
+    }
+    await route.fulfill({
+      status: 200, contentType: 'application/json',
+      body: JSON.stringify({
+        accounts: accountCreated ? [{ ...account, transactionCount: importCalls, unmatchedCount: importCalls }] : [],
+        summary: { total: importCalls, unmatched: importCalls, reconciled: 0 },
+        capabilities: { canCreate: true, canUpdate: true, canDelete: false, canReconcile: true },
+      }),
+    });
+  });
+  await page.route('**/api/finance/bank-transactions/import', async route => {
+    expect(route.request().method()).toBe('POST');
+    importedPayload = route.request().postDataJSON() as { companyId?: string; accountId?: string; transactions?: Array<Record<string, unknown>> };
+    expect(importedPayload.companyId).toBe(companyId);
+    expect(importedPayload.accountId).toBe(accountId);
+    importCalls += 1;
+    await route.fulfill({
+      status: 200, contentType: 'application/json',
+      body: JSON.stringify({ inserted: importCalls === 1 ? 1 : 0, skippedDuplicates: importCalls === 1 ? 0 : 1, submitted: 1 }),
+    });
+  });
+  await page.route('**/api/finance/bank-transactions?**', async route => {
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ transactions: [] }) });
+  });
+
+  await page.goto('/simorgh/app/finance', { waitUntil: 'domcontentloaded' });
+  const bank = page.locator('.bank-reconciliation');
+  await expect(bank.getByRole('heading', { name: 'صورت‌حساب بانکی و تطبیق تراکنش' })).toBeVisible();
+  await bank.getByRole('button', { name: 'حساب جدید' }).click();
+  await bank.getByLabel('نام نمایشی حساب').fill('حساب تست عملیات');
+  await bank.getByLabel('نام بانک').fill('بانک نمونه');
+  await bank.getByLabel('چهار رقم پایانی (اختیاری)').fill('****1234');
+  await bank.getByRole('button', { name: 'ثبت حساب' }).click();
+  await expect(bank.getByRole('button', { name: /حساب تست عملیات/ })).toBeVisible();
+
+  const csv = [
+    'transaction_id,date,amount,currency,description,counterparty,reference',
+    'TXN-000001,2026-10-18,1250.50,IRR,"خرید, خوراک",فروشگاه,REF-12345',
+  ].join('\n');
+  const fileInput = bank.locator('input[type="file"]');
+  await fileInput.setInputFiles({ name: 'statement.csv', mimeType: 'text/csv', buffer: Buffer.from(csv) });
+  await expect(bank.getByText(/۱ تراکنش جدید ثبت شد/)).toBeVisible();
+  expect(importCalls).toBe(1);
+  expect(importedPayload!.transactions).toHaveLength(1);
+  expect(importedPayload!.transactions![0]).toMatchObject({
+    externalTransactionId: 'TXN-000001',
+    amount: 1250.5,
+    description: 'خرید, خوراک',
+    counterparty: 'فروشگاه',
+    reference: 'REF-12345',
+  });
+
+  await fileInput.setInputFiles({ name: 'statement.csv', mimeType: 'text/csv', buffer: Buffer.from(csv) });
+  await expect(bank.getByText(/۰ تراکنش جدید ثبت شد و ۱ مورد تکراری نادیده گرفته شد/)).toBeVisible();
+  expect(importCalls).toBe(2);
+});
+
+
+test('Medar Connect creates a restricted conversation and sends an idempotent operational message', async ({ page }) => {
+  const userId = '00000000-0000-4000-8000-000000000011';
+  const otherUserId = '00000000-0000-4000-8000-000000000077';
+  const firstConversationId = '00000000-0000-4000-8000-000000000088';
+  const newConversationId = '00000000-0000-4000-8000-000000000099';
+  await installIsolatedSession(page, 'owner');
+  let conversations: Array<{ id: string; title: string; relatedEntityType: string | null; relatedEntityId: string | null; createdAt: string; updatedAt: string; lastReadAt: string | null; unreadCount: number; lastMessage: string | null }> = [{
+    id: firstConversationId, title: 'هماهنگی ارسال', relatedEntityType: 'shipment',
+    relatedEntityId: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+    lastReadAt: null, unreadCount: 1, lastMessage: 'بار آماده است',
+  }];
+  let messages = [{
+    id: '00000000-0000-4000-8000-000000000111', senderUserId: otherUserId,
+    senderUsername: 'driver_test', body: 'بار آماده است', createdAt: new Date().toISOString(), editedAt: null,
+  }];
+  await page.route('**/api/connect/**', async route => {
+    const request = route.request();
+    const url = new URL(request.url());
+    const path = url.pathname;
+    if (path.endsWith('/people') && request.method() === 'GET') {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ people: [{ id: otherUserId, username: 'driver_test', displayName: 'راننده آزمایشی', role: 'driver' }] }) });
+      return;
+    }
+    if (path.endsWith('/conversations') && request.method() === 'GET') {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ conversations }) });
+      return;
+    }
+    if (path.endsWith('/conversations') && request.method() === 'POST') {
+      conversations = [...conversations, {
+        id: newConversationId, title: 'تحویل سفارش ۱۲۴', relatedEntityType: null, relatedEntityId: null,
+        createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), lastReadAt: null,
+        unreadCount: 0, lastMessage: null,
+      }];
+      await route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ ok: true, conversation: { id: newConversationId } }) });
+      return;
+    }
+    if (path.endsWith('/messages') && request.method() === 'GET') {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ messages: url.pathname.includes(newConversationId) ? messages.filter(item => item.senderUserId === userId) : messages }) });
+      return;
+    }
+    if (path.endsWith('/messages') && request.method() === 'POST') {
+      const body = request.postDataJSON() as { body: string };
+      const message = { id: '00000000-0000-4000-8000-000000000122', senderUserId: userId, senderUsername: 'owner_test', body: body.body, createdAt: new Date().toISOString(), editedAt: null };
+      messages = [...messages, message];
+      conversations = conversations.map(item => item.id === newConversationId ? { ...item, lastMessage: body.body, updatedAt: new Date().toISOString() } : item);
+      await route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ ok: true, message }) });
+      return;
+    }
+    await route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ message: 'Unexpected test route: ' + path }) });
+  });
+
+  await page.goto('/simorgh/app/connect', { waitUntil: 'domcontentloaded' });
+  await expect(page.getByRole('heading', { name: 'مرکز ارتباطات' })).toBeVisible();
+  await expect(page.getByRole('button', { name: /هماهنگی ارسال/ })).toBeVisible();
+  await expect(page.getByText('بار آماده است').first()).toBeVisible();
+  await page.getByLabel('فرد یا شریک کاری').selectOption(otherUserId);
+  await page.getByLabel('عنوان (اختیاری)').fill('تحویل سفارش ۱۲۴');
+  await page.getByRole('button', { name: 'ایجاد گفت‌وگو' }).click();
+  await expect(page.getByRole('heading', { name: 'تحویل سفارش ۱۲۴' })).toBeVisible();
+  await page.getByRole('textbox', { name: 'متن پیام' }).fill('لطفاً رسید تحویل را ثبت کن.');
+  await page.getByRole('button', { name: 'ارسال پیام' }).click();
+  await expect(page.getByText('لطفاً رسید تحویل را ثبت کن.').first()).toBeVisible();
+});
+
+
+test('operational exception inbox assigns, acknowledges and resolves a case with a resolution note', async ({ page }) => {
+  const caseId = '00000000-0000-4000-8000-000000000133';
+  const ownerId = '00000000-0000-4000-8000-000000000011';
+  await installIsolatedSession(page, 'owner');
+  let cases: Array<Record<string, unknown>> = [];
+  await page.route('**/api/operational/**', async route => {
+    const request = route.request();
+    const url = new URL(request.url());
+    const path = url.pathname;
+    if (path.endsWith('/events') && request.method() === 'GET') {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ events: [] }) });
+      return;
+    }
+    if (path.endsWith('/exceptions') && request.method() === 'GET') {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ exceptions: cases }) });
+      return;
+    }
+    if (path.endsWith('/exceptions') && request.method() === 'POST') {
+      const body = request.postDataJSON() as { title: string; details: string; severity: string; assignedUserId?: string };
+      cases = [{
+        id: caseId, title: body.title, details: body.details, severity: body.severity, status: 'open',
+        assignedUserId: body.assignedUserId ?? null, assignedUsername: 'owner_test', dueAt: null,
+        createdAt: new Date().toISOString(), resolutionNote: null,
+      }];
+      await route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ ok: true, exception: cases[0] }) });
+      return;
+    }
+    if (path.endsWith('/acknowledge') && request.method() === 'POST') {
+      cases = cases.map(item => ({ ...item, status: 'acknowledged' }));
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, exception: { id: caseId, status: 'acknowledged' } }) });
+      return;
+    }
+    if (path.endsWith('/resolve') && request.method() === 'POST') {
+      const body = request.postDataJSON() as { resolutionNote: string };
+      cases = cases.map(item => ({ ...item, status: 'resolved', resolutionNote: body.resolutionNote, resolvedBy: ownerId }));
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, exception: cases[0] }) });
+      return;
+    }
+    await route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ message: 'Unexpected operational route: ' + path }) });
+  });
+  await page.route('**/api/connect/people**', route => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({ people: [{ id: ownerId, username: 'owner_test', displayName: 'مالک آزمایشی', role: 'owner' }] }),
+  }));
+
+  await page.goto('/simorgh/app/exceptions', { waitUntil: 'domcontentloaded' });
+  await expect(page.getByRole('heading', { name: 'صندوق مسائل و استثناها' })).toBeVisible();
+  await page.getByLabel('عنوان مسئله').fill('تأخیر در تحویل سفارش');
+  await page.getByLabel('شرح و زمینه').fill('راننده هنوز رسید تحویل را ثبت نکرده است.');
+  await page.getByLabel('شدت').selectOption('critical');
+  await page.getByRole('button', { name: 'ثبت و پیگیری' }).click();
+  await expect(page.getByRole('heading', { name: 'تأخیر در تحویل سفارش' })).toBeVisible();
+  await page.getByRole('button', { name: 'ثبت دریافت' }).click();
+  await expect(page.getByText('دریافت‌شده')).toBeVisible();
+  await page.getByLabel('شرح نتیجه تأخیر در تحویل سفارش').fill('رسید تحویل دریافت و بررسی شد.');
+  await page.getByRole('button', { name: 'حل و بستن' }).click();
+  await expect(page.getByText('حل‌شده')).toBeVisible();
+  await expect(page.getByText('رسید تحویل دریافت و بررسی شد.')).toBeVisible();
 });

@@ -1,13 +1,30 @@
 import { describe, expect, it } from 'vitest';
 import {
   CREATE_OWNER_WORKSPACE_SQL,
+  AI_PROVIDERS,
   DUMMY_PASSWORD_HASH,
   FAILED_LOGIN_UPSERT_SQL,
   normalizeUsername,
   parseClientHeartbeat,
   resolveApiModeAccess,
+  aggregateModulePermissionRows,
+  isBankReconciliationDirectionCompatible,
+  isBankTransactionCurrencyCompatible,
+  isMaskedBankAccountValid,
+  allowedWebPushEndpoint,
+  scopeHasModulePermission,
   verifyPassword,
 } from './index';
+
+
+describe('AI provider default model IDs', () => {
+  it('uses model identifiers supported by the current provider APIs', () => {
+    expect(AI_PROVIDERS.openai.model).toBe('gpt-6-luna');
+    expect(AI_PROVIDERS.gemini.model).toBe('gemini-4-argon');
+    expect(AI_PROVIDERS.deepseek.model).toBe('deepseek-flash');
+    expect(AI_PROVIDERS.anthropic.model).toBe('claude-sonnet-5');
+  });
+});
 
 describe('Worker API deployment mode isolation', () => {
   it('keeps an unconfigured or public-demo Worker read-only by default', () => {
@@ -99,5 +116,122 @@ describe('server-side username normalization', () => {
     expect(normalizeUsername('@@')).toBeNull();
     expect(normalizeUsername('_starts_with_punctuation')).toBeNull();
     expect(normalizeUsername('a'.repeat(33))).toBeNull();
+  });
+});
+
+describe('bank account and transaction input safeguards', () => {
+  it('requires imported transaction currency to match the destination account', () => {
+    expect(isBankTransactionCurrencyCompatible('IRR', 'IRR')).toBe(true);
+    expect(isBankTransactionCurrencyCompatible('USD', 'USD')).toBe(true);
+    expect(isBankTransactionCurrencyCompatible('IRR', 'USD')).toBe(false);
+    expect(isBankTransactionCurrencyCompatible('IRR', 'irr')).toBe(false);
+  });
+
+  it('rejects full account numbers even when digits use Persian or Arabic numerals', () => {
+    expect(isMaskedBankAccountValid('****1234')).toBe(true);
+    expect(isMaskedBankAccountValid('****۱۲۳۴')).toBe(true);
+    expect(isMaskedBankAccountValid('****١٢٣٤')).toBe(true);
+    expect(isMaskedBankAccountValid('123456789012')).toBe(false);
+    expect(isMaskedBankAccountValid('۱۲۳۴۵۶۷۸۹۰۱۲')).toBe(false);
+  });
+});
+
+describe('bank reconciliation direction safeguards', () => {
+  it('only reconciles bank receipts against incoming partner entries and payments against outgoing entries', () => {
+    expect(isBankReconciliationDirectionCompatible('partner_financial_entry', 'incoming', 'inflow_to_company')).toBe(true);
+    expect(isBankReconciliationDirectionCompatible('partner_financial_entry', 'incoming', 'partner_to_company')).toBe(true);
+    expect(isBankReconciliationDirectionCompatible('partner_financial_entry', 'outgoing', 'outflow_from_company')).toBe(true);
+    expect(isBankReconciliationDirectionCompatible('partner_financial_entry', 'outgoing', 'company_to_partner')).toBe(true);
+    expect(isBankReconciliationDirectionCompatible('partner_financial_entry', 'incoming', 'outflow_from_company')).toBe(false);
+    expect(isBankReconciliationDirectionCompatible('partner_financial_entry', 'outgoing', 'inflow_to_company')).toBe(false);
+  });
+
+  it('enforces direction for invoices, purchase orders, and settlements', () => {
+    expect(isBankReconciliationDirectionCompatible('invoice', 'incoming')).toBe(true);
+    expect(isBankReconciliationDirectionCompatible('invoice', 'outgoing')).toBe(false);
+    expect(isBankReconciliationDirectionCompatible('purchase_order', 'outgoing')).toBe(true);
+    expect(isBankReconciliationDirectionCompatible('settlement', 'incoming')).toBe(false);
+    expect(isBankReconciliationDirectionCompatible('unsupported', 'incoming')).toBe(false);
+  });
+});
+
+describe('company-scoped module permissions', () => {
+  const staff = {
+    membership_id: 'membership-staff',
+    company_id: 'company-1',
+    role: 'staff',
+    customer_id: null,
+    supplier_id: null,
+  };
+  const override = {
+    membership_id: 'membership-staff',
+    module_key: 'finance',
+    inherit_role_defaults: false,
+    can_read: false,
+    can_create: true,
+    can_update: false,
+    can_delete: false,
+    can_approve: false,
+  };
+
+  it('uses conservative inherited capability defaults for delegated roles', () => {
+    expect(scopeHasModulePermission(staff, new Map(), 'can_read')).toBe(true);
+    expect(scopeHasModulePermission(staff, new Map(), 'can_create')).toBe(true);
+    expect(scopeHasModulePermission(staff, new Map(), 'can_update')).toBe(true);
+    expect(scopeHasModulePermission(staff, new Map(), 'can_delete')).toBe(false);
+    expect(scopeHasModulePermission(staff, new Map(), 'can_approve')).toBe(false);
+  });
+
+  it('uses explicit capabilities when a member has a custom module policy', () => {
+    const policies = new Map([[staff.membership_id, override]]);
+    expect(scopeHasModulePermission(staff, policies, 'can_read')).toBe(false);
+    expect(scopeHasModulePermission(staff, policies, 'can_create')).toBe(true);
+    expect(scopeHasModulePermission(staff, policies, 'can_update')).toBe(false);
+    expect(scopeHasModulePermission(staff, policies, 'can_delete')).toBe(false);
+    expect(scopeHasModulePermission(staff, policies, 'can_approve')).toBe(false);
+  });
+
+  it('preserves owner and admin authority while custom policy is applied to delegated roles', () => {
+    const policies = new Map([[staff.membership_id, override]]);
+    expect(scopeHasModulePermission({ ...staff, role: 'owner' }, policies, 'can_delete')).toBe(true);
+    expect(scopeHasModulePermission({ ...staff, role: 'admin' }, policies, 'can_approve')).toBe(true);
+  });
+
+  it('does not let a second active delegated membership bypass a module denial', () => {
+    const restricted = {
+      role: 'staff', inherit_role_defaults: false,
+      can_read: false, can_create: true, can_update: true, can_delete: false, can_approve: false,
+    };
+    const inherited = {
+      role: 'driver', inherit_role_defaults: true,
+      can_read: true, can_create: true, can_update: true, can_delete: false, can_approve: false,
+    };
+    expect(aggregateModulePermissionRows([restricted, inherited], 'can_read')).toBe(false);
+    expect(aggregateModulePermissionRows([inherited], 'can_delete')).toBe(false);
+    expect(aggregateModulePermissionRows([inherited], 'can_approve')).toBe(false);
+    expect(aggregateModulePermissionRows([restricted, { ...inherited, role: 'owner' }], 'can_read')).toBe(true);
+  });
+
+  it('does not apply a policy to a different membership in the same company', () => {
+    const otherMember = { ...staff, membership_id: 'membership-other' };
+    const policies = new Map([[staff.membership_id, override]]);
+    expect(scopeHasModulePermission(otherMember, policies, 'can_read')).toBe(true);
+  });
+});
+
+
+describe('Web Push endpoint SSRF safeguards', () => {
+  it('allows only HTTPS push service endpoints from known providers', () => {
+    expect(allowedWebPushEndpoint('https://fcm.googleapis.com/fcm/send/example')?.hostname).toBe('fcm.googleapis.com');
+    expect(allowedWebPushEndpoint('https://updates.push.services.mozilla.com/wpush/v2/example')?.hostname).toBe('updates.push.services.mozilla.com');
+    expect(allowedWebPushEndpoint('https://web.push.apple.com/example')?.hostname).toBe('web.push.apple.com');
+  });
+  it('rejects arbitrary hosts, lookalikes, insecure schemes, credentials and nonstandard ports', () => {
+    expect(allowedWebPushEndpoint('https://example.com/push')).toBeNull();
+    expect(allowedWebPushEndpoint('https://fcm.googleapis.com.evil.test/push')).toBeNull();
+    expect(allowedWebPushEndpoint('http://fcm.googleapis.com/push')).toBeNull();
+    expect(allowedWebPushEndpoint('https://user:pass@fcm.googleapis.com/push')).toBeNull();
+    expect(allowedWebPushEndpoint('https://fcm.googleapis.com:8443/push')).toBeNull();
+    expect(allowedWebPushEndpoint('https://127.0.0.1/push')).toBeNull();
   });
 });
