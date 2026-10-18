@@ -1745,47 +1745,8 @@ app.post('/api/contacts/import', async (c) => {
 
 
 app.post('/api/auth/signup', async (c) => {
-  const body = await c.req.json<Record<string, unknown>>().catch(() => null);
-  if (!body) return c.json({ message: 'اطلاعات ثبت‌نام معتبر نیست.' }, 400);
-  const username = normalizeUsername(body.username);
-  const password = typeof body.password === 'string' ? body.password : '';
-  if (!username) return c.json({ message: 'نام کاربری باید ۳ تا ۳۲ نویسه باشد و با نقطه یا خط تیره شروع یا تمام نشود.' }, 422);
-  if (password.length < 8 || password.length > 128) return c.json({ message: 'رمز عبور باید بین ۸ تا ۱۲۸ نویسه باشد.' }, 422);
-  const signupIp = c.req.header('cf-connecting-ip') ?? 'unknown';
-  // A new key avoids stale counters created when successful registrations were counted as failures.
-  const signupBucket = await sha256('signup-ip-v2:' + signupIp);
-  if (await isRateLimited(c, [signupBucket])) return c.json({ message: 'تلاش‌های ثبت‌نام از این اتصال بیش از حد است؛ ۱۵ دقیقه دیگر دوباره امتحان کن.' }, 429);
-
-  const sql = sqlFor(c);
-  try {
-    const conflicts = await sql.query(
-      "select id from public.medar_users where coalesce(username_normalized,lower(username))=$1 limit 1",
-      [username],
-    );
-    if (conflicts.length) {
-      await recordSignupFailure(c, signupBucket);
-      return c.json({ message: 'این نام کاربری قبلاً ثبت شده است.' }, 409);
-    }
-    const passwordHash = await hashPassword(password);
-    const result = await sql.query(CREATE_OWNER_WORKSPACE_SQL, [username, passwordHash]);
-    const created = result[0] as (Record<string, unknown> & { id: string; companyId: string }) | undefined;
-    if (!created) {
-      await recordSignupFailure(c, signupBucket);
-      return c.json({ message: 'ساخت حساب و فضای کاری انجام نشد. دوباره تلاش کن.' }, 500);
-    }
-    await createSession(c, created.id);
-    const memberships = await getMemberships(c, created.id);
-    await sql.query("delete from public.medar_rate_limits where key_hash=$1", [signupBucket]);
-    return c.json({ user: safeUser(created), companyId: created.companyId, memberships }, 201);
-  } catch (error) {
-    const databaseError = error as { code?: string; constraint?: string };
-    if (databaseError.code === '23505') {
-      await recordSignupFailure(c, signupBucket);
-      return c.json({ message: 'این نام کاربری قبلاً ثبت شده است.' }, 409);
-    }
-    await recordSignupFailure(c, signupBucket);
-    throw error;
-  }
+  // Medar is private and owner-provisioned; public owner-workspace creation is disabled.
+  return c.json({ message: 'ثبت‌نام عمومی غیرفعال است؛ برای دریافت حساب با مالک مجموعه هماهنگ کن.' }, 403);
 });
 
 app.post('/api/auth/signup-with-invite', async (c) => {
