@@ -313,8 +313,9 @@ jobs:
           set -euo pipefail
           psql -h 127.0.0.1 -U postgres -d medar_test -v ON_ERROR_STOP=1 <<'SQL'
           BEGIN;
-          INSERT INTO public.companies (id,name)
-          VALUES ('00000000-0000-4000-8000-000000000332','CI settlement and bank ledger company');
+          INSERT INTO public.companies (id,name) VALUES
+            ('00000000-0000-4000-8000-000000000332','CI settlement and bank ledger company'),
+            ('00000000-0000-4000-8000-000000000343','CI cross-tenant company');
           INSERT INTO public.medar_users (id,username,username_normalized,phone_e164,display_name,password_hash) VALUES
             ('00000000-0000-4000-8000-000000000331','ci.settlement.owner','ci.settlement.owner','+989190000331','CI settlement owner','not-a-login-hash'),
             ('00000000-0000-4000-8000-000000000333','ci.settlement.supplier','ci.settlement.supplier','+989190000333','CI settlement supplier','not-a-login-hash'),
@@ -325,8 +326,11 @@ jobs:
           VALUES ('00000000-0000-4000-8000-000000000334','00000000-0000-4000-8000-000000000332','CI settlement supplier');
           INSERT INTO public.customers (id,company_id,name)
           VALUES ('00000000-0000-4000-8000-000000000340','00000000-0000-4000-8000-000000000332','CI settlement customer');
-          INSERT INTO public.products (id,company_id,sku,name,kind,unit)
-          VALUES ('00000000-0000-4000-8000-000000000341','00000000-0000-4000-8000-000000000332','CI-SETTLEMENT-ROLE','CI settlement role matrix product','other','unit');
+          INSERT INTO public.products (id,company_id,sku,name,kind,unit) VALUES
+            ('00000000-0000-4000-8000-000000000341','00000000-0000-4000-8000-000000000332','CI-SETTLEMENT-ROLE','CI settlement role matrix product','other','unit'),
+            ('00000000-0000-4000-8000-000000000345','00000000-0000-4000-8000-000000000343','CI-OTHER-TENANT','CI cross-tenant product','other','unit');
+          INSERT INTO public.suppliers (id,company_id,name)
+          VALUES ('00000000-0000-4000-8000-000000000346','00000000-0000-4000-8000-000000000343','CI cross-tenant supplier');
           INSERT INTO public.memberships (company_id,user_id,role,active,created_by) VALUES
             ('00000000-0000-4000-8000-000000000332','00000000-0000-4000-8000-000000000331','owner',true,'00000000-0000-4000-8000-000000000331'),
             ('00000000-0000-4000-8000-000000000332','00000000-0000-4000-8000-000000000333','supplier',true,'00000000-0000-4000-8000-000000000331'),
@@ -413,8 +417,8 @@ jobs:
               PERFORM public.medar_record_inventory_movement(
                 '00000000-0000-4000-8000-000000000331',
                 '00000000-0000-4000-8000-000000000343',
-                '00000000-0000-4000-8000-000000000341',
-                'purchase_in',1,10,'00000000-0000-4000-8000-000000000334',
+                '00000000-0000-4000-8000-000000000345',
+                'purchase_in',1,10,'00000000-0000-4000-8000-000000000346',
                 NULL,NULL,'CI-ROLE-CROSS-TENANT-DENY','owner must not write to a different company'
               );
               RAISE EXCEPTION 'Cross-tenant inventory write was incorrectly accepted';
