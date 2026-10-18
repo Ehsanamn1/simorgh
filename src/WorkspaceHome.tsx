@@ -52,6 +52,7 @@ const roleQuickLinks: Record<AppRole, QuickLink[]> = {
 };
 
 export function WorkspaceHome({ membership, userName }: { membership: Membership; userName: string }) {
+  const [guideOpen, setGuideOpen] = useState(false);
   const [metrics, setMetrics] = useState<Metric[]>([]);
   const [items, setItems] = useState<BriefingItem[]>([]);
   const [loading, setLoading] = useState(true);
