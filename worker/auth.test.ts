@@ -6,6 +6,7 @@ import {
   canTransitionMedarStatus,
   isProductionBatchSubmissionValid,
   isProductionBatchCompletionReady,
+  isPartnerFinancialEntryReadyToPost,
   DUMMY_PASSWORD_HASH,
   FAILED_LOGIN_UPSERT_SQL,
   normalizeUsername,
@@ -71,6 +72,16 @@ describe('production and partner-finance status workflows', () => {
     expect(isProductionBatchCompletionReady('pending', lotId, true)).toBe(false);
     expect(isProductionBatchCompletionReady('passed', 'not-a-uuid', true)).toBe(false);
     expect(isProductionBatchCompletionReady('passed', lotId, false)).toBe(false);
+  });
+
+  it('requires real payment evidence before posting cash-related partner entries', () => {
+    expect(isPartnerFinancialEntryReadyToPost('sale_collection', 'paid', 100, 100, 'bank-ref-1')).toBe(true);
+    expect(isPartnerFinancialEntryReadyToPost('partner_advance', 'paid', '250', '250', 'bank-ref-2')).toBe(true);
+    expect(isPartnerFinancialEntryReadyToPost('settlement_payment', 'paid', 400, 400, 'receipt-400')).toBe(true);
+    expect(isPartnerFinancialEntryReadyToPost('sale_collection', 'unpaid', 0, 100, 'bank-ref-3')).toBe(false);
+    expect(isPartnerFinancialEntryReadyToPost('sale_collection', 'paid', 90, 100, 'bank-ref-4')).toBe(false);
+    expect(isPartnerFinancialEntryReadyToPost('sale_collection', 'paid', 100, 100, '   ')).toBe(false);
+    expect(isPartnerFinancialEntryReadyToPost('sale_invoice', 'not_applicable', 0, 100, '')).toBe(true);
   });
 });
 
