@@ -10,7 +10,7 @@ RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = ''
-AS $
+AS $$
 #variable_conflict use_variable
 DECLARE
   row_data jsonb := to_jsonb(NEW);
