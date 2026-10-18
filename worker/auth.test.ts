@@ -6,6 +6,7 @@ import {
   normalizeUsername,
   parseClientHeartbeat,
   resolveApiModeAccess,
+  scopeHasModulePermission,
   verifyPassword,
 } from './index';
 
@@ -99,5 +100,51 @@ describe('server-side username normalization', () => {
     expect(normalizeUsername('@@')).toBeNull();
     expect(normalizeUsername('_starts_with_punctuation')).toBeNull();
     expect(normalizeUsername('a'.repeat(33))).toBeNull();
+  });
+});
+
+describe('company-scoped module permissions', () => {
+  const staff = {
+    membership_id: 'membership-staff',
+    company_id: 'company-1',
+    role: 'staff',
+    customer_id: null,
+    supplier_id: null,
+  };
+  const override = {
+    membership_id: 'membership-staff',
+    module_key: 'finance',
+    inherit_role_defaults: false,
+    can_read: false,
+    can_create: true,
+    can_update: false,
+    can_delete: false,
+    can_approve: false,
+  };
+
+  it('inherits existing role behavior when no per-member override exists', () => {
+    expect(scopeHasModulePermission(staff, new Map(), 'can_read')).toBe(true);
+    expect(scopeHasModulePermission(staff, new Map(), 'can_delete')).toBe(true);
+  });
+
+  it('uses explicit capabilities when a member has a custom module policy', () => {
+    const policies = new Map([[staff.membership_id, override]]);
+    expect(scopeHasModulePermission(staff, policies, 'can_read')).toBe(false);
+    expect(scopeHasModulePermission(staff, policies, 'can_create')).toBe(true);
+    expect(scopeHasModulePermission(staff, policies, 'can_update')).toBe(false);
+    expect(scopeHasModulePermission(staff, policies, 'can_delete')).toBe(false);
+    expect(scopeHasModulePermission(staff, policies, 'can_approve')).toBe(false);
+  });
+
+  it('preserves owner and admin authority while custom policy is applied to delegated roles', () => {
+    const policies = new Map([[staff.membership_id, override]]);
+    expect(scopeHasModulePermission({ ...staff, role: 'owner' }, policies, 'can_delete')).toBe(true);
+    expect(scopeHasModulePermission({ ...staff, role: 'admin' }, policies, 'can_approve')).toBe(true);
+  });
+
+  it('does not apply a policy to a different membership in the same company', () => {
+    const otherMember = { ...staff, membership_id: 'membership-other' };
+    const policies = new Map([[staff.membership_id, override]]);
+    expect(scopeHasModulePermission(otherMember, policies, 'can_read')).toBe(true);
   });
 });
