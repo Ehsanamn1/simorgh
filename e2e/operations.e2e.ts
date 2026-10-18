@@ -388,7 +388,12 @@ test('owner can generate a shareable invitation link for a new supplier or drive
 
 test('operations can show cached order reads after the browser goes offline', async ({ page }) => {
   await installIsolatedSession(page, 'owner');
+  let apiReachable = true;
   await page.route('**/api/data/**', async route => {
+    if (!apiReachable) {
+      await route.abort('failed');
+      return;
+    }
     const table = new URL(route.request().url()).pathname.split('/').pop() || '';
     const data = table === 'orders' ? [{
       id: '00000000-0000-4000-8000-000000000088',
@@ -405,6 +410,7 @@ test('operations can show cached order reads after the browser goes offline', as
   await page.goto('/simorgh/app/orders', { waitUntil: 'domcontentloaded' });
   await expect(page.getByText('ORD-OFF-001')).toBeVisible();
   await expect(page.getByText('خریدار آفلاین')).toBeVisible();
+  apiReachable = false;
   await page.context().setOffline(true);
   await page.evaluate(() => {
     window.history.pushState({}, '', '/simorgh/app/home');
@@ -418,6 +424,7 @@ test('operations can show cached order reads after the browser goes offline', as
   await expect(page.locator('.offline-notice')).toBeVisible();
   await expect(page.getByText('ORD-OFF-001')).toBeVisible();
   await page.context().setOffline(false);
+  apiReachable = true;
 });
 
 test('supplier workspace keeps manager-only routes out of the allowed menu', async ({ page }, testInfo) => {
