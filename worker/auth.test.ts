@@ -11,6 +11,7 @@ import {
   isBankReconciliationDirectionCompatible,
   isBankTransactionCurrencyCompatible,
   isMaskedBankAccountValid,
+  allowedWebPushEndpoint,
   scopeHasModulePermission,
   verifyPassword,
 } from './index';
@@ -215,5 +216,22 @@ describe('company-scoped module permissions', () => {
     const otherMember = { ...staff, membership_id: 'membership-other' };
     const policies = new Map([[staff.membership_id, override]]);
     expect(scopeHasModulePermission(otherMember, policies, 'can_read')).toBe(true);
+  });
+});
+
+
+describe('Web Push endpoint SSRF safeguards', () => {
+  it('allows only HTTPS push service endpoints from known providers', () => {
+    expect(allowedWebPushEndpoint('https://fcm.googleapis.com/fcm/send/example')?.hostname).toBe('fcm.googleapis.com');
+    expect(allowedWebPushEndpoint('https://updates.push.services.mozilla.com/wpush/v2/example')?.hostname).toBe('updates.push.services.mozilla.com');
+    expect(allowedWebPushEndpoint('https://web.push.apple.com/example')?.hostname).toBe('web.push.apple.com');
+  });
+  it('rejects arbitrary hosts, lookalikes, insecure schemes, credentials and nonstandard ports', () => {
+    expect(allowedWebPushEndpoint('https://example.com/push')).toBeNull();
+    expect(allowedWebPushEndpoint('https://fcm.googleapis.com.evil.test/push')).toBeNull();
+    expect(allowedWebPushEndpoint('http://fcm.googleapis.com/push')).toBeNull();
+    expect(allowedWebPushEndpoint('https://user:pass@fcm.googleapis.com/push')).toBeNull();
+    expect(allowedWebPushEndpoint('https://fcm.googleapis.com:8443/push')).toBeNull();
+    expect(allowedWebPushEndpoint('https://127.0.0.1/push')).toBeNull();
   });
 });
