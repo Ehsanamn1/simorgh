@@ -43,7 +43,7 @@ CREATE TABLE IF NOT EXISTS public.medar_exception_cases (
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE (company_id,id),
-  FOREIGN KEY (company_id,event_id) REFERENCES public.medar_operational_events(company_id,id) ON DELETE SET NULL
+  FOREIGN KEY (company_id,event_id) REFERENCES public.medar_operational_events(company_id,id) ON DELETE RESTRICT
 );
 CREATE UNIQUE INDEX IF NOT EXISTS medar_exception_cases_dedupe_uq
   ON public.medar_exception_cases(company_id,dedupe_key)
