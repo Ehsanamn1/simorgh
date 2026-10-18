@@ -55,7 +55,11 @@ test('manager workspace retains operations and captures a real rendered control-
   await expect(page.getByRole('heading', { name: /سلام مالک آزمایشی مدار/ })).toBeVisible();
   await expect(page.locator('.workspace-home-hero')).toContainText('کنترل امروز کسب‌وکار');
   await expect(page.getByRole('heading', { name: 'بخش‌های پرکاربرد شما' })).toBeVisible();
-  await expect(page.locator('.workspace-home-link').filter({ hasText: 'دفترچه مخاطبین' })).toBeVisible();
+  await expect(page.locator('.workspace-home-link')).toHaveCount(4);
+  await expect(page.locator('.workspace-home-link').filter({ hasText: 'نمای کلی کسب‌وکار' })).toBeVisible();
+  await expect(page.locator('.workspace-home-link').filter({ hasText: 'سفارش‌ها' })).toBeVisible();
+  await expect(page.locator('.workspace-home-link').filter({ hasText: 'کارها و پیگیری' })).toBeVisible();
+  await expect(page.locator('.workspace-home-link').filter({ hasText: 'مالی و تسویه' })).toBeVisible();
   await expect(page.locator('.workspace-home-section').filter({ hasText: 'کارهای امروز و هشدارها' })).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath('manager-role-home-viewport.png') });
   await page.screenshot({ path: testInfo.outputPath('manager-role-home.png'), fullPage: true });
