@@ -682,6 +682,9 @@ app.get('/api/ai/actions', async (c) => {
   if (!['owner','admin','staff'].includes(membership.role)) {
     return c.json({ message: 'این بخش فقط برای اعضای داخلی مجموعه فعال است.' }, 403);
   }
+  if (!(await userHasModulePermission(c, user.id, companyId, 'agents', 'can_read'))) {
+    return c.json({ message: 'برای مشاهده مرکز ایجنت‌ها مجوز نداری.' }, 403);
+  }
   const rows = await sqlFor(c).query(
     `select a.id, a.tool_key as "toolKey", a.status, a.arguments, a.result,
             a.created_at as "createdAt", a.executed_at as "executedAt",
@@ -706,6 +709,10 @@ app.post('/api/ai/actions/propose', async (c) => {
   if (!membership) return c.json({ message: 'به این فضای کاری دسترسی فعال نداری.' }, 403);
   if (!['owner','admin','staff'].includes(membership.role)) {
     return c.json({ message: 'فقط اعضای داخلی مجموعه می‌توانند اقدام عملیاتی پیشنهاد کنند.' }, 403);
+  }
+  if (!(await userHasModulePermission(c, user.id, companyId, 'agents', 'can_create')) ||
+      !(await userHasModulePermission(c, user.id, companyId, 'operational-tasks', 'can_create'))) {
+    return c.json({ message: 'برای پیشنهاد وظیفه در این مجموعه مجوز ایجاد نداری.' }, 403);
   }
   const toolKey = typeof body.toolKey === 'string' ? body.toolKey : 'create_operational_task';
   if (toolKey !== 'create_operational_task') return c.json({ message: 'این نوع اقدام هنوز پشتیبانی نمی‌شود.' }, 422);
@@ -779,6 +786,10 @@ app.post('/api/ai/actions/:id/execute', async (c) => {
   if (!['owner','admin','staff'].includes(membership.role)) {
     return c.json({ message: 'برای اجرای اقدام عملیاتی دسترسی لازم وجود ندارد.' }, 403);
   }
+  if (!(await userHasModulePermission(c, user.id, companyId, 'agents', 'can_approve')) ||
+      !(await userHasModulePermission(c, user.id, companyId, 'operational-tasks', 'can_create'))) {
+    return c.json({ message: 'برای تأیید این اقدام یا ایجاد وظیفه مجوز نداری.' }, 403);
+  }
   try {
     const rows = await sqlFor(c).query(
       'select public.medar_execute_ai_create_task($1::uuid,$2::uuid,$3::uuid) as result',
@@ -803,6 +814,9 @@ app.post('/api/ai/actions/:id/cancel', async (c) => {
   const membership = await aiCompanyMembership(c, companyId, user.id);
   if (!membership) return c.json({ message: 'به این فضای کاری دسترسی فعال نداری.' }, 403);
   if (!['owner','admin','staff'].includes(membership.role)) return c.json({ message: 'دسترسی لغو پیشنهاد را نداری.' }, 403);
+  if (!(await userHasModulePermission(c, user.id, companyId, 'agents', 'can_update'))) {
+    return c.json({ message: 'برای لغو پیشنهاد مجوز ویرایش نداری.' }, 403);
+  }
   const sql = sqlFor(c);
   const rows = await sql.query(
     "update public.medar_ai_action_runs set status='cancelled',updated_at=now() where id=$1::uuid and company_id=$2::uuid and status='proposed' and (requested_by=$3::uuid or $4 in ('owner','admin')) returning id",
@@ -828,6 +842,9 @@ app.post('/api/ai/realtime/session', async (c) => {
   if (!COMPANY_ID_RE.test(companyId)) return c.json({ message: 'شناسه مجموعه معتبر نیست.' }, 422);
   const membership = await aiCompanyMembership(c, companyId, user.id);
   if (!membership) return c.json({ message: 'به این فضای کاری دسترسی فعال نداری.' }, 403);
+  if (!(await userHasModulePermission(c, user.id, companyId, 'agents', 'can_read'))) {
+    return c.json({ message: 'برای استفاده از دستیار هوشمند مجوز مشاهده نداری.' }, 403);
+  }
 
   const sdp = await c.req.text().catch(() => '');
   if (!sdp || sdp.length < 100 || sdp.length > 100000 || !sdp.startsWith('v=0')) {
@@ -899,7 +916,9 @@ app.post('/api/ai/realtime/session', async (c) => {
     voiceContext = { note: 'بعضی داده‌های نقش فعلی برای این مکالمه خوانده نشدند. درباره آن‌ها حدس نزن.' };
   }
 
-  const canProposeOperationalTasks = ['owner', 'admin', 'staff'].includes(membership.role);
+  const canProposeOperationalTasks = ['owner', 'admin', 'staff'].includes(membership.role) &&
+    await userHasModulePermission(c, user.id, companyId, 'agents', 'can_create') &&
+    await userHasModulePermission(c, user.id, companyId, 'operational-tasks', 'can_create');
   const instructions = [
     'تو دستیار صوتی عملیاتی مدار هستی و با فارسی روان، طبیعی و کوتاه صحبت می‌کنی.',
     'ابتدا پاسخ مستقیم بده؛ هنگام توضیح چند مرحله، جمله‌ها را کوتاه و قابل شنیدن نگه دار.',
