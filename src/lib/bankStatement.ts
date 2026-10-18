@@ -2,6 +2,7 @@ export type ParsedBankTransaction = {
   externalTransactionId: string;
   bookedAt: string;
   amount: number;
+  direction: 'incoming' | 'outgoing';
   currency: string;
   description: string;
   counterparty: string;
@@ -165,6 +166,7 @@ export function parseBankStatementCsv(text:string,defaultCurrency='IRR'):ParsedB
       externalTransactionId,
       bookedAt:parseBankStatementDate(cell(indexes.date)),
       amount,
+      direction: amount > 0 ? 'incoming' : 'outgoing',
       currency,
       description:cell(indexes.description).slice(0,1500),
       counterparty:cell(indexes.counterparty).slice(0,300),
