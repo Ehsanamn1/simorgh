@@ -143,7 +143,7 @@ export function OperationsRoleExperience({ role, membership, children }: Props) 
       </div>
     </div>
     {role === 'manager' && <div className="role-ops-note"><CheckCircle2 size={17}/><span><b>اصل کنترل:</b> وضعیت‌ها و ارقام باید از سوابق ثبت‌شده بیایند؛ تحویل، تأیید فاکتور و پرداخت سه رویداد جدا هستند.</span></div>}
-    {role !== 'manager' && <div className="role-ops-note"><ShieldCheck size={17}/><span><b>فضای اختصاصی شما:</b> فقط کارها و سوابق مرتبط با حساب شما نمایش داده می‌شود. اگر چیزی اشتباه است، از مسیر «ارسال مشکل» پیگیری کن.</span></div>}
+    {role !== 'manager' && <div className="role-ops-note"><ShieldCheck size={17}/><span><b>فضای اختصاصی شما:</b> فقط کارها و سوابق مرتبط با حساب شما نمایش داده می‌شود. اگر چیزی اشتباه است، از مسیر «ارتباط با مدیر» پیگیری کن.</span></div>}
     <div className="role-ops-workspace">{children}</div>
   </section>;
 }
