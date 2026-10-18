@@ -1788,6 +1788,66 @@ app.post('/api/auth/signup', async (c) => {
   }
 });
 
+app.post('/api/auth/signup-with-invite', async (c) => {
+  const body = await c.req.json<Record<string, unknown>>().catch(() => null);
+  if (!body) return c.json({ message: 'اطلاعات ثبت‌نام معتبر نیست.' }, 400);
+  const username = normalizeUsername(body.username);
+  const password = typeof body.password === 'string' ? body.password : '';
+  const inviteCode = typeof body.inviteCode === 'string' ? body.inviteCode.trim().toLowerCase() : '';
+  if (!username) return c.json({ message: 'نام کاربری باید ۳ تا ۳۲ نویسه باشد و با نقطه یا خط تیره شروع یا تمام نشود.' }, 422);
+  if (password.length < 8 || password.length > 128) return c.json({ message: 'رمز عبور باید بین ۸ تا ۱۲۸ نویسه باشد.' }, 422);
+  if (!/^[a-f0-9]{64}$/.test(inviteCode)) return c.json({ message: 'برای پیوستن به مجموعه، کد دعوت معتبر ۶۴ نویسه‌ای وارد کن.' }, 422);
+
+  const signupIp = c.req.header('cf-connecting-ip') ?? 'unknown';
+  const signupBucket = await sha256('signup-ip-v2:' + signupIp);
+  if (await isRateLimited(c, [signupBucket])) return c.json({ message: 'تلاش‌های ثبت‌نام از این اتصال بیش از حد است؛ ۱۵ دقیقه دیگر دوباره امتحان کن.' }, 429);
+
+  const sql = sqlFor(c);
+  try {
+    const passwordHash = await hashPassword(password);
+    const tokenHash = await sha256(inviteCode);
+    // Consume the invitation and create the account + membership in one statement.
+    // A duplicate username or invalid invite rolls back the whole statement, including uses++.
+    const result = await sql.query(
+      "with invite as (" +
+        "update public.company_invites set uses=uses+1,updated_at=now() " +
+        "where token_hash=$3 and revoked_at is null and expires_at>now() and uses<max_uses " +
+        "returning company_id,role,customer_id,supplier_id" +
+      "), new_user as (" +
+        "insert into public.medar_users(username,display_name,password_hash,requested_role,account_status) " +
+        "select $1,$1,$2,i.role,'active' from invite i " +
+        "returning id,username,username_normalized,display_name" +
+      "), new_profile as (" +
+        "insert into public.profiles(id,full_name,phone) select id,display_name,null from new_user " +
+        "on conflict(id) do update set full_name=excluded.full_name returning id" +
+      "), new_membership as (" +
+        "insert into public.memberships(company_id,user_id,role,active,created_by,customer_id,supplier_id) " +
+        "select i.company_id,u.id,i.role,true,u.id,i.customer_id,i.supplier_id from invite i cross join new_user u " +
+        "returning id,company_id,role" +
+      ") select u.id,u.username_normalized as username,null::text as phone,u.display_name as full_name," +
+      "m.company_id as \"companyId\" from new_user u cross join new_membership m",
+      [username, passwordHash, tokenHash],
+    );
+    const created = result[0] as (Record<string, unknown> & { id: string; companyId: string }) | undefined;
+    if (!created) {
+      await recordSignupFailure(c, signupBucket);
+      return c.json({ message: 'کد دعوت نامعتبر، منقضی یا مصرف‌شده است.' }, 422);
+    }
+    await createSession(c, created.id);
+    const memberships = await getMemberships(c, created.id);
+    await sql.query("delete from public.medar_rate_limits where key_hash=$1", [signupBucket]);
+    return c.json({ user: safeUser(created), companyId: created.companyId, memberships }, 201);
+  } catch (error) {
+    const databaseError = error as { code?: string; constraint?: string };
+    if (databaseError.code === '23505') {
+      await recordSignupFailure(c, signupBucket);
+      return c.json({ message: 'این نام کاربری قبلاً ثبت شده است.' }, 409);
+    }
+    await recordSignupFailure(c, signupBucket);
+    throw error;
+  }
+});
+
 app.post('/api/auth/login', async (c) => {
   const body = await c.req.json<Record<string, unknown>>().catch(() => null);
   if (!body) return c.json({ message: 'اطلاعات ورود معتبر نیست.' }, 400);
@@ -1879,8 +1939,8 @@ app.post('/api/workspace/invites', async (c) => {
   const code = randomToken();
   const tokenHash = await sha256(code);
   const rows = await sql`
-    insert into public.company_invites(company_id, role, token_hash, created_by, expires_at, customer_id, supplier_id)
-    values (${companyId}, ${role}::public.app_role, ${tokenHash}, ${user.id}, now() + interval '7 days', ${customerId}, ${supplierId})
+    insert into public.company_invites(company_id, role, token_hash, created_by, expires_at, customer_id, supplier_id, max_uses)
+    values (${companyId}, ${role}::public.app_role, ${tokenHash}, ${user.id}, now() + interval '7 days', ${customerId}, ${supplierId}, 1)
     returning id, expires_at
   `;
   return c.json({ inviteCode: code, inviteId: (rows[0] as { id: string }).id, expiresAt: (rows[0] as { expires_at: string }).expires_at }, 201);
@@ -2532,8 +2592,8 @@ const UPDATE_PROTECTED_FIELDS:Record<string,Set<string>>={
  invoices:new Set(['status','paid_amount','paid_at','paid_by','payment_reference']),
  settlements:new Set(['status','paid_at','paid_by','payment_reference']),
  operational_tasks:new Set(['status','started_at','submitted_at','reviewed_at','reviewed_by','review_note','assigned_by']),
- production_batches:new Set(['status','quality_status','completed_on','rejected_quantity']),
- partner_financial_entries:new Set(['status','direction','paid_amount','payment_status','approved_by','approved_at','posted_by','posted_at','linked_entry_id','adjustment_effect']),
+ production_batches:new Set(['status','farm_site_id','supplier_id','agreement_id','flock_cycle_id','product_id','produced_quantity','started_on','quality_status','completed_on','rejected_quantity']),
+ partner_financial_entries:new Set(['status','submitted_at','approved_by','approved_at','posted_by','posted_at']),
  partner_settlement_periods:new Set(['status','approved_by','approved_at','settled_by','settled_at','calculation_snapshot','net_result','company_share_amount','partner_share_amount','balance_due_to_partner','balance_due_to_company']),
  inventory_movements:new Set(['company_id','product_id','movement_type','quantity','unit_cost'])
 };
@@ -2563,9 +2623,70 @@ export const MEDAR_STATUS_TRANSITIONS: Record<string, Record<string, readonly st
     approved: ['paid', 'disputed'],
     disputed: ['pending', 'approved'],
   },
+  production_batches: {
+    planned: ['active', 'cancelled'],
+    active: ['submitted_for_review', 'on_hold', 'cancelled'],
+    submitted_for_review: ['approved', 'on_hold', 'rejected'],
+    approved: ['completed', 'on_hold'],
+    on_hold: ['active', 'rejected', 'cancelled'],
+    rejected: ['active', 'cancelled'],
+  },
+  partner_financial_entries: {
+    draft: ['submitted', 'rejected'],
+    submitted: ['approved', 'rejected'],
+    approved: ['posted', 'rejected'],
+    rejected: ['draft'],
+  },
 };
 export function canTransitionMedarStatus(table: string, current: string, next: string): boolean {
   return (MEDAR_STATUS_TRANSITIONS[table]?.[current] ?? []).includes(next);
+}
+
+export function isProductionBatchSubmissionValid(producedQuantity: unknown, rejectedQuantity: unknown): boolean {
+  const produced = Number(producedQuantity);
+  const rejected = Number(rejectedQuantity ?? 0);
+  return Number.isFinite(produced) && produced > 0 &&
+    Number.isFinite(rejected) && rejected >= 0 && rejected <= produced;
+}
+
+export function isProductionBatchCompletionReady(
+  qualityStatus: unknown,
+  lotId: unknown,
+  hasReleasedLotAndPassingReview: boolean,
+): boolean {
+  return qualityStatus === 'passed' &&
+    typeof lotId === 'string' &&
+    /^[0-9a-f-]{36}$/i.test(lotId) &&
+    hasReleasedLotAndPassingReview;
+}
+
+export function isPartnerFinancialEntryReadyToPost(
+  entryType: unknown,
+  paymentStatus: unknown,
+  paidAmount: unknown,
+  amount: unknown,
+  externalReference: unknown,
+): boolean {
+  if (!['sale_collection','partner_advance','settlement_payment'].includes(String(entryType))) return true;
+  const paid = Number(paidAmount);
+  const total = Number(amount);
+  return paymentStatus === 'paid' && Number.isFinite(total) && total > 0 &&
+    Number.isFinite(paid) && paid === total &&
+    typeof externalReference === 'string' && externalReference.trim().length > 0;
+}
+
+export function isSaleCollectionWithinInvoice(
+  invoiceAmount: unknown,
+  alreadyCollected: unknown,
+  collectionAmount: unknown,
+): boolean {
+  const invoice = Number(invoiceAmount);
+  const collected = Number(alreadyCollected ?? 0);
+  const collection = Number(collectionAmount);
+  return Number.isFinite(invoice) && invoice > 0 &&
+    Number.isFinite(collected) && collected >= 0 &&
+    Number.isFinite(collection) && collection > 0 &&
+    collected + collection <= invoice;
 }
 
 export function isBankReconciliationDirectionCompatible(
@@ -2666,7 +2787,27 @@ app.post('/api/data/:table',async c=>{
      if(table==='orders'){row.status='draft';row.created_by=user.id;}
      if(table==='shipments')row.stage='planned';
      if(table==='operational_tasks')row.status='pending';
-     if(table==='partner_financial_entries'){row.status='submitted';row.submitted_by=user.id;}
+     if(table==='partner_financial_entries'){row.status='draft';row.created_by=user.id;row.submitted_by=null;if(columns.has('submitted_at'))row.submitted_at=null;if(columns.has('approved_by'))row.approved_by=null;if(columns.has('approved_at'))row.approved_at=null;if(columns.has('posted_by'))row.posted_by=null;if(columns.has('posted_at'))row.posted_at=null;}
+     if(table==='production_batches'){
+      const siteId=typeof row.farm_site_id==='string'?row.farm_site_id:'';
+      const supplierId=typeof row.supplier_id==='string'?row.supplier_id:null;
+      const productId=typeof row.product_id==='string'?row.product_id:'';
+      const agreementId=typeof row.agreement_id==='string'?row.agreement_id:null;
+      const flockCycleId=typeof row.flock_cycle_id==='string'?row.flock_cycle_id:null;
+      const validId=(value:unknown)=>value===null||(typeof value==='string'&&/^[0-9a-f-]{36}$/i.test(value));
+      if(!/^[0-9a-f-]{36}$/i.test(siteId)||!supplierId||!validId(supplierId)||!validId(productId)||!validId(agreementId)||!validId(flockCycleId))return c.json({message:'برای بچ تولید، سایت فعال، تأمین‌کننده و محصول معتبر لازم است.'},422);
+      const scopeRows=await runForUser(c,user.id,
+       "select fs.id from public.farm_sites fs where fs.id=$1::uuid and fs.company_id=$2::uuid and fs.active=true and fs.supplier_id is not distinct from $3::uuid and exists (select 1 from public.products p where p.id=$6::uuid and p.company_id=$2::uuid) and ($4::uuid is null or exists (select 1 from public.partnership_agreements a where a.id=$4::uuid and a.company_id=$2::uuid and a.supplier_id is not distinct from $3::uuid and a.status='active')) and ($5::uuid is null or exists (select 1 from public.flock_cycles fc where fc.id=$5::uuid and fc.company_id=$2::uuid and fc.farm_site_id=fs.id))",
+       [siteId,companyId,supplierId,agreementId,flockCycleId,productId]);
+      if(!scopeRows.length)return c.json({message:'مزرعه، تأمین‌کننده، قرارداد و چرخهٔ انتخاب‌شده با هم سازگار نیستند.'},422);
+      if(row.lot_id){
+       const lotRows=await runForUser(c,user.id,
+        'select id from public.lots where id=$1::uuid and company_id=$2::uuid and supplier_id is not distinct from $3::uuid and product_id is not distinct from $4::uuid',
+        [row.lot_id,companyId,supplierId,row.product_id??null]);
+       if(!lotRows.length)return c.json({message:'لات انتخاب‌شده با شرکت، تأمین‌کننده یا محصول بچ مطابقت ندارد.'},422);
+      }
+      row.status='planned';row.quality_status='not_inspected';row.produced_quantity=0;row.started_on=null;row.completed_on=null;row.rejected_quantity=0;row.created_by=user.id;
+     }
      if(table==='invoices'){row.status='draft';row.paid_amount=0;}
      sanitized.push(row);continue;
     }
@@ -2725,6 +2866,7 @@ app.post('/api/data/:table',async c=>{
     : null;
   const transitionField: Record<string, string> = {
     orders: 'status', shipments: 'stage', invoices: 'status', settlements: 'status',
+    production_batches: 'status', partner_financial_entries: 'status',
   };
   const stateField = transitionField[table];
   const requestedState = stateField && values ? values[stateField] : undefined;
@@ -2737,6 +2879,20 @@ app.post('/api/data/:table',async c=>{
     if (requestedState === 'partially_paid') transitionFields.add('paid_amount');
   }
   if (isTransition && table === 'settlements' && requestedState === 'paid') transitionFields.add('payment_reference');
+  if (isTransition && table === 'production_batches') {
+    if (requestedState === 'active') transitionFields.add('started_on');
+    if (['submitted_for_review','approved','rejected'].includes(String(requestedState))) {
+      transitionFields.add('quality_status');
+      transitionFields.add('rejected_quantity');
+    }
+    if (requestedState === 'rejected') transitionFields.add('manager_notes');
+    if (requestedState === 'submitted_for_review') transitionFields.add('produced_quantity');
+    if (requestedState === 'completed') {
+      transitionFields.add('quality_status');
+      transitionFields.add('completed_on');
+      transitionFields.add('lot_id');
+    }
+  }
 
   const ordinaryProtected = (key: string) =>
     protectedKeys.has(key) ||
@@ -2758,9 +2914,14 @@ app.post('/api/data/:table',async c=>{
     scopes.some(m => m.role === 'customer' && m.customer_id);
   const externalDriverUpdate = isTransition && table === 'shipments' &&
     scopes.some(m => m.role === 'driver');
+  const approvalRequired = isTransition && (
+    ['approved','paid'].includes(String(requestedState)) ||
+    (table === 'partner_financial_entries' && ['posted','rejected'].includes(String(requestedState))) ||
+    (table === 'production_batches' && ['rejected','completed'].includes(String(requestedState)))
+  );
   const mutationCapability: ModulePermissionCapability = action === 'delete'
     ? 'can_delete'
-    : (isTransition && ['approved','paid'].includes(String(requestedState)) ? 'can_approve' : 'can_update');
+    : (approvalRequired ? 'can_approve' : 'can_update');
   const permissionFilteredScopes = scopes.filter(scope => hasPermission(scope, mutationCapability));
   const mutationScopes = isTransition
     ? permissionFilteredScopes.filter(m => INTERNAL_ROLES.has(m.role) ||
@@ -2777,6 +2938,22 @@ app.post('/api/data/:table',async c=>{
   const scope = buildMembershipScopeSql(table, columns, mutationScopes, user.id, params, 1);
   const condition = [scope, where, orWhere].filter(Boolean).map(part => '(' + part + ')').join(' and ');
 
+  if ((action === 'update' || action === 'delete') && !isTransition &&
+      (table === 'partner_financial_entries' || table === 'production_batches')) {
+    const guardedRows = await runForUser(c, user.id,
+      'select status from ' + tableName + ' where ' + condition + ' limit 501', params
+    ) as Array<{ status: string }>;
+    if (table === 'partner_financial_entries' && action === 'update' && guardedRows.some(row => row.status !== 'draft')) {
+      return c.json({ message: 'سند مالی فقط در وضعیت پیش‌نویس قابل ویرایش است؛ برای اصلاح، آن را به پیش‌نویس برگردان یا سند تعدیلی ثبت کن.' }, 409);
+    }
+    if (table === 'partner_financial_entries' && action === 'delete' && guardedRows.some(row => !['draft','rejected'].includes(row.status))) {
+      return c.json({ message: 'سند مالی ارسال‌شده یا ثبت‌شده قابل حذف نیست.' }, 409);
+    }
+    if (table === 'production_batches' && guardedRows.some(row => row.status === 'completed')) {
+      return c.json({ message: 'بچ تولید تکمیل‌شده قابل ویرایش یا حذف نیست.' }, 409);
+    }
+  }
+
   if (action === 'update' && isTransition && stateField) {
     const currentRows = await runForUser(c, user.id,
       'select * from ' + tableName + ' where ' + condition + ' limit 501', params);
@@ -2789,7 +2966,89 @@ app.post('/api/data/:table',async c=>{
     if (!canTransitionMedarStatus(table, currentState, nextState)) {
       return c.json({ message: 'این انتقال وضعیت با گردش‌کار فعلی مجاز نیست.' }, 422);
     }
-        const rowScopes = mutationScopes.filter(m => m.company_id === String(current.company_id));
+    if (table === 'partner_financial_entries' && ['submitted','approved','posted'].includes(nextState)) {
+      const supplierId = current.supplier_id;
+      const agreementId = current.agreement_id;
+      if (typeof supplierId !== 'string' || !/^[0-9a-f-]{36}$/i.test(supplierId) ||
+          typeof agreementId !== 'string' || !/^[0-9a-f-]{36}$/i.test(agreementId)) {
+        return c.json({ message: 'برای ثبت سند مالی، شریک و قرارداد معتبر لازم است.' }, 422);
+      }
+      const agreementRows = await runForUser(c, user.id,
+        'select shared_expense_categories from public.partnership_agreements where id=$1::uuid and company_id=$2::uuid and supplier_id=$3::uuid limit 1',
+        [agreementId, current.company_id, supplierId],
+      ) as Array<{ shared_expense_categories?: unknown }>;
+      if (!agreementRows.length) {
+        return c.json({ message: 'قرارداد انتخاب‌شده به همین شریک و شرکت تعلق ندارد.' }, 422);
+      }
+      const sharedCategories = Array.isArray(agreementRows[0].shared_expense_categories)
+        ? agreementRows[0].shared_expense_categories.map(String) : [];
+      if (current.entry_type === 'expense' && current.is_shared_cost === true &&
+          (typeof current.expense_category !== 'string' || !sharedCategories.includes(current.expense_category))) {
+        return c.json({ message: 'این دسته هزینه در قرارداد به‌عنوان هزینهٔ مشترک مجاز نشده است.' }, 422);
+      }
+      if (current.entry_type === 'sale_collection') {
+        const linkedId = current.linked_entry_id;
+        if (typeof linkedId !== 'string' || !/^[0-9a-f-]{36}$/i.test(linkedId)) {
+          return c.json({ message: 'دریافت فروش باید به یک فاکتور ثبت‌شده متصل باشد.' }, 422);
+        }
+        const invoiceRows = await runForUser(c, user.id,
+          "select id, amount from public.partner_financial_entries where id=$1::uuid and company_id=$2::uuid and supplier_id=$3::uuid and agreement_id=$4::uuid and entry_type='sale_invoice' and status='posted' limit 1",
+          [linkedId, current.company_id, supplierId, agreementId],
+        ) as Array<{ id: string; amount: unknown }>;
+        if (!invoiceRows.length) {
+          return c.json({ message: 'فاکتور مرجع باید ثبت‌شده و متعلق به همین شریک و قرارداد باشد.' }, 422);
+        }
+        if (nextState === 'posted') {
+          const collectedRows = await runForUser(c, user.id,
+            "select coalesce(sum(amount),0)::text as collected from public.partner_financial_entries where company_id=$1::uuid and entry_type='sale_collection' and status='posted' and linked_entry_id=$2::uuid and id<>$3::uuid",
+            [current.company_id, linkedId, current.id],
+          ) as Array<{ collected: unknown }>;
+          if (!isSaleCollectionWithinInvoice(invoiceRows[0].amount, collectedRows[0]?.collected ?? 0, current.amount)) {
+            return c.json({ message: 'مجموع دریافت‌های ثبت‌شده نمی‌تواند از مبلغ فاکتور بیشتر شود.' }, 422);
+          }
+        }
+      }
+      if (current.entry_type === 'adjustment') {
+        const linkedId = current.linked_entry_id;
+        if (typeof linkedId !== 'string' || !/^[0-9a-f-]{36}$/i.test(linkedId) ||
+            !['increase','decrease'].includes(String(current.adjustment_effect))) {
+          return c.json({ message: 'سند تعدیلی باید به یک سند ثبت‌شده و اثر تعدیل مشخص متصل باشد.' }, 422);
+        }
+        const sourceRows = await runForUser(c, user.id,
+          "select id from public.partner_financial_entries where id=$1::uuid and company_id=$2::uuid and supplier_id=$3::uuid and agreement_id=$4::uuid and status='posted' and entry_type<>'adjustment' limit 1",
+          [linkedId, current.company_id, supplierId, agreementId],
+        );
+        if (!sourceRows.length) {
+          return c.json({ message: 'سند تعدیلی باید به یک سند ثبت‌شده از همان شریک و قرارداد متصل باشد.' }, 422);
+        }
+      }
+    }
+    if (table === 'partner_financial_entries' && nextState === 'posted' &&
+        !isPartnerFinancialEntryReadyToPost(current.entry_type,current.payment_status,current.paid_amount,current.amount,current.external_reference)) {
+      return c.json({ message: 'ثبت نهایی این سند به مبلغ پرداخت‌شدهٔ کامل و مرجع رسید واقعی نیاز دارد.' }, 422);
+    }
+    if (table === 'production_batches' && nextState === 'submitted_for_review') {
+      const produced = values?.produced_quantity ?? current.produced_quantity;
+      const rejected = values?.rejected_quantity ?? current.rejected_quantity ?? 0;
+      if (!isProductionBatchSubmissionValid(produced, rejected)) {
+        return c.json({ message: 'برای ارسال بچ به بازبینی، مقدار تولید باید مثبت و مقدار مردودی در بازهٔ مجاز باشد.' }, 422);
+      }
+    }
+    if (table === 'production_batches' && nextState === 'completed') {
+      const lotId = typeof values?.lot_id === 'string' ? values.lot_id : current.lot_id;
+      const qualityStatus = values?.quality_status ?? current.quality_status;
+      if (qualityStatus !== 'passed' || typeof lotId !== 'string' || !/^[0-9a-f-]{36}$/i.test(lotId)) {
+        return c.json({ message: 'تکمیل بچ فقط با کیفیت تأییدشده و شناسهٔ لات معتبر ممکن است.' }, 422);
+      }
+      const readyLots = await runForUser(c, user.id,
+        "select l.id from public.lots l where l.id=$1::uuid and l.company_id=$2::uuid and l.status='released' and l.product_id is not distinct from $3::uuid and l.supplier_id is not distinct from $4::uuid and exists (select 1 from public.quality_reviews q where q.company_id=l.company_id and q.lot_id=l.id and q.result='pass') and exists (select 1 from public.farm_sites fs where fs.id=$5::uuid and fs.company_id=l.company_id and fs.supplier_id is not distinct from $4::uuid) and ($6::uuid is null or exists (select 1 from public.partnership_agreements a where a.id=$6::uuid and a.company_id=l.company_id and a.supplier_id is not distinct from $4::uuid)) and ($7::uuid is null or exists (select 1 from public.flock_cycles fc where fc.id=$7::uuid and fc.company_id=l.company_id and fc.farm_site_id=$5::uuid)) limit 1",
+        [lotId, current.company_id, current.product_id, current.supplier_id, current.farm_site_id, current.agreement_id ?? null, current.flock_cycle_id ?? null],
+      );
+      if (!isProductionBatchCompletionReady(qualityStatus, lotId, readyLots.length > 0)) {
+        return c.json({ message: 'برای تکمیل بچ، لات باید متعلق به همین شرکت/تأمین‌کننده/محصول، آزادشده و دارای بازبینی موفق باشد.' }, 422);
+      }
+    }
+    const rowScopes = mutationScopes.filter(m => m.company_id === String(current.company_id));
     const rowHasInternalRole = rowScopes.some(m => INTERNAL_ROLES.has(m.role));
     if (table === 'orders' && !rowHasInternalRole) {
       if (!rowScopes.some(m => m.role === 'customer' && m.customer_id === String(current.customer_id)) ||
@@ -2805,6 +3064,58 @@ app.post('/api/data/:table',async c=>{
     }
     const safeValues: Record<string, unknown> = { [stateField]: nextState };
     if (table === 'orders' && nextState === 'submitted' && columns.has('updated_at')) safeValues.updated_at = new Date().toISOString();
+    if (table === 'production_batches') {
+      const today = new Date().toISOString().slice(0, 10);
+      if (nextState === 'active') {
+        safeValues.started_on = current.started_on || today;
+        if (currentState === 'rejected') {
+          safeValues.quality_status = 'not_inspected';
+          safeValues.completed_on = null;
+          safeValues.rejected_quantity = 0;
+        }
+      }
+      if (nextState === 'submitted_for_review') {
+        safeValues.quality_status = 'pending';
+        safeValues.produced_quantity = Number(values?.produced_quantity ?? current.produced_quantity);
+        safeValues.rejected_quantity = Number(values?.rejected_quantity ?? current.rejected_quantity ?? 0);
+      }
+      if (nextState === 'approved') {
+        if (values?.quality_status !== undefined) safeValues.quality_status = values.quality_status;
+        safeValues.rejected_quantity = Number(values?.rejected_quantity ?? current.rejected_quantity ?? 0);
+      }
+      if (nextState === 'rejected') {
+        safeValues.quality_status = 'failed';
+        safeValues.rejected_quantity = Number(values?.rejected_quantity ?? current.rejected_quantity ?? 0);
+        if (typeof values?.manager_notes === 'string') safeValues.manager_notes = values.manager_notes;
+      }
+      if (nextState === 'completed') {
+        safeValues.quality_status = 'passed';
+        safeValues.completed_on = today;
+        safeValues.lot_id = typeof values?.lot_id === 'string' ? values.lot_id : current.lot_id;
+      }
+      if (columns.has('updated_at')) safeValues.updated_at = new Date().toISOString();
+    }
+    if (table === 'partner_financial_entries') {
+      const now = new Date().toISOString();
+      if (nextState === 'submitted') {
+        if (columns.has('submitted_at')) safeValues.submitted_at = now;
+        if (columns.has('submitted_by')) safeValues.submitted_by = user.id;
+      }
+      if (nextState === 'approved') {
+        if (columns.has('approved_at')) safeValues.approved_at = now;
+        if (columns.has('approved_by')) safeValues.approved_by = user.id;
+      }
+      if (nextState === 'posted') {
+        if (columns.has('posted_at')) safeValues.posted_at = now;
+        if (columns.has('posted_by')) safeValues.posted_by = user.id;
+      }
+      if (nextState === 'draft') {
+        for (const key of ['submitted_at','submitted_by','approved_at','approved_by','posted_at','posted_by']) {
+          if (columns.has(key)) safeValues[key] = null;
+        }
+      }
+      if (columns.has('updated_at')) safeValues.updated_at = now;
+    }
     if (table === 'shipments') {
       if (nextState === 'failed') {
         const reason = typeof values?.failure_reason === 'string' ? values.failure_reason.trim() : '';
@@ -2849,6 +3160,41 @@ app.post('/api/data/:table',async c=>{
       updateParams.push(value);
       return quoteSqlIdentifier(key) + ' = $' + updateParams.length;
     }).join(',');
+    const isSaleCollectionPosting = table === 'partner_financial_entries' &&
+      nextState === 'posted' && current.entry_type === 'sale_collection' &&
+      typeof current.linked_entry_id === 'string';
+    if (isSaleCollectionPosting) {
+      const invoiceId = String(current.linked_entry_id);
+      const txSql = sqlFor(c);
+      const txParams: unknown[] = [...updateParams, String(current.id), currentState, String(current.company_id), invoiceId];
+      const idParam = updateParams.length + 1;
+      const stateParam = updateParams.length + 2;
+      const companyParam = updateParams.length + 3;
+      const invoiceParam = updateParams.length + 4;
+      // Serialize postings for the same invoice. The aggregate is re-read in a
+      // separate statement after acquiring the invoice row lock, so concurrent
+      // collection requests cannot both spend the same remaining balance.
+      const transactionResult = await txSql.transaction([
+        txSql.query("select set_config('medar.user_id', $1, true)", [user.id]),
+        txSql.query(
+          "select id from public.partner_financial_entries where id=$1::uuid and company_id=$2::uuid and entry_type='sale_invoice' and status='posted' for update",
+          [invoiceId, String(current.company_id)],
+        ),
+        txSql.query(
+          'update public.partner_financial_entries as target set ' + setSql +
+          ' where target.id = $' + idParam +
+          ' and target.status = $' + stateParam +
+          ' and target.company_id = $' + companyParam +
+          " and target.entry_type = 'sale_collection' and target.linked_entry_id = $" + invoiceParam + '::uuid' +
+          " and coalesce((select sum(col.amount) from public.partner_financial_entries col where col.company_id=target.company_id and col.entry_type='sale_collection' and col.status='posted' and col.linked_entry_id=target.linked_entry_id and col.id<>target.id),0) + target.amount <= " +
+          "(select inv.amount from public.partner_financial_entries inv where inv.id=target.linked_entry_id and inv.company_id=target.company_id and inv.entry_type='sale_invoice' and inv.status='posted') returning target.*",
+          txParams,
+        ),
+      ]);
+      const updated = (transactionResult[2] ?? []) as Record<string, unknown>[];
+      if (!updated.length) return c.json({ message: 'ماندهٔ فاکتور برای ثبت این دریافت کافی نیست یا وضعیت سند هم‌زمان تغییر کرده است؛ فهرست را تازه‌سازی کن.' }, 409);
+      return c.json({ data: sanitizeExternalRows(table, updated, scopes), count: updated.length, error: null });
+    }
     updateParams.push(String(current.id));
     const idParam = updateParams.length;
     updateParams.push(current[stateField]);
