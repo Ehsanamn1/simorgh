@@ -1210,3 +1210,64 @@ test('Medar Connect creates a restricted conversation and sends an idempotent op
   await page.getByRole('button', { name: 'ارسال پیام' }).click();
   await expect(page.getByText('لطفاً رسید تحویل را ثبت کن.')).toBeVisible();
 });
+
+
+test('operational exception inbox assigns, acknowledges and resolves a case with a resolution note', async ({ page }) => {
+  const caseId = '00000000-0000-4000-8000-000000000133';
+  const ownerId = '00000000-0000-4000-8000-000000000011';
+  await installIsolatedSession(page, 'owner');
+  let cases: Array<Record<string, unknown>> = [];
+  await page.route('**/api/operational/**', async route => {
+    const request = route.request();
+    const url = new URL(request.url());
+    const path = url.pathname;
+    if (path.endsWith('/events') && request.method() === 'GET') {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ events: [] }) });
+      return;
+    }
+    if (path.endsWith('/exceptions') && request.method() === 'GET') {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ exceptions: cases }) });
+      return;
+    }
+    if (path.endsWith('/exceptions') && request.method() === 'POST') {
+      const body = request.postDataJSON() as { title: string; details: string; severity: string; assignedUserId?: string };
+      cases = [{
+        id: caseId, title: body.title, details: body.details, severity: body.severity, status: 'open',
+        assignedUserId: body.assignedUserId ?? null, assignedUsername: 'owner_test', dueAt: null,
+        createdAt: new Date().toISOString(), resolutionNote: null,
+      }];
+      await route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ ok: true, exception: cases[0] }) });
+      return;
+    }
+    if (path.endsWith('/acknowledge') && request.method() === 'POST') {
+      cases = cases.map(item => ({ ...item, status: 'acknowledged' }));
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, exception: { id: caseId, status: 'acknowledged' } }) });
+      return;
+    }
+    if (path.endsWith('/resolve') && request.method() === 'POST') {
+      const body = request.postDataJSON() as { resolutionNote: string };
+      cases = cases.map(item => ({ ...item, status: 'resolved', resolutionNote: body.resolutionNote, resolvedBy: ownerId }));
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, exception: cases[0] }) });
+      return;
+    }
+    await route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ message: 'Unexpected operational route: ' + path }) });
+  });
+  await page.route('**/api/connect/people**', route => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({ people: [{ id: ownerId, username: 'owner_test', displayName: 'مالک آزمایشی', role: 'owner' }] }),
+  }));
+
+  await page.goto('/simorgh/app/exceptions', { waitUntil: 'domcontentloaded' });
+  await expect(page.getByRole('heading', { name: 'صندوق مسائل و استثناها' })).toBeVisible();
+  await page.getByLabel('عنوان مسئله').fill('تأخیر در تحویل سفارش');
+  await page.getByLabel('شرح و زمینه').fill('راننده هنوز رسید تحویل را ثبت نکرده است.');
+  await page.getByLabel('شدت').selectOption('critical');
+  await page.getByRole('button', { name: 'ثبت و پیگیری' }).click();
+  await expect(page.getByRole('heading', { name: 'تأخیر در تحویل سفارش' })).toBeVisible();
+  await page.getByRole('button', { name: 'ثبت دریافت' }).click();
+  await expect(page.getByText('دریافت‌شده')).toBeVisible();
+  await page.getByLabel('شرح نتیجه تأخیر در تحویل سفارش').fill('رسید تحویل دریافت و بررسی شد.');
+  await page.getByRole('button', { name: 'حل و بستن' }).click();
+  await expect(page.getByText('حل‌شده')).toBeVisible();
+  await expect(page.getByText('رسید تحویل دریافت و بررسی شد.')).toBeVisible();
+});
