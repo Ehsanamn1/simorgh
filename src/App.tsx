@@ -1473,14 +1473,15 @@ function MembersPage({membership,search}:{membership:Membership;search:string}) 
     {key:'phone',label:'موبایل',render:r=><span dir="ltr">{String(r.phone??'—')}</span>},
     {key:'supplier_name',label:'تأمین‌کننده مرتبط',render:r=>String(r.supplier_name??'—')},
     {key:'role',label:'نقش',render:r=><Badge value={r.role} type="role"/>},
-    {key:'active',label:'دسترسی',render:r=><Badge value={r.active?'active':'inactive'}/>},
+    {key:'active',label:'عضویت',render:r=><Badge value={r.active?'active':'inactive'}/>},
+    {key:'account_status',label:'حساب',render:r=><Badge value={r.account_status==='active'?'active':'inactive'}/>},
     {key:'last_login_at',label:'آخرین ورود',render:r=>r.last_login_at?dateTimeFa(String(r.last_login_at)):'هنوز وارد نشده'},
     {key:'created_at',label:'افزوده‌شده',render:r=>dateFa(String(r.created_at??''))}
    ]} actions={r=>r.active===true&&r.role!=='owner'?<div className="table-action-group">
     {r.role!=='admin'&&<Button variant="soft" disabled={busy||permissionsLoading} onClick={()=>void editPermissions(r)}>مجوزها</Button>}
     <Button variant="soft" disabled={busy||(r.role==='admin'&&membership.role!=='owner')} onClick={()=>void resetMemberPassword(r)}>بازنشانی رمز</Button>
     <Button variant="danger" disabled={busy} onClick={()=>void deactivate(r)}>غیرفعال‌سازی</Button>
-   </div>:<span className="muted-text">—</span>}/>:<EmptyState title="هنوز عضوی در فهرست نیست" description="با ثبت‌نام مالک و پذیرش دعوت معتبر، اعضای واقعی مجموعه در اینجا نمایش داده می‌شوند." icon={Users}/>}
+   </div>:<span className="muted-text">—</span>}/>:<EmptyState title="هنوز عضوی در فهرست نیست" description="پس از ساخت حساب توسط مالک یا پذیرش دعوت معتبر، اعضای واقعی مجموعه در اینجا نمایش داده می‌شوند." icon={Users}/>}
   </section>
   {permissionsMember&&<Modal title="مجوزهای ماژولی عضو" subtitle={`دسترسی‌های ${String(permissionsMember.full_name??permissionsMember.username??'عضو')} را محدود کن. این تنظیمات مجوزهای پیش‌فرض نقش را گسترش نمی‌دهند.`} onClose={()=>{if(!permissionsSaving)setPermissionsMember(null);}}>
    {permissionsLoading?<div className="panel-loading"><span className="spinner small"/></div>:<div className="module-permissions-dialog" dir="rtl">
