@@ -6,6 +6,7 @@ import { api } from './lib/apiClient';
 type ProviderId = 'openai' | 'gemini' | 'deepseek' | 'anthropic';
 type ProviderConfig = { provider: ProviderId; model: string; isDefault: boolean; configured: boolean; updatedAt: string | null };
 type ChatMessage = { role: 'user' | 'assistant'; content: string; attachmentName?: string };
+type AssistantAttachment = { name: string; text?: string; base64?: string; mimeType?: string };
 type AIAssistantProps = { companyId: string; role: AppRole; userName?: string };
 
 const providerMeta: Record<ProviderId, { label: string; brand: string; defaultModel: string; detail: string }> = {
@@ -27,6 +28,16 @@ function getSpeechConstructor(): (new () => SpeechRecognitionLike) | undefined {
   };
   return browser.SpeechRecognition || browser.webkitSpeechRecognition;
 }
+function encodeBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  let binary = '';
+  const chunkSize = 0x8000;
+  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(offset, Math.min(offset + chunkSize, bytes.length)));
+  }
+  return window.btoa(binary);
+}
+
 type SpeechRecognitionLike = {
   lang: string; interimResults: boolean; continuous: boolean;
   onresult: ((event: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void) | null;
@@ -52,7 +63,7 @@ export function AIAssistant({ companyId, role, userName }: AIAssistantProps) {
   const [listening, setListening] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
-  const [attached, setAttached] = useState<{ name: string; text: string } | null>(null);
+  const [attached, setAttached] = useState<AssistantAttachment | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const messageEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -126,19 +137,47 @@ export function AIAssistant({ companyId, role, userName }: AIAssistantProps) {
 
   async function handleFile(file: File) {
     setError('');
-    const allowed = /\.(txt|csv|md|json|vcf)$/i.test(file.name);
-    if (!allowed) {
-      setError('فعلاً فایل متنی، CSV، Markdown، JSON یا مخاطبین vCard قابل خواندن است. PDF و فایل‌های Office در مرحله‌ی بعد به پردازش سند متصل می‌شوند.');
+    setNotice('');
+    const extension = file.name.toLocaleLowerCase('en-US').split('.').pop() || '';
+    const textExtensions = new Set(['txt','csv','tsv','md','markdown','json','vcf','xml','html','log','sql','js','mjs','ts','tsx','py','css','yaml','yml','toml','ini']);
+    const officeMime: Record<string,string> = {
+      pdf: 'application/pdf',
+      doc: 'application/msword',
+      docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      rtf: 'application/rtf',
+      odt: 'application/vnd.oasis.opendocument.text',
+      ppt: 'application/vnd.ms-powerpoint',
+      pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      xls: 'application/vnd.ms-excel',
+      xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    };
+    const isText = textExtensions.has(extension);
+    const mimeType = officeMime[extension] || file.type || 'application/octet-stream';
+    const isOfficeInput = Object.prototype.hasOwnProperty.call(officeMime, extension);
+    if (!isText && !isOfficeInput) {
+      setError('قالب‌های پشتیبانی‌شده: فایل‌های متنی و کد، CSV/TSV، PDF، Word، Excel، PowerPoint و RTF/ODT.');
       return;
     }
-    if (file.size > 1024 * 1024) {
-      setError('برای حفظ سرعت و محدودیت درخواست، فایل دستیار باید حداکثر ۱ مگابایت باشد.');
+    if (isText && file.size > 1024 * 1024) {
+      setError('فایل متنی برای ارسال به دستیار باید حداکثر ۱ مگابایت باشد.');
+      return;
+    }
+    if (isOfficeInput && file.size > 6 * 1024 * 1024) {
+      setError('حجم PDF یا سند Office باید حداکثر ۶ مگابایت باشد.');
       return;
     }
     try {
-      const text = await file.text();
-      setAttached({ name: file.name, text: text.slice(0, 24000) });
-      setNotice('فایل به پیام بعدی پیوست شد. محتوایش همراه پیام برای پرووایدر فعال ارسال می‌شود.');
+      if (isText) {
+        const text = await file.text();
+        setAttached({ name: file.name, text: text.slice(0, 24000), mimeType });
+        setNotice('فایل خوانده شد و همراه پیام بعدی برای تحلیل ارسال می‌شود.');
+      } else {
+        const base64 = encodeBase64(await file.arrayBuffer());
+        setAttached({ name: file.name, base64, mimeType });
+        setNotice(extension === 'pdf'
+          ? 'PDF آماده است؛ مدل‌های OpenAI، Gemini و Claude از آن پشتیبانی می‌کنند.'
+          : 'سند آماده است؛ برای اسناد Office فعلاً از OpenAI استفاده کن. برای Gemini یا Claude، سند را به PDF تبدیل کن.');
+      }
     } catch {
       setError('خواندن فایل ناموفق بود.');
     }
@@ -293,7 +332,7 @@ export function AIAssistant({ companyId, role, userName }: AIAssistantProps) {
             <div className="ai-composer-actions">
               <div className="ai-composer-tools">
                 <button type="button" onClick={()=>fileRef.current?.click()} title="پیوست فایل" aria-label="پیوست فایل"><Plus size={18}/></button>
-                <input ref={fileRef} className="sr-only" type="file" accept=".txt,.csv,.md,.json,.vcf,text/plain,text/csv" onChange={event=>{const file=event.target.files?.[0];if(file)void handleFile(file);event.currentTarget.value='';}} />
+                <input ref={fileRef} className="sr-only" type="file" accept=".txt,.csv,.tsv,.md,.markdown,.json,.vcf,.xml,.html,.log,.sql,.js,.mjs,.ts,.tsx,.py,.css,.yaml,.yml,.toml,.ini,.pdf,.doc,.docx,.rtf,.odt,.ppt,.pptx,.xls,.xlsx,text/plain,text/csv,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" onChange={event=>{const file=event.target.files?.[0];if(file)void handleFile(file);event.currentTarget.value='';}} />
                 <button type="button" className={listening?'recording':''} onClick={toggleVoiceInput} title={listening?'پایان گفتار':'تبدیل گفتار فارسی به متن'} aria-label={listening?'توقف ضبط گفتار':'شروع گفتار'}>{listening?<MicOff size={18}/>:<Mic size={18}/>}</button>
               </div>
               <small>{listening?'در حال شنیدن…':activeProvider?providerMeta[activeProvider].label:'پرووایدر تنظیم نشده'}</small>
