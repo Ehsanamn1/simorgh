@@ -317,12 +317,22 @@ jobs:
           VALUES ('00000000-0000-4000-8000-000000000332','CI settlement and bank ledger company');
           INSERT INTO public.medar_users (id,username,username_normalized,phone_e164,display_name,password_hash) VALUES
             ('00000000-0000-4000-8000-000000000331','ci.settlement.owner','ci.settlement.owner','+989190000331','CI settlement owner','not-a-login-hash'),
-            ('00000000-0000-4000-8000-000000000333','ci.settlement.supplier','ci.settlement.supplier','+989190000333','CI settlement supplier','not-a-login-hash');
+            ('00000000-0000-4000-8000-000000000333','ci.settlement.supplier','ci.settlement.supplier','+989190000333','CI settlement supplier','not-a-login-hash'),
+            ('00000000-0000-4000-8000-000000000337','ci.settlement.staff','ci.settlement.staff','+989190000337','CI settlement staff','not-a-login-hash'),
+            ('00000000-0000-4000-8000-000000000338','ci.settlement.customer','ci.settlement.customer','+989190000338','CI settlement customer','not-a-login-hash'),
+            ('00000000-0000-4000-8000-000000000339','ci.settlement.driver','ci.settlement.driver','+989190000339','CI settlement driver','not-a-login-hash');
           INSERT INTO public.suppliers (id,company_id,name)
           VALUES ('00000000-0000-4000-8000-000000000334','00000000-0000-4000-8000-000000000332','CI settlement supplier');
-          INSERT INTO public.memberships (company_id,user_id,role,active,created_by,supplier_id) VALUES
-            ('00000000-0000-4000-8000-000000000332','00000000-0000-4000-8000-000000000331','owner',true,'00000000-0000-4000-8000-000000000331',NULL),
-            ('00000000-0000-4000-8000-000000000332','00000000-0000-4000-8000-000000000333','supplier',true,'00000000-0000-4000-8000-000000000331','00000000-0000-4000-8000-000000000334');
+          INSERT INTO public.customers (id,company_id,name)
+          VALUES ('00000000-0000-4000-8000-000000000340','00000000-0000-4000-8000-000000000332','CI settlement customer');
+          INSERT INTO public.products (id,company_id,sku,name,kind,unit)
+          VALUES ('00000000-0000-4000-8000-000000000341','00000000-0000-4000-8000-000000000332','CI-SETTLEMENT-ROLE','CI settlement role matrix product','other','unit');
+          INSERT INTO public.memberships (company_id,user_id,role,active,created_by,supplier_id,customer_id) VALUES
+            ('00000000-0000-4000-8000-000000000332','00000000-0000-4000-8000-000000000331','owner',true,'00000000-0000-4000-8000-000000000331',NULL,NULL),
+            ('00000000-0000-4000-8000-000000000332','00000000-0000-4000-8000-000000000333','supplier',true,'00000000-0000-4000-8000-000000000331','00000000-0000-4000-8000-000000000334',NULL),
+            ('00000000-0000-4000-8000-000000000332','00000000-0000-4000-8000-000000000337','staff',true,'00000000-0000-4000-8000-000000000331',NULL,NULL),
+            ('00000000-0000-4000-8000-000000000332','00000000-0000-4000-8000-000000000338','customer',true,'00000000-0000-4000-8000-000000000331',NULL,'00000000-0000-4000-8000-000000000340'),
+            ('00000000-0000-4000-8000-000000000332','00000000-0000-4000-8000-000000000339','driver',true,'00000000-0000-4000-8000-000000000331',NULL,NULL);
           INSERT INTO public.partnership_agreements (
             id,company_id,supplier_id,agreement_code,status,effective_from,effective_to,
             company_profit_share_pct,partner_profit_share_pct,shared_expense_categories,settlement_basis,
@@ -344,6 +354,74 @@ jobs:
             '00000000-0000-4000-8000-000000000331',
             '00000000-0000-4000-8000-000000000331',now()
           );
+
+          DO $role_matrix$
+          DECLARE v_count integer;
+          BEGIN
+            PERFORM public.medar_record_inventory_movement(
+              '00000000-0000-4000-8000-000000000337',
+              '00000000-0000-4000-8000-000000000332',
+              '00000000-0000-4000-8000-000000000341',
+              'purchase_in',1,10,'00000000-0000-4000-8000-000000000334',
+              NULL,NULL,'CI-ROLE-STAFF-ALLOW','staff can record permitted receiving movements'
+            );
+            SELECT count(*) INTO v_count FROM public.inventory_movements
+              WHERE company_id='00000000-0000-4000-8000-000000000332'
+                AND reference_code='CI-ROLE-STAFF-ALLOW';
+            IF v_count<>1 THEN RAISE EXCEPTION 'Staff receiving movement was not recorded'; END IF;
+
+            BEGIN
+              PERFORM public.medar_record_inventory_movement(
+                '00000000-0000-4000-8000-000000000333',
+                '00000000-0000-4000-8000-000000000332',
+                '00000000-0000-4000-8000-000000000341',
+                'purchase_in',1,10,'00000000-0000-4000-8000-000000000334',
+                NULL,NULL,'CI-ROLE-SUPPLIER-DENY','supplier must not write inventory ledger'
+              );
+              RAISE EXCEPTION 'Supplier was incorrectly allowed to write inventory';
+            EXCEPTION WHEN OTHERS THEN
+              IF SQLERRM='Supplier was incorrectly allowed to write inventory' THEN RAISE; END IF;
+            END;
+
+            BEGIN
+              PERFORM public.medar_record_inventory_movement(
+                '00000000-0000-4000-8000-000000000338',
+                '00000000-0000-4000-8000-000000000332',
+                '00000000-0000-4000-8000-000000000341',
+                'purchase_in',1,10,'00000000-0000-4000-8000-000000000334',
+                NULL,NULL,'CI-ROLE-CUSTOMER-DENY','customer must not write inventory ledger'
+              );
+              RAISE EXCEPTION 'Customer was incorrectly allowed to write inventory';
+            EXCEPTION WHEN OTHERS THEN
+              IF SQLERRM='Customer was incorrectly allowed to write inventory' THEN RAISE; END IF;
+            END;
+
+            BEGIN
+              PERFORM public.medar_record_inventory_movement(
+                '00000000-0000-4000-8000-000000000339',
+                '00000000-0000-4000-8000-000000000332',
+                '00000000-0000-4000-8000-000000000341',
+                'purchase_in',1,10,'00000000-0000-4000-8000-000000000334',
+                NULL,NULL,'CI-ROLE-DRIVER-DENY','driver must not write inventory ledger'
+              );
+              RAISE EXCEPTION 'Driver was incorrectly allowed to write inventory';
+            EXCEPTION WHEN OTHERS THEN
+              IF SQLERRM='Driver was incorrectly allowed to write inventory' THEN RAISE; END IF;
+            END;
+
+            BEGIN
+              PERFORM public.medar_record_inventory_movement(
+                '00000000-0000-4000-8000-000000000331',
+                '00000000-0000-4000-8000-000000000343',
+                '00000000-0000-4000-8000-000000000341',
+                'purchase_in',1,10,'00000000-0000-4000-8000-000000000334',
+                NULL,NULL,'CI-ROLE-CROSS-TENANT-DENY','owner must not write to a different company'
+              );
+              RAISE EXCEPTION 'Cross-tenant inventory write was incorrectly accepted';
+            EXCEPTION WHEN OTHERS THEN
+              IF SQLERRM='Cross-tenant inventory write was incorrectly accepted' THEN RAISE; END IF;
+            END;
+          END $role_matrix$;
 
           DO $settlement$
           DECLARE
@@ -453,7 +531,7 @@ jobs:
           END $bank_ledger$;
           ROLLBACK;
           SQL
-          echo "Partner settlement calculation, role authorization, approval, payment caps, bank-import idempotency, and ledger constraints passed."
+          echo "Role matrix, partner settlement calculation/authorization/approval/payment caps, bank-import idempotency, and ledger constraints passed."
       - name: Summarize all dependency advisories
         shell: bash
         run: |
