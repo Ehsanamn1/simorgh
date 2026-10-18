@@ -12,6 +12,9 @@ type Bindings = {
   ALLOWED_ORIGINS?: string;
   FILE_STORE?: PrivateFileStore;
   AI_ENCRYPTION_KEY?: string;
+  VAPID_PUBLIC_KEY?: string;
+  VAPID_PRIVATE_KEY?: string;
+  VAPID_SUBJECT?: string;
   ASSETS?: { fetch(request: Request): Promise<Response> };
 };
 type AppEnv = { Bindings: Bindings };
@@ -92,6 +95,117 @@ function toHex(bytes: Uint8Array): string {
 
 async function sha256(value: string): Promise<string> {
   return toHex(new Uint8Array(await crypto.subtle.digest('SHA-256', encoder.encode(value))));
+}
+
+
+function base64UrlToBytes(value: string): Uint8Array {
+  const normalized = value.replace(/-/g, '+').replace(/_/g, '/');
+  return base64ToBytes(normalized + '='.repeat((4 - normalized.length % 4) % 4));
+}
+function bytesToBase64Url(bytes: Uint8Array): string {
+  return bytesToBase64(bytes).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+}
+function concatBytes(...parts: Uint8Array[]): Uint8Array {
+  const length = parts.reduce((total, part) => total + part.length, 0);
+  const result = new Uint8Array(length);
+  let offset = 0;
+  for (const part of parts) { result.set(part, offset); offset += part.length; }
+  return result;
+}
+async function hmacSha256(keyBytes: Uint8Array, data: Uint8Array): Promise<Uint8Array> {
+  const key = await crypto.subtle.importKey('raw', keyBytes, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  return new Uint8Array(await crypto.subtle.sign('HMAC', key, data));
+}
+async function hkdfExpand(prk: Uint8Array, info: Uint8Array, length: number): Promise<Uint8Array> {
+  const output: Uint8Array[] = [];
+  let previous = new Uint8Array(0);
+  let total = 0;
+  for (let counter = 1; total < length; counter += 1) {
+    previous = await hmacSha256(prk, concatBytes(previous, info, new Uint8Array([counter])));
+    output.push(previous);
+    total += previous.length;
+  }
+  return concatBytes(...output).slice(0, length);
+}
+function allowedWebPushEndpoint(value: string): URL | null {
+  try {
+    const url = new URL(value);
+    const host = url.hostname.toLowerCase();
+    const allowed = host === 'fcm.googleapis.com' ||
+      host === 'updates.push.services.mozilla.com' ||
+      host.endsWith('.push.services.mozilla.com') ||
+      host === 'web.push.apple.com' || host.endsWith('.push.apple.com') ||
+      host.endsWith('.notify.windows.com');
+    if (url.protocol !== 'https:' || !allowed || url.username || url.password || (url.port && url.port !== '443')) return null;
+    return url;
+  } catch { return null; }
+}
+async function vapidAuthorization(endpoint: URL, env: Bindings): Promise<string> {
+  const publicKey = env.VAPID_PUBLIC_KEY ?? '';
+  const privateKey = env.VAPID_PRIVATE_KEY ?? '';
+  if (!publicKey || !privateKey || !env.VAPID_SUBJECT) throw new Error('Web Push VAPID credentials are not configured');
+  const publicBytes = base64UrlToBytes(publicKey);
+  if (publicBytes.length !== 65 || publicBytes[0] !== 4) throw new Error('Invalid VAPID public key');
+  const privateBytes = base64UrlToBytes(privateKey);
+  if (privateBytes.length !== 32) throw new Error('Invalid VAPID private key');
+  const jwk: JsonWebKey = {
+    kty: 'EC', crv: 'P-256',
+    x: bytesToBase64Url(publicBytes.slice(1, 33)),
+    y: bytesToBase64Url(publicBytes.slice(33, 65)),
+    d: bytesToBase64Url(privateBytes),
+    ext: true, key_ops: ['sign'],
+  };
+  const key = await crypto.subtle.importKey('jwk', jwk, { name: 'ECDSA', namedCurve: 'P-256' }, false, ['sign']);
+  const encodePart = (value: unknown) => bytesToBase64Url(encoder.encode(JSON.stringify(value)));
+  const header = encodePart({ typ: 'JWT', alg: 'ES256' });
+  const payload = encodePart({ aud: endpoint.origin, exp: Math.floor(Date.now() / 1000) + 12 * 60 * 60, sub: env.VAPID_SUBJECT });
+  const unsigned = header + '.' + payload;
+  const signature = new Uint8Array(await crypto.subtle.sign({ name: 'ECDSA', hash: 'SHA-256' }, key, encoder.encode(unsigned)));
+  return 'vapid t=' + unsigned + '.' + bytesToBase64Url(signature) + ', k=' + publicKey;
+}
+async function encryptWebPushPayload(payload: string, subscriptionPublicKey: string, authSecret: string): Promise<Uint8Array> {
+  const uaPublic = base64UrlToBytes(subscriptionPublicKey);
+  const auth = base64UrlToBytes(authSecret);
+  if (uaPublic.length !== 65 || uaPublic[0] !== 4 || auth.length < 16) throw new Error('Invalid browser push encryption keys');
+  const uaKey = await crypto.subtle.importKey('raw', uaPublic, { name: 'ECDH', namedCurve: 'P-256' }, false, []);
+  const pair = await crypto.subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveBits']) as CryptoKeyPair;
+  const asPublic = new Uint8Array(await crypto.subtle.exportKey('raw', pair.publicKey));
+  const shared = new Uint8Array(await crypto.subtle.deriveBits({ name: 'ECDH', public: uaKey }, pair.privateKey, 256));
+  const keyPrk = await hmacSha256(auth, shared);
+  const keyInfo = concatBytes(encoder.encode('WebPush: info\0'), uaPublic, asPublic);
+  const ikm = await hkdfExpand(keyPrk, keyInfo, 32);
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const prk = await hmacSha256(salt, ikm);
+  const cek = await hkdfExpand(prk, encoder.encode('Content-Encoding: aes128gcm\0'), 16);
+  const nonce = await hkdfExpand(prk, encoder.encode('Content-Encoding: nonce\0'), 12);
+  const plain = concatBytes(encoder.encode(payload), new Uint8Array([2]));
+  const aesKey = await crypto.subtle.importKey('raw', cek, 'AES-GCM', false, ['encrypt']);
+  const encrypted = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv: nonce, tagLength: 128 }, aesKey, plain));
+  const recordHeader = new Uint8Array(21);
+  recordHeader.set(salt, 0);
+  new DataView(recordHeader.buffer).setUint32(16, 4096, false);
+  recordHeader[20] = asPublic.length;
+  return concatBytes(recordHeader, asPublic, encrypted);
+}
+async function sendWebPush(subscription: { endpoint: string; p256dh_key: string; auth_secret: string }, payload: Record<string, unknown>, env: Bindings): Promise<{ ok: boolean; gone: boolean; status: number }> {
+  const endpoint = allowedWebPushEndpoint(subscription.endpoint);
+  if (!endpoint) throw new Error('Push endpoint host is not allowed');
+  const body = JSON.stringify(payload);
+  if (encoder.encode(body).length > 3500) throw new Error('Push payload is too large');
+  const encrypted = await encryptWebPushPayload(body, subscription.p256dh_key, subscription.auth_secret);
+  const response = await fetch(endpoint.toString(), {
+    method: 'POST',
+    headers: {
+      Authorization: await vapidAuthorization(endpoint, env),
+      'Content-Type': 'application/octet-stream',
+      'Content-Encoding': 'aes128gcm',
+      TTL: '60',
+      Urgency: 'normal',
+    },
+    body: encrypted,
+    signal: AbortSignal.timeout(10000),
+  });
+  return { ok: response.status >= 200 && response.status < 300, gone: response.status === 404 || response.status === 410, status: response.status };
 }
 
 async function hashPassword(password: string): Promise<string> {
