@@ -1594,12 +1594,9 @@ app.get('/api/workspace/members/:membershipId/permissions', async (c) => {
 app.post('/api/workspace/members/:membershipId/permissions', async (c) => {
   const user = await requireUser(c);
   if (user instanceof Response) return user;
-  const companyId = typeof (await c.req.json<Record<string, unknown>>().catch(() => null))?.companyId === 'string'
-    ? String((await c.req.json<Record<string, unknown>>().catch(() => null))?.companyId) : '';
-  // Re-read once below so the request body is parsed only once in normal operation.
   const body = await c.req.json<Record<string, unknown>>().catch(() => null);
   if (!body) return c.json({ message: 'درخواست مجوزها معتبر نیست.' }, 400);
-  const actualCompanyId = typeof body.companyId === 'string' ? body.companyId : companyId;
+  const actualCompanyId = typeof body.companyId === 'string' ? body.companyId : '';
   const membershipId = c.req.param('membershipId');
   if (!COMPANY_ID_RE.test(actualCompanyId) || !COMPANY_ID_RE.test(membershipId)) {
     return c.json({ message: 'شناسه مجموعه یا عضویت معتبر نیست.' }, 422);
