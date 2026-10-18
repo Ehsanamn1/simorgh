@@ -86,6 +86,7 @@ export function OperationsRoleExperience({ role, membership, children }: Props) 
       { label: 'ارسال‌های فعال', value: shipments.filter(row => !isIn(row.stage, ['delivered', 'returned', 'failed', 'cancelled'])).length, note: 'در مسیر یا آماده ارسال', tone: 'neutral', icon: Truck },
       { label: 'کارهای نیازمند اقدام', value: tasks.filter(row => !isIn(row.status, ['approved', 'cancelled', 'completed'])).length, note: 'کارهای باز و در انتظار بررسی', tone: tasks.some(row => isIn(row.status, ['blocked', 'rejected'])) ? 'warning' : 'neutral', icon: Clock3 },
       { label: 'رخدادهای باز', value: incidents.filter(row => !isIn(row.status, ['resolved', 'closed', 'cancelled'])).length, note: 'مواردی که باید پیگیری شوند', tone: incidents.some(row => isIn(row.status, ['open', 'action_required'])) ? 'warning' : 'positive', icon: AlertTriangle },
+      { label: 'اسناد مالی باز', value: finance.filter(row => !isIn(row.status, ['posted', 'rejected', 'cancelled']) || isIn(row.payment_status, ['unpaid', 'partial'])).length, note: 'اسنادی که هنوز نهایی یا تسویه نشده‌اند', tone: 'warning', icon: WalletCards },
     ];
     if (role === 'supplier') return [
       { label: 'اقلام سفارش', value: orders.filter(row => !isIn((row.orders as RecordRow | null)?.status, ['delivered', 'cancelled', 'completed'])).length, note: 'سفارش‌های فعال مجموعه شما', tone: 'neutral', icon: Package },
