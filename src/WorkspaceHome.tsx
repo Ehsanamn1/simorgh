@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { HelpGuide } from './HelpGuide';
 import {
-  Activity, ArrowLeft, CalendarClock, CheckCircle2, ClipboardCheck,
+  Activity, ArrowLeft, BookOpen, CalendarClock, CheckCircle2, ClipboardCheck,
   Factory, LayoutDashboard, MapPin, ShieldCheck,
   Truck, Warehouse, MessageCircle,
 } from 'lucide-react';
@@ -188,9 +189,11 @@ export function WorkspaceHome({ membership, userName }: { membership: Membership
       <div className="workspace-home-identity"><span className="workspace-home-mark"><LayoutDashboard size={22}/></span><div><span className="workspace-home-eyebrow">فضای کاری اختصاصی شما</span><h1>سلام {userName || 'همکار مدار'}</h1><p>{heading.title} · <b>{roleLabel[role]}</b></p></div></div>
       <p className="workspace-home-description">{heading.description}</p>
       <div className="workspace-home-meta"><span><ShieldCheck size={15}/> دسترسی بر پایه‌ی نقش تأییدشده</span><span><CalendarClock size={15}/> خلاصه‌ی به‌روزشونده از رکوردهای سیستم</span></div>
+      <button type="button" className="workspace-home-guide-button" onClick={() => setGuideOpen(true)}><BookOpen size={16}/> راهنمای قدم‌به‌قدم شروع کار</button>
     </section>
 
     <InAppNotifications membership={membership}/>
+    {guideOpen && <HelpGuide role={role} onClose={() => setGuideOpen(false)}/>} 
 
     <section className="workspace-home-section">
       <div className="workspace-home-section-heading"><div><span className="workspace-home-eyebrow">نگاه سریع</span><h2>بخش‌های پرکاربرد شما</h2></div><small>{links.length.toLocaleString('fa-IR')} میان‌بر</small></div>
