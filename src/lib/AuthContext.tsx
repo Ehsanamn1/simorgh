@@ -62,6 +62,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setSession(null);
         setMemberships([]);
         setOfflineCachePartition(null);
+        if (serverRejectedSession) {
+          try { window.sessionStorage.removeItem('medar-offline-session-v1'); } catch { /* Ignore unavailable storage. */ }
+        }
         setError(caught instanceof Error ? caught.message : 'ارتباط با سرویس مدار برقرار نشد.');
       }
     } finally {
