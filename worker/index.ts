@@ -418,10 +418,10 @@ type AiProvider = 'openai' | 'gemini' | 'deepseek' | 'anthropic';
 type AiChatMessage = { role: 'user' | 'assistant'; content: string };
 type AiAttachmentPayload = { name: string; mimeType: string; base64?: string };
 const AI_PROVIDERS: Record<AiProvider, { label: string; model: string }> = {
-  openai: { label: 'OpenAI', model: 'gpt-6-luna' },
-  gemini: { label: 'Gemini', model: 'gemini-4-argon' },
-  deepseek: { label: 'DeepSeek', model: 'deepseek-flash' },
-  anthropic: { label: 'Claude', model: 'claude-sonnet-5' },
+  openai: { label: 'OpenAI', model: 'gpt-4.1' },
+  gemini: { label: 'Gemini', model: 'gemini-2.5-flash' },
+  deepseek: { label: 'DeepSeek', model: 'deepseek-chat' },
+  anthropic: { label: 'Claude', model: 'claude-sonnet-4-20250514' },
 };
 const COMPANY_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 function aiProvider(value: unknown): AiProvider | null {
