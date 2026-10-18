@@ -48,7 +48,7 @@ jobs:
             worker/migrations/0009_inventory_movement_concurrency_lock.sql \
             worker/migrations/0010_purchase_order_lifecycle.sql   \
             worker/migrations/0011_username_password_only.sql \
-            worker/migrations/0012_client_presence.sql worker/migrations/0013_ai_assistant_and_contacts.sql worker/migrations/0014_contact_intelligence.sql worker/migrations/0015_ai_action_approval_ledger.sql; do
+            worker/migrations/0012_client_presence.sql worker/migrations/0013_ai_assistant_and_contacts.sql worker/migrations/0014_contact_intelligence.sql worker/migrations/0015_ai_action_approval_ledger.sql worker/migrations/0016_membership_module_permissions.sql; do
             echo "Applying $migration"
             psql -h 127.0.0.1 -U postgres -d medar_test -v ON_ERROR_STOP=1 -1 -f "$migration"
           done
@@ -60,6 +60,8 @@ jobs:
               to_regclass('public.medar_ai_usage_log') is not null and
               to_regclass('public.medar_ai_action_runs') is not null and
               to_regprocedure('public.medar_execute_ai_create_task(uuid,uuid,uuid)') is not null and
+              to_regclass('public.medar_membership_module_permissions') is not null and
+              to_regprocedure('public.medar_check_membership_permission_company()') is not null and
               (select count(*) from information_schema.columns where table_schema='public' and table_name in ('customers','suppliers') and column_name in ('email','organization_name','contact_notes','contact_tags','contact_source')) = 10 and
               (select is_nullable = 'YES' from information_schema.columns where table_schema='public' and table_name='medar_users' and column_name='phone_e164') and
               (select is_nullable = 'YES' from information_schema.columns where table_schema='public' and table_name='profiles' and column_name='phone') and
