@@ -897,6 +897,17 @@ export function canonicalContactPhone(value: string): string {
   if (digits.startsWith('0') && digits.length === 11) return '98' + digits.slice(1);
   return digits;
 }
+export function resolveContactPhoneMatch(
+  contactName: string,
+  matches: Array<{ id: string; name: string }>,
+  sameNameExists: boolean,
+): { action: 'upsert' | 'update' | 'skip'; id?: string } {
+  if (matches.some(row => row.name === contactName)) return { action: 'upsert' };
+  if (matches.length === 0) return { action: 'upsert' };
+  if (matches.length === 1 && !sameNameExists) return { action: 'update', id: matches[0].id };
+  return { action: 'skip' };
+}
+
 function contactPhoneLookupCandidates(value: string): string[] {
   const digits = value.replace(/[^0-9]/g, '');
   const canonical = canonicalContactPhone(value);
@@ -1089,18 +1100,15 @@ app.post('/api/contacts/import', async (c) => {
       for (const contact of batch) {
         const canonical = canonicalContactPhone(contact.phone);
         const matches = canonical ? (existingByPhone.get(canonical) ?? []) : [];
-        const exactNameMatch = matches.find(row => row.name === contact.name);
         const sameNameExists = existingNames.has(contact.name.toLocaleLowerCase('fa-IR'));
-        if (exactNameMatch) {
+        const phoneMatch = resolveContactPhoneMatch(contact.name, matches, sameNameExists);
+        if (phoneMatch.action === 'upsert') {
           // Let the unique company/name constraint update this exact record normally.
           toUpsert.push(contact);
-        } else if (matches.length === 0) {
-          // No phone match; an existing name (if any) is handled by the unique-name upsert.
-          toUpsert.push(contact);
-        } else if (matches.length === 1 && !sameNameExists) {
+        } else if (phoneMatch.action === 'update' && phoneMatch.id) {
           // One existing row owns this number under a different label. Enrich it rather
           // than creating a second customer/supplier; preserve its canonical name.
-          phoneUpdates.push({ id: matches[0].id, contact });
+          phoneUpdates.push({ id: phoneMatch.id, contact });
         } else {
           // Never reassign a number between records or auto-merge a shared number.
           ambiguousPhoneSkipped++;
