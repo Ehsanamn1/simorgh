@@ -420,7 +420,7 @@ type AiAttachmentPayload = { name: string; mimeType: string; base64?: string };
 const AI_PROVIDERS: Record<AiProvider, { label: string; model: string }> = {
   openai: { label: 'OpenAI', model: 'gpt-6-luna' },
   gemini: { label: 'Gemini', model: 'gemini-4-argon' },
-  deepseek: { label: 'DeepSeek', model: 'deepseek-flash' },
+  deepseek: { label: 'DeepSeek', model: 'deepseek-v4-flash' },
   anthropic: { label: 'Claude', model: 'claude-sonnet-5' },
 };
 const COMPANY_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -611,6 +611,60 @@ app.put('/api/ai/providers', async (c) => {
   ].join(' ');
   const rows = await sql.query(query, [companyId, provider, model, encrypted, makeDefault, user.id]);
   return c.json({ ok: true, config: rows[0], message: 'تنظیمات پرووایدر ذخیره شد.' });
+});
+
+app.post('/api/ai/provider-test', async (c) => {
+  const user = await requireUser(c);
+  if (user instanceof Response) return user;
+  const body = await c.req.json<Record<string, unknown>>().catch(() => null);
+  if (!body) return c.json({ message: 'درخواست تست اتصال معتبر نیست.' }, 400);
+  const companyId = typeof body.companyId === 'string' ? body.companyId : '';
+  const provider = aiProvider(body.provider);
+  const model = typeof body.model === 'string' ? body.model.trim() : '';
+  const apiKey = typeof body.apiKey === 'string' ? body.apiKey.trim() : '';
+  if (!COMPANY_ID_RE.test(companyId) || !provider) return c.json({ message: 'شناسه مجموعه یا پرووایدر معتبر نیست.' }, 422);
+  if (!model || model.length > 120 || !/^[A-Za-z0-9._:/-]+$/.test(model)) return c.json({ message: 'شناسه مدل معتبر نیست.' }, 422);
+  if (apiKey.length > 512 || (apiKey && apiKey.length < 12)) return c.json({ message: 'فرمت کلید API معتبر نیست.' }, 422);
+  const membership = await aiCompanyMembership(c, companyId, user.id);
+  if (!membership) return c.json({ message: 'به این فضای کاری دسترسی فعال نداری.' }, 403);
+  if (membership.role !== 'owner' && membership.role !== 'admin') return c.json({ message: 'فقط مالک یا مدیر می‌تواند پرووایدر هوش مصنوعی را تست کند.' }, 403);
+  const sql = sqlFor(c);
+  const limits = await sql.query([
+    "select (select count(*)::int from public.medar_ai_usage_log where user_id=$1::uuid and created_at>now()-interval '1 minute') as minute_count,",
+    "(select count(*)::int from public.medar_ai_usage_log where user_id=$1::uuid and created_at>now()-interval '1 day') as day_count",
+  ].join(' '), [user.id]);
+  const limit = limits[0] as { minute_count: number; day_count: number } | undefined;
+  if (Number(limit?.minute_count ?? 0) >= 8 || Number(limit?.day_count ?? 0) >= 120) {
+    return c.json({ message: 'سقف درخواست دستیار در بازه فعلی پر شده است. کمی بعد دوباره تلاش کن.' }, 429);
+  }
+  let providerKey = apiKey;
+  if (!providerKey) {
+    const rows = await sql.query(
+      'select encrypted_api_key from public.medar_ai_provider_configs where company_id=$1::uuid and provider=$2 limit 1',
+      [companyId, provider],
+    );
+    const stored = rows[0] as { encrypted_api_key: string } | undefined;
+    if (!stored) return c.json({ message: 'برای تست اتصال، API key را وارد کن؛ این endpoint کلید واردشده را ذخیره نمی‌کند.' }, 422);
+    try { providerKey = await decryptAiKey(c, stored.encrypted_api_key); }
+    catch { return c.json({ message: 'رمزگشایی کلید ذخیره‌شده ناموفق بود؛ کلید را دوباره در تنظیمات وارد کن.' }, 503); }
+  }
+  try {
+    await sql.query(
+      'insert into public.medar_ai_usage_log(company_id,user_id,provider,model,input_chars) values($1::uuid,$2::uuid,$3,$4,$5)',
+      [companyId, user.id, provider, model, 2],
+    );
+    const response = await requestAiProvider(
+      provider, model, providerKey,
+      [{ role: 'user', content: 'Reply with exactly OK.' }],
+      'This is a connection test. Reply with exactly OK and do not do anything else.',
+      null,
+    );
+    if (!response.trim()) return c.json({ message: 'ارائه‌دهنده پاسخ خالی برگرداند؛ مدل و کلید را بررسی کن.' }, 502);
+    return c.json({ ok: true, provider, model, message: 'اتصال به ' + AI_PROVIDERS[provider].label + ' موفق بود. این تست کلید جدید را ذخیره نکرد.' });
+  } catch (error) {
+    const message = error instanceof Error ? error.message.slice(0, 500) : 'تست اتصال انجام نشد.';
+    return c.json({ ok: false, message }, 502);
+  }
 });
 
 app.post('/api/ai/chat', async (c) => {
