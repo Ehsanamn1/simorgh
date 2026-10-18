@@ -12,13 +12,13 @@ describe('bank statement CSV parser', () => {
       {
         externalTransactionId: 'TXN-000001',
         bookedAt: '2026-10-18T00:00:00.000Z',
-        amount: 1250.5, currency: 'IRR', description: 'خرید, خوراک',
+        amount: 1250.5, direction: 'incoming', currency: 'IRR', description: 'خرید, خوراک',
         counterparty: 'فروشگاه', reference: 'REF-12345',
       },
       {
         externalTransactionId: 'TXN-000002',
         bookedAt: '2026-10-18T00:00:00.000Z',
-        amount: -300, currency: 'IRR', description: 'برداشت',
+        amount: -300, direction: 'outgoing', currency: 'IRR', description: 'برداشت',
         counterparty: 'بانک', reference: 'REF-12346',
       },
     ]);
@@ -46,7 +46,7 @@ describe('bank statement CSV parser', () => {
       'DEBIT-0001,2026-10-17,"1,250",,پرداخت خرید',
       'CREDIT-01,2026-10-17,,2000,دریافت',
     ].join('\n');
-    expect(parseBankStatementCsv(csv).map(row => row.amount)).toEqual([-1250, 2000]);
+    expect(parseBankStatementCsv(csv).map(row => [row.amount, row.direction])).toEqual([[-1250, 'outgoing'], [2000, 'incoming']]);
   });
 
   it('rejects duplicate identifiers, missing identifiers, malformed dates, and unsupported empty statements', () => {
