@@ -122,6 +122,7 @@ export function ContactImporter({companyId}:{companyId:string}) {
   const [contacts,setContacts]=useState<ContactRow[]>([]);
   const [loading,setLoading]=useState(false);
   const [saving,setSaving]=useState(false);
+  const [analyzing,setAnalyzing]=useState(false);
   const [error,setError]=useState('');
   const [notice,setNotice]=useState<ImportResult|null>(null);
   const deduplicated=useMemo(()=>{
@@ -138,6 +139,7 @@ export function ContactImporter({companyId}:{companyId:string}) {
     });
   },[contacts]);
   const ready=deduplicated.filter(contact=>!contact.duplicate&&contact.name.trim().length>=2);
+  const unclassified=contacts.filter(contact=>!contact.aiAnalyzed);
   async function handleFile(file:File){
     setError('');setNotice(null);setContacts([]);setFileName(file.name);
     if(!/\.(vcf|csv|txt)$/i.test(file.name)){setError('فعلاً فقط فایل مخاطبین VCF یا فایل CSV/TXT قابل پردازش است. از گوشی می‌توانی مخاطب‌ها را به صورت VCF خروجی بگیری.');return;}
