@@ -7701,6 +7701,75 @@ app.post('/api/finance/bank-transactions/import', async (c) => {
   }
 });
 
+app.get('/api/finance/bank-transactions/:id/candidates', async (c) => {
+  const user = await requireUser(c);
+  if (user instanceof Response) return user;
+  const companyId = c.req.query('companyId') ?? '';
+  const transactionId = c.req.param('id');
+  if (!COMPANY_ID_RE.test(companyId) || !COMPANY_ID_RE.test(transactionId)) return c.json({ message: 'شناسه تراکنش یا مجموعه معتبر نیست.' }, 422);
+  const membership = await aiCompanyMembership(c, companyId, user.id);
+  if (!membership) return c.json({ message: 'به این فضای کاری دسترسی فعال نداری.' }, 403);
+  if (!(await userHasModulePermission(c, user.id, companyId, 'finance', 'can_read'))) return c.json({ message: 'برای مشاهده اسناد مالی مجوز نداری.' }, 403);
+  const sql = sqlFor(c);
+  const found = await sql.query(
+    "select id::text as id,direction,amount::text as amount,currency,reconciliation_status as status from public.medar_bank_transactions where id=$1::uuid and company_id=$2::uuid limit 1",
+    [transactionId, companyId],
+  );
+  const transaction = found[0] as { id:string; direction:string; amount:string; currency:string; status:string } | undefined;
+  if (!transaction) return c.json({ message: 'تراکنش در این مجموعه پیدا نشد.' }, 404);
+  if (transaction.status === 'reconciled' || transaction.status === 'ignored') return c.json({ candidates: [] });
+  const candidates: Array<Record<string, unknown>> = [];
+  if (transaction.direction === 'incoming') {
+    const [invoices, partnerEntries] = await Promise.all([
+      sql.query(
+        "select 'invoice' as \"entityType\",i.id::text as \"entityId\",'فاکتور '||i.reference||' · '||coalesce(c.name,'مشتری') as label," +
+        "(i.amount-i.paid_amount)::text as amount,i.due_date::text as \"dueAt\",i.status " +
+        "from public.invoices i left join public.customers c on c.company_id=i.company_id and c.id=i.customer_id " +
+        "where i.company_id=$1::uuid and i.status in ('issued','partially_paid','overdue') " +
+        "order by i.due_date asc nulls last limit 50",
+        [companyId],
+      ),
+      sql.query(
+        "select 'partner_financial_entry' as \"entityType\",e.id::text as \"entityId\",'سند شریک '||e.entry_type||' · '||coalesce(s.name,'تأمین‌کننده') as label," +
+        "case when e.entry_type='sale_collection' then (e.amount-e.paid_amount) else e.amount end::text as amount,e.recognized_on::text as \"dueAt\",e.status " +
+        "from public.partner_financial_entries e join public.suppliers s on s.company_id=e.company_id and s.id=e.supplier_id " +
+        "where e.company_id=$1::uuid and e.status in ('submitted','approved') and e.direction in ('inflow_to_company','partner_to_company') " +
+        "order by e.recognized_on desc limit 30",
+        [companyId],
+      ),
+    ]);
+    candidates.push(...invoices,...partnerEntries);
+  } else {
+    const [settlements, purchaseOrders, partnerEntries] = await Promise.all([
+      sql.query(
+        "select 'settlement' as \"entityType\",s.id::text as \"entityId\",'تسویه '||coalesce(nullif(s.invoice_ref,''),'تأمین‌کننده')||' · '||coalesce(su.name,'') as label,s.amount::text as amount,s.due_date::text as \"dueAt\",s.status " +
+        "from public.settlements s left join public.suppliers su on su.company_id=s.company_id and su.id=s.supplier_id " +
+        "where s.company_id=$1::uuid and s.status in ('pending','approved') order by s.due_date asc nulls last limit 50",
+        [companyId],
+      ),
+      sql.query(
+        "select 'purchase_order' as \"entityType\",po.id::text as \"entityId\",'سفارش خرید '||po.reference||' · '||coalesce(s.name,'تأمین‌کننده') as label," +
+        "coalesce(sum(poi.ordered_quantity*poi.unit_cost),0)::text as amount,po.expected_delivery::text as \"dueAt\",po.status " +
+        "from public.purchase_orders po join public.suppliers s on s.company_id=po.company_id and s.id=po.supplier_id " +
+        "left join public.purchase_order_items poi on poi.company_id=po.company_id and poi.purchase_order_id=po.id " +
+        "where po.company_id=$1::uuid and po.status in ('approved','partially_received') " +
+        "group by po.id,s.name order by po.expected_delivery asc nulls last limit 50",
+        [companyId],
+      ),
+      sql.query(
+        "select 'partner_financial_entry' as \"entityType\",e.id::text as \"entityId\",'سند شریک '||e.entry_type||' · '||coalesce(s.name,'تأمین‌کننده') as label," +
+        "case when e.entry_type='settlement_payment' then (e.amount-e.paid_amount) else e.amount end::text as amount,e.recognized_on::text as \"dueAt\",e.status " +
+        "from public.partner_financial_entries e join public.suppliers s on s.company_id=e.company_id and s.id=e.supplier_id " +
+        "where e.company_id=$1::uuid and e.status in ('submitted','approved') and e.direction in ('outflow_from_company','company_to_partner') " +
+        "order by e.recognized_on desc limit 30",
+        [companyId],
+      ),
+    ]);
+    candidates.push(...settlements,...purchaseOrders,...partnerEntries);
+  }
+  return c.json({ candidates: candidates.slice(0, 100), transaction: { direction: transaction.direction, amount: transaction.amount, currency: transaction.currency } });
+});
+
 app.post('/api/finance/bank-transactions/:id/reconcile', async (c) => {
   const user = await requireUser(c);
   if (user instanceof Response) return user;
