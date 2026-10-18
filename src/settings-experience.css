@@ -195,3 +195,10 @@ html[data-theme="light"] .network-status { background:var(--obs-surface); }
 .invite-link-code small { color:var(--obs-muted); font-size:10px; }
 .invite-link-code code { color:var(--obs-muted); font:10px ui-monospace,Consolas,monospace; overflow-wrap:anywhere; }
 .invite-link-code .button-ghost { min-height:30px; margin-inline-start:auto; }
+
+
+.member-role-filters { display:flex; flex-wrap:wrap; gap:8px; margin:12px 0; }
+.member-role-filters button { display:inline-flex; align-items:center; justify-content:center; gap:8px; min-height:38px; padding:7px 12px; border:1px solid var(--obs-border); border-radius:10px; background:var(--obs-surface); color:var(--obs-muted); font-size:12px; font-weight:750; cursor:pointer; }
+.member-role-filters button.active { color:var(--obs-text); border-color:color-mix(in srgb,var(--obs-accent) 55%,var(--obs-border)); background:color-mix(in srgb,var(--obs-accent) 11%,var(--obs-surface)); font-weight:900; }
+.member-role-filters button small { min-width:20px; padding:2px 5px; border-radius:999px; background:var(--obs-surface-2); color:var(--obs-text); font-variant-numeric:tabular-nums; }
+@media (max-width: 600px) { .member-role-filters { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); } .member-role-filters button:first-child { grid-column:1/-1; } }
