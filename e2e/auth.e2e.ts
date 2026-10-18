@@ -42,7 +42,8 @@ test('the app opens a username-and-password sign-in without an email field', asy
   await page.getByRole('button', { name: 'تغییر حالت نمایش' }).click();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
   await expect(page.locator('#simorgh-signin-email')).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'ساخت حساب و فضای کاری' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'ساخت حساب و فضای کاری' })).toHaveCount(0);
+  await expect(page.getByText(/ثبت‌نام عمومی غیرفعال است/)).toBeVisible();
   await expect(page.locator('.portal')).toHaveCount(0);
   await expect(page.locator('.sim-preview-palette')).toHaveCount(0);
 
@@ -52,53 +53,27 @@ test('the app opens a username-and-password sign-in without an email field', asy
   expect(errors).toEqual([]);
 });
 
-test('signup creates a workspace using only a username and password', async ({ page }) => {
-  let authenticated = false;
-  let signupBody: Record<string, unknown> | undefined;
+test('public signup is disabled and access remains invitation-only', async ({ page }) => {
+  let signupRequests = 0;
   await page.route('**/api/auth/me', route => route.fulfill({
-    status: 200, contentType: 'application/json',
-    body: JSON.stringify(authenticated ? { user, memberships: [membership] } : { user: null, memberships: [] }),
-  }));
-  await page.route('**/api/workspace/memberships', route => route.fulfill({
-    status: 200, contentType: 'application/json',
-    body: JSON.stringify({ memberships: authenticated ? [membership] : [] }),
+    status: 200, contentType: 'application/json', body: JSON.stringify({ user: null, memberships: [] }),
   }));
   await page.route('**/api/auth/signup', async route => {
-    signupBody = route.request().postDataJSON() as Record<string, unknown>;
-    authenticated = true;
-    await route.fulfill({
-      status: 201, contentType: 'application/json',
-      headers: { 'cache-control': 'no-store', 'set-cookie': 'medar_session=test-only; Path=/; HttpOnly; Secure; SameSite=None' },
-      body: JSON.stringify({ user, companyId: membership.company_id, memberships: [membership] }),
-    });
+    signupRequests += 1;
+    await route.fulfill({ status: 403, contentType: 'application/json', body: JSON.stringify({ message: 'ثبت‌نام عمومی غیرفعال است.' }) });
   });
-  await page.goto('/simorgh/', { waitUntil: 'domcontentloaded' });
-  await page.getByRole('button', { name: 'ساخت حساب و فضای کاری' }).click();
-  await expect(page).toHaveURL(/#signup$/);
-  await expect(page.getByRole('heading', { name: 'ساخت حساب و فضای کاری' })).toBeVisible();
-  for (const extraField of ['نام و نام خانوادگی', 'شماره موبایل', 'تکرار گذرواژه']) await expect(page.getByLabel(extraField)).toHaveCount(0);
-  await page.getByLabel('نام کاربری').fill('owner_test');
-  await page.getByLabel('گذرواژه', { exact: true }).fill('Strong-test-pass-2026');
-  await page.getByRole('button', { name: 'ساخت حساب و فضای کاری', exact: true }).click();
-  await expect.poll(() => signupBody).toEqual({ username: 'owner_test', password: 'Strong-test-pass-2026' });
-  await expect(page.locator('.app-frame')).toBeVisible();
 
-  const operationalThemeToggle = page.getByRole('button', { name: 'تغییر حالت نمایش' });
-  await expect(operationalThemeToggle).toBeVisible();
-  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
-  await expect(operationalThemeToggle).toHaveAttribute('aria-pressed', 'true');
-  await expect.poll(() => page.evaluate(() => localStorage.getItem('simorgh-theme'))).toBe('light');
-  await expect.poll(() => page.locator('.app-frame').evaluate(el => getComputedStyle(el).backgroundColor)).toBe('rgb(244, 247, 242)');
-  await operationalThemeToggle.click();
-  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
-  await expect(page.getByRole('button', { name: 'تغییر حالت نمایش' })).toHaveAttribute('aria-pressed', 'false');
-  await expect.poll(() => page.evaluate(() => localStorage.getItem('simorgh-theme'))).toBe('dark');
-  await page.reload({ waitUntil: 'domcontentloaded' });
-  await expect(page.locator('.app-frame')).toBeVisible();
-  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
-  await page.getByRole('button', { name: 'تغییر حالت نمایش' }).click();
-  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
-  await expect.poll(() => page.evaluate(() => localStorage.getItem('simorgh-theme'))).toBe('light');
+  await page.goto('/simorgh/', { waitUntil: 'domcontentloaded' });
+  await expect(page.getByRole('heading', { name: 'ورود به مدار' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'ساخت حساب و فضای کاری' })).toHaveCount(0);
+  await expect(page.getByText(/ثبت‌نام عمومی غیرفعال است/)).toBeVisible();
+
+  await page.goto('/simorgh/app/command#signup', { waitUntil: 'domcontentloaded' });
+  await expect(page.locator('.simorgh-signin-layer')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'ورود به مدار' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'ساخت حساب و فضای کاری' })).toHaveCount(0);
+  await expect(page.getByText(/ثبت‌نام عمومی غیرفعال است/)).toBeVisible();
+  expect(signupRequests).toBe(0);
 });
 
 test('login accepts a username and renders server errors', async ({ page }) => {
