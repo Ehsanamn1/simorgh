@@ -16,24 +16,19 @@ type Metric = { label: string; value: number; detail: string; icon: typeof Layou
 
 const roleQuickLinks: Record<AppRole, QuickLink[]> = {
   owner: [
-    { key: 'command', title: 'نمای کلی کسب‌وکار', detail: 'هشدارها و شاخص‌های واقعی', icon: LayoutDashboard },
+    { key: 'command', title: 'نمای کلی کسب‌وکار', detail: 'اولویت‌ها و موارد نیازمند اقدام', icon: LayoutDashboard },
     { key: 'orders', title: 'سفارش‌ها', detail: 'جریان سفارش تا تحویل', icon: FileText },
-    { key: 'contacts', title: 'دفترچه مخاطبین', detail: 'مشتری و تأمین‌کننده', icon: Users },
-    { key: 'farm-sites', title: 'نقشه و سایت‌ها', detail: 'موقعیت‌های ثبت‌شده', icon: MapPin },
+    { key: 'operational-tasks', title: 'کارها و پیگیری', detail: 'وظایف، سررسیدها و رخدادها', icon: ClipboardCheck },
     { key: 'finance', title: 'مالی و تسویه', detail: 'فاکتور و مغایرت‌گیری', icon: CreditCard },
-    { key: 'members', title: 'دسترسی کاربران', detail: 'عضویت و نقش‌های تأییدشده', icon: ShieldCheck },
   ],
   admin: [
-    { key: 'command', title: 'نمای کلی کسب‌وکار', detail: 'هشدارها و شاخص‌های واقعی', icon: LayoutDashboard },
+    { key: 'command', title: 'نمای کلی کسب‌وکار', detail: 'اولویت‌ها و موارد نیازمند اقدام', icon: LayoutDashboard },
     { key: 'orders', title: 'سفارش‌ها', detail: 'جریان سفارش تا تحویل', icon: FileText },
-    { key: 'contacts', title: 'دفترچه مخاطبین', detail: 'مشتری و تأمین‌کننده', icon: Users },
-    { key: 'farm-sites', title: 'نقشه و سایت‌ها', detail: 'موقعیت‌های ثبت‌شده', icon: MapPin },
+    { key: 'operational-tasks', title: 'کارها و پیگیری', detail: 'وظایف، سررسیدها و رخدادها', icon: ClipboardCheck },
     { key: 'finance', title: 'مالی و تسویه', detail: 'فاکتور و مغایرت‌گیری', icon: CreditCard },
-    { key: 'members', title: 'دسترسی کاربران', detail: 'عضویت و نقش‌های تأییدشده', icon: ShieldCheck },
   ],
   staff: [
     { key: 'command', title: 'نمای کلی عملیات', detail: 'کارهای باز و هشدارها', icon: LayoutDashboard },
-    { key: 'orders', title: 'سفارش‌ها', detail: 'پیگیری وضعیت سفارش', icon: FileText },
     { key: 'operational-tasks', title: 'وظایف عملیاتی', detail: 'کارهای در جریان', icon: ClipboardCheck },
     { key: 'shipments', title: 'ارسال و تحویل', detail: 'محموله‌های فعال', icon: Truck },
     { key: 'inventory', title: 'موجودی و انبار', detail: 'گردش کالا', icon: Warehouse },
@@ -61,7 +56,7 @@ export function WorkspaceHome({ membership, userName }: { membership: Membership
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const role = membership.role;
-  const links = roleQuickLinks[role];
+  const links = roleQuickLinks[role].slice(0, 4);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -220,7 +215,7 @@ export function WorkspaceHome({ membership, userName }: { membership: Membership
     </section>
 
     <section className="workspace-home-section workspace-home-today">
-      <div className="workspace-home-section-heading"><div><span className="workspace-home-eyebrow">مرکز پیگیری</span><h2>کارهای امروز و هشدارها</h2><p>فقط مواردی نمایش داده می‌شود که در پایگاه داده ثبت شده‌اند؛ موقعیت GPS یا اعلان خارجی بدون اتصال واقعی ساخته نمی‌شود.</p></div><button type="button" className="workspace-home-refresh" onClick={() => void load()} disabled={loading}><Activity size={15}/>{loading ? 'در حال دریافت' : 'به‌روزرسانی'}</button></div>
+      <div className="workspace-home-section-heading"><div><span className="workspace-home-eyebrow">مرکز پیگیری</span><h2>موارد مهم و اقدام بعدی</h2><p>ابتدا موارد پرریسک و نزدیک به سررسید را بررسی کن. فقط مواردی نمایش داده می‌شود که در پایگاه داده ثبت شده‌اند؛ موقعیت GPS یا اعلان خارجی بدون اتصال واقعی ساخته نمی‌شود.</p></div><button type="button" className="workspace-home-refresh" onClick={() => void load()} disabled={loading}><Activity size={15}/>{loading ? 'در حال دریافت' : 'به‌روزرسانی'}</button></div>
       {error && <div className="workspace-home-error" role="alert">{error}<button type="button" onClick={() => void load()}>تلاش دوباره</button></div>}
       {loading ? <div className="workspace-home-loading"><span className="spinner small"/><span>در حال گردآوری وضعیت فضای کاری…</span></div> : <>
         <div className="workspace-home-metrics">{metrics.map(metric => { const Icon = metric.icon; return <Link to={metric.to} className="workspace-home-metric" key={metric.label}><span className="workspace-home-metric-icon"><Icon size={19}/></span><span><small>{metric.label}</small><b>{numberFa(metric.value)}</b><em>{metric.detail}</em></span><ArrowLeft size={14}/></Link>; })}</div>
