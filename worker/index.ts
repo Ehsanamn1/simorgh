@@ -1739,6 +1739,33 @@ app.post('/api/workspace/join', async (c) => {
 });
 
 
+app.get('/api/workspace/my-module-permissions', async (c) => {
+  const user = await requireUser(c);
+  if (user instanceof Response) return user;
+  const companyId = c.req.query('companyId') ?? '';
+  if (!COMPANY_ID_RE.test(companyId)) return c.json({ message: 'شناسه مجموعه معتبر نیست.' }, 422);
+  const sql = sqlFor(c);
+  const memberships = await sql.query(
+    "select m.id::text as membership_id,m.role::text as role,p.module_key,p.inherit_role_defaults,p.can_read " +
+    "from public.memberships m left join public.medar_membership_module_permissions p " +
+    "on p.membership_id=m.id and p.company_id=m.company_id " +
+    "where m.user_id=$1::uuid and m.company_id=$2::uuid and m.active=true",
+    [user.id, companyId],
+  ) as Array<{ membership_id: string; role: string; module_key: string | null; inherit_role_defaults: boolean | null; can_read: boolean | null }>;
+  if (!memberships.length) return c.json({ message: 'به این فضای کاری دسترسی فعال نداری.' }, 403);
+  const permissions: Record<string, boolean> = {};
+  for (const module of MODULE_PERMISSION_CATALOG) {
+    const matching = memberships.filter(row => row.module_key === module.key);
+    permissions[module.key] = memberships.some(row =>
+      row.role === 'owner' || row.role === 'admin' ||
+      !matching.some(entry => entry.membership_id === row.membership_id) ||
+      matching.some(entry => entry.membership_id === row.membership_id &&
+        (entry.inherit_role_defaults === true || entry.inherit_role_defaults === null || entry.can_read === true)),
+    );
+  }
+  return c.json({ companyId, permissions });
+});
+
 app.get('/api/workspace/members/:membershipId/permissions', async (c) => {
   const user = await requireUser(c);
   if (user instanceof Response) return user;
