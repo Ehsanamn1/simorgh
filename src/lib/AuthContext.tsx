@@ -1,6 +1,7 @@
 import type * as React from 'react';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { api } from './apiClient';
+import { HttpError } from './http';
 import { setOfflineCachePartition } from './offlineCache';
 import { getMedarClientId, MEDAR_APP_VERSION, MEDAR_CLIENT_PLATFORM } from './runtimeConfig';
 import type { Membership } from './types';
@@ -44,8 +45,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setError(null);
     } catch (caught) {
       let restored = false;
+      const serverRejectedSession = caught instanceof HttpError && (caught.status === 401 || caught.status === 403);
       try {
-        const raw = window.sessionStorage.getItem('medar-offline-session-v1');
+        const raw = serverRejectedSession ? null : window.sessionStorage.getItem('medar-offline-session-v1');
         const cached = raw ? JSON.parse(raw) as { user?: UserShape; memberships?: Membership[]; savedAt?: number } : null;
         if (cached?.user?.id && cached.user.username && Array.isArray(cached.memberships) &&
             typeof cached.savedAt === 'number' && Date.now() - cached.savedAt < 7 * 24 * 60 * 60 * 1000) {
