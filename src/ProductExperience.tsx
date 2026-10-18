@@ -65,7 +65,7 @@ export default function ProductExperience() {
   const authUiEnabled = import.meta.env.VITE_ENABLE_AUTH_UI === 'true' && isApiConfigured;
   const signInOpen = authUiEnabled && (((location.hash === '#signin' || location.hash === '#signup') && !user && !loading) || (protectedRoute && !user && !loading));
   const normalizedPath = location.pathname.startsWith(basePath) ? location.pathname.slice(basePath.length) || '/' : location.pathname;
-  const protectedDestination = normalizedPath.startsWith('/app') ? normalizedPath : '/app';
+  const protectedDestination = normalizedPath === '/app/command' || normalizedPath === '/app' || normalizedPath === '/' ? '/app/home' : normalizedPath.startsWith('/app') ? normalizedPath : '/app/home';
 
   useEffect(() => {
     const refreshTargets = () => {
