@@ -2795,6 +2795,7 @@ app.post('/api/data/:table',async c=>{
       transitionFields.add('quality_status');
       transitionFields.add('rejected_quantity');
     }
+    if (requestedState === 'rejected') transitionFields.add('manager_notes');
     if (requestedState === 'submitted_for_review') transitionFields.add('produced_quantity');
     if (requestedState === 'completed') {
       transitionFields.add('quality_status');
@@ -2934,6 +2935,7 @@ app.post('/api/data/:table',async c=>{
       if (nextState === 'rejected') {
         safeValues.quality_status = 'failed';
         safeValues.rejected_quantity = Number(values?.rejected_quantity ?? current.rejected_quantity ?? 0);
+        if (typeof values?.manager_notes === 'string') safeValues.manager_notes = values.manager_notes;
       }
       if (nextState === 'completed') {
         safeValues.quality_status = 'passed';
