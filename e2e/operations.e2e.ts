@@ -551,18 +551,18 @@ test('assistant can enter and stop automatic turn-taking voice mode', async ({ p
       onopen: (() => void) | null = null;
       onmessage: ((event: { data: string }) => void) | null = null;
       constructor() { window.setTimeout(() => this.onopen?.(), 0); }
-      send(_message: string) {}
+      send() {}
       close() { this.readyState = 'closed'; }
     }
     class MockRTCPeerConnection {
       connectionState = 'new';
       ontrack: ((event: { streams: unknown[] }) => void) | null = null;
       onconnectionstatechange: (() => void) | null = null;
-      addTrack(_track: unknown, _stream: unknown) {}
-      createDataChannel(_label: string) { return new MockRTCDataChannel(); }
+      addTrack() {}
+      createDataChannel() { return new MockRTCDataChannel(); }
       async createOffer() { return { type: 'offer', sdp: 'v=0\r\n' }; }
-      async setLocalDescription(_description: unknown) {}
-      async setRemoteDescription(_description: unknown) {
+      async setLocalDescription() {}
+      async setRemoteDescription() {
         this.connectionState = 'connected';
         this.onconnectionstatechange?.();
       }
