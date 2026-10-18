@@ -33,7 +33,6 @@ export function MedarConnect({ membership }: { membership: Membership }) {
   const [notice, setNotice] = useState('');
   const [pushConfig, setPushConfig] = useState<PushConfig | null>(null);
   const [pushSubscribed, setPushSubscribed] = useState(false);
-  const [pushEndpoint, setPushEndpoint] = useState('');
   const [pushBusy, setPushBusy] = useState(false);
 
   const loadConversations = useCallback(async (preferredId?: string) => {
@@ -63,8 +62,7 @@ export function MedarConnect({ membership }: { membership: Membership }) {
       const registration = await navigator.serviceWorker.getRegistration(import.meta.env.BASE_URL);
       const subscription = await registration?.pushManager.getSubscription();
       setPushSubscribed(Boolean(subscription));
-      setPushEndpoint(subscription?.endpoint ?? '');
-    } catch { setPushSubscribed(false); setPushEndpoint(''); }
+    } catch { setPushSubscribed(false); }
   }, []);
 
   const loadPeople = useCallback(async () => {
@@ -100,7 +98,7 @@ export function MedarConnect({ membership }: { membership: Membership }) {
           await api.post('/api/push/subscriptions/remove', { companyId, endpoint: subscription.endpoint });
           await subscription.unsubscribe();
         }
-        setPushSubscribed(false); setPushEndpoint('');
+        setPushSubscribed(false);
         setNotice('اعلان Push برای این دستگاه غیرفعال شد.');
       } else {
         if (!pushConfig?.enabled || !pushConfig.publicKey) throw new Error('ارسال Push هنوز در محیط عملیاتی پیکربندی نشده است.');
@@ -113,7 +111,7 @@ export function MedarConnect({ membership }: { membership: Membership }) {
         const json = subscription.toJSON();
         if (!json.keys?.p256dh || !json.keys.auth) throw new Error('مرورگر کلیدهای رمزنگاری Push را برنگرداند.');
         await api.post('/api/push/subscriptions', { companyId, endpoint: subscription.endpoint, keys: json.keys, expirationTime: subscription.expirationTime });
-        setPushSubscribed(true); setPushEndpoint(subscription.endpoint);
+        setPushSubscribed(true);
         setNotice('اعلان گوشی برای این دستگاه فعال شد.');
       }
     } catch (caught) {
