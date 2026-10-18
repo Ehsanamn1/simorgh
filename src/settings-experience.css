@@ -214,3 +214,11 @@ html[data-theme="light"] .network-status { background:var(--obs-surface); }
 .tower-recent-activity-row small { color:var(--obs-muted); font-size:11px; }
 .tower-recent-activity-icon { display:grid; place-items:center; width:32px; height:32px; flex:none; border:1px solid var(--obs-border); border-radius:10px; color:var(--obs-accent); background:var(--obs-surface-2); }
 .tower-recent-activity-row:hover { background:var(--obs-surface-2); }
+
+.medar-connect-mission-bridge { display:flex; align-items:center; gap:12px; margin:12px 0 18px; padding:14px; border:1px solid var(--obs-border); border-radius:14px; background:var(--obs-surface); }
+.medar-connect-mission-icon { display:grid; place-items:center; flex:none; width:40px; height:40px; border-radius:12px; background:color-mix(in srgb,var(--obs-accent) 12%,var(--obs-surface-2)); color:var(--obs-accent); }
+.medar-connect-mission-copy { display:grid; gap:4px; flex:1; min-width:0; }
+.medar-connect-mission-copy b { font-size:13px; font-weight:900; color:var(--obs-text); }
+.medar-connect-mission-copy span { color:var(--obs-muted); font-size:11px; line-height:1.8; }
+.medar-connect-mission-bridge > a { display:inline-flex; align-items:center; justify-content:center; gap:7px; padding:9px 12px; border-radius:10px; background:var(--obs-accent); color:#fff; text-decoration:none; font-size:11px; font-weight:900; white-space:nowrap; }
+@media (max-width: 640px) { .medar-connect-mission-bridge { align-items:flex-start; flex-wrap:wrap; } .medar-connect-mission-copy { flex-basis:calc(100% - 56px); } .medar-connect-mission-bridge > a { width:100%; } }
