@@ -1592,3 +1592,50 @@ html[data-theme="dark"] .bank-primary-button { color:#202a38; }
 .push-notification-settings>button:disabled { opacity:.5; cursor:not-allowed; }
 .push-notification-status { display:inline-flex; align-items:center; gap:4px; color:var(--obs-muted); font-size:9px; }
 @media(max-width:560px) { .push-notification-settings { align-items:flex-start; flex-wrap:wrap; } .push-notification-copy { flex:1 1 calc(100% - 50px); } .push-notification-settings>button,.push-notification-status { margin-inline-start:44px; } }
+
+
+/* Role-based operational workspaces: professional, readable and responsive for field teams. */
+.role-ops { --role-ops-accent: var(--obs-accent, #8ebfa7); --role-ops-line: var(--obs-border, #dce6df); --role-ops-panel: var(--obs-surface, #fff); --role-ops-text: var(--obs-text, #203128); --role-ops-muted: var(--obs-muted, #64756b); color: var(--role-ops-text); display: grid; gap: 18px; min-width: 0; }
+.role-ops-hero { position: relative; overflow: hidden; display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; padding: clamp(20px, 3vw, 30px); border: 1px solid var(--role-ops-line); border-radius: 22px; background: radial-gradient(ellipse at 90% 0%, color-mix(in srgb, var(--role-ops-accent) 24%, transparent), transparent 45%), var(--role-ops-panel); box-shadow: var(--medar-calm-shadow, 0 8px 24px rgb(39 64 52 / 6%)); }
+.role-ops-hero-copy { max-width: 760px; min-width: 0; }
+.role-ops-kicker { display: inline-flex; align-items: center; gap: 7px; color: var(--role-ops-muted); font-size: 12px; font-weight: 750; letter-spacing: .01em; }
+.role-ops-hero h1 { margin: 12px 0 7px; font-size: clamp(23px, 3vw, 31px); line-height: 1.45; font-weight: 850; letter-spacing: -.035em; }
+.role-ops-hero p { margin: 0; color: var(--role-ops-muted); max-width: 680px; line-height: 1.9; font-size: 14px; }
+.role-ops-date { margin-top: 17px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; color: var(--role-ops-muted); font-size: 12px; }
+.role-ops-live-dot { width: 8px; height: 8px; border-radius: 50%; background: #43a67a; box-shadow: 0 0 0 4px color-mix(in srgb, #43a67a 13%, transparent); }
+.role-ops-hero-actions { display: flex; align-items: flex-start; flex-wrap: wrap; gap: 9px; }
+.role-ops-refresh, .role-ops-primary { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 42px; border: 1px solid var(--role-ops-line); border-radius: 12px; padding: 0 14px; background: var(--role-ops-panel); color: var(--role-ops-text); font: inherit; font-size: 12px; font-weight: 750; text-decoration: none; cursor: pointer; white-space: nowrap; }
+.role-ops-primary { background: var(--role-ops-accent); color: #17251e; border-color: transparent; }
+.role-ops-refresh:disabled { opacity: .65; cursor: wait; }
+.role-ops-spinning { animation: role-ops-spin .8s linear infinite; }
+@keyframes role-ops-spin { to { transform: rotate(360deg); } }
+.role-ops-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.role-ops-metrics-supplier { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.role-ops-metrics-manager { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.role-ops-metrics-driver { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.role-ops-metric { min-width: 0; padding: 17px 18px; border: 1px solid var(--role-ops-line); border-radius: 17px; background: var(--role-ops-panel); box-shadow: var(--medar-calm-shadow, none); }
+.role-ops-metric-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; color: var(--role-ops-muted); font-size: 12px; font-weight: 750; }
+.role-ops-metric-top svg { flex: 0 0 auto; opacity: .8; }
+.role-ops-metric strong { display: block; margin: 12px 0 5px; font-size: clamp(27px, 3vw, 34px); line-height: 1.15; font-weight: 850; font-variant-numeric: tabular-nums; }
+.role-ops-metric small { display: block; color: var(--role-ops-muted); font-size: 11px; line-height: 1.8; }
+.role-ops-tone-warning { border-top: 3px solid #d7a44b; }
+.role-ops-tone-positive { border-top: 3px solid #4aab7c; }
+.role-ops-tone-neutral { border-top: 3px solid color-mix(in srgb, var(--role-ops-accent) 75%, transparent); }
+.role-ops-shortcuts { padding: 17px; border: 1px solid var(--role-ops-line); border-radius: 18px; background: var(--role-ops-panel); }
+.role-ops-shortcuts-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 13px; }
+.role-ops-shortcuts-heading > div { display: grid; gap: 4px; }
+.role-ops-shortcuts-heading > div span { font-size: 14px; font-weight: 850; }
+.role-ops-shortcuts-heading small { color: var(--role-ops-muted); font-size: 11px; }
+.role-ops-shortcuts-mark { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 11px; background: color-mix(in srgb, var(--role-ops-accent) 20%, transparent); }
+.role-ops-shortcuts-list { display: flex; flex-wrap: wrap; gap: 9px; }
+.role-ops-shortcut { display: inline-flex; align-items: center; justify-content: space-between; gap: 18px; min-height: 44px; flex: 1 1 150px; padding: 0 13px; border: 1px solid var(--role-ops-line); border-radius: 12px; color: var(--role-ops-text); text-decoration: none; font-size: 12px; font-weight: 750; transition: border-color .18s ease, transform .18s ease, background .18s ease; }
+.role-ops-shortcut:hover { border-color: var(--role-ops-accent); transform: translateY(-1px); background: color-mix(in srgb, var(--role-ops-accent) 9%, var(--role-ops-panel)); }
+.role-ops-note { display: flex; align-items: flex-start; gap: 10px; padding: 13px 15px; border: 1px solid var(--role-ops-line); border-radius: 14px; background: color-mix(in srgb, var(--role-ops-accent) 8%, var(--role-ops-panel)); color: var(--role-ops-muted); font-size: 12px; line-height: 1.9; }
+.role-ops-note svg { margin-top: 3px; flex: 0 0 auto; color: var(--role-ops-accent); }
+.role-ops-note b { color: var(--role-ops-text); }
+.role-ops-workspace { min-width: 0; }
+.role-ops-error { display: flex; align-items: flex-start; gap: 9px; padding: 12px 14px; border: 1px solid color-mix(in srgb, #c46a54 35%, var(--role-ops-line)); border-radius: 12px; background: color-mix(in srgb, #c46a54 8%, var(--role-ops-panel)); color: var(--role-ops-text); font-size: 12px; line-height: 1.8; }
+.role-ops-error svg { flex: 0 0 auto; margin-top: 2px; color: #c46a54; }
+@media (max-width: 1000px) { .role-ops-metrics, .role-ops-metrics-supplier, .role-ops-metrics-manager { grid-template-columns: repeat(3, minmax(0, 1fr)); } .role-ops-hero { flex-direction: column; } .role-ops-hero-actions { width: 100%; } }
+@media (max-width: 560px) { .role-ops { gap: 12px; } .role-ops-hero { padding: 18px 15px; border-radius: 17px; } .role-ops-hero h1 { font-size: 23px; } .role-ops-hero p { font-size: 13px; } .role-ops-hero-actions { display: grid; grid-template-columns: 1fr; } .role-ops-refresh, .role-ops-primary { width: 100%; white-space: normal; } .role-ops-metrics, .role-ops-metrics-supplier, .role-ops-metrics-driver { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; } .role-ops-metric { padding: 14px 12px; border-radius: 14px; } .role-ops-metric-top { font-size: 11px; align-items: flex-start; } .role-ops-metric strong { font-size: 27px; margin-top: 11px; } .role-ops-metric small { font-size: 10px; } .role-ops-shortcuts { padding: 13px; } .role-ops-shortcut { flex-basis: 100%; } }
+@media (prefers-reduced-motion: reduce) { .role-ops-spinning { animation: none; } .role-ops-shortcut { transition: none; } }
