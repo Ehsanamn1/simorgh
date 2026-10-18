@@ -60,7 +60,7 @@ test('manager workspace retains operations and captures a real rendered control-
   await expect(page.locator('.workspace-home-link').filter({ hasText: 'سفارش‌ها' })).toBeVisible();
   await expect(page.locator('.workspace-home-link').filter({ hasText: 'کارها و پیگیری' })).toBeVisible();
   await expect(page.locator('.workspace-home-link').filter({ hasText: 'مالی و تسویه' })).toBeVisible();
-  await expect(page.locator('.workspace-home-section').filter({ hasText: 'کارهای امروز و هشدارها' })).toBeVisible();
+  await expect(page.locator('.workspace-home-section').filter({ hasText: 'موارد مهم و اقدام بعدی' })).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath('manager-role-home-viewport.png') });
   await page.screenshot({ path: testInfo.outputPath('manager-role-home.png'), fullPage: true });
 
@@ -1201,7 +1201,7 @@ test('Medar Connect creates a restricted conversation and sends an idempotent op
   await page.goto('/simorgh/app/connect', { waitUntil: 'domcontentloaded' });
   await expect(page.getByRole('heading', { name: 'مرکز ارتباطات' })).toBeVisible();
   await expect(page.getByRole('button', { name: /هماهنگی ارسال/ })).toBeVisible();
-  await expect(page.getByText('بار آماده است')).toBeVisible();
+  await expect(page.getByText('بار آماده است').first()).toBeVisible();
   await page.getByLabel('فرد یا شریک کاری').selectOption(otherUserId);
   await page.getByLabel('عنوان (اختیاری)').fill('تحویل سفارش ۱۲۴');
   await page.getByRole('button', { name: 'ایجاد گفت‌وگو' }).click();
