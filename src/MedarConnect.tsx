@@ -6,8 +6,6 @@ import type { Membership } from './lib/types';
 type Person = { id: string; username: string; displayName: string; role: string };
 type Conversation = { id: string; title: string; relatedEntityType: string | null; relatedEntityId: string | null; updatedAt: string; unreadCount: number; lastMessage: string | null };
 type Message = { id: string; senderUserId: string; senderUsername: string; body: string; createdAt: string };
-type PushConfig = { enabled: boolean; publicKey: string | null };
-function decodeVapidKey(value: string): Uint8Array { const normalized=value.replace(/-/g,'+').replace(/_/g,'/'); const binary=atob(normalized+'='.repeat((4-normalized.length%4)%4)); return Uint8Array.from(binary,char=>char.charCodeAt(0)); }
 
 function roleName(role: string) {
   return ({ owner: 'مالک', admin: 'مدیر', staff: 'کارمند', supplier: 'تأمین‌کننده', driver: 'راننده', customer: 'مشتری' } as Record<string, string>)[role] ?? role;
@@ -31,9 +29,6 @@ export function MedarConnect({ membership }: { membership: Membership }) {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
-  const [pushConfig, setPushConfig] = useState<PushConfig | null>(null);
-  const [pushSubscribed, setPushSubscribed] = useState(false);
-  const [pushBusy, setPushBusy] = useState(false);
 
   const loadConversations = useCallback(async (preferredId?: string) => {
     setLoading(true);
@@ -50,20 +45,6 @@ export function MedarConnect({ membership }: { membership: Membership }) {
       setLoading(false);
     }
   }, [companyId, selectedId]);
-
-  const loadPushConfig = useCallback(async () => {
-    try { setPushConfig(await api.get<PushConfig>('/api/push/config?companyId=' + encodeURIComponent(companyId))); }
-    catch { setPushConfig({ enabled: false, publicKey: null }); }
-  }, [companyId]);
-
-  const refreshPushState = useCallback(async () => {
-    if (!('serviceWorker' in navigator)) return;
-    try {
-      const registration = await navigator.serviceWorker.getRegistration(import.meta.env.BASE_URL);
-      const subscription = await registration?.pushManager.getSubscription();
-      setPushSubscribed(Boolean(subscription));
-    } catch { setPushSubscribed(false); }
-  }, []);
 
   const loadPeople = useCallback(async () => {
     if (!internal) return;
@@ -85,39 +66,7 @@ export function MedarConnect({ membership }: { membership: Membership }) {
     }
   }, [companyId]);
 
-  useEffect(() => { void loadConversations(); void loadPeople(); void loadPushConfig(); void refreshPushState(); }, [loadConversations, loadPeople, loadPushConfig, refreshPushState]);
   useEffect(() => { void loadMessages(selectedId); }, [loadMessages, selectedId]);
-
-  async function togglePush() {
-    setPushBusy(true); setError(''); setNotice('');
-    try {
-      if (pushSubscribed) {
-        const registration = await navigator.serviceWorker.getRegistration(import.meta.env.BASE_URL);
-        const subscription = await registration?.pushManager.getSubscription();
-        if (subscription) {
-          await api.post('/api/push/subscriptions/remove', { companyId, endpoint: subscription.endpoint });
-          await subscription.unsubscribe();
-        }
-        setPushSubscribed(false);
-        setNotice('اعلان Push برای این دستگاه غیرفعال شد.');
-      } else {
-        if (!pushConfig?.enabled || !pushConfig.publicKey) throw new Error('ارسال Push هنوز در محیط عملیاتی پیکربندی نشده است.');
-        if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) throw new Error('این مرورگر اعلان Push را پشتیبانی نمی‌کند.');
-        const permission = await Notification.requestPermission();
-        if (permission !== 'granted') throw new Error('اجازهٔ اعلان در تنظیمات مرورگر داده نشد.');
-        const registration = await navigator.serviceWorker.register(import.meta.env.BASE_URL + 'sw.js');
-        await navigator.serviceWorker.ready;
-        const subscription = await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: decodeVapidKey(pushConfig.publicKey) as BufferSource });
-        const json = subscription.toJSON();
-        if (!json.keys?.p256dh || !json.keys.auth) throw new Error('مرورگر کلیدهای رمزنگاری Push را برنگرداند.');
-        await api.post('/api/push/subscriptions', { companyId, endpoint: subscription.endpoint, keys: json.keys, expirationTime: subscription.expirationTime });
-        setPushSubscribed(true);
-        setNotice('اعلان گوشی برای این دستگاه فعال شد.');
-      }
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'تنظیم اعلان گوشی ناموفق بود.');
-    } finally { setPushBusy(false); }
-  }
 
   async function createConversation() {
     if (!selectedPerson) { setError('برای شروع گفت‌وگو، یک همکار یا شریک مجاز انتخاب کن.'); return; }
@@ -163,10 +112,8 @@ export function MedarConnect({ membership }: { membership: Membership }) {
         <h1>مرکز ارتباطات</h1>
         <p>پیام‌های کاری در کنار پروندهٔ عملیات؛ گفت‌وگو فقط برای اعضای مجاز قابل مشاهده است.</p>
       </div>
-      {pushConfig?.enabled && <button className="medar-connect-refresh" type="button" onClick={() => void togglePush()} disabled={pushBusy}>{pushBusy ? 'در حال تنظیم…' : pushSubscribed ? 'غیرفعال‌کردن اعلان گوشی' : 'فعال‌سازی اعلان گوشی'}</button>}
       <button className="medar-connect-refresh" type="button" onClick={() => void loadConversations()} disabled={loading}><RefreshCw size={15}/> تازه‌سازی</button>
     </header>
-    {pushConfig && !pushConfig.enabled && <div className="medar-connect-push-status" role="status">اعلان Push گوشی در این محیط هنوز پیکربندی نشده است؛ پیام‌ها و اعلان‌های داخل مدار فعال می‌مانند.</div>}
     {error && <div className="medar-connect-alert" role="alert">{error}</div>}
     {notice && <div className="medar-connect-notice" role="status">{notice}</div>}
     <div className="medar-connect-layout">
