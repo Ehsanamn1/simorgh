@@ -5,6 +5,7 @@ import { SpeechSynthesis } from '@capgo/capacitor-speech-synthesis';
 import { ArrowDown, AudioLines, Check, FileText, Headphones, KeyRound, LoaderCircle, Mic, MicOff, Plus, Send, Settings2, ShieldCheck, Sparkles, Volume2, VolumeX, X } from 'lucide-react';
 import type { AppRole } from './lib/types';
 import { api } from './lib/apiClient';
+import { medarApiUrl } from './lib/runtimeConfig';
 
 type ProviderId = 'openai' | 'gemini' | 'deepseek' | 'anthropic';
 type ProviderConfig = { provider: ProviderId; model: string; isDefault: boolean; configured: boolean; updatedAt: string | null };
@@ -66,6 +67,13 @@ export function AIAssistant({ companyId, role, userName }: AIAssistantProps) {
   const [speaking, setSpeaking] = useState(false);
   const [listening, setListening] = useState(false);
   const [voiceMode, setVoiceMode] = useState(false);
+  const [realtimeConnecting, setRealtimeConnecting] = useState(false);
+  const [realtimeConnected, setRealtimeConnected] = useState(false);
+  const realtimePeerRef = useRef<RTCPeerConnection | null>(null);
+  const realtimeStreamRef = useRef<MediaStream | null>(null);
+  const realtimeChannelRef = useRef<RTCDataChannel | null>(null);
+  const realtimeAudioRef = useRef<HTMLAudioElement | null>(null);
+  const realtimeEventIdsRef = useRef<Set<string>>(new Set());
   const voiceModeRef = useRef(false);
   const voiceTurnPendingRef = useRef(false);
   const voiceRestartTimerRef = useRef<number | null>(null);
@@ -87,6 +95,13 @@ export function AIAssistant({ companyId, role, userName }: AIAssistantProps) {
   useEffect(() => () => {
     voiceModeRef.current = false;
     if (voiceRestartTimerRef.current !== null) window.clearTimeout(voiceRestartTimerRef.current);
+    realtimeChannelRef.current?.close();
+    realtimePeerRef.current?.close();
+    realtimeStreamRef.current?.getTracks().forEach(track => track.stop());
+    if (realtimeAudioRef.current) {
+      realtimeAudioRef.current.pause();
+      realtimeAudioRef.current.srcObject = null;
+    }
     if (Capacitor.isNativePlatform()) {
       void SpeechRecognition.stop().catch(() => {});
       void SpeechSynthesis.cancel().catch(() => {});
@@ -355,6 +370,113 @@ export function AIAssistant({ companyId, role, userName }: AIAssistantProps) {
     void startVoiceRecognition(false);
   }
 
+  async function startRealtimeVoiceConversation() {
+    let localStream: MediaStream | null = null;
+    let peer: RTCPeerConnection | null = null;
+    try {
+      if (!navigator.mediaDevices?.getUserMedia || typeof RTCPeerConnection === 'undefined') {
+        throw new Error('این مرورگر به میکروفون و WebRTC دسترسی ندارد. از ورودی صوتی متنی استفاده کن.');
+      }
+      localStream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      });
+      if (!voiceModeRef.current) {
+        localStream.getTracks().forEach(track => track.stop());
+        return;
+      }
+      peer = new RTCPeerConnection();
+      realtimePeerRef.current = peer;
+      realtimeStreamRef.current = localStream;
+      realtimeEventIdsRef.current.clear();
+      const remoteAudio = new Audio();
+      remoteAudio.autoplay = true;
+      remoteAudio.playsInline = true;
+      realtimeAudioRef.current = remoteAudio;
+      peer.ontrack = event => {
+        remoteAudio.srcObject = event.streams[0] ?? null;
+        void remoteAudio.play().catch(() => {
+          setNotice('اتصال برقرار شد؛ اگر صدای دستیار شنیده نمی‌شود، صدای دستگاه را بررسی کن.');
+        });
+      };
+      peer.onconnectionstatechange = () => {
+        if (peer?.connectionState === 'connected') {
+          setRealtimeConnected(true);
+          setRealtimeConnecting(false);
+          setNotice('مکالمهٔ پیوستهٔ صوتی برقرار شد. می‌توانی صحبت کنی و در صورت نیاز حرف دستیار را قطع کنی.');
+        } else if (peer && ['failed', 'closed'].includes(peer.connectionState) && voiceModeRef.current) {
+          setRealtimeConnected(false);
+          setRealtimeConnecting(false);
+          if (peer.connectionState === 'failed') setError('اتصال صوتی ناپایدار شد. مکالمه را دوباره شروع کن یا از ورودی متنی استفاده کن.');
+        }
+      };
+      localStream.getAudioTracks().forEach(track => peer?.addTrack(track, localStream!));
+      const channel = peer.createDataChannel('oai-events');
+      realtimeChannelRef.current = channel;
+      channel.onopen = () => {
+        setRealtimeConnected(true);
+        setRealtimeConnecting(false);
+      };
+      channel.onmessage = event => {
+        try {
+          const item = JSON.parse(String(event.data)) as {
+            type?: string; event_id?: string; item_id?: string; transcript?: string; error?: { message?: string };
+          };
+          if (item.event_id) {
+            if (realtimeEventIdsRef.current.has(item.event_id)) return;
+            realtimeEventIdsRef.current.add(item.event_id);
+            if (realtimeEventIdsRef.current.size > 1000) realtimeEventIdsRef.current.clear();
+          }
+          const transcript = typeof item.transcript === 'string' ? item.transcript.trim() : '';
+          if (item.type === 'conversation.item.input_audio_transcription.completed' && transcript) {
+            setMessages(current => [...current, { role: 'user', content: transcript }]);
+          } else if (['response.output_audio_transcript.done', 'response.audio_transcript.done'].includes(item.type ?? '') && transcript) {
+            setMessages(current => [...current, { role: 'assistant', content: transcript }]);
+          } else if (item.type === 'error') {
+            setError(item.error?.message?.slice(0, 240) || 'سرویس صوتی یک خطا گزارش کرد.');
+          }
+        } catch {
+          // Ignore unknown protocol events; the media stream continues independently.
+        }
+      };
+      const offer = await peer.createOffer();
+      await peer.setLocalDescription(offer);
+      if (!offer.sdp) throw new Error('پیشنهاد اتصال صوتی ساخته نشد.');
+      const response = await fetch(medarApiUrl('/api/ai/realtime/session?companyId=' + encodeURIComponent(companyId)), {
+        method: 'POST',
+        credentials: 'include',
+        cache: 'no-store',
+        headers: { 'Content-Type': 'application/sdp' },
+        body: offer.sdp,
+      });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null) as { message?: string } | null;
+        throw new Error(payload?.message || 'سرویس مدار نتوانست نشست صوتی را آغاز کند.');
+      }
+      const answerSdp = await response.text();
+      if (!answerSdp.startsWith('v=0')) throw new Error('پاسخ اتصال صوتی معتبر نبود.');
+      await peer.setRemoteDescription({ type: 'answer', sdp: answerSdp });
+    } catch (caught) {
+      localStream?.getTracks().forEach(track => track.stop());
+      peer?.close();
+      realtimeChannelRef.current?.close();
+      realtimeChannelRef.current = null;
+      realtimePeerRef.current = null;
+      realtimeStreamRef.current = null;
+      if (realtimeAudioRef.current) {
+        realtimeAudioRef.current.pause();
+        realtimeAudioRef.current.srcObject = null;
+        realtimeAudioRef.current = null;
+      }
+      voiceModeRef.current = false;
+      voiceTurnPendingRef.current = false;
+      setVoiceMode(false);
+      setRealtimeConnected(false);
+      setRealtimeConnecting(false);
+      setListening(false);
+      setError(caught instanceof Error ? caught.message : 'شروع مکالمهٔ realtime ناموفق بود.');
+    }
+  }
+
   function startVoiceConversation() {
     setError('');
     setNotice('');
@@ -367,6 +489,13 @@ export function AIAssistant({ companyId, role, userName }: AIAssistantProps) {
     voiceModeRef.current = true;
     voiceTurnPendingRef.current = false;
     setVoiceMode(true);
+    if (activeProvider === 'openai' && !Capacitor.isNativePlatform()) {
+      setRealtimeConnecting(true);
+      setRealtimeConnected(false);
+      void startRealtimeVoiceConversation();
+      return;
+    }
+    setNotice('در این دستگاه از تبدیل گفتار به متن و خواندن پاسخ با صدای دستگاه استفاده می‌شود.');
     startVoiceRecognition(true);
   }
 
@@ -374,6 +503,19 @@ export function AIAssistant({ companyId, role, userName }: AIAssistantProps) {
     voiceModeRef.current = false;
     voiceTurnPendingRef.current = false;
     setVoiceMode(false);
+    setRealtimeConnecting(false);
+    setRealtimeConnected(false);
+    realtimeChannelRef.current?.close();
+    realtimeChannelRef.current = null;
+    realtimePeerRef.current?.close();
+    realtimePeerRef.current = null;
+    realtimeStreamRef.current?.getTracks().forEach(track => track.stop());
+    realtimeStreamRef.current = null;
+    if (realtimeAudioRef.current) {
+      realtimeAudioRef.current.pause();
+      realtimeAudioRef.current.srcObject = null;
+      realtimeAudioRef.current = null;
+    }
     if (voiceRestartTimerRef.current !== null) window.clearTimeout(voiceRestartTimerRef.current);
     voiceRestartTimerRef.current = null;
     if (Capacitor.isNativePlatform()) {
@@ -589,7 +731,7 @@ export function AIAssistant({ companyId, role, userName }: AIAssistantProps) {
                 <button type="button" className={listening&&!voiceMode?'recording':''} onClick={toggleVoiceInput} disabled={voiceMode} title={listening&&!voiceMode?'پایان گفتار':'تبدیل گفتار فارسی به متن'} aria-label={listening&&!voiceMode?'توقف ضبط گفتار':'شروع گفتار'}>{listening&&!voiceMode?<MicOff size={18}/>:<Mic size={18}/>}</button>
                 <button type="button" className={voiceMode?'recording':''} onClick={()=>voiceMode?stopVoiceConversation():startVoiceConversation()} title={voiceMode?'پایان مکالمه صوتی':'شروع مکالمه صوتی خودکار'} aria-label={voiceMode?'توقف مکالمه صوتی':'شروع مکالمه صوتی خودکار'}>{voiceMode?<MicOff size={18}/>:<Headphones size={18}/>}</button>
               </div>
-              <small>{voiceMode?'مکالمه صوتی فعال':listening?'در حال شنیدن…':activeProvider?providerMeta[activeProvider].label:'پرووایدر تنظیم نشده'}</small>
+              <small>{realtimeConnecting?'در حال اتصال مکالمه realtime…':realtimeConnected?'مکالمه realtime فعال':voiceMode?'مکالمه صوتی فعال':listening?'در حال شنیدن…':activeProvider?providerMeta[activeProvider].label:'پرووایدر تنظیم نشده'}</small>
               <button className="ai-send-button" type="submit" title={sending ? "در حال ارسال پیام" : "ارسال پیام به دستیار"} disabled={sending||(!draft.trim()&&!attached)} aria-label="ارسال پیام">{sending?<LoaderCircle size={17} className="ai-spin"/>:<Send size={17}/>}</button>
             </div>
             <p className="ai-compose-disclaimer">پاسخ‌ها باید با رکوردهای مدار بررسی شوند. دستیار بدون تأیید کاربر عملیات مالی یا تغییر داده اجرا نمی‌کند.</p>
