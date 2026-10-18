@@ -188,12 +188,23 @@ async function encryptWebPushPayload(payload: string, subscriptionPublicKey: str
   recordHeader[20] = asPublic.length;
   return concatBytes(recordHeader, asPublic, encrypted);
 }
+async function decryptPushAuthSecret(env: Bindings, packed: string): Promise<string> {
+  const master = env.AI_ENCRYPTION_KEY || env.DATABASE_URL;
+  if (!master) throw new Error('AI_ENCRYPTION_KEY is not configured');
+  const raw = base64ToBytes(packed);
+  if (raw.length < 29) throw new Error('Stored push subscription secret is invalid');
+  const digest = await crypto.subtle.digest('SHA-256', encoder.encode('medar-ai-key-v1:' + master));
+  const key = await crypto.subtle.importKey('raw', digest, { name: 'AES-GCM' }, false, ['decrypt']);
+  const clear = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: raw.slice(0,12) }, key, toArrayBuffer(raw.slice(12)));
+  return new TextDecoder().decode(clear);
+}
 async function sendWebPush(subscription: { endpoint: string; p256dh_key: string; auth_secret: string }, payload: Record<string, unknown>, env: Bindings): Promise<{ ok: boolean; gone: boolean; status: number }> {
   const endpoint = allowedWebPushEndpoint(subscription.endpoint);
   if (!endpoint) throw new Error('Push endpoint host is not allowed');
   const body = JSON.stringify(payload);
   if (encoder.encode(body).length > 3500) throw new Error('Push payload is too large');
-  const encrypted = await encryptWebPushPayload(body, subscription.p256dh_key, subscription.auth_secret);
+  const authSecret = await decryptPushAuthSecret(env, subscription.auth_secret);
+  const encrypted = await encryptWebPushPayload(body, subscription.p256dh_key, authSecret);
   const response = await fetch(endpoint.toString(), {
     method: 'POST',
     headers: {
@@ -3354,10 +3365,11 @@ app.post('/api/push/subscriptions', async (c) => {
   } catch { return c.json({ message: 'کلیدهای رمزنگاری مرورگر معتبر نیستند.' }, 422); }
   const expiration = typeof body.expirationTime === 'number' && Number.isFinite(body.expirationTime) ? new Date(body.expirationTime) : null;
   const endpointHash = await sha256(endpoint);
+  const encryptedAuthSecret = await encryptAiKey(c, authSecret);
   const userAgent = (c.req.header('user-agent') ?? '').slice(0,500);
   const rows = await sqlFor(c).query(
     'insert into public.medar_push_subscriptions(company_id,user_id,endpoint,endpoint_hash,p256dh_key,auth_secret,expiration_time,user_agent,active,updated_at) values ($1::uuid,$2::uuid,$3,$4,$5,$6,$7::timestamptz,$8,true,now()) on conflict(endpoint_hash) do update set company_id=excluded.company_id,user_id=excluded.user_id,endpoint=excluded.endpoint,p256dh_key=excluded.p256dh_key,auth_secret=excluded.auth_secret,expiration_time=excluded.expiration_time,user_agent=excluded.user_agent,active=true,last_error=null,updated_at=now() returning id::text as id,active',
-    [companyId,user.id,endpoint,endpointHash,p256dh,authSecret,expiration && Number.isFinite(expiration.getTime()) ? expiration.toISOString() : null,userAgent],
+    [companyId,user.id,endpoint,endpointHash,p256dh,encryptedAuthSecret,expiration && Number.isFinite(expiration.getTime()) ? expiration.toISOString() : null,userAgent],
   );
   return c.json({ ok: true, subscription: rows[0] }, 201);
 });
