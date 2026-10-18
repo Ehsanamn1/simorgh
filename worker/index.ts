@@ -3213,6 +3213,24 @@ app.post('/api/operational/exceptions/:id/acknowledge', async (c) => {
   return c.json({ ok: true, exception: rows[0] });
 });
 
+app.post('/api/operational/exceptions/:id/start', async (c) => {
+  const user = await requireUser(c);
+  if (user instanceof Response) return user;
+  const id = c.req.param('id');
+  const body = await c.req.json<Record<string, unknown>>().catch(() => null);
+  const companyId = typeof body?.companyId === 'string' ? body.companyId : '';
+  if (!COMPANY_ID_RE.test(id) || !COMPANY_ID_RE.test(companyId)) return c.json({ message: 'شناسه مسئله یا مجموعه معتبر نیست.' }, 422);
+  const membership = await aiCompanyMembership(c, companyId, user.id);
+  if (!membership || !['owner','admin','staff'].includes(membership.role)) return c.json({ message: 'برای رسیدگی به این مسئله دسترسی نداری.' }, 403);
+  if (!(await userHasModulePermission(c, user.id, companyId, 'operational-tasks', 'can_update'))) return c.json({ message: 'مجوز به‌روزرسانی مسئله را نداری.' }, 403);
+  const rows = await sqlFor(c).query(
+    "update public.medar_exception_cases set status='in_progress',updated_at=now() where id=$1::uuid and company_id=$2::uuid and status='acknowledged' returning id::text as id,status,updated_at as \"updatedAt\"",
+    [id,companyId],
+  );
+  if (!rows.length) return c.json({ message: 'ابتدا دریافت مسئله را ثبت کن یا وضعیت فعلی اجازه شروع رسیدگی نمی‌دهد.' }, 409);
+  return c.json({ ok: true, exception: rows[0] });
+});
+
 app.post('/api/operational/exceptions/:id/resolve', async (c) => {
   const user = await requireUser(c);
   if (user instanceof Response) return user;
