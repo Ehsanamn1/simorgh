@@ -51,10 +51,14 @@ AS $$
 BEGIN
   INSERT INTO public.medar_notification_outbox
     (company_id,user_id,notification_id,payload,idempotency_key)
-  VALUES (
+  SELECT
     NEW.company_id,NEW.user_id,NEW.id,
     jsonb_build_object('title',NEW.title,'body',coalesce(NEW.body,''),'href',coalesce(NEW.href,'/app/home')),
     coalesce(NEW.dedupe_key,NEW.id::text)
+  WHERE EXISTS (
+    SELECT 1 FROM public.medar_push_subscriptions s
+    WHERE s.company_id=NEW.company_id AND s.user_id=NEW.user_id AND s.active=true
+      AND (s.expiration_time IS NULL OR s.expiration_time>now())
   )
   ON CONFLICT(company_id,user_id,channel,idempotency_key) DO NOTHING;
   RETURN NEW;
