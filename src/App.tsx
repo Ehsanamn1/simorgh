@@ -239,11 +239,12 @@ function FarmMapPanel({sites,schemaWarning}:{sites:Row[];schemaWarning:string}) 
   }), [mapped]);
   const [selectedId, setSelectedId] = useState('');
   const [mapMode, setMapMode] = useState<'iran'|'street'>('iran');
-  useEffect(() => {
-    setSelectedId(old => mapped.some(site => String(site.id) === old) ? old : String(mapped[0]?.id ?? ''));
-  }, [mapped]);
   const showIranPaper = mapMode === 'iran' && iranMapped.length > 0;
   const visibleMapped = showIranPaper ? iranMapped : mapped;
+  useEffect(() => {
+    setSelectedId(old => visibleMapped.some(site => String(site.id) === old) ? old : String(visibleMapped[0]?.id ?? ''));
+  }, [visibleMapped]);
+
   const bounds = useMemo(() => {
     const clampLatitude = (value:number) => Math.min(85.0511,Math.max(-85.0511,value));
     if (!visibleMapped.length) return {west:43,east:65,south:24,north:41};
