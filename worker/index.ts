@@ -1939,8 +1939,8 @@ app.post('/api/workspace/invites', async (c) => {
   const code = randomToken();
   const tokenHash = await sha256(code);
   const rows = await sql`
-    insert into public.company_invites(company_id, role, token_hash, created_by, expires_at, customer_id, supplier_id)
-    values (${companyId}, ${role}::public.app_role, ${tokenHash}, ${user.id}, now() + interval '7 days', ${customerId}, ${supplierId})
+    insert into public.company_invites(company_id, role, token_hash, created_by, expires_at, customer_id, supplier_id, max_uses)
+    values (${companyId}, ${role}::public.app_role, ${tokenHash}, ${user.id}, now() + interval '7 days', ${customerId}, ${supplierId}, 1)
     returning id, expires_at
   `;
   return c.json({ inviteCode: code, inviteId: (rows[0] as { id: string }).id, expiresAt: (rows[0] as { expires_at: string }).expires_at }, 201);
