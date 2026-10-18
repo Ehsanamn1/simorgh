@@ -44,13 +44,14 @@ test('manager workspace retains operations and captures a real rendered control-
   page.on('pageerror', error => errors.push(error.message));
   await installIsolatedSession(page, 'owner');
   await page.goto('/simorgh/app', { waitUntil: 'domcontentloaded' });
-  await expect(page.getByRole('heading', { name: /مرکز فرمان شبکه/ })).toBeVisible();
-  await expect(page.locator('.side-nav').getByRole('link', { name: /سفارش‌ها/ })).toBeVisible();
-  await expect(page.locator('.farm-map-panel')).toBeVisible();
-  await expect(page.locator('.farm-map-marker')).toHaveCount(0);
-  await expect(page.getByText('مختصات جغرافیایی ثبت نشده')).toBeVisible();
-  await page.screenshot({ path: testInfo.outputPath('manager-control-tower-viewport.png') });
-  await page.screenshot({ path: testInfo.outputPath('manager-control-tower.png'), fullPage: true });
+  await expect(page).toHaveURL(/\/simorgh\/app\/home$/);
+  await expect(page.getByRole('heading', { name: /سلام مالک آزمایشی مدار/ })).toBeVisible();
+  await expect(page.locator('.workspace-home-hero')).toContainText('کنترل امروز کسب‌وکار');
+  await expect(page.getByRole('heading', { name: 'بخش‌های پرکاربرد شما' })).toBeVisible();
+  await expect(page.locator('.workspace-home-link').filter({ hasText: 'دفترچه مخاطبین' })).toBeVisible();
+  await expect(page.locator('.workspace-home-section').filter({ hasText: 'کارهای امروز و هشدارها' })).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('manager-role-home-viewport.png') });
+  await page.screenshot({ path: testInfo.outputPath('manager-role-home.png'), fullPage: true });
 
   const paths = [
     ['farm-sites', 'سایت‌های مزرعه'],
@@ -86,13 +87,11 @@ test('manager map shows every saved farm coordinate and allows marker selection'
 
   await page.goto('/simorgh/app/command', { waitUntil: 'domcontentloaded' });
   const map = page.locator('.farm-map-panel');
-  await expect(map.getByRole('heading', { name: 'نقشه‌ی سایت‌های مجموعه' })).toBeVisible();
+  await expect(map.getByRole('heading', { name: 'نقشه‌ی عملیات و سایت‌ها' })).toBeVisible();
+  await expect(map.locator('.iran-paper-illustration')).toBeVisible();
   await expect(map.locator('.farm-map-marker')).toHaveCount(2);
   await expect(map.locator('.farm-map-sites .farm-map-site')).toHaveCount(2);
   await expect(map.locator('.farm-map-marker.active .farm-map-marker-label')).toHaveText('مزرعه تهران');
-  const embedUrl = await map.locator('.farm-map-canvas iframe').getAttribute('src');
-  expect(embedUrl).toContain('bbox=');
-  expect(embedUrl).not.toContain('marker=');
 
   const markerPositions = await map.locator('.farm-map-marker').evaluateAll(elements => elements.map(element => {
     const rect = element.getBoundingClientRect();
@@ -102,6 +101,10 @@ test('manager map shows every saved farm coordinate and allows marker selection'
   expect(markerPositions[1].width).toBeGreaterThan(0);
   expect(Math.abs(markerPositions[0].left - markerPositions[1].left)).toBeGreaterThan(10);
   expect(Math.abs(markerPositions[0].top - markerPositions[1].top)).toBeGreaterThan(10);
+  await map.getByRole('button', { name: 'نقشه دقیق' }).click();
+  const embedUrl = await map.locator('.farm-map-canvas iframe').getAttribute('src');
+  expect(embedUrl).toContain('bbox=');
+  expect(embedUrl).not.toContain('marker=');
 
   await map.getByRole('button', { name: 'انتخاب واحد کرمان' }).click();
   await expect(map.locator('.farm-map-marker.active .farm-map-marker-label')).toHaveText('واحد کرمان');
@@ -233,19 +236,21 @@ test('supplier workspace keeps manager-only routes out of the allowed menu', asy
   const viewportWidth = Number((testInfo.project.use as { viewport?: { width?: number } }).viewport?.width || 1365);
   await installIsolatedSession(page, 'supplier');
   await page.goto('/simorgh/app', { waitUntil: 'domcontentloaded' });
+  await expect(page).toHaveURL(/\/simorgh\/app\/home$/);
   if (viewportWidth <= 860) {
     await page.getByRole('button', { name: 'بازکردن منو' }).click();
     await expect(page.locator('.app-sidebar')).toHaveClass(/open/);
   }
-  await expect(page.getByRole('heading', { name: 'وظایف عملیاتی' })).toBeVisible();
-  await page.screenshot({ path: testInfo.outputPath('supplier-task-workspace-viewport.png') });
-  await page.screenshot({ path: testInfo.outputPath('supplier-task-workspace.png'), fullPage: true });
-  await expect(page.getByRole('link', { name: /وظایف عملیاتی/ })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /سلام تأمین‌کننده آزمایشی مدار/ })).toBeVisible();
+  await expect(page.locator('.workspace-home-hero')).toContainText('برنامه‌ی امروز تأمین‌کننده');
+  await page.screenshot({ path: testInfo.outputPath('supplier-role-home-viewport.png') });
+  await page.screenshot({ path: testInfo.outputPath('supplier-role-home.png'), fullPage: true });
+  const supplierGroup = page.locator('.nav-group').filter({ has: page.locator('summary', { hasText: 'تأمین' }) });
+  await supplierGroup.locator('summary').click();
+  await expect(supplierGroup.getByRole('link', { name: /کارهای واگذارشده/ })).toBeVisible();
   await expect(page.getByRole('link', { name: /دستورالعمل‌های کاری/ })).toHaveCount(0);
   await expect(page.getByRole('link', { name: /دسترسی کاربران/ })).toHaveCount(0);
-  const settlementGroup = page.locator('.nav-group').filter({ has: page.locator('summary', { hasText: 'مشارکت و مالی' }) });
-  await settlementGroup.locator('summary').click();
-  await expect(settlementGroup.getByRole('link', { name: /دوره‌های تسویه/ })).toBeVisible();
+  await expect(supplierGroup.getByRole('link', { name: /تسویه‌های من/ })).toBeVisible();
   expect(errors).toEqual([]);
 });
 
@@ -297,10 +302,11 @@ test('customer lands in their authorized catalogue and sees customer-specific mo
   page.on('pageerror', error => errors.push(error.message));
   await installIsolatedSession(page, 'customer');
   await page.goto('/simorgh/app', { waitUntil: 'domcontentloaded' });
-  await expect(page).toHaveURL(/\/simorgh\/app\/catalog$/);
-  await expect(page.getByRole('heading', { name: 'کاتالوگ اختصاصی شما' })).toBeVisible();
-  await expect(page.locator('.side-nav').getByRole('link', { name: 'خرید سازمانی' })).toBeVisible();
-  await page.screenshot({ path: testInfo.outputPath('customer-catalog-viewport.png') });
+  await expect(page).toHaveURL(/\/simorgh\/app\/home$/);
+  await expect(page.getByRole('heading', { name: /سلام مشتری آزمایشی مدار/ })).toBeVisible();
+  await expect(page.locator('.workspace-home-hero')).toContainText('وضعیت سفارش‌های سازمان شما');
+  await expect(page.locator('.workspace-home-link').filter({ hasText: 'کاتالوگ خرید' })).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('customer-role-home-viewport.png') });
   if (viewportWidth <= 860) {
     const nav = page.locator('.mobile-workspace-nav');
     await expect(nav).toBeVisible();
@@ -326,10 +332,11 @@ test('driver lands in assigned shipments and does not get customer or manager na
   page.on('pageerror', error => errors.push(error.message));
   await installIsolatedSession(page, 'driver');
   await page.goto('/simorgh/app', { waitUntil: 'domcontentloaded' });
-  await expect(page).toHaveURL(/\/simorgh\/app\/driver-work$/);
-  await expect(page.getByRole('heading', { name: 'محموله‌های من' })).toBeVisible();
-  await expect(page.locator('.side-nav').getByRole('link', { name: 'محموله‌های من' })).toBeVisible();
-  await page.screenshot({ path: testInfo.outputPath('driver-shipments-viewport.png') });
+  await expect(page).toHaveURL(/\/simorgh\/app\/home$/);
+  await expect(page.getByRole('heading', { name: /سلام راننده آزمایشی مدار/ })).toBeVisible();
+  await expect(page.locator('.workspace-home-hero')).toContainText('برنامه‌ی امروز راننده');
+  await expect(page.locator('.workspace-home-link').filter({ hasText: 'محموله‌های من' })).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('driver-role-home-viewport.png') });
   if (viewportWidth <= 860) {
     const nav = page.locator('.mobile-workspace-nav');
     await expect(nav).toBeVisible();
