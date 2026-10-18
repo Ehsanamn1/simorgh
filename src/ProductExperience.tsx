@@ -68,6 +68,15 @@ export default function ProductExperience() {
   const protectedDestination = normalizedPath === '/app/command' || normalizedPath === '/app' || normalizedPath === '/' ? '/app/home' : normalizedPath.startsWith('/app') ? normalizedPath : '/app/home';
 
   useEffect(() => {
+    const invite = new URLSearchParams(location.search).get('invite')?.trim().toLowerCase() ?? '';
+    if (!user && /^[a-f0-9]{64}$/.test(invite)) {
+      setJoinInviteCode(invite);
+      setMode('signup');
+      setNotice('دعوت مجموعه دریافت شد؛ نام کاربری و رمز خودت را بساز تا به همان مجموعه متصل شوی.');
+    }
+  }, [location.search, user?.id]);
+
+  useEffect(() => {
     const refreshTargets = () => {
       setAppMain(document.querySelector<HTMLElement>('.app-main'));
       setWaitingScreen(document.querySelector<HTMLElement>('.waiting-screen'));
