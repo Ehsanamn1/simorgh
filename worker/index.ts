@@ -3104,6 +3104,22 @@ app.post('/api/operational/exceptions/:id/resolve', async (c) => {
 });
 
 
+
+app.get('/api/connect/people', async (c) => {
+  const user = await requireUser(c);
+  if (user instanceof Response) return user;
+  const companyId = c.req.query('companyId') ?? '';
+  if (!COMPANY_ID_RE.test(companyId)) return c.json({ message: 'شناسه مجموعه معتبر نیست.' }, 422);
+  const membership = await aiCompanyMembership(c,companyId,user.id);
+  if (!membership || !['owner','admin','staff'].includes(membership.role)) return c.json({ message: 'فهرست همکاران فقط برای اعضای داخلی مجاز است.' }, 403);
+  if (!(await userHasModulePermission(c,user.id,companyId,'operational-tasks','can_create'))) return c.json({ message: 'برای ایجاد ارتباط مجوز نداری.' }, 403);
+  const rows = await sqlFor(c).query(
+    "select distinct u.id::text as id,u.username,u.display_name as \"displayName\",m.role::text as role from public.memberships m join public.medar_users u on u.id=m.user_id where m.company_id=$1::uuid and m.active=true and u.account_status='active' order by m.role::text,u.display_name,u.username limit 300",
+    [companyId],
+  );
+  return c.json({ people: rows });
+});
+
 app.get('/api/connect/conversations', async (c) => {
   const user = await requireUser(c);
   if (user instanceof Response) return user;
