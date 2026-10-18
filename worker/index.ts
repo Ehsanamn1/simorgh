@@ -416,6 +416,7 @@ app.get('/api/admin/system/clients', async (c) => {
 
 type AiProvider = 'openai' | 'gemini' | 'deepseek' | 'anthropic';
 type AiChatMessage = { role: 'user' | 'assistant'; content: string };
+type AiAttachmentPayload = { name: string; mimeType: string; base64?: string };
 const AI_PROVIDERS: Record<AiProvider, { label: string; model: string }> = {
   openai: { label: 'OpenAI', model: 'gpt-6-luna' },
   gemini: { label: 'Gemini', model: 'gemini-4-argon' },
@@ -461,13 +462,31 @@ function readProviderError(body: string, status: number): string {
   } catch { /* do not surface an unparsed provider response */ }
   return 'ارتباط با ارائه‌دهنده هوش مصنوعی برقرار نشد (' + status + '). کلید و شناسه مدل را بررسی کن.';
 }
-async function requestAiProvider(provider: AiProvider, model: string, key: string, messages: AiChatMessage[], systemPrompt: string): Promise<string> {
+async function requestAiProvider(provider: AiProvider, model: string, key: string, messages: AiChatMessage[], systemPrompt: string, attachment: AiAttachmentPayload | null): Promise<string> {
   const signal = AbortSignal.timeout(45000);
   let response: Response;
   if (provider === 'openai') {
     response = await fetch('https://api.openai.com/v1/responses', {
       method: 'POST', signal, headers: { Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model, input: [{ role: 'system', content: systemPrompt }, ...messages], max_output_tokens: 1800 }),
+      body: JSON.stringify({
+        model,
+        input: [
+          { role: 'system', content: systemPrompt },
+          ...messages.map((message, index) => {
+            if (attachment?.base64 && message.role === 'user' && index === messages.length - 1) {
+              return {
+                role: 'user',
+                content: [
+                  { type: 'input_file', filename: attachment.name, file_data: 'data:' + attachment.mimeType + ';base64,' + attachment.base64, detail: 'auto' },
+                  { type: 'input_text', text: message.content },
+                ],
+              };
+            }
+            return message;
+          }),
+        ],
+        max_output_tokens: 1800,
+      }),
     });
     const body = await response.text();
     if (!response.ok) throw new Error(readProviderError(body, response.status));
@@ -477,6 +496,7 @@ async function requestAiProvider(provider: AiProvider, model: string, key: strin
     return text.trim();
   }
   if (provider === 'deepseek') {
+    if (attachment?.base64) throw new Error('برای فایل PDF یا Office، OpenAI، Gemini یا Claude را انتخاب کن.');
     response = await fetch('https://api.deepseek.com/chat/completions', {
       method: 'POST', signal, headers: { Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' },
       body: JSON.stringify({ model, messages: [{ role: 'system', content: systemPrompt }, ...messages], max_tokens: 1800, temperature: 0.3 }),
@@ -492,7 +512,23 @@ async function requestAiProvider(provider: AiProvider, model: string, key: strin
   if (provider === 'anthropic') {
     response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST', signal, headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model, system: systemPrompt, messages, max_tokens: 1800 }),
+      body: JSON.stringify({
+        model,
+        system: systemPrompt,
+        messages: messages.map((message, index) => {
+          if (attachment?.base64 && message.role === 'user' && index === messages.length - 1) {
+            return {
+              role: 'user',
+              content: [
+                { type: 'document', source: { type: 'base64', media_type: attachment.mimeType, data: attachment.base64 }, title: attachment.name },
+                { type: 'text', text: message.content },
+              ],
+            };
+          }
+          return message;
+        }),
+        max_tokens: 1800,
+      }),
     });
     const body = await response.text();
     if (!response.ok) throw new Error(readProviderError(body, response.status));
@@ -505,7 +541,15 @@ async function requestAiProvider(provider: AiProvider, model: string, key: strin
     method: 'POST', signal, headers: { 'x-goog-api-key': key, 'Content-Type': 'application/json' },
     body: JSON.stringify({
       systemInstruction: { parts: [{ text: systemPrompt }] },
-      contents: messages.map(message => ({ role: message.role === 'assistant' ? 'model' : 'user', parts: [{ text: message.content }] })),
+      contents: messages.map((message, index) => ({
+        role: message.role === 'assistant' ? 'model' : 'user',
+        parts: [
+          { text: message.content },
+          ...(attachment?.base64 && message.role === 'user' && index === messages.length - 1
+            ? [{ inlineData: { mimeType: attachment.mimeType, data: attachment.base64 } }]
+            : []),
+        ],
+      })),
       generationConfig: { maxOutputTokens: 1800, temperature: 0.3 },
     }),
   });
@@ -591,10 +635,11 @@ app.post('/api/ai/chat', async (c) => {
     inputChars += item.content.length;
     messages.push({ role: item.role, content: item.content });
   }
-  const attachment = body.attachment && typeof body.attachment === 'object' ? body.attachment as Record<string, unknown> : null;
-  if (attachment) {
-    const attachmentText = typeof attachment.text === 'string' ? attachment.text : '';
-    const attachmentName = typeof attachment.name === 'string' ? attachment.name.slice(0, 160) : 'file.txt';
+  const attachmentRaw = body.attachment && typeof body.attachment === 'object' ? body.attachment as Record<string, unknown> : null;
+  let providerAttachment: AiAttachmentPayload | null = null;
+  if (attachmentRaw) {
+    const attachmentText = typeof attachmentRaw.text === 'string' ? attachmentRaw.text : '';
+    const attachmentName = typeof attachmentRaw.name === 'string' ? attachmentRaw.name.replace(/[\r\n\\/]/g, '_').slice(0, 160) : 'attached-file';
     if (attachmentText.length > 24000) return c.json({ message: 'متن فایل بیش از حد مجاز است.' }, 413);
     inputChars += attachmentText.length;
     if (inputChars > 32000) return c.json({ message: 'حجم پیام و فایل پیوست بیش از حد مجاز است.' }, 413);
@@ -602,6 +647,29 @@ app.post('/api/ai/chat', async (c) => {
       const last = messages[messages.length - 1];
       if (last?.role !== 'user') return c.json({ message: 'فایل باید همراه با پیام کاربر ارسال شود.' }, 422);
       last.content += '\n\nمحتوای فایل ' + attachmentName + ':\n' + attachmentText;
+    }
+    const base64 = typeof attachmentRaw.base64 === 'string' ? attachmentRaw.base64 : '';
+    if (base64) {
+      const mimeType = typeof attachmentRaw.mimeType === 'string' ? attachmentRaw.mimeType : '';
+      const allowedMimeTypes = new Set([
+        'application/pdf',
+        'application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/rtf',
+        'application/vnd.oasis.opendocument.text',
+        'application/vnd.ms-powerpoint',
+        'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+        'application/vnd.ms-excel',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      ]);
+      if (!allowedMimeTypes.has(mimeType)) return c.json({ message: 'نوع فایل باینری پشتیبانی نمی‌شود.' }, 415);
+      if (base64.length > 8388608 || base64.length % 4 !== 0 || !/^[A-Za-z0-9+/]+={0,2}$/.test(base64)) {
+        return c.json({ message: 'فایل کدگذاری معتبر ندارد یا بیش از ۶ مگابایت است.' }, 413);
+      }
+      if (mimeType !== 'application/pdf' && attachmentText.length === 0) {
+        // Office files remain as opaque base64 and are sent only to providers with documented file input support.
+      }
+      providerAttachment = { name: attachmentName, mimeType, base64 };
     }
   } else if (inputChars > 32000) return c.json({ message: 'حجم گفتگو بیش از حد مجاز است.' }, 413);
   if (messages[messages.length - 1]?.role !== 'user') return c.json({ message: 'آخرین پیام باید پیام کاربر باشد.' }, 422);
@@ -617,6 +685,12 @@ app.post('/api/ai/chat', async (c) => {
   if (!config) return c.json({ message: 'هنوز پرووایدر هوش مصنوعی برای این مجموعه فعال نشده است.' }, 409);
   const provider = aiProvider(config.provider);
   if (!provider) return c.json({ message: 'پرووایدر ذخیره‌شده پشتیبانی نمی‌شود.' }, 503);
+  if (providerAttachment && provider === 'deepseek') {
+    return c.json({ message: 'این پرووایدر در مسیر فعلی فایل باینری را نمی‌خواند؛ برای PDF/Office، OpenAI، Gemini یا Claude را تنظیم کن.' }, 415);
+  }
+  if (providerAttachment && provider !== 'openai' && providerAttachment.mimeType !== 'application/pdf') {
+    return c.json({ message: 'فایل‌های Office در این نسخه فقط با OpenAI پشتیبانی می‌شوند؛ برای Gemini یا Claude فایل را به PDF تبدیل کن.' }, 415);
+  }
   let providerKey: string;
   try { providerKey = await decryptAiKey(c, config.encrypted_api_key); }
   catch { return c.json({ message: 'رمزگشایی کلید پرووایدر ناموفق بود؛ کلید را دوباره در تنظیمات ذخیره کن.' }, 503); }
@@ -695,7 +769,7 @@ app.post('/api/ai/chat', async (c) => {
   try {
     await sql.query('insert into public.medar_ai_usage_log(company_id,user_id,provider,model,input_chars) values($1::uuid,$2::uuid,$3,$4,$5)', [companyId, user.id, provider, config.model, inputChars]);
     await sql.query("delete from public.medar_ai_usage_log where created_at<now()-interval '90 days'").catch(() => []);
-    const content = await requestAiProvider(provider, String(config.model), providerKey, messages, systemPrompt);
+    const content = await requestAiProvider(provider, String(config.model), providerKey, messages, systemPrompt, providerAttachment);
     return c.json({ content, provider, model: config.model });
   } catch (error) {
     const message = error instanceof Error ? error.message.slice(0, 500) : 'پاسخ‌گویی هوش مصنوعی انجام نشد.';
