@@ -1324,7 +1324,7 @@ test('settings centralizes password, real connection health, and light/dark pref
   await page.getByLabel('گذرواژه جدید').fill('new-password-123');
   await page.getByLabel('تکرار گذرواژه').fill('new-password-123');
   await page.getByRole('button', { name: 'ذخیره گذرواژه جدید' }).click();
-  await expect(page.getByRole('status')).toContainText('گذرواژه آزمایشی با موفقیت تغییر کرد.');
+  await expect(page.locator('.settings-security [role="status"]')).toContainText('گذرواژه آزمایشی با موفقیت تغییر کرد.');
 
   await page.goto('/simorgh/app/command', { waitUntil: 'domcontentloaded' });
   await expect(page.locator('.dashboard-connect-disclosure')).toHaveCount(0);
