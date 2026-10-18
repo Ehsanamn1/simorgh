@@ -16,37 +16,35 @@ type Metric = { label: string; value: number; detail: string; icon: typeof Layou
 
 const roleQuickLinks: Record<AppRole, QuickLink[]> = {
   owner: [
-    { key: 'command', title: 'نمای کلی کسب‌وکار', detail: 'اولویت‌ها و موارد نیازمند اقدام', icon: LayoutDashboard },
-    { key: 'orders', title: 'سفارش‌ها', detail: 'جریان سفارش تا تحویل', icon: FileText },
-    { key: 'operational-tasks', title: 'کارها و پیگیری', detail: 'وظایف، سررسیدها و رخدادها', icon: ClipboardCheck },
-    { key: 'finance', title: 'مالی و تسویه', detail: 'فاکتور و مغایرت‌گیری', icon: CreditCard },
+    { key: 'suppliers', title: 'شبکه تأمین‌کنندگان', detail: 'پرونده‌ها، ظرفیت و وضعیت همکاری', icon: Factory },
+    { key: 'members', title: 'دسترسی کاربران', detail: 'ایجاد حساب تأمین‌کننده و راننده', icon: ShieldCheck },
+    { key: 'connect', title: 'مرکز ارتباطات', detail: 'واگذاری مأموریت و پیگیری پاسخ‌ها', icon: MessageCircle },
+    { key: 'shipments', title: 'حمل‌ونقل و رانندگان', detail: 'محموله‌ها و وضعیت تحویل', icon: Truck },
   ],
   admin: [
-    { key: 'command', title: 'نمای کلی کسب‌وکار', detail: 'اولویت‌ها و موارد نیازمند اقدام', icon: LayoutDashboard },
-    { key: 'orders', title: 'سفارش‌ها', detail: 'جریان سفارش تا تحویل', icon: FileText },
-    { key: 'operational-tasks', title: 'کارها و پیگیری', detail: 'وظایف، سررسیدها و رخدادها', icon: ClipboardCheck },
-    { key: 'finance', title: 'مالی و تسویه', detail: 'فاکتور و مغایرت‌گیری', icon: CreditCard },
+    { key: 'suppliers', title: 'شبکه تأمین‌کنندگان', detail: 'پرونده‌ها، ظرفیت و وضعیت همکاری', icon: Factory },
+    { key: 'members', title: 'دسترسی کاربران', detail: 'ایجاد حساب همکاران مجاز', icon: ShieldCheck },
+    { key: 'connect', title: 'مرکز ارتباطات', detail: 'واگذاری مأموریت و پیگیری پاسخ‌ها', icon: MessageCircle },
+    { key: 'shipments', title: 'حمل‌ونقل و رانندگان', detail: 'محموله‌ها و وضعیت تحویل', icon: Truck },
   ],
   staff: [
-    { key: 'command', title: 'نمای کلی عملیات', detail: 'کارهای باز و هشدارها', icon: LayoutDashboard },
-    { key: 'operational-tasks', title: 'وظایف عملیاتی', detail: 'کارهای در جریان', icon: ClipboardCheck },
-    { key: 'shipments', title: 'ارسال و تحویل', detail: 'محموله‌های فعال', icon: Truck },
-    { key: 'inventory', title: 'موجودی و انبار', detail: 'گردش کالا', icon: Warehouse },
+    { key: 'suppliers', title: 'شبکه تأمین‌کنندگان', detail: 'پرونده‌ها و وضعیت همکاری', icon: Factory },
+    { key: 'operational-tasks', title: 'وظایف عملیاتی', detail: 'مأموریت‌ها و تکمیل کار', icon: ClipboardCheck },
+    { key: 'connect', title: 'مرکز ارتباطات', detail: 'هماهنگی با همکاران', icon: MessageCircle },
+    { key: 'shipments', title: 'حمل‌ونقل', detail: 'محموله‌های فعال', icon: Truck },
   ],
   supplier: [
     { key: 'operational-tasks', title: 'کارهای واگذارشده', detail: 'وظیفه و سررسید', icon: ClipboardCheck },
     { key: 'daily-production', title: 'ثبت روزانه', detail: 'ثبت واقعی تولید و عملیات', icon: Factory },
     { key: 'supplier-capacity', title: 'ظرفیت من', detail: 'اعلام و تأیید ظرفیت', icon: Warehouse },
-    { key: 'supplier-settlement', title: 'تسویه‌های من', detail: 'وضعیت مالی ثبت‌شده', icon: CreditCard },
-    { key: 'farm-sites', title: 'سایت‌های مزرعه', detail: 'مشخصات موقعیت‌های مجاز', icon: MapPin },
+    { key: 'farm-sites', title: 'موقعیت‌های کاری', detail: 'مشخصات مزرعه و محل تأمین', icon: MapPin },
+    { key: 'connect', title: 'مرکز ارتباطات', detail: 'پیام‌ها و مأموریت‌های مدیر', icon: MessageCircle },
   ],
   driver: [
     { key: 'driver-work', title: 'محموله‌های من', detail: 'تحویل، وضعیت و مدارک', icon: Truck },
   ],
   customer: [
-    { key: 'catalog', title: 'کاتالوگ خرید', detail: 'محصولات فعال', icon: Package },
-    { key: 'my-orders', title: 'سفارش‌های من', detail: 'وضعیت و موعد تحویل', icon: FileText },
-    { key: 'my-account', title: 'حساب سازمانی', detail: 'مشخصات و شرایط حساب', icon: Building2 },
+    { key: 'settings', title: 'تنظیمات حساب', detail: 'تنظیمات دسترسی و ظاهر', icon: ShieldCheck },
   ],
 };
 
