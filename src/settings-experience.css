@@ -120,3 +120,39 @@
 @media (prefers-reduced-motion: reduce) {
   .mobile-workspace-nav, .mobile-workspace-nav a, .mobile-workspace-more, .nav-tools-box a { transition:none !important; }
 }
+
+
+/* Consistent shared surfaces and typography across light and dark workspace pages. */
+html[data-theme] body, html[data-theme] .app-frame { background:var(--obs-bg); color:var(--obs-text); }
+html[data-theme] .app-topbar { background:color-mix(in srgb, var(--obs-surface) 94%, transparent); border-color:var(--obs-border); }
+html[data-theme] .breadcrumbs b, html[data-theme] .topbar-user b, html[data-theme] .page-heading h1,
+html[data-theme] .panel-heading h2, html[data-theme] .panel-heading h3, html[data-theme] .panel h2,
+html[data-theme] .panel h3, html[data-theme] .table-panel h2, html[data-theme] .table-panel h3 { color:var(--obs-text); }
+html[data-theme] .breadcrumbs, html[data-theme] .breadcrumbs i, html[data-theme] .topbar-user small,
+html[data-theme] .page-heading p, html[data-theme] .app-footer { color:var(--obs-muted); }
+html[data-theme] .panel, html[data-theme] .metric-card, html[data-theme] .data-panel,
+html[data-theme] .summary-card, html[data-theme] .table-panel, html[data-theme] .entity-panel,
+html[data-theme] .dashboard-disclosure-summary, html[data-theme] .tower-quick-access,
+html[data-theme] .tower-onboarding, html[data-theme] .tower-freshness, html[data-theme] .empty-state {
+  color:var(--obs-text); border-color:var(--obs-border);
+}
+html[data-theme] .panel, html[data-theme] .metric-card, html[data-theme] .data-panel,
+html[data-theme] .summary-card, html[data-theme] .table-panel, html[data-theme] .entity-panel {
+  background:var(--obs-surface);
+}
+html[data-theme] .dashboard-disclosure-summary { background:var(--obs-surface-2); }
+html[data-theme] .panel p, html[data-theme] .metric-card small, html[data-theme] .data-panel p,
+html[data-theme] .summary-card small, html[data-theme] .table-panel p, html[data-theme] .entity-panel p,
+html[data-theme] .empty-state p { color:var(--obs-muted); }
+html[data-theme] table, html[data-theme] thead, html[data-theme] tbody, html[data-theme] tr,
+html[data-theme] th, html[data-theme] td { border-color:var(--obs-border); }
+html[data-theme] th { background:var(--obs-surface-2); color:var(--obs-muted); }
+html[data-theme] td { color:var(--obs-text); }
+html[data-theme] .app-footer { border-color:var(--obs-border); }
+html[data-theme] .topbar-home-link { color:var(--obs-muted); }
+html[data-theme] .topbar-home-link:hover { color:var(--obs-accent); }
+html[data-theme] input:not([type=checkbox]):not([type=radio]), html[data-theme] select,
+html[data-theme] textarea { background:var(--obs-bg); border-color:var(--obs-border); color:var(--obs-text); }
+html[data-theme] input::placeholder, html[data-theme] textarea::placeholder { color:var(--obs-subtle); }
+html[data-theme] .nav-tools-box, html[data-theme] .settings-section { color:var(--obs-text); }
+html[data-theme] .form-error, html[data-theme] .form-success { border-radius:10px; padding:10px 12px; }
