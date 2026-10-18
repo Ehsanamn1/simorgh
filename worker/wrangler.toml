@@ -16,4 +16,4 @@ binding = "FILE_STORE"
 bucket_name = "medar-private-files"
 
 [triggers]
-crons = ["30 1 * * *"]
+crons = ["*/5 * * * *", "30 1 * * *"]
