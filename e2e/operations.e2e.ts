@@ -124,6 +124,65 @@ test('manager map shows every saved farm coordinate and allows marker selection'
   await expect(map.getByRole('button', { name: 'نقشه دقیق' })).toBeDisabled();
 });
 
+
+test('operations map shows fresh driver GPS without inventing coordinates and hides stale points', async ({ page }) => {
+  await installIsolatedSession(page, 'owner');
+  const shipmentId = '00000000-0000-4000-8000-000000000211';
+  const driverId = '00000000-0000-4000-8000-000000000212';
+  let ageMs = 0;
+  const shipment = {
+    id: shipmentId,
+    company_id: companyId,
+    driver_user_id: driverId,
+    stage: 'in_transit',
+    vehicle: 'خاور GPS',
+    planned_departure: new Date().toISOString(),
+    order_id: '00000000-0000-4000-8000-000000000213',
+  };
+  await page.route('**/api/data/farm_sites', async route => {
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: [], count: 0, error: null }) });
+  });
+  await page.route('**/api/data/shipments', async route => {
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: [shipment], count: 1, error: null }) });
+  });
+  await page.route('**/api/data/shipment_locations', async route => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: [{
+          id: '00000000-0000-4000-8000-000000000214',
+          company_id: companyId,
+          shipment_id: shipmentId,
+          driver_user_id: driverId,
+          latitude: 35.6892,
+          longitude: 51.3890,
+          accuracy_m: 12,
+          captured_at: new Date(Date.now() - ageMs).toISOString(),
+        }],
+        count: 1,
+        error: null,
+      }),
+    });
+  });
+
+  await page.goto('/simorgh/app/command', { waitUntil: 'domcontentloaded' });
+  const map = page.locator('.farm-map-panel');
+  await expect(map.getByRole('heading', { name: 'نقشه‌ی عملیات و سایت‌ها' })).toBeVisible();
+  await expect(map.locator('.farm-map-driver-marker')).toHaveCount(1);
+  await expect(map.getByRole('button', { name: /مأموریت خاور GPS/ })).toBeVisible();
+  await expect(map.locator('.farm-map-fleet-list')).toContainText('خاور GPS');
+  await map.getByRole('button', { name: 'نقشه دقیق' }).click();
+  await expect(map.locator('.farm-map-canvas iframe')).toBeVisible();
+  await expect(map.locator('.farm-map-canvas iframe')).toHaveAttribute('src', /bbox=/);
+  await expect(map.locator('.farm-map-driver-marker')).toHaveCount(1);
+
+  ageMs = 10 * 60 * 1000;
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await expect(map.locator('.farm-map-driver-marker')).toHaveCount(0);
+  await expect(map.locator('.farm-map-fleet-list')).toContainText('آخرین نقطه قدیمی است');
+});
+
 test('generic farm types and daily rejected quantities are validated before writes', async ({ page }) => {
   await installIsolatedSession(page, 'owner');
 
