@@ -823,7 +823,7 @@ test('owner can configure module access for a staff member and restore inherited
     can_read: true, can_create: true, can_update: true, can_delete: false, can_approve: false,
   }));
   let saved: Array<Record<string, unknown>> | null = null;
-  await page.route('**/api/workspace/members', async route => {
+  await page.route('**/api/workspace/members*', async route => {
     await route.fulfill({
       status: 200, contentType: 'application/json',
       body: JSON.stringify({ members: [
@@ -844,7 +844,7 @@ test('owner can configure module access for a staff member and restore inherited
   });
   await page.goto('/simorgh/app/members', { waitUntil: 'domcontentloaded' });
   await expect(page.getByRole('heading', { name: 'دسترسی کاربران' })).toBeVisible();
-  const staffRow = page.locator('tr').filter({ hasText: 'staff_test' });
+  const staffRow = page.locator('.data-table tbody tr').filter({ hasText: '@staff_test' });
   await staffRow.getByRole('button', { name: 'مجوزها' }).click();
   const agentRead = page.getByRole('checkbox', { name: 'دستیار و مرکز ایجنت‌ها — مشاهده' });
   await expect(agentRead).toBeVisible();
@@ -950,7 +950,7 @@ test('finance imports an actual CSV payload and reconciles only after explicit c
   page.on('dialog', dialog => dialog.accept());
   await page.goto('/simorgh/app/finance', { waitUntil: 'domcontentloaded' });
   await expect(page.getByRole('heading', { name: 'صورت‌حساب بانکی و تطبیق تراکنش' })).toBeVisible();
-  await expect(page.getByText('حساب تست عملیات')).toBeVisible();
+  await expect(page.locator('.bank-account-card').filter({ hasText: 'حساب تست عملیات' })).toBeVisible();
   const csv = [
     'transaction_id,date,amount,currency,description,counterparty,reference',
     'TXN-20261018-001,2026-10-18,1250.50,IRR,"دریافت مشتری",مشتری آزمایشی,REF-000001',
@@ -1009,6 +1009,7 @@ test('role home loads the real notification inbox and acknowledges an unread bri
   const markRead = page.getByRole('button', { name: 'خوانده‌شده: خلاصهٔ روزانهٔ عملیات' });
   await expect(markRead).toBeVisible();
   await markRead.click();
+  await expect(page.locator('.notification-item.unread')).toHaveCount(0);
   await expect(markRead).toHaveCount(0);
   await expect(page.getByRole('heading', { name: 'اعلان‌های من' })).toContainText('۰');
   expect(markReadCalls).toBe(1);
