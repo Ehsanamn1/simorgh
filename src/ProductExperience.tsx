@@ -17,9 +17,9 @@ const routeIcons: Record<string, LucideIcon> = {
   'operational-tasks': ListTodo, 'partner-finance': CreditCard, 'farm-sites': Warehouse, incidents: Activity,
 };
 const priorities: Record<string, string[]> = {
-  manager: ['home', 'orders', 'shipments'],
-  supplier: ['operational-tasks', 'daily-production', 'supplier-settlement'],
-  driver: ['driver-work'], customer: ['catalog', 'my-orders', 'my-account'],
+  manager: ['home', 'connect', 'shipments'],
+  supplier: ['operational-tasks', 'daily-production', 'connect'],
+  driver: ['driver-work'], customer: ['home'],
 };
 type MobileNavigationLink = { key: string; route: string; label: string; Icon: LucideIcon; anchor?: string };
 const shortLabels: Record<string, string> = {
