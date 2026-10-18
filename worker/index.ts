@@ -2532,7 +2532,7 @@ const UPDATE_PROTECTED_FIELDS:Record<string,Set<string>>={
  invoices:new Set(['status','paid_amount','paid_at','paid_by','payment_reference']),
  settlements:new Set(['status','paid_at','paid_by','payment_reference']),
  operational_tasks:new Set(['status','started_at','submitted_at','reviewed_at','reviewed_by','review_note','assigned_by']),
- production_batches:new Set(['status','farm_site_id','supplier_id','agreement_id','flock_cycle_id','product_id','produced_quantity','started_on','quality_status','completed_on','rejected_quantity','lot_id']),
+ production_batches:new Set(['status','farm_site_id','supplier_id','agreement_id','flock_cycle_id','product_id','produced_quantity','started_on','quality_status','completed_on','rejected_quantity']),
  partner_financial_entries:new Set(['status','submitted_at','approved_by','approved_at','posted_by','posted_at']),
  partner_settlement_periods:new Set(['status','approved_by','approved_at','settled_by','settled_at','calculation_snapshot','net_result','company_share_amount','partner_share_amount','balance_due_to_partner','balance_due_to_company']),
  inventory_movements:new Set(['company_id','product_id','movement_type','quantity','unit_cost'])
