@@ -390,7 +390,7 @@ export function AIAssistant({ companyId, role, userName }: AIAssistantProps) {
       realtimeEventIdsRef.current.clear();
       const remoteAudio = new Audio();
       remoteAudio.autoplay = true;
-      remoteAudio.playsInline = true;
+      remoteAudio.setAttribute('playsinline', '');
       realtimeAudioRef.current = remoteAudio;
       peer.ontrack = event => {
         remoteAudio.srcObject = event.streams[0] ?? null;
