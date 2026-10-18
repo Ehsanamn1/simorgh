@@ -207,6 +207,7 @@ async function sendWebPush(subscription: { endpoint: string; p256dh_key: string;
   const encrypted = await encryptWebPushPayload(body, subscription.p256dh_key, authSecret);
   const response = await fetch(endpoint.toString(), {
     method: 'POST',
+    redirect: 'manual',
     headers: {
       Authorization: await vapidAuthorization(endpoint, env),
       'Content-Type': 'application/octet-stream',
