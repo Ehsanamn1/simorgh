@@ -3328,10 +3328,6 @@ app.post('/api/connect/conversations/:id/messages', async (c) => {
     [companyId,conversationId,user.id,messageBody,clientMessageId || null],
   );
   const message = rows[0];
-  await sqlFor(c).query(
-    "insert into public.notifications(company_id,user_id,title,body,href,dedupe_key) select $1::uuid,p.user_id,'پیام جدید در مدار',left($2,180),'/app/home','message:'||$3 from public.medar_conversation_participants p where p.company_id=$1::uuid and p.conversation_id=$4::uuid and p.user_id<>$5::uuid on conflict (company_id,user_id,dedupe_key) where dedupe_key is not null do nothing",
-    [companyId,messageBody,message.id,conversationId,user.id],
-  );
   await sqlFor(c).query('update public.medar_conversations set updated_at=now() where company_id=$1::uuid and id=$2::uuid',[companyId,conversationId]);
   return c.json({ ok: true, message }, 201);
 });
