@@ -1290,3 +1290,43 @@ test('operational exception inbox assigns, acknowledges and resolves a case with
   await expect(page.getByText('حل‌شده')).toBeVisible();
   await expect(page.getByText('رسید تحویل دریافت و بررسی شد.')).toBeVisible();
 });
+
+test('settings centralizes password, real connection health, and light/dark preferences', async ({ page }) => {
+  await installIsolatedSession(page, 'owner');
+  await page.route('**/api/health', route => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({ ok: true, database: true, service: 'medar-ops' }),
+  }));
+  await page.route('**/api/admin/system/clients**', route => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({ clients: [{ clientId: 'web-test', platform: 'web', appVersion: 'test', username: 'owner_test', role: 'owner', firstSeenAt: new Date().toISOString(), lastSeenAt: new Date().toISOString(), online: true }], summary: { knownClients: 1, onlineClients: 1 } }),
+  }));
+  await page.route('**/api/auth/password/change', route => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({ ok: true, message: 'گذرواژه آزمایشی با موفقیت تغییر کرد.' }),
+  }));
+
+  await page.goto('/simorgh/app/settings', { waitUntil: 'domcontentloaded' });
+  await expect(page.getByRole('heading', { name: 'تنظیمات مدار' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'اتصال مدار' })).toBeVisible();
+  await expect(page.getByText('پاسخ‌گو')).toBeVisible();
+  await expect(page.getByText('دستگاه‌های شناخته‌شده')).toBeVisible();
+  await expect(page.locator('.nav-tools-box')).toContainText('همه امکانات و ابزارها');
+  await expect(page.locator('.sidebar-status')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'تغییر گذرواژه' })).toHaveCount(0);
+
+  await page.getByRole('button', { name: /حالت تاریک/ }).click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  await page.getByRole('button', { name: /حالت روشن/ }).click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+
+  await page.getByLabel('گذرواژه فعلی').fill('old-password');
+  await page.getByLabel('گذرواژه جدید').fill('new-password-123');
+  await page.getByLabel('تکرار گذرواژه').fill('new-password-123');
+  await page.getByRole('button', { name: 'ذخیره گذرواژه جدید' }).click();
+  await expect(page.getByRole('status')).toContainText('گذرواژه آزمایشی با موفقیت تغییر کرد.');
+
+  await page.goto('/simorgh/app/command', { waitUntil: 'domcontentloaded' });
+  await expect(page.locator('.dashboard-connect-disclosure')).toHaveCount(0);
+  await expect(page.locator('.sidebar-settings-link')).toBeVisible();
+});
