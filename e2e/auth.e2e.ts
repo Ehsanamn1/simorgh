@@ -6,16 +6,7 @@ const user = {
   phone: '+989120000000',
   full_name: 'مالک آزمایشی مدار',
 };
-const membership = {
-  id: '00000000-0000-4000-8000-000000000902',
-  company_id: '00000000-0000-4000-8000-000000000903',
-  user_id: user.id,
-  role: 'owner',
-  active: true,
-  customer_id: null,
-  supplier_id: null,
-  company: { name: 'مزرعه آزمایشی' },
-};
+
 
 test('the app opens a username-and-password sign-in without an email field', async ({ page }) => {
   const errors: string[] = [];
