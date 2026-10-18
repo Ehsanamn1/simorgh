@@ -23,6 +23,9 @@
 .nav-tools-box .nav-group > .side-nav { gap:2px; padding:2px 0 6px; overflow:visible; }
 .nav-tools-box .side-nav a { min-height:37px; height:auto; padding:7px 9px; border-radius:9px; font-size:11px; }
 .nav-tools-box .side-nav a.selected { background:var(--obs-surface-2) !important; color:var(--obs-text) !important; box-shadow:inset -3px 0 var(--obs-accent); }
+.nav-tools-box .side-nav a.nav-primary-access, .nav-tools-box .side-nav a.nav-primary-connect { min-height:43px; margin:2px 0; font-weight:900; border:1px solid color-mix(in srgb,var(--obs-accent) 42%,var(--obs-border)); background:color-mix(in srgb,var(--obs-accent) 9%,var(--obs-surface)); color:var(--obs-text); }
+.nav-tools-box .side-nav a.nav-primary-access svg, .nav-tools-box .side-nav a.nav-primary-connect svg { color:var(--obs-accent); }
+.nav-tools-box .side-nav a.nav-primary-access span, .nav-tools-box .side-nav a.nav-primary-connect span { font-size:12px; font-weight:950; }
 .sidebar-settings-link {
   display:flex; align-items:center; gap:9px; padding:10px 9px; margin:8px 0 3px;
   border:1px solid var(--obs-border); border-radius:11px; background:var(--obs-surface);
@@ -83,6 +86,7 @@
   .settings-password-form { grid-template-columns:1fr; }
 }
 @media (max-width: 720px) {
+  .topbar-home-link { display:none !important; }
   .medar-settings-page { grid-template-columns:minmax(0,1fr); gap:12px; }
   .medar-settings-page > .page-heading, .settings-connection { grid-column:auto; }
   .settings-section { padding:15px; border-radius:15px; }
@@ -160,6 +164,8 @@ html[data-theme] .form-error, html[data-theme] .form-success { border-radius:10p
 
 /* Compact account action and explicit network state; colors follow the active theme tokens. */
 .topbar-logout { flex:none; }
+.settings-account-actions .button-danger { display:inline-flex; align-items:center; gap:8px; min-height:40px; padding:9px 14px; border:1px solid color-mix(in srgb,var(--obs-critical) 40%,var(--obs-border)); border-radius:10px; background:color-mix(in srgb,var(--obs-critical) 10%,var(--obs-surface)); color:var(--obs-text); font-weight:850; cursor:pointer; }
+.settings-account-actions .button-danger:hover { border-color:var(--obs-critical); background:color-mix(in srgb,var(--obs-critical) 17%,var(--obs-surface)); }
 .network-status {
   display:inline-flex; align-items:center; gap:6px; min-height:27px; padding:4px 9px;
   border:1px solid var(--obs-border); border-radius:999px; background:var(--obs-surface);
