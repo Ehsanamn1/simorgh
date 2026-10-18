@@ -42,3 +42,6 @@ The Cloudflare operational deployment workflow applies this migration after vali
 
 
 18. `0018_bank_reconciliation_ledger.sql` — creates company-scoped bank account metadata and an idempotent imported-transaction ledger with an auditable manual reconciliation link. It stores no online banking credentials and never initiates transfers.
+
+
+19. `0019_daily_briefing_notifications.sql` — adds a nullable idempotency key and a partial unique index to notifications so daily in-app summaries do not duplicate for the same user, role, and business date. The Cloudflare Worker runs the daily briefing at 01:30 UTC; summaries are produced only from actual role-scoped records and are stored for in-app review. No external messages are sent by this schedule.
