@@ -48,7 +48,7 @@ jobs:
             worker/migrations/0009_inventory_movement_concurrency_lock.sql \
             worker/migrations/0010_purchase_order_lifecycle.sql   \
             worker/migrations/0011_username_password_only.sql \
-            worker/migrations/0012_client_presence.sql worker/migrations/0013_ai_assistant_and_contacts.sql worker/migrations/0014_contact_intelligence.sql worker/migrations/0015_ai_action_approval_ledger.sql worker/migrations/0016_membership_module_permissions.sql; do
+            worker/migrations/0012_client_presence.sql worker/migrations/0013_ai_assistant_and_contacts.sql worker/migrations/0014_contact_intelligence.sql worker/migrations/0015_ai_action_approval_ledger.sql worker/migrations/0016_membership_module_permissions.sql worker/migrations/0017_delivery_video_evidence.sql; do
             echo "Applying $migration"
             psql -h 127.0.0.1 -U postgres -d medar_test -v ON_ERROR_STOP=1 -1 -f "$migration"
           done
