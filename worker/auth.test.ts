@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   CREATE_OWNER_WORKSPACE_SQL,
+  AI_PROVIDERS,
   DUMMY_PASSWORD_HASH,
   FAILED_LOGIN_UPSERT_SQL,
   normalizeUsername,
@@ -13,6 +14,16 @@ import {
   scopeHasModulePermission,
   verifyPassword,
 } from './index';
+
+
+describe('AI provider default model IDs', () => {
+  it('uses model identifiers supported by the current provider APIs', () => {
+    expect(AI_PROVIDERS.openai.model).toBe('gpt-6-luna');
+    expect(AI_PROVIDERS.gemini.model).toBe('gemini-4-argon');
+    expect(AI_PROVIDERS.deepseek.model).toBe('deepseek-v4-flash');
+    expect(AI_PROVIDERS.anthropic.model).toBe('claude-sonnet-5');
+  });
+});
 
 describe('Worker API deployment mode isolation', () => {
   it('keeps an unconfigured or public-demo Worker read-only by default', () => {
