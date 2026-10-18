@@ -1248,6 +1248,11 @@ test('operational exception inbox assigns, acknowledges and resolves a case with
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, exception: { id: caseId, status: 'acknowledged' } }) });
       return;
     }
+    if (path.endsWith('/start') && request.method() === 'POST') {
+      cases = cases.map(item => ({ ...item, status: 'in_progress' }));
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, exception: { id: caseId, status: 'in_progress' } }) });
+      return;
+    }
     if (path.endsWith('/resolve') && request.method() === 'POST') {
       const body = request.postDataJSON() as { resolutionNote: string };
       cases = cases.map(item => ({ ...item, status: 'resolved', resolutionNote: body.resolutionNote, resolvedBy: ownerId }));
@@ -1270,6 +1275,8 @@ test('operational exception inbox assigns, acknowledges and resolves a case with
   await expect(page.getByRole('heading', { name: 'تأخیر در تحویل سفارش' })).toBeVisible();
   await page.getByRole('button', { name: 'ثبت دریافت' }).click();
   await expect(page.getByText('دریافت‌شده')).toBeVisible();
+  await page.getByRole('button', { name: 'شروع رسیدگی' }).click();
+  await expect(page.getByText('در حال رسیدگی')).toBeVisible();
   await page.getByLabel('شرح نتیجه تأخیر در تحویل سفارش').fill('رسید تحویل دریافت و بررسی شد.');
   await page.getByRole('button', { name: 'حل و بستن' }).click();
   await expect(page.getByText('حل‌شده')).toBeVisible();
