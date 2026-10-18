@@ -3,6 +3,9 @@ import {
   CREATE_OWNER_WORKSPACE_SQL,
   AI_PROVIDERS,
   requireAiEncryptionKey,
+  canTransitionMedarStatus,
+  isProductionBatchSubmissionValid,
+  isProductionBatchCompletionReady,
   DUMMY_PASSWORD_HASH,
   FAILED_LOGIN_UPSERT_SQL,
   normalizeUsername,
@@ -32,6 +35,42 @@ describe('dedicated AI encryption key', () => {
     expect(requireAiEncryptionKey('stable-dedicated-key')).toBe('stable-dedicated-key');
     expect(() => requireAiEncryptionKey(undefined)).toThrow(/AI_ENCRYPTION_KEY/);
     expect(() => requireAiEncryptionKey('')).toThrow(/AI_ENCRYPTION_KEY/);
+  });
+});
+
+describe('production and partner-finance status workflows', () => {
+  it('allows only the intended production batch lifecycle transitions', () => {
+    expect(canTransitionMedarStatus('production_batches', 'planned', 'active')).toBe(true);
+    expect(canTransitionMedarStatus('production_batches', 'active', 'submitted_for_review')).toBe(true);
+    expect(canTransitionMedarStatus('production_batches', 'submitted_for_review', 'approved')).toBe(true);
+    expect(canTransitionMedarStatus('production_batches', 'approved', 'completed')).toBe(true);
+    expect(canTransitionMedarStatus('production_batches', 'planned', 'completed')).toBe(false);
+    expect(canTransitionMedarStatus('production_batches', 'completed', 'active')).toBe(false);
+  });
+
+  it('allows partner financial entries to be submitted, approved and posted, but never reopened after posting', () => {
+    expect(canTransitionMedarStatus('partner_financial_entries', 'draft', 'submitted')).toBe(true);
+    expect(canTransitionMedarStatus('partner_financial_entries', 'submitted', 'approved')).toBe(true);
+    expect(canTransitionMedarStatus('partner_financial_entries', 'approved', 'posted')).toBe(true);
+    expect(canTransitionMedarStatus('partner_financial_entries', 'submitted', 'posted')).toBe(false);
+    expect(canTransitionMedarStatus('partner_financial_entries', 'posted', 'draft')).toBe(false);
+    expect(canTransitionMedarStatus('partner_financial_entries', 'rejected', 'draft')).toBe(true);
+  });
+
+  it('rejects production review submissions with invalid produced/rejected quantities', () => {
+    expect(isProductionBatchSubmissionValid(100, 5)).toBe(true);
+    expect(isProductionBatchSubmissionValid('100', '5')).toBe(true);
+    expect(isProductionBatchSubmissionValid(0, 0)).toBe(false);
+    expect(isProductionBatchSubmissionValid(100, 101)).toBe(false);
+    expect(isProductionBatchSubmissionValid(100, -1)).toBe(false);
+  });
+
+  it('requires passed quality, a valid lot ID, and a released lot with a passing review to complete production', () => {
+    const lotId = '0b9a0d6f-f5a0-4a0f-9a9b-7d8b30d5d482';
+    expect(isProductionBatchCompletionReady('passed', lotId, true)).toBe(true);
+    expect(isProductionBatchCompletionReady('pending', lotId, true)).toBe(false);
+    expect(isProductionBatchCompletionReady('passed', 'not-a-uuid', true)).toBe(false);
+    expect(isProductionBatchCompletionReady('passed', lotId, false)).toBe(false);
   });
 });
 
