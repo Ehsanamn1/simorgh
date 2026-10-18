@@ -352,6 +352,8 @@ test('owner can create a supplier login and copy the one-time credentials', asyn
     await route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ member: { membership_id: '00000000-0000-4000-8000-000000000078', username: 'supplier_local', role: 'supplier' } }) });
   });
   await page.goto('/simorgh/app/members', { waitUntil: 'domcontentloaded' });
+  await expect(page.getByRole('button', { name: /تأمین‌کنندگان/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: /رانندگان/ })).toBeVisible();
   await page.getByRole('button', { name: 'ساخت حساب' }).click();
   await page.getByLabel('نام و نام خانوادگی').fill('تأمین‌کننده محلی');
   await page.getByLabel('نام کاربری').fill('supplier_local');
