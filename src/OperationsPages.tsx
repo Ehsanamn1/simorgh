@@ -215,7 +215,7 @@ export function OperationsWorkspacePage({kind,membership,search}:{kind:Operation
       products:(products.data??[]) as unknown as Row[],lots:(lots.data??[]) as unknown as Row[],
       qualityReviews:(qualityReviews.data??[]) as unknown as Row[],
     });
-    if(kind==='production-batches'&&(lots.error||qualityReviews.error)){
+    if(kind==='production-batches'&&manager&&(lots.error||qualityReviews.error)){
       setError(lots.error?.message??qualityReviews.error?.message??'دریافت لات‌ها و نتایج کنترل کیفیت ناموفق بود.');
     }
     setLoading(false);
