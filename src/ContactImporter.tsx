@@ -125,6 +125,7 @@ export function ContactImporter({companyId}:{companyId:string}) {
   const [analyzing,setAnalyzing]=useState(false);
   const [error,setError]=useState('');
   const [notice,setNotice]=useState<ImportResult|null>(null);
+  const [aiSummary,setAiSummary]=useState('');
   const deduplicated=useMemo(()=>{
     const seenNames=new Set<string>(), seenPhones=new Set<string>();
     return contacts.map(contact=>{
@@ -141,7 +142,7 @@ export function ContactImporter({companyId}:{companyId:string}) {
   const ready=deduplicated.filter(contact=>!contact.duplicate&&contact.name.trim().length>=2);
   const unclassified=contacts.filter(contact=>!contact.aiAnalyzed);
   async function handleFile(file:File){
-    setError('');setNotice(null);setContacts([]);setFileName(file.name);
+    setError('');setNotice(null);setAiSummary('');setContacts([]);setFileName(file.name);
     if(!/\.(vcf|csv|txt)$/i.test(file.name)){setError('فعلاً فقط فایل مخاطبین VCF یا فایل CSV/TXT قابل پردازش است. از گوشی می‌توانی مخاطب‌ها را به صورت VCF خروجی بگیری.');return;}
     if(file.size>5*1024*1024){setError('فایل باید حداکثر ۵ مگابایت باشد.');return;}
     setLoading(true);
@@ -152,6 +153,60 @@ export function ContactImporter({companyId}:{companyId:string}) {
       setContacts(parsed);
     }catch(caught){setError(caught instanceof Error?caught.message:'خواندن فایل انجام نشد.');}
     finally{setLoading(false);}
+  }
+  async function analyzeContacts(){
+    if(!unclassified.length||analyzing||saving)return;
+    const batch=unclassified.slice(0,200);
+    const suggestions=new Map<number,{kind:ImportKind|'unknown';confidence:number;reason:string;tags:string[]}>();
+    setAnalyzing(true);setError('');setNotice(null);
+    try{
+      for(let start=0;start<batch.length;start+=40){
+        const chunk=batch.slice(start,start+40);
+        const originalIndices=chunk.map(contact=>contacts.indexOf(contact));
+        const response=await api.post<ClassificationResult>('/api/contacts/classify',{
+          companyId,
+          contacts:chunk.map(contact=>({
+            name:contact.name,
+            organization:contact.organization||'',
+            city:contact.city||'',
+            notes:contact.notes||'',
+            tags:contact.tags||[],
+            kind:contact.kind,
+            kindDetected:contact.kindDetected===true,
+          })),
+        });
+        for(const result of response.results||[]){
+          const localIndex=Number(result.index);
+          const targetIndex=originalIndices[localIndex];
+          if(!Number.isInteger(localIndex)||targetIndex===undefined)continue;
+          suggestions.set(targetIndex,{
+            kind:result.kind==='customers'||result.kind==='suppliers'?result.kind:'unknown',
+            confidence:Math.max(0,Math.min(1,Number(result.confidence)||0)),
+            reason:String(result.reason||'').slice(0,180),
+            tags:Array.isArray(result.tags)?result.tags.filter(tag=>typeof tag==='string').slice(0,3):[],
+          });
+        }
+      }
+      setContacts(current=>current.map((contact,index)=>{
+        const suggestion=suggestions.get(index);
+        if(!suggestion)return contact;
+        const confident=(suggestion.kind==='customers'||suggestion.kind==='suppliers')&&suggestion.confidence>=0.75;
+        return {
+          ...contact,
+          ...(!contact.kindDetected&&confident?{kind:suggestion.kind as ImportKind,kindDetected:true}:{}),
+          tags:[...new Set([...(contact.tags||[]),...suggestion.tags])].slice(0,12),
+          aiConfidence:suggestion.confidence,
+          aiReason:suggestion.reason,
+          aiAnalyzed:true,
+        };
+      }));
+      const confident=[...suggestions.values()].filter(item=>(item.kind==='customers'||item.kind==='suppliers')&&item.confidence>=0.75).length;
+      setError('');
+      setAiSummary('تحلیل '+suggestions.size.toLocaleString('fa-IR')+' مخاطب انجام شد؛ '+confident.toLocaleString('fa-IR')+' پیشنهاد با اطمینان بالا برای بازبینی اعمال شد. هنوز چیزی در پایگاه داده ذخیره نشده است.'+
+        (unclassified.length>batch.length?' '+(unclassified.length-batch.length).toLocaleString('fa-IR')+' مخاطب دیگر در صف تحلیل باقی مانده است.':''));
+    }catch(caught){
+      setError(caught instanceof Error?caught.message:'تحلیل هوشمند مخاطبین انجام نشد؛ داده‌ها هنوز ذخیره نشده‌اند.');
+    }finally{setAnalyzing(false);}
   }
   async function importContacts(){
     setSaving(true);setError('');setNotice(null);
@@ -191,7 +246,7 @@ export function ContactImporter({companyId}:{companyId:string}) {
         <p className="contact-import-tip">راهنما: در CSV از سرستون‌های <code>name,phone,city,address,type</code> استفاده کن. ستون <code>type</code> می‌تواند supplier/suppliers یا customer/customers (یا «تأمین‌کننده»/«مشتری») باشد تا دسته به‌صورت خودکار انتخاب شود؛ اگر ستون نوع نباشد، دسته‌ی انتخابی مبناست.</p>
       </section>
       <section className="contact-import-card contact-preview-card">
-        <div className="contact-card-heading"><span><Phone size={18}/></span><div><b>۲. پیش‌نمایش و بررسی</b><small>{contacts.length.toLocaleString('fa-IR')} مخاطب شناسایی‌شده</small></div><button type="button" className="contact-reset" onClick={()=>{setContacts([]);setFileName('');setError('');setNotice(null);}} disabled={!contacts.length}><RefreshCw size={14}/></button></div>
+        <div className="contact-card-heading"><span><Phone size={18}/></span><div><b>۲. پیش‌نمایش و بررسی</b><small>{contacts.length.toLocaleString('fa-IR')} مخاطب شناسایی‌شده</small></div><button type="button" className="contact-reset" onClick={()=>{setContacts([]);setFileName('');setError('');setNotice(null);setAiSummary('');}} disabled={!contacts.length}><RefreshCw size={14}/></button></div>
         {loading?<div className="contact-empty"><LoaderCircle className="ai-spin" size={22}/> در حال خواندن پرونده</div>
           :contacts.length===0?<div className="contact-empty"><FileUp size={24}/><b>هنوز فایلی انتخاب نشده</b><span>بعد از انتخاب، نام و شماره‌ها را قبل از ذخیره می‌بینی.</span></div>
           :<>
