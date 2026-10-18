@@ -1,11 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-const user = {
-  id: '00000000-0000-4000-8000-000000000901',
-  username: 'owner_test',
-  phone: '+989120000000',
-  full_name: 'مالک آزمایشی مدار',
-};
+
 
 
 test('the app opens a username-and-password sign-in without an email field', async ({ page }) => {
