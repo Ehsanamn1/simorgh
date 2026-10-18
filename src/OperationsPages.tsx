@@ -78,6 +78,8 @@ const configs: Record<OperationsKind, Config> = {
     {key:'farm_site_id',label:'سایت',value:(r,refs)=>refName(refs.sites,r.farm_site_id,'name')},
     {key:'planned_quantity',label:'برنامه',value:r=>r.planned_quantity==null?'—':numberFa(numeric(r.planned_quantity))+' '+text(r.unit)},
     {key:'produced_quantity',label:'تولید',value:r=>numberFa(numeric(r.produced_quantity))+' '+text(r.unit)},
+    {key:'rejected_quantity',label:'مردودی',value:r=>numberFa(numeric(r.rejected_quantity))+' '+text(r.unit)},
+    {key:'lot_id',label:'لات',value:(r,refs)=>refName(refs.lots,r.lot_id,'code')},
     {key:'status',label:'وضعیت',value:r=>fa(r.status)},{key:'quality_status',label:'کیفیت',value:r=>fa(r.quality_status)}]},
   'daily-production': {title:'ثبت روزانه عملیات',eyebrow:'ثبت روزانه عملیات',description:'منابع مصرفی، ضایعات و خروجی واقعی هر بچ را با تاریخ و واحد سنجش ثبت کنید.',table:'daily_production_records',icon:Activity,columns:[
     {key:'record_date',label:'تاریخ',value:r=>dateValue(r.record_date)},{key:'batch_id',label:'بچ',value:(r,refs)=>refName(refs.batches,r.batch_id,'batch_code')},
@@ -656,6 +658,29 @@ export function OperationsWorkspacePage({kind,membership,search}:{kind:Operation
             {visibleFields.map(field=><FieldControl key={field.name} field={field} value={draft[field.name]} onChange={v=>assignDraft(field.name,v)}/>)}
             <div className="ops-form-foot"><span>مقادیر حساس و وضعیت اولیه در سمت دیتابیس بررسی می‌شوند.</span><button className="button-primary" type="submit" disabled={busy}>{busy?'در حال ثبت…':'ثبت رکورد'}</button></div>
           </form>}
+      </div>
+    </div>}
+
+    {batchReview&&<div className="ops-modal-backdrop" role="presentation" onMouseDown={e=>{if(e.target===e.currentTarget)setBatchReview(null);}}>
+      <div className="ops-modal compact" role="dialog" aria-modal="true" aria-label="ارسال بچ برای بازبینی">
+        <header><div><span className="ops-eyebrow">کنترل تولید</span><h2>ارسال بچ برای بازبینی</h2><p>بچ {text(batchReview.batch_code)}؛ بعد از ارسال، مقدار تولید و مردودی قفل می‌شوند.</p></div><button className="ops-refresh" onClick={()=>setBatchReview(null)} aria-label="بستن"><X size={18}/></button></header>
+        <form className="ops-form" onSubmit={submitBatchReview}>
+          <label className="ops-field"><span>مقدار تولید واقعی ({text(batchReview.unit)})</span><input type="number" min="0.001" step="0.001" required value={batchProduced} onChange={e=>setBatchProduced(e.target.value)}/></label>
+          <label className="ops-field"><span>مقدار مردودی ({text(batchReview.unit)})</span><input type="number" min="0" step="0.001" required value={batchRejected} onChange={e=>setBatchRejected(e.target.value)}/></label>
+          <div className="ops-form-foot"><span>مقدار تولید باید مثبت باشد و مردودی از تولید بیشتر نباشد.</span><button className="button-primary" type="submit" disabled={busy}>{busy?'در حال ثبت…':'ارسال برای بازبینی'}</button></div>
+        </form>
+      </div>
+    </div>}
+
+    {batchCompletion&&<div className="ops-modal-backdrop" role="presentation" onMouseDown={e=>{if(e.target===e.currentTarget){setBatchCompletion(null);setBatchLotId('');}}}>
+      <div className="ops-modal compact" role="dialog" aria-modal="true" aria-label="تکمیل بچ تولید">
+        <header><div><span className="ops-eyebrow">تأیید نهایی</span><h2>تکمیل بچ تولید</h2><p>بچ {text(batchCompletion.batch_code)} فقط با لات آزادشده و بازبینی کیفیت موفق تکمیل می‌شود.</p></div><button className="ops-refresh" onClick={()=>{setBatchCompletion(null);setBatchLotId('');}} aria-label="بستن"><X size={18}/></button></header>
+        <form className="ops-form" onSubmit={finishBatch}>
+          {eligibleLotsForBatch(batchCompletion).length
+            ?<label className="ops-field full"><span>لات آزادشده با کنترل کیفیت موفق</span><select required value={batchLotId} onChange={e=>setBatchLotId(e.target.value)}><option value="">انتخاب لات</option>{eligibleLotsForBatch(batchCompletion).map(l=><option key={String(l.id)} value={String(l.id)}>{String(l.code??l.id)} · {fa(l.status)}</option>)}</select></label>
+            :<p className="ops-alert error">لات واجد شرایطی برای این محصول و تأمین‌کننده پیدا نشد. ابتدا لات را آزاد و نتیجهٔ کنترل کیفیت را با وضعیت «قبول» ثبت کن.</p>}
+          <div className="ops-form-foot"><span>ثبت نهایی در سمت API دوباره اعتبارسنجی می‌شود.</span><button className="button-primary" type="submit" disabled={busy||eligibleLotsForBatch(batchCompletion).length===0||!batchLotId}>{busy?'در حال ثبت…':'تکمیل بچ'}</button></div>
+        </form>
       </div>
     </div>}
 
