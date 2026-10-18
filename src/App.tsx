@@ -324,7 +324,7 @@ function FarmMapPanel({sites,schemaWarning,membership}:{sites:Row[];schemaWarnin
   const iranFleetPoints = useMemo(() => freshFleetPoints.filter(item =>
     item.latitude >= 24 && item.latitude <= 41 && item.longitude >= 43 && item.longitude <= 65
   ), [freshFleetPoints]);
-  const showIranPaper = mapMode === 'iran';
+  // Only real map tiles and recorded coordinates are shown; no schematic map.
   const visibleMapped = showIranPaper ? iranMapped : mapped;
   const visibleFleetPoints = showIranPaper ? iranFleetPoints : freshFleetPoints;
   useEffect(() => {
@@ -1441,14 +1441,14 @@ function MembersPage({membership,search}:{membership:Membership;search:string}) 
   }finally{setPermissionsSaving(false);}
  };
  const visible=rows.filter(r=>!search||[r.username,r.full_name,r.phone,r.role].some(v=>String(v??'').toLowerCase().includes(search.toLowerCase())));
- const options:AppRole[]=membership.role==='owner'?['admin','staff','customer','supplier','driver']:['staff','customer','supplier','driver'];
+ const options:AppRole[]=membership.role==='owner'?['admin','staff','supplier','driver']:['staff','supplier','driver'];
  return <>
-  <PageHeading eyebrow="ACCESS / MEMBERSHIPS" title="دسترسی کاربران" description="حساب تأمین‌کننده، راننده یا همکار را خودت بساز و اطلاعات ورود را تحویل بده؛ یا برای ثبت‌نام مستقل کد دعوت بساز." action={<><Button variant="soft" onClick={()=>{setOpen(true);setInviteCode('');setError('');setNotice('');}}><Plus size={15}/> کد دعوت</Button><Button onClick={()=>{setAccountOpen(true);setError('');setNotice('');setAccountName('');setAccountUsername('');setAccountPassword('');setAccountRole('supplier');setAccountCustomerId('');setAccountSupplierId('');}}><Plus size={15}/> ساخت حساب</Button></>}/>
+  <PageHeading eyebrow="ACCESS / MEMBERSHIPS" title="دسترسی کاربران" description="حساب تأمین‌کننده، راننده یا همکار را خودت بساز؛ ثبت‌نام عمومی بسته است و دعوت‌ها یک‌بارمصرف‌اند." action={<><Button variant="soft" onClick={()=>{setOpen(true);setInviteCode('');setError('');setNotice('');}}><Plus size={15}/> کد دعوت</Button><Button onClick={()=>{setAccountOpen(true);setError('');setNotice('');setAccountName('');setAccountUsername('');setAccountPassword('');setAccountRole('supplier');setAccountCustomerId('');setAccountSupplierId('');}}><Plus size={15}/> ساخت حساب</Button></>}/>
   {error&&<InlineError error={error} retry={()=>void load()}/>}
   {notice&&<div className="form-success notice-wide"><CheckCircle2 size={17}/>{notice}</div>}
   {resetSecret&&<section className="panel invite-code-panel"><div className="panel-heading"><div><span className="section-number">LOGIN DETAILS</span><div><h3>اطلاعات ورود</h3><p>این اطلاعات را کپی کن و فقط به صاحب حساب تحویل بده.</p></div></div><Button variant="soft" onClick={()=>void navigator.clipboard?.writeText(resetSecret)}>کپی اطلاعات</Button></div><code className="invite-code-value" dir="ltr">{resetSecret}</code></section>}
   {inviteCode&&<section className="panel invite-code-panel"><div className="panel-heading"><div><span className="section-number">INVITE</span><div><h3>لینک دعوت یک‌بارمصرف</h3><p>این لینک فرم ساخت حساب را با نقش تعیین‌شده باز می‌کند.</p></div></div><Button variant="soft" onClick={()=>void navigator.clipboard?.writeText(inviteLink)}>کپی لینک</Button></div><code className="invite-code-value" dir="ltr">{inviteLink}</code><div className="invite-link-code"><small>کد پشتیبان دعوت</small><code dir="ltr">{inviteCode}</code><Button variant="ghost" onClick={()=>void navigator.clipboard?.writeText(inviteCode)}>کپی کد</Button></div><small>پس از استفادهٔ موفق، دعوت یک‌بارمصرف مصرف می‌شود؛ لینک تا ۷ روز معتبر است.</small></section>}
-  <div className="rule-banner"><ShieldCheck size={18}/><p><b>کنترل دسترسی سمت سرور</b><span>کاربران تنها پس از ثبت‌نام و ارائه کد دعوت معتبر به مجموعه متصل می‌شوند. مدیر نمی‌تواند مالک جدید تعیین کند؛ فقط مالک می‌تواند نقش مدیر را دعوت کند.</span></p></div>
+  <div className="rule-banner"><ShieldCheck size={18}/><p><b>کنترل دسترسی سمت سرور</b><span>ورود عمومی بسته است؛ حساب‌ها را مالک یا مدیر مجاز می‌سازد یا کاربر با دعوت معتبر و یک‌بارمصرف عضو می‌شود. فقط مالک می‌تواند نقش مدیر بسازد.</span></p></div>
   <section className="panel entity-panel members-list-panel"><div className="entity-toolbar"><div><b>{numberFa(visible.length)} عضویت</b><small>فهرست واقعی عضویت‌های مجموعه</small></div><Button variant="soft" onClick={()=>void load()}>تازه‌سازی</Button></div>
    {loading?<div className="panel-loading"><span className="spinner small"/></div>:visible.length?<DataTable rows={visible} columns={[
     {key:'username',label:'نام کاربری',render:r=><div><b dir="ltr">@{String(r.username??'')}</b><small className="cell-subtitle">{String(r.full_name??'بدون نام')}</small></div>},
