@@ -774,12 +774,66 @@ app.post('/api/ai/chat', async (c) => {
         "where company_id=$1::uuid and status not in ('resolved','closed','cancelled')",
         'order by created_at desc limit 4',
       ].join(' '), [companyId]).catch(() => []);
+      if (role === 'owner' || role === 'admin') {
+        const financeAndOperations = await sql.query([
+          'select',
+          "(select count(*)::int from public.invoices where company_id=$1::uuid and status in ('issued','partially_paid','overdue')) as open_invoices,",
+          "(select coalesce(sum(amount-paid_amount),0)::numeric(18,0) from public.invoices where company_id=$1::uuid and status in ('issued','partially_paid','overdue')) as accounts_receivable,",
+          "(select count(*)::int from public.invoices where company_id=$1::uuid and due_date<current_date and status in ('issued','partially_paid','overdue')) as overdue_invoices,",
+          "(select count(*)::int from public.settlements where company_id=$1::uuid and status in ('pending','approved')) as outstanding_supplier_settlements,",
+          "(select coalesce(sum(amount),0)::numeric(18,0) from public.settlements where company_id=$1::uuid and status in ('pending','approved')) as outstanding_supplier_settlement_amount,",
+          "(select count(*)::int from public.settlements where company_id=$1::uuid and due_date<current_date and status in ('pending','approved')) as overdue_supplier_settlements,",
+          "(select count(*)::int from public.purchase_orders where company_id=$1::uuid and status in ('draft','approved','partially_received')) as open_purchase_orders,",
+          "(select count(*)::int from public.purchase_orders where company_id=$1::uuid and expected_delivery<current_date and status in ('approved','partially_received')) as overdue_purchase_orders,",
+          "(select count(*)::int from public.production_batches where company_id=$1::uuid and status not in ('completed','cancelled','rejected')) as active_production_batches,",
+          "(select count(*)::int from public.inventory_movements where company_id=$1::uuid and occurred_at>now()-interval '30 days') as inventory_movements_30d,",
+          "(select count(*)::int from public.inventory_movements where company_id=$1::uuid and movement_type='waste_out' and occurred_at>now()-interval '30 days') as waste_events_30d",
+        ].join(' '), [companyId]);
+        Object.assign(context, financeAndOperations[0] as Record<string, unknown> || {});
+        const [purchaseOrders, invoices, production, inventoryByProduct] = await Promise.all([
+          sql.query([
+            'select po.reference,po.status,po.expected_delivery as due,s.name as supplier',
+            'from public.purchase_orders po join public.suppliers s on s.company_id=po.company_id and s.id=po.supplier_id',
+            "where po.company_id=$1::uuid and po.status in ('draft','approved','partially_received')",
+            'order by po.expected_delivery asc nulls last limit 5',
+          ].join(' '), [companyId]).catch(() => []),
+          sql.query([
+            'select reference,status,amount,paid_amount,due_date from public.invoices',
+            "where company_id=$1::uuid and status in ('issued','partially_paid','overdue')",
+            'order by due_date asc nulls last limit 5',
+          ].join(' '), [companyId]).catch(() => []),
+          sql.query([
+            'select batch_code,production_kind,status,planned_quantity,produced_quantity,unit,expected_on,quality_status',
+            'from public.production_batches where company_id=$1::uuid',
+            "and status not in ('completed','cancelled','rejected')",
+            'order by expected_on asc nulls last limit 5',
+          ].join(' '), [companyId]).catch(() => []),
+          sql.query([
+            'select p.name,p.sku,p.unit,coalesce(sum(case',
+            "when im.movement_type in ('purchase_in','adjustment_in','return_in') then im.quantity",
+            "when im.movement_type in ('sale_out','adjustment_out','waste_out') then -im.quantity else 0 end),0) as available_quantity",
+            'from public.products p left join public.inventory_movements im',
+            'on im.company_id=p.company_id and im.product_id=p.id',
+            'where p.company_id=$1::uuid and p.active=true',
+            'group by p.id,p.name,p.sku,p.unit order by available_quantity asc,p.name limit 8',
+          ].join(' '), [companyId]).catch(() => []),
+        ]);
+        Object.assign(context, {
+          upcomingPurchaseOrders: purchaseOrders,
+          unpaidInvoices: invoices,
+          activeProduction: production,
+          stockByProduct: inventoryByProduct,
+        });
+      }
     } else if (role === 'supplier' && membership.supplierId) {
       const scoped = await sql.query([
         'select',
         "(select count(*)::int from public.operational_tasks where company_id=$1::uuid and assignee_supplier_id=$2::uuid and status not in ('approved','cancelled')) as assigned_tasks,",
         "(select count(*)::int from public.operational_tasks where company_id=$1::uuid and assignee_supplier_id=$2::uuid and due_at<now() and status not in ('approved','cancelled')) as overdue_tasks,",
-        "(select count(*)::int from public.capacity_commitments where company_id=$1::uuid and supplier_id=$2::uuid and status in ('confirmed','committed') and period_end>=current_date) as active_capacity_commitments",
+        "(select count(*)::int from public.capacity_commitments where company_id=$1::uuid and supplier_id=$2::uuid and status in ('confirmed','committed') and period_end>=current_date) as active_capacity_commitments,",
+        "(select count(*)::int from public.settlements where company_id=$1::uuid and supplier_id=$2::uuid and status in ('pending','approved')) as own_open_settlements,",
+        "(select coalesce(sum(amount),0)::numeric(18,0) from public.settlements where company_id=$1::uuid and supplier_id=$2::uuid and status in ('pending','approved')) as own_settlement_amount,",
+        "(select count(*)::int from public.settlements where company_id=$1::uuid and supplier_id=$2::uuid and due_date<current_date and status in ('pending','approved')) as own_overdue_settlements",
       ].join(' '), [companyId, membership.supplierId]);
       context = scoped[0] as Record<string, unknown> || {};
       recentTasks = await sql.query([
@@ -804,7 +858,9 @@ app.post('/api/ai/chat', async (c) => {
       const scoped = await sql.query([
         'select',
         '(select count(*)::int from public.orders where company_id=$1::uuid and customer_id=$2::uuid) as own_orders,',
-        "(select count(*)::int from public.orders where company_id=$1::uuid and customer_id=$2::uuid and requested_delivery<current_date and status not in ('delivered','cancelled')) as own_late_orders",
+        "(select count(*)::int from public.orders where company_id=$1::uuid and customer_id=$2::uuid and requested_delivery<current_date and status not in ('delivered','cancelled')) as own_late_orders,",
+        "(select count(*)::int from public.invoices where company_id=$1::uuid and customer_id=$2::uuid and status in ('issued','partially_paid','overdue')) as own_open_invoices,",
+        "(select coalesce(sum(amount-paid_amount),0)::numeric(18,0) from public.invoices where company_id=$1::uuid and customer_id=$2::uuid and status in ('issued','partially_paid','overdue')) as own_receivables",
       ].join(' '), [companyId, membership.customerId]);
       context = scoped[0] as Record<string, unknown> || {};
       recentTasks = await sql.query([
@@ -817,7 +873,7 @@ app.post('/api/ai/chat', async (c) => {
   } catch {
     context = { note: 'برخی شاخص‌های مجاز در دسترس نیستند؛ فقط درباره داده موجود نتیجه‌گیری کن.' };
   }
-  const systemPrompt = 'تو دستیار عملیاتی مدار هستی. فقط براساس داده‌ی خلاصه‌ی ارائه‌شده و متن کاربر نتیجه بگیر؛ عدد، مشتری، رویداد یا واقعیت ساختگی نساز. اگر داده ناقص است صریح بگو. پیشنهادها را به اقدام‌های اولویت‌دار، مسئول پیشنهادی و موعد تقسیم کن. عملیات مالی، تغییر سفارش، ارسال پیام به افراد یا هر تغییری را خودت اجرا نکن و برای چنین اقداماتی تأیید انسانی لازم بدان. اطلاعات حساس شخصی را بازگو نکن. زبان پاسخ فارسی و واضح باشد. نقش کاربر: ' + role + '. داده خلاصه و محدود همین مجموعه (بدون شماره تلفن و اطلاعات هویتی مخاطبین): ' + JSON.stringify({ metrics: context, activeTasks: recentTasks, openIncidents: recentIncidents });
+  const systemPrompt = 'تو دستیار عملیاتی مدار هستی. فقط براساس داده‌ی خلاصه‌ی ارائه‌شده و متن کاربر نتیجه بگیر؛ عدد، مشتری، رویداد یا واقعیت ساختگی نساز. اگر داده ناقص است صریح بگو. پیشنهادها را به اقدام‌های اولویت‌دار، مسئول پیشنهادی و موعد تقسیم کن. عملیات مالی، تغییر سفارش، ارسال پیام به افراد یا هر تغییری را خودت اجرا نکن و برای چنین اقداماتی تأیید انسانی لازم بدان. اطلاعات حساس شخصی را بازگو نکن. زبان پاسخ فارسی و واضح باشد. نقش کاربر: ' + role + '. فقط درباره سوابق و شاخص‌های موجود در بخش زمینه پاسخ بده. مبلغ‌ها را بدون نسبت‌دادن واحد پولیِ ثبت‌نشده بیان کن. موجودی محصولات با واحدهای متفاوت را با هم جمع نکن و فقط تراز هر محصول را براساس واحد همان محصول گزارش بده. اگر پرسش نیاز به داده‌ای دارد که در زمینه موجود نیست، صریح بگو این داده به دستیار ارائه نشده است. زمینه خلاصه و محدود همین مجموعه (بدون شماره تلفن و اطلاعات هویتی مخاطبین): ' + JSON.stringify({ metrics: context, activeTasks: recentTasks, openIncidents: recentIncidents });
   try {
     await sql.query('insert into public.medar_ai_usage_log(company_id,user_id,provider,model,input_chars) values($1::uuid,$2::uuid,$3,$4,$5)', [companyId, user.id, provider, config.model, inputChars]);
     await sql.query("delete from public.medar_ai_usage_log where created_at<now()-interval '90 days'").catch(() => []);
