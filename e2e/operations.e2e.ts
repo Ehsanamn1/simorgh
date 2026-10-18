@@ -29,6 +29,13 @@ async function installIsolatedSession(page: Page, role: 'owner' | 'supplier' | '
     status: 200, contentType: 'application/json',
     body: JSON.stringify({ memberships }),
   }));
+  await page.route('**/api/notifications*', async route => {
+    if (route.request().method() === 'GET') {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ notifications: [], summary: { total: 0, unread: 0 } }) });
+      return;
+    }
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, updated: 0, notification: { readAt: new Date().toISOString() } }) });
+  });
 
   // All business-data reads are isolated at the Worker API boundary; tests never write to a live database.
   await page.route('**/api/data/**', async route => {
@@ -962,4 +969,47 @@ test('finance imports an actual CSV payload and reconciles only after explicit c
   await page.getByRole('button', { name: 'تأیید و ثبت تطبیق' }).click();
   await expect(page.getByText(/پیوند تطبیق مالی ثبت/)).toBeVisible();
   expect(reconcileCalls).toBe(1);
+});
+
+
+test('role home loads the real notification inbox and acknowledges an unread briefing', async ({ page }) => {
+  await installIsolatedSession(page, 'owner');
+  const firstId = '00000000-0000-4000-8000-000000000401';
+  const secondId = '00000000-0000-4000-8000-000000000402';
+  const companyNotifications = [
+    { id: firstId, title: 'خلاصهٔ روزانهٔ عملیات', body: '۲ وظیفهٔ باز · ۱ سفارش عقب‌افتاده', href: '/app/home', readAt: null, createdAt: new Date().toISOString() },
+    { id: secondId, title: 'محمولهٔ فعال', body: 'یک محموله در مسیر است.', href: '/app/driver-work', readAt: new Date(Date.now()-86400000).toISOString(), createdAt: new Date(Date.now()-86400000).toISOString() },
+  ];
+  let markReadCalls = 0;
+  await page.route('**/api/notifications*', async route => {
+    const request = route.request();
+    const url = new URL(request.url());
+    if (request.method() === 'GET') {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ notifications: companyNotifications, summary: { total: 2, unread: companyNotifications.filter(item => !item.readAt).length } }) });
+      return;
+    }
+    if (request.method() === 'POST' && url.pathname.endsWith('/read-all')) {
+      const body = request.postDataJSON() as { companyId: string };
+      expect(body.companyId).toBe(companyId);
+      companyNotifications.forEach(item => { item.readAt ??= new Date().toISOString(); });
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, updated: 1 }) });
+      return;
+    }
+    const body = request.postDataJSON() as { companyId: string };
+    expect(body.companyId).toBe(companyId);
+    expect(url.pathname).toBe('/api/notifications/' + firstId + '/read');
+    markReadCalls += 1;
+    companyNotifications[0].readAt = new Date().toISOString();
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, notification: { readAt: companyNotifications[0].readAt } }) });
+  });
+  await page.goto('/simorgh/app', { waitUntil: 'domcontentloaded' });
+  await expect(page.getByRole('heading', { name: 'اعلان‌های من' })).toBeVisible();
+  await expect(page.getByText('خلاصهٔ روزانهٔ عملیات')).toBeVisible();
+  await expect(page.getByText('محمولهٔ فعال')).toBeVisible();
+  const markRead = page.getByRole('button', { name: 'خوانده‌شده: خلاصهٔ روزانهٔ عملیات' });
+  await expect(markRead).toBeVisible();
+  await markRead.click();
+  await expect(markRead).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'اعلان‌های من' })).toContainText('۰');
+  expect(markReadCalls).toBe(1);
 });
