@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { type FormEvent, useCallback, useEffect, useState } from 'react';
 import { AlertTriangle, CheckCircle2, Clock3, Plus, RefreshCw, ShieldAlert } from 'lucide-react';
 import { api } from './lib/apiClient';
 import type { Membership } from './lib/types';
@@ -46,7 +46,7 @@ export function OperationalExceptionInbox({ membership }: { membership: Membersh
     void api.get<{people:Person[]}>('/api/connect/people?companyId='+encodeURIComponent(companyId)).then(result=>setPeople(result.people ?? [])).catch(()=>setPeople([]));
   },[load,companyId]);
 
-  async function createCase(event: React.FormEvent<HTMLFormElement>) {
+  async function createCase(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setError(''); setNotice('');
     try {
       await api.post('/api/operational/exceptions',{
