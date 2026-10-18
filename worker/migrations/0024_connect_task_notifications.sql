@@ -10,28 +10,38 @@ DECLARE
   task_title text;
   due_label text;
   assignment_key text;
+  recipient_user_id uuid;
 BEGIN
-  IF NEW.assignee_user_id IS NULL OR NEW.status IN ('cancelled','approved') THEN
+  IF NEW.status IN ('cancelled','approved') THEN
     RETURN NEW;
   END IF;
-  IF TG_OP = 'UPDATE' AND OLD.assignee_user_id IS NOT DISTINCT FROM NEW.assignee_user_id THEN
-    RETURN NEW;
-  END IF;
-  IF NOT EXISTS (
-    SELECT 1 FROM public.memberships m
-    WHERE m.company_id=NEW.company_id AND m.user_id=NEW.assignee_user_id AND m.active=true
-  ) THEN
+  IF TG_OP = 'UPDATE'
+    AND OLD.assignee_user_id IS NOT DISTINCT FROM NEW.assignee_user_id
+    AND OLD.assignee_supplier_id IS NOT DISTINCT FROM NEW.assignee_supplier_id THEN
     RETURN NEW;
   END IF;
 
   task_title := left(trim(NEW.title),180);
   due_label := CASE WHEN NEW.due_at IS NULL THEN '' ELSE ' · موعد: ' || to_char(NEW.due_at AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI') || ' UTC' END;
-  assignment_key := left('task-assigned:' || NEW.id::text || ':' || NEW.assignee_user_id::text || ':' ||
-    coalesce(NEW.updated_at,NEW.created_at,now())::text,240);
 
-  INSERT INTO public.notifications(company_id,user_id,title,body,href,dedupe_key)
-  VALUES (NEW.company_id,NEW.assignee_user_id,'وظیفهٔ جدید به شما واگذار شد',task_title || due_label,'/app/home',assignment_key)
-  ON CONFLICT (company_id,user_id,dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING;
+  FOR recipient_user_id IN
+    SELECT m.user_id
+    FROM public.memberships m
+    WHERE m.company_id=NEW.company_id
+      AND m.active=true
+      AND (
+        (NEW.assignee_user_id IS NOT NULL AND m.user_id=NEW.assignee_user_id)
+        OR
+        (NEW.assignee_user_id IS NULL AND NEW.assignee_supplier_id IS NOT NULL
+          AND m.supplier_id=NEW.assignee_supplier_id AND m.role::text='supplier')
+      )
+  LOOP
+    assignment_key := left('task-assigned:' || NEW.id::text || ':' || recipient_user_id::text || ':' ||
+      coalesce(NEW.updated_at,NEW.created_at,now())::text,240);
+    INSERT INTO public.notifications(company_id,user_id,title,body,href,dedupe_key)
+    VALUES (NEW.company_id,recipient_user_id,'وظیفهٔ جدید به شما واگذار شد',task_title || due_label,'/app/home',assignment_key)
+    ON CONFLICT (company_id,user_id,dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING;
+  END LOOP;
 
   RETURN NEW;
 END
