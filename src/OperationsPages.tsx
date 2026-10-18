@@ -315,13 +315,13 @@ export function OperationsWorkspacePage({kind,membership,search}:{kind:Operation
         {name:'paid_by',label:'پرداخت‌کننده هزینه',type:'select',options:[{value:'none',label:'ثبت نشده'},{value:'company',label:'شرکت'},{value:'partner',label:'شریک'},{value:'customer',label:'مشتری'},{value:'vendor',label:'فروشنده'},{value:'third_party',label:'شخص ثالث'}],defaultValue:'none'},
         {name:'paid_amount',label:'مبلغ پرداخت شده',type:'number',min:'0',step:'1',defaultValue:'0'},
         {name:'external_reference',label:'شماره رسید / مرجع'},{name:'recognized_on',label:'تاریخ مالی',type:'date',required:true,defaultValue:new Date().toISOString().slice(0,10)},
-        {name:'linked_entry_id',label:'فاکتور مرجع برای دریافت',type:'select',options:refs.financeEntries.filter(e=>e.entry_type==='sale_invoice'&&e.status==='posted').map(e=>({value:String(e.id),label:String(e.external_reference??e.id)+' · '+moneyFa(numeric(e.amount))}))},
+        {name:'linked_entry_id',label:'فاکتور مرجع برای دریافت',type:'select',required:true,options:refs.financeEntries.filter(e=>e.entry_type==='sale_invoice'&&e.status==='posted'&&String(e.supplier_id)===String(draft.supplier_id)&&String(e.agreement_id)===String(draft.agreement_id)).map(e=>({value:String(e.id),label:String(e.external_reference??e.id)+' · '+moneyFa(numeric(e.amount))}))},
         {name:'notes',label:'توضیحات',type:'textarea',full:true},
       ],
       'partner-settlements':[],
     };
     return map[kind];
-  },[kind,refs]);
+  },[kind,refs,draft.supplier_id,draft.agreement_id]);
 
   const filtered=useMemo(()=>{
     const q=search.trim().toLocaleLowerCase();
