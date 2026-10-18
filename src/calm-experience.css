@@ -1577,3 +1577,5 @@ html[data-theme="dark"] .bank-primary-button { color:#202a38; }
 .medar-exception-events>article time { color:var(--obs-muted); font-size:9px; white-space:nowrap; }
 @media(max-width:850px) { .medar-exception-layout { grid-template-columns:minmax(0,1fr); } .medar-exception-create { order:2; } }
 @media(max-width:560px) { .medar-exception-heading { align-items:flex-start; flex-wrap:wrap; padding:13px; } .medar-exception-heading>div { flex:1 1 calc(100% - 60px); } .medar-exception-heading>button { margin-inline-start:auto; } .medar-exception-summary { gap:6px; } .medar-exception-summary>div { padding:10px; } .medar-exception-summary b { font-size:18px; } .medar-exception-actions { grid-template-columns:1fr; } }
+
+.medar-connect-push-status { padding:10px 12px; border:1px solid var(--obs-border); border-radius:11px; color:var(--obs-muted); background:var(--obs-surface); font-size:10px; line-height:1.8; }
