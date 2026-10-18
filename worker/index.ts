@@ -3466,7 +3466,7 @@ async function runWebPushOutbox(env: Bindings): Promise<void> {
         } else if (result.gone) {
           await sql.query("update public.medar_push_subscriptions set active=false,last_failure_at=now(),last_error='Push endpoint expired or was removed',updated_at=now() where id=$1::uuid", [subscription.id]);
         } else {
-          retryable = result.status >= 500 || result.status === 429;
+          retryable = retryable || result.status >= 500 || result.status === 429;
           errors.push('Push service returned HTTP ' + result.status);
           await sql.query("update public.medar_push_subscriptions set last_failure_at=now(),last_error=$2,updated_at=now() where id=$1::uuid", [subscription.id,errors[errors.length-1]]);
         }
