@@ -1772,7 +1772,7 @@ app.post('/api/auth/signup-with-invite', async (c) => {
     const result = await sql.query(
       "with invite as (" +
         "update public.company_invites set uses=uses+1,updated_at=now() " +
-        "where token_hash=$3 and revoked_at is null and expires_at>now() and uses<max_uses " +
+        "where token_hash=$3 and role <> 'customer'::public.app_role and revoked_at is null and expires_at>now() and uses<max_uses " +
         "returning company_id,role,customer_id,supplier_id" +
       "), new_user as (" +
         "insert into public.medar_users(username,display_name,password_hash,requested_role,account_status) " +
@@ -1879,7 +1879,7 @@ app.post('/api/workspace/invites', async (c) => {
   const role = typeof body?.role === 'string' ? body.role : '';
   const customerId = typeof body?.customerId === 'string' ? body.customerId : null;
   const supplierId = typeof body?.supplierId === 'string' ? body.supplierId : null;
-  const allowedRoles = ['admin', 'staff', 'customer', 'supplier', 'driver'];
+  const allowedRoles = ['admin', 'staff', 'supplier', 'driver'];
   if (!/^[0-9a-f-]{36}$/i.test(companyId) || !allowedRoles.includes(role)) return c.json({ message: 'شرکت یا نقش دعوت معتبر نیست.' }, 422);
   if ((role === 'customer' && (!customerId || supplierId)) || (role === 'supplier' && (!supplierId || customerId)) || (!['customer','supplier'].includes(role) && (customerId || supplierId))) {
     return c.json({ message: 'برای نقش مشتری یا تأمین‌کننده باید حساب مربوط به همان مجموعه انتخاب شود.' }, 422);
