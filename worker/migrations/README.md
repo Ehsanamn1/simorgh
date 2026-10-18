@@ -61,4 +61,4 @@ The clean-database CI chain and guarded Cloudflare deployment migration list mus
 
 24. `0024_connect_task_notifications.sql` — creates idempotent in-app notifications when tasks are assigned/reassigned and when an explicit conversation participant receives a message. The existing outbox fans these notifications out to opted-in Push subscriptions; senders are excluded from message notifications.
 
-25. `0025_supplier_location_details.sql` — adds optional province and address fields to supplier records so Iranian teams can register locations without entering latitude/longitude manually.
+25. `0025_supplier_location_details.sql` — adds optional province/address fields and nullable coordinates to supplier records. Full Google Maps/OpenStreetMap links can supply a real pin without manual latitude/longitude entry.
