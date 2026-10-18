@@ -3070,7 +3070,7 @@ app.post('/api/storage/:bucket/remove',async c=>{
 const OPERATIONAL_EVENT_SOURCES: Record<string, string> = {
   order: 'orders', purchase_order: 'purchase_orders', task: 'operational_tasks',
   shipment: 'shipments', invoice: 'invoices', inventory: 'inventory_movements',
-  production: 'production_batches', quality: 'quality_reviews', supplier: 'suppliers',
+  production: 'production_batches', quality: 'quality_reviews', supplier: 'suppliers', incident: 'operational_incidents',
 };
 
 app.get('/api/operational/events', async (c) => {
@@ -3107,7 +3107,7 @@ app.post('/api/operational/events', async (c) => {
   const payload = body.payload && typeof body.payload === 'object' && !Array.isArray(body.payload) ? body.payload : {};
   if (!/^[a-z][a-z0-9_.-]{1,79}$/.test(eventType)) return c.json({ message: 'نوع رویداد معتبر نیست.' }, 422);
   if (!['info','warning','critical'].includes(severity)) return c.json({ message: 'شدت رویداد معتبر نیست.' }, 422);
-  if (!['order','purchase_order','task','shipment','invoice','inventory','production','quality','supplier','system','other'].includes(sourceType)) return c.json({ message: 'منبع رویداد معتبر نیست.' }, 422);
+  if (!['order','purchase_order','task','shipment','invoice','inventory','production','quality','supplier','incident','system','other'].includes(sourceType)) return c.json({ message: 'منبع رویداد معتبر نیست.' }, 422);
   if (title.length < 2 || title.length > 180 || description.length > 4000) return c.json({ message: 'عنوان یا شرح رویداد معتبر نیست.' }, 422);
   if (idempotencyKey && (idempotencyKey.length < 8 || idempotencyKey.length > 240)) return c.json({ message: 'کلید ثبت تکراری معتبر نیست.' }, 422);
   if (sourceId && !COMPANY_ID_RE.test(sourceId)) return c.json({ message: 'شناسه رکورد مرتبط معتبر نیست.' }, 422);
