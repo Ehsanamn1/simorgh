@@ -29,6 +29,10 @@ async function installIsolatedSession(page: Page, role: 'owner' | 'supplier' | '
     status: 200, contentType: 'application/json',
     body: JSON.stringify({ memberships }),
   }));
+  await page.route('**/api/push/config**', route => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({ enabled: false, publicKey: null }),
+  }));
   await page.route('**/api/notifications**', async route => {
     if (route.request().method() === 'GET') {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ notifications: [], summary: { total: 0, unread: 0 } }) });
