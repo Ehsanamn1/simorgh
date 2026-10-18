@@ -3,7 +3,7 @@ import { CheckCircle2, FileUp, FileText, LoaderCircle, Phone, RefreshCw, ShieldC
 import { api } from './lib/apiClient';
 
 type ImportKind = 'customers' | 'suppliers';
-type ContactRow = { name: string; phone: string; city: string; address: string; email?: string; organization?: string; notes?: string; tags?: string[]; kind: ImportKind; kindDetected?: boolean; aiConfidence?: number; aiReason?: string; aiAnalyzed?: boolean };
+type ContactRow = { name: string; phone: string; city: string; address: string; email?: string; organization?: string; notes?: string; tags?: string[]; kind: ImportKind; kindDetected?: boolean; aiConfidence?: number; aiReason?: string; aiAnalyzed?: boolean; kindManuallySet?: boolean };
 type ImportResult = { imported: number; updated: number; skipped: number; kind?: ImportKind; byKind?: Record<ImportKind, { imported: number; updated: number }> };
 type ClassificationResult = { results: Array<{ index: number; kind: ImportKind | 'unknown'; confidence: number; reason: string; tags: string[] }>; analyzed: number; provider: string; model: string };
 
@@ -172,7 +172,7 @@ export function ContactImporter({companyId}:{companyId:string}) {
             notes:contact.notes||'',
             tags:contact.tags||[],
             kind:contact.kind,
-            kindDetected:contact.kindDetected===true,
+            kindDetected:contact.kindDetected===true||contact.kindManuallySet===true,
           })),
         });
         for(const result of response.results||[]){
@@ -193,7 +193,7 @@ export function ContactImporter({companyId}:{companyId:string}) {
         const confident=(suggestion.kind==='customers'||suggestion.kind==='suppliers')&&suggestion.confidence>=0.75;
         return {
           ...contact,
-          ...(!contact.kindDetected&&confident?{kind:suggestion.kind as ImportKind}:{}),
+          ...(!contact.kindDetected&&!contact.kindManuallySet&&confident?{kind:suggestion.kind as ImportKind}:{}),
           tags:[...new Set([...(contact.tags||[]),...suggestion.tags])].slice(0,12),
           aiConfidence:suggestion.confidence,
           aiReason:suggestion.reason,
@@ -240,8 +240,8 @@ export function ContactImporter({companyId}:{companyId:string}) {
         </button>
         <input className="sr-only" ref={inputRef} type="file" accept=".vcf,.csv,.txt,text/vcard,text/csv,text/plain" onChange={event=>{const file=event.target.files?.[0];if(file)void handleFile(file);event.currentTarget.value='';}}/>
         <div className="contact-kind-select"><span>دسته‌ی مقصد</span><div>
-          <button type="button" className={kind==='suppliers'?'selected':''} onClick={()=>{setKind('suppliers');setContacts(current=>current.map(contact=>contact.kindDetected?contact:{...contact,kind:'suppliers'}));}}><Warehouse size={16}/> تأمین‌کننده</button>
-          <button type="button" className={kind==='customers'?'selected':''} onClick={()=>{setKind('customers');setContacts(current=>current.map(contact=>contact.kindDetected?contact:{...contact,kind:'customers'}));}}><Users size={16}/> مشتری</button>
+          <button type="button" className={kind==='suppliers'?'selected':''} onClick={()=>{setKind('suppliers');setContacts(current=>current.map(contact=>contact.kindDetected?contact:{...contact,kind:'suppliers',kindManuallySet:true}));}}><Warehouse size={16}/> تأمین‌کننده</button>
+          <button type="button" className={kind==='customers'?'selected':''} onClick={()=>{setKind('customers');setContacts(current=>current.map(contact=>contact.kindDetected?contact:{...contact,kind:'customers',kindManuallySet:true}));}}><Users size={16}/> مشتری</button>
         </div></div>
         <p className="contact-import-tip">راهنما: در CSV از سرستون‌های <code>name,phone,city,address,type</code> استفاده کن. ستون <code>type</code> می‌تواند supplier/suppliers یا customer/customers (یا «تأمین‌کننده»/«مشتری») باشد تا دسته به‌صورت خودکار انتخاب شود؛ اگر ستون نوع نباشد، دسته‌ی انتخابی مبناست.</p>
       </section>
