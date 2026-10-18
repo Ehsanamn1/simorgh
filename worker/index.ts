@@ -3070,6 +3070,105 @@ app.post('/api/storage/:bucket/remove',async c=>{
 });
 
 
+
+app.get('/api/notifications', async (c) => {
+  const user = await requireUser(c);
+  if (user instanceof Response) return user;
+  const companyId = c.req.query('companyId') ?? '';
+  if (!COMPANY_ID_RE.test(companyId)) return c.json({ message: 'شناسه مجموعه معتبر نیست.' }, 422);
+  if (!(await aiCompanyMembership(c, companyId, user.id))) return c.json({ message: 'به این فضای کاری دسترسی فعال نداری.' }, 403);
+  if (!(await userHasModulePermission(c, user.id, companyId, 'home', 'can_read'))) return c.json({ message: 'برای مشاهده اعلان‌ها مجوز نداری.' }, 403);
+  const sql = sqlFor(c);
+  const [rows, counts] = await Promise.all([
+    sql.query(
+      'select id::text as id,title,body,href,read_at as "readAt",created_at as "createdAt" from public.notifications where company_id=$1::uuid and user_id=$2::uuid order by created_at desc limit 30',
+      [companyId, user.id],
+    ),
+    sql.query(
+      'select count(*)::int as total,count(*) filter(where read_at is null)::int as unread from public.notifications where company_id=$1::uuid and user_id=$2::uuid',
+      [companyId, user.id],
+    ),
+  ]);
+  return c.json({ notifications: rows, summary: counts[0] ?? { total: 0, unread: 0 } });
+});
+
+app.post('/api/notifications/read-all', async (c) => {
+  const user = await requireUser(c);
+  if (user instanceof Response) return user;
+  const body = await c.req.json<Record<string, unknown>>().catch(() => null);
+  const companyId = typeof body?.companyId === 'string' ? body.companyId : '';
+  if (!COMPANY_ID_RE.test(companyId)) return c.json({ message: 'شناسه مجموعه معتبر نیست.' }, 422);
+  if (!(await aiCompanyMembership(c, companyId, user.id))) return c.json({ message: 'به این فضای کاری دسترسی فعال نداری.' }, 403);
+  if (!(await userHasModulePermission(c, user.id, companyId, 'home', 'can_update'))) return c.json({ message: 'مجوز ثبت وضعیت خوانده‌شدن اعلان را نداری.' }, 403);
+  const rows = await sqlFor(c).query(
+    'update public.notifications set read_at=now() where company_id=$1::uuid and user_id=$2::uuid and read_at is null returning id',
+    [companyId, user.id],
+  );
+  return c.json({ ok: true, updated: rows.length });
+});
+
+app.post('/api/notifications/:id/read', async (c) => {
+  const user = await requireUser(c);
+  if (user instanceof Response) return user;
+  const notificationId = c.req.param('id');
+  const body = await c.req.json<Record<string, unknown>>().catch(() => null);
+  const companyId = typeof body?.companyId === 'string' ? body.companyId : '';
+  if (!COMPANY_ID_RE.test(notificationId) || !COMPANY_ID_RE.test(companyId)) return c.json({ message: 'شناسه اعلان یا مجموعه معتبر نیست.' }, 422);
+  if (!(await aiCompanyMembership(c, companyId, user.id))) return c.json({ message: 'به این فضای کاری دسترسی فعال نداری.' }, 403);
+  if (!(await userHasModulePermission(c, user.id, companyId, 'home', 'can_update'))) return c.json({ message: 'مجوز ثبت وضعیت خوانده‌شدن اعلان را نداری.' }, 403);
+  const rows = await sqlFor(c).query(
+    'update public.notifications set read_at=coalesce(read_at,now()) where id=$1::uuid and company_id=$2::uuid and user_id=$3::uuid returning id::text as id,read_at as "readAt"',
+    [notificationId, companyId, user.id],
+  );
+  if (!rows.length) return c.json({ message: 'اعلان در حساب فعلی پیدا نشد.' }, 404);
+  return c.json({ ok: true, notification: rows[0] });
+});
+
+async function runDailyBriefingNotifications(env: Bindings): Promise<void> {
+  if (!env.DATABASE_URL) throw new Error('Database is not configured for scheduled daily briefings');
+  const sql = neon(env.DATABASE_URL);
+  await sql.query(
+    "with active_members as (" +
+    " select m.company_id,m.user_id,m.role::text as role,m.customer_id,m.supplier_id " +
+    " from public.memberships m join public.medar_users u on u.id=m.user_id " +
+    " where m.active=true and u.account_status='active' and m.role::text in ('owner','admin','staff','supplier','driver','customer')" +
+    "), metrics as (" +
+    " select m.company_id,m.user_id,m.role," +
+    " case when m.role in ('owner','admin') then (select count(*)::int from public.operational_tasks t where t.company_id=m.company_id and t.status not in ('approved','cancelled')) " +
+    " when m.role in ('staff','driver') then (select count(*)::int from public.operational_tasks t where t.company_id=m.company_id and t.assignee_user_id=m.user_id and t.status not in ('approved','cancelled')) " +
+    " when m.role='supplier' and m.supplier_id is not null then (select count(*)::int from public.operational_tasks t where t.company_id=m.company_id and t.assignee_supplier_id=m.supplier_id and t.status not in ('approved','cancelled')) else 0 end as open_tasks," +
+    " case when m.role in ('owner','admin') then (select count(*)::int from public.orders o where o.company_id=m.company_id and o.requested_delivery<timezone('Asia/Tehran',now())::date and o.status not in ('delivered','cancelled')) " +
+    " when m.role='customer' and m.customer_id is not null then (select count(*)::int from public.orders o where o.company_id=m.company_id and o.customer_id=m.customer_id and o.requested_delivery<timezone('Asia/Tehran',now())::date and o.status not in ('delivered','cancelled')) else 0 end as late_orders," +
+    " case when m.role in ('owner','admin') then (select count(*)::int from public.operational_incidents i where i.company_id=m.company_id and i.status not in ('resolved','closed','cancelled')) else 0 end as open_incidents," +
+    " case when m.role in ('owner','admin') then (select count(*)::int from public.shipments s where s.company_id=m.company_id and s.stage not in ('delivered','returned','failed')) " +
+    " when m.role='driver' then (select count(*)::int from public.shipments s where s.company_id=m.company_id and s.driver_user_id=m.user_id and s.stage not in ('delivered','returned','failed')) else 0 end as active_shipments," +
+    " case when m.role in ('owner','admin') then (select count(*)::int from public.invoices i where i.company_id=m.company_id and i.status in ('issued','partially_paid','overdue')) " +
+    " when m.role='customer' and m.customer_id is not null then (select count(*)::int from public.invoices i where i.company_id=m.company_id and i.customer_id=m.customer_id and i.status in ('issued','partially_paid','overdue')) else 0 end as open_invoices," +
+    " case when m.role in ('owner','admin') then (select count(*)::int from public.capacity_commitments cc where cc.company_id=m.company_id and cc.status='declared') " +
+    " when m.role='supplier' and m.supplier_id is not null then (select count(*)::int from public.capacity_commitments cc where cc.company_id=m.company_id and cc.supplier_id=m.supplier_id and cc.status='declared') else 0 end as pending_capacity" +
+    " from active_members m" +
+    "), candidates as (" +
+    " select company_id,user_id," +
+    " case when role='driver' then 'یادآوری مأموریت‌های امروز' when role='supplier' then 'برنامهٔ امروز تأمین‌کننده' when role='customer' then 'یادآوری سفارش و فاکتور' else 'خلاصهٔ روزانهٔ عملیات' end as title," +
+    " concat_ws(' · '," +
+    " case when open_tasks>0 then open_tasks::text||' وظیفهٔ باز' end," +
+    " case when late_orders>0 then late_orders::text||' سفارش عقب‌افتاده' end," +
+    " case when open_incidents>0 then open_incidents::text||' رخداد باز' end," +
+    " case when active_shipments>0 then active_shipments::text||' محمولهٔ فعال' end," +
+    " case when open_invoices>0 then open_invoices::text||' فاکتور باز' end," +
+    " case when pending_capacity>0 then pending_capacity::text||' ظرفیت در انتظار بررسی' end) as body," +
+    " '/app/home' as href," +
+    " 'daily-briefing:'||to_char(timezone('Asia/Tehran',now())::date,'YYYY-MM-DD')||':'||role as dedupe_key," +
+    " (open_tasks+late_orders+open_incidents+active_shipments+open_invoices+pending_capacity) as action_count" +
+    " from metrics" +
+    ")" +
+    " insert into public.notifications(company_id,user_id,title,body,href,dedupe_key)" +
+    " select company_id,user_id,title,body,href,dedupe_key from candidates where action_count>0" +
+    " on conflict(company_id,user_id,dedupe_key) where dedupe_key is not null do nothing",
+    [],
+  );
+}
+
 app.notFound((c) => {
   if (c.req.path.startsWith('/api/')) return c.json({ message: 'مسیر API پیدا نشد.' }, 404);
   return c.env.ASSETS ? c.env.ASSETS.fetch(c.req.raw) : c.json({ message: 'مسیر پیدا نشد.' }, 404);
