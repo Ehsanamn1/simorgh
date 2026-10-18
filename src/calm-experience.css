@@ -897,3 +897,29 @@ html[data-theme="dark"] .ai-composer-tools button.recording { background: #41343
 @media (max-width: 390px) {
   .ai-provider-actions { grid-template-columns: minmax(0,1fr); }
 }
+
+/* Human-reviewed AI suggestions for contact imports. */
+.contact-ai-review {
+  display: grid; gap: 10px; margin: 11px 0; padding: 12px;
+  border: 1px solid color-mix(in srgb, var(--obs-accent) 24%, var(--obs-border));
+  border-radius: 14px; background: color-mix(in srgb, var(--obs-accent) 5%, var(--obs-surface));
+}
+.contact-ai-review > div { display: flex; align-items: flex-start; gap: 9px; }
+.contact-ai-review > div > svg { color: var(--obs-accent); flex: none; margin-top: 2px; }
+.contact-ai-review > div > span { display: grid; gap: 4px; }
+.contact-ai-review b { color: var(--obs-text); font-size: 11px; }
+.contact-ai-review small { color: var(--obs-muted); font-size: 9px; line-height: 1.85; }
+.contact-ai-review .ai-secondary-button { width: 100%; }
+.contact-ai-summary {
+  display: flex; align-items: flex-start; gap: 8px; margin: 8px 0 11px; padding: 10px;
+  border: 1px solid var(--obs-border); border-radius: 11px; background: var(--obs-surface-2);
+  color: var(--obs-muted); font-size: 10px; line-height: 1.9;
+}
+.contact-ai-summary svg { flex: none; color: var(--obs-accent); margin-top: 2px; }
+.contact-ai-reason { display: block; margin-top: 3px; padding: 5px 7px; border: 1px solid var(--obs-border); border-radius: 7px; background: var(--obs-surface-2); color: var(--obs-muted) !important; font-size: 8px !important; line-height: 1.7 !important; }
+.contact-ai-reason.confident { border-color: color-mix(in srgb, var(--obs-positive) 32%, var(--obs-border)); background: color-mix(in srgb, var(--obs-positive) 8%, var(--obs-surface)); }
+@media (max-width: 720px) {
+  .contact-ai-review { padding: 10px; border-radius: 12px; }
+  .contact-ai-review .ai-secondary-button { min-height: 43px; }
+  .contact-ai-summary { font-size: 9px; }
+}
