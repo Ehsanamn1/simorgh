@@ -56,12 +56,17 @@ function parseVCard(source: string, fallbackKind: ImportKind): ContactRow[] {
     if(!lines.some(line=>/^BEGIN:VCARD/i.test(line)))return null;
     const get=(prefix:string)=>lines.find(line=>new RegExp('^'+prefix+'(?:;[^:]*)?:','i').test(line))?.split(':').slice(1).join(':').replace(/\\[nN]/g,' ').replace(/\\,/g,',').replace(/\\;/g,';').trim()||'';
     const name=get('FN')||get('N').split(';').reverse().join(' ').trim();
-    const phone=lines.find(line=>/^TEL(?:;[^:]*)?:/i.test(line))?.split(':').slice(1).join(':').replace(/[\s()-]/g,'')||'';
-    const org=get('ORG');
-    const address=get('ADR').split(';').filter(Boolean).slice(-2).join('، ');
-    const categoryHint = get('CATEGORIES') + ' ' + get('TITLE');
+    const phone=westernDigits(lines.find(line=>/^TEL(?:;[^:]*)?:/i.test(line))?.split(':').slice(1).join(':').replace(/[\s()-]/g,'')||'');
+    const organization=get('ORG');
+    const addressParts=get('ADR').split(';').map(part=>part.trim());
+    const address=addressParts.filter(Boolean).join('، ');
+    const city=addressParts[3]||addressParts[4]||'';
+    const email=get('EMAIL');
+    const notes=get('NOTE');
+    const categoryHint = get('CATEGORIES') + ' ' + get('TITLE') + ' ' + organization + ' ' + notes;
     const category = detectKind(categoryHint,fallbackKind);
-    return name?{name:org?name+' · '+org:name,phone,city:address,address,...category}:null;
+    const tags=get('CATEGORIES').split(/[;,]/).map(tag=>tag.trim()).filter(Boolean).slice(0,8);
+    return name?{name,phone,city,address,email,organization,notes,tags,...category}:null;
   }).filter(value=>value!==null) as ContactRow[];
 }
 function parseContacts(fileName:string,source:string,fallbackKind:ImportKind):ContactRow[] {
