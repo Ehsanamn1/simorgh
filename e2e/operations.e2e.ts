@@ -68,6 +68,12 @@ test('manager workspace retains operations and captures a real rendered control-
   for (const [path, title] of paths) {
     await page.goto('/simorgh/app/' + path, { waitUntil: 'domcontentloaded' });
     await expect(page.getByRole('heading', { name: title })).toBeVisible();
+    const homeLink = page.getByRole('link', { name: 'بازگشت به صفحه اصلی' });
+    await expect(homeLink).toBeVisible();
+    await expect(homeLink).toHaveAttribute('href', /\\/app\\/home$/);
+    await homeLink.click();
+    await expect(page).toHaveURL(/\\/app\\/home$/);
+    await expect(page.getByRole('heading', { name: /سلام مالک آزمایشی مدار/ })).toBeVisible();
   }
   const dimensions = await page.evaluate(() => ({ viewport: innerWidth, document: document.documentElement.scrollWidth, body: document.body.scrollWidth }));
   expect(dimensions.document).toBeLessThanOrEqual(dimensions.viewport);
@@ -589,4 +595,45 @@ test('a signed-in user can change their own password through the protected Worke
 
   await expect(page.getByRole('status')).toContainText('گذرواژه تغییر کرد');
   expect(submitted).toEqual({ currentPassword: 'Old-pass-2026', newPassword: 'New-pass-2026' });
+});
+
+
+test('assistant send control remains visible and sends a message through the authenticated Worker API', async ({ page }) => {
+  await installIsolatedSession(page, 'owner');
+  await page.route('**/api/ai/providers**', route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    headers: { 'cache-control': 'no-store' },
+    body: JSON.stringify({
+      companyId,
+      activeProvider: 'openai',
+      canConfigure: true,
+      providers: [{ provider: 'openai', model: 'gpt-6-luna', isDefault: true, configured: true, updatedAt: null }],
+    }),
+  }));
+  await page.route('**/api/ai/chat', async route => {
+    const request = route.request();
+    expect(request.method()).toBe('POST');
+    const payload = request.postDataJSON() as { companyId?: string; messages?: Array<{ role: string; content: string }> };
+    expect(payload.companyId).toBe(companyId);
+    expect(payload.messages?.some(message => message.role === 'user' && message.content === 'وضعیت کارهای امروز چیست؟')).toBe(true);
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      headers: { 'cache-control': 'no-store' },
+      body: JSON.stringify({ content: 'کارهای امروز از داده‌های واقعی بررسی می‌شوند.', provider: 'openai', model: 'gpt-6-luna' }),
+    });
+  });
+  await page.goto('/simorgh/app/home', { waitUntil: 'domcontentloaded' });
+  await page.getByRole('button', { name: 'بازکردن دستیار هوش مصنوعی' }).click();
+  const composer = page.getByRole('textbox', { name: 'پیام به دستیار' });
+  await expect(composer).toBeVisible();
+  const send = page.getByRole('button', { name: 'ارسال پیام' });
+  await expect(send).toBeVisible();
+  await expect(send).toBeDisabled();
+  await composer.fill('وضعیت کارهای امروز چیست؟');
+  await expect(send).toBeEnabled();
+  await send.click();
+  await expect(page.getByText('کارهای امروز از داده‌های واقعی بررسی می‌شوند.')).toBeVisible();
+  await expect(composer).toHaveValue('');
 });
