@@ -539,7 +539,7 @@ test('AI contact classification sends no phone, email or street address and only
   await page.locator('.contact-import-page input[type="file"]').setInputFiles({
     name: 'contacts.csv',
     mimeType: 'text/csv',
-    buffer: Buffer.from('name,phone,city,address,email,organization,notes,tags,type\\nSupplier One,PHONE-001,Tehran,Private road,supplier@example.invalid,North Farm,egg producer,producer|wholesale,supplier\\nCustomer Two,PHONE-002,Karaj,Private lane,buyer@example.invalid,City Store,retail customer,retail|weekly,customer', 'utf8'),
+    buffer: Buffer.from('name,phone,city,address,email,organization,notes,tags,type\nSupplier One,PHONE-001,Tehran,Private road,supplier@example.invalid,North Farm,egg producer,producer|wholesale,supplier\nCustomer Two,PHONE-002,Karaj,Private lane,buyer@example.invalid,City Store,retail customer,retail|weekly,customer', 'utf8'),
   });
   await expect(page.getByText('Supplier One')).toBeVisible();
   await page.getByRole('button', { name: /تحلیل .* مخاطب/ }).click();
