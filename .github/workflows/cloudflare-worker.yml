@@ -368,7 +368,12 @@ jobs:
             }
 
             stage = 'private-file-storage-readiness';
-            const fileStorage = await post('/api/storage/contract-documents', {}, signupCookie);
+            const fileStorage = await fetch(base + '/api/storage/contract-documents', {
+              method: 'PUT',
+              headers: { origin: new URL(base).origin, 'content-type': 'application/json', cookie: signupCookie },
+              body: JSON.stringify({}),
+              cache: 'no-store',
+            });
             const fileStorageBody = await fileStorage.json();
             await saveResult({ status: fileStorage.status, body: fileStorageBody });
             if (fileStorage.status !== 503 || !String(fileStorageBody.message || '').includes('Cloudflare R2')) {
