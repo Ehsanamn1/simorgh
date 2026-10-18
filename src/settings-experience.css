@@ -202,3 +202,6 @@ html[data-theme="light"] .network-status { background:var(--obs-surface); }
 .member-role-filters button.active { color:var(--obs-text); border-color:color-mix(in srgb,var(--obs-accent) 55%,var(--obs-border)); background:color-mix(in srgb,var(--obs-accent) 11%,var(--obs-surface)); font-weight:900; }
 .member-role-filters button small { min-width:20px; padding:2px 5px; border-radius:999px; background:var(--obs-surface-2); color:var(--obs-text); font-variant-numeric:tabular-nums; }
 @media (max-width: 600px) { .member-role-filters { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); } .member-role-filters button:first-child { grid-column:1/-1; } }
+
+.workspace-home-guide-button { display:inline-flex; align-items:center; gap:8px; margin-top:14px; padding:10px 14px; min-height:40px; border:1px solid color-mix(in srgb,var(--obs-accent) 45%,var(--obs-border)); border-radius:11px; background:color-mix(in srgb,var(--obs-accent) 9%,var(--obs-surface)); color:var(--obs-text); font-size:12px; font-weight:900; cursor:pointer; }
+.workspace-home-guide-button:hover { background:color-mix(in srgb,var(--obs-accent) 16%,var(--obs-surface)); }
