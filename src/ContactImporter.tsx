@@ -80,6 +80,10 @@ function parseContacts(fileName:string,source:string,fallbackKind:ImportKind):Co
   const phoneIndex=findIndex(['phone','mobile','telephone','tel','شماره','شماره تماس','موبایل','تلفن','تلفن همراه']);
   const cityIndex=findIndex(['city','شهر']);
   const addressIndex=findIndex(['address','آدرس','نشانی']);
+  const emailIndex=findIndex(['email','e-mail','mail','ایمیل','پست الکترونیکی']);
+  const organizationIndex=findIndex(['organization','organisation','company','business','company_name','نام شرکت','سازمان','مجموعه']);
+  const notesIndex=findIndex(['notes','note','description','details','توضیحات','شرح','یادداشت']);
+  const tagsIndex=findIndex(['tags','tag','labels','برچسب','برچسب‌ها','برچسب ها']);
   const kindIndex=findIndex(['kind','type','category','contact_type','contact type','نوع','نوع مخاطب','نوع ارتباط','دسته','دسته‌بندی','دسته بندی']);
   const hasHeader=nameIndex>=0||phoneIndex>=0;
   const data=hasHeader?rows.slice(1):rows;
@@ -89,17 +93,25 @@ function parseContacts(fileName:string,source:string,fallbackKind:ImportKind):Co
   const ai=hasHeader?addressIndex:3;
   const ki=hasHeader?kindIndex:-1;
   return data.map(row=>{
-    const category = detectKind(ki>=0?(row[ki]||''):'',fallbackKind);
+    const organization=organizationIndex>=0?(row[organizationIndex]||'').trim():'';
+    const notes=notesIndex>=0?(row[notesIndex]||'').trim():'';
+    const kindHint=(ki>=0?(row[ki]||''):'')+' '+organization+' '+notes;
+    const category = detectKind(kindHint,fallbackKind);
+    const tags=tagsIndex>=0?(row[tagsIndex]||'').split(/[;,|]/).map(tag=>tag.trim()).filter(Boolean).slice(0,8):[];
     return {
       name:(row[ni]||'').trim(),
       phone:pi>=0?(row[pi]||'').trim():'',
       city:ci>=0?(row[ci]||'').trim():'',
       address:ai>=0?(row[ai]||'').trim():'',
+      email:emailIndex>=0?(row[emailIndex]||'').trim():'',
+      organization,
+      notes,
+      tags,
       ...category,
     };
   })
     .filter(contact=>contact.name.length>=2)
-    .map(contact=>({...contact,phone:westernDigits(contact.phone).replace(/[\s()-]/g,'').slice(0,40),city:contact.city.slice(0,100),address:contact.address.slice(0,500)}));
+    .map(contact=>({...contact,phone:westernDigits(contact.phone).replace(/[\s()-]/g,'').slice(0,40),city:contact.city.slice(0,100),address:contact.address.slice(0,500),email:contact.email?.slice(0,254),organization:contact.organization?.slice(0,160),notes:contact.notes?.slice(0,2000)}));
 }
 function phoneKey(value:string){return westernDigits(value).replace(/\D/g,'').replace(/^0098/,'98').replace(/^0(?=9\d{9}$)/,'98');}
 
