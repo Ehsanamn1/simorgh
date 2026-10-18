@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS public.medar_membership_module_permissions (
   company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
   membership_id uuid NOT NULL REFERENCES public.memberships(id) ON DELETE CASCADE,
   module_key text NOT NULL CHECK (module_key IN (
-    'home','command','agents','orders','purchase-orders','customers','suppliers','contacts',
+    'home','command','agents','bank-reconciliation','orders','purchase-orders','customers','suppliers','contacts',
     'products','inventory','capacity','quality','shipments','finance','members','audit','catalog',
     'my-orders','my-account','supplier-work','supplier-capacity','supplier-settlement','driver-work',
     'farm-sites','flock-cycles','production-batches','daily-production','task-templates',
