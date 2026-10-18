@@ -430,7 +430,7 @@ function aiProvider(value: unknown): AiProvider | null {
 type AiCompanyMembership = { role: string; supplierId: string | null; customerId: string | null };
 async function aiCompanyMembership(c: Ctx, companyId: string, userId: string): Promise<AiCompanyMembership | null> {
   const rows = await sqlFor(c).query(
-    'select role::text as role,supplier_id::text as "supplierId",customer_id::text as "customerId" from public.memberships where company_id=$1::uuid and user_id=$2::uuid and active=true limit 1',
+    'select role::text as role,supplier_id::text as "supplierId",customer_id::text as "customerId" from public.memberships where company_id=$1::uuid and user_id=$2::uuid and active=true order by case role::text when \'owner\' then 0 when \'admin\' then 1 when \'staff\' then 2 when \'supplier\' then 3 when \'driver\' then 4 else 5 end, created_at, id limit 1',
     [companyId, userId],
   );
   return rows[0] as AiCompanyMembership | undefined ?? null;
