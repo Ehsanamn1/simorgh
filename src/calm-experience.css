@@ -1611,6 +1611,7 @@ html[data-theme="dark"] .bank-primary-button { color:#202a38; }
 @keyframes role-ops-spin { to { transform: rotate(360deg); } }
 .role-ops-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
 .role-ops-metrics-supplier { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.role-ops-metrics-manager { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 .role-ops-metrics-driver { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .role-ops-metric { min-width: 0; padding: 17px 18px; border: 1px solid var(--role-ops-line); border-radius: 17px; background: var(--role-ops-panel); box-shadow: var(--medar-calm-shadow, none); }
 .role-ops-metric-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; color: var(--role-ops-muted); font-size: 12px; font-weight: 750; }
@@ -1635,6 +1636,6 @@ html[data-theme="dark"] .bank-primary-button { color:#202a38; }
 .role-ops-workspace { min-width: 0; }
 .role-ops-error { display: flex; align-items: flex-start; gap: 9px; padding: 12px 14px; border: 1px solid color-mix(in srgb, #c46a54 35%, var(--role-ops-line)); border-radius: 12px; background: color-mix(in srgb, #c46a54 8%, var(--role-ops-panel)); color: var(--role-ops-text); font-size: 12px; line-height: 1.8; }
 .role-ops-error svg { flex: 0 0 auto; margin-top: 2px; color: #c46a54; }
-@media (max-width: 1000px) { .role-ops-metrics, .role-ops-metrics-supplier { grid-template-columns: repeat(2, minmax(0, 1fr)); } .role-ops-hero { flex-direction: column; } .role-ops-hero-actions { width: 100%; } }
+@media (max-width: 1000px) { .role-ops-metrics, .role-ops-metrics-supplier, .role-ops-metrics-manager { grid-template-columns: repeat(3, minmax(0, 1fr)); } .role-ops-hero { flex-direction: column; } .role-ops-hero-actions { width: 100%; } }
 @media (max-width: 560px) { .role-ops { gap: 12px; } .role-ops-hero { padding: 18px 15px; border-radius: 17px; } .role-ops-hero h1 { font-size: 23px; } .role-ops-hero p { font-size: 13px; } .role-ops-hero-actions { display: grid; grid-template-columns: 1fr; } .role-ops-refresh, .role-ops-primary { width: 100%; white-space: normal; } .role-ops-metrics, .role-ops-metrics-supplier, .role-ops-metrics-driver { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; } .role-ops-metric { padding: 14px 12px; border-radius: 14px; } .role-ops-metric-top { font-size: 11px; align-items: flex-start; } .role-ops-metric strong { font-size: 27px; margin-top: 11px; } .role-ops-metric small { font-size: 10px; } .role-ops-shortcuts { padding: 13px; } .role-ops-shortcut { flex-basis: 100%; } }
 @media (prefers-reduced-motion: reduce) { .role-ops-spinning { animation: none; } .role-ops-shortcut { transition: none; } }
