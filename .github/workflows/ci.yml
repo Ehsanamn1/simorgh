@@ -53,7 +53,8 @@ jobs:
             worker/migrations/0020_operational_event_exception_ledger.sql \
             worker/migrations/0021_medar_connect_messaging.sql \
             worker/migrations/0022_web_push_delivery_queue.sql \
-            worker/migrations/0023_operational_event_hooks.sql; do
+            worker/migrations/0023_operational_event_hooks.sql \\
+            worker/migrations/0024_connect_task_notifications.sql; do
             echo "Applying $migration"
             psql -h 127.0.0.1 -U postgres -d medar_test -v ON_ERROR_STOP=1 -1 -f "$migration"
             version="$(basename "$migration")"
@@ -108,6 +109,46 @@ jobs:
               to_regprocedure('public.medar_approve_purchase_order(uuid,uuid,uuid)') is not null and
               to_regprocedure('public.medar_receive_purchase_order(uuid,uuid,uuid,jsonb,text,text)') is not null
             )" | grep -qx t
+      - name: Verify task and conversation notifications on PostgreSQL
+        env:
+          PGPASSWORD: medar_test_password
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql -h 127.0.0.1 -U postgres -d medar_test -v ON_ERROR_STOP=1 <<'SQL'
+          BEGIN;
+          INSERT INTO public.companies (id,name) VALUES
+            ('00000000-0000-4000-8000-000000000122','CI notification company');
+          INSERT INTO public.medar_users (id,username,username_normalized,phone_e164,display_name,password_hash) VALUES
+            ('00000000-0000-4000-8000-000000000111','ci.notify.owner','ci.notify.owner','+989190000121','CI notification owner','not-a-login-hash'),
+            ('00000000-0000-4000-8000-000000000112','ci.notify.staff','ci.notify.staff','+989190000122','CI notification staff','not-a-login-hash');
+          INSERT INTO public.memberships (company_id,user_id,role,active,created_by) VALUES
+            ('00000000-0000-4000-8000-000000000122','00000000-0000-4000-8000-000000000111','owner',true,'00000000-0000-4000-8000-000000000111'),
+            ('00000000-0000-4000-8000-000000000122','00000000-0000-4000-8000-000000000112','staff',true,'00000000-0000-4000-8000-000000000111');
+          INSERT INTO public.operational_tasks (company_id,assignee_user_id,assigned_by,title,due_at)
+          VALUES ('00000000-0000-4000-8000-000000000122','00000000-0000-4000-8000-000000000112','00000000-0000-4000-8000-000000000111','CI task assignment notification',now()+interval '2 hours');
+          INSERT INTO public.medar_conversations (id,company_id,title,created_by)
+          VALUES ('00000000-0000-4000-8000-000000000124','00000000-0000-4000-8000-000000000122','CI notification conversation','00000000-0000-4000-8000-000000000111');
+          INSERT INTO public.medar_conversation_participants (company_id,conversation_id,user_id,participant_role) VALUES
+            ('00000000-0000-4000-8000-000000000122','00000000-0000-4000-8000-000000000124','00000000-0000-4000-8000-000000000111','owner'),
+            ('00000000-0000-4000-8000-000000000122','00000000-0000-4000-8000-000000000124','00000000-0000-4000-8000-000000000112','member');
+          INSERT INTO public.medar_messages (company_id,conversation_id,sender_user_id,body,client_message_id)
+          VALUES ('00000000-0000-4000-8000-000000000122','00000000-0000-4000-8000-000000000124','00000000-0000-4000-8000-000000000111','CI conversation message','ci-message-00000001');
+          DO $verify_notifications$
+          BEGIN
+            IF NOT EXISTS (SELECT 1 FROM public.notifications WHERE company_id='00000000-0000-4000-8000-000000000122' AND user_id='00000000-0000-4000-8000-000000000112' AND title='وظیفهٔ جدید به شما واگذار شد' AND href='/app/home') THEN
+              RAISE EXCEPTION 'Assigned task did not create an in-app notification';
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM public.notifications WHERE company_id='00000000-0000-4000-8000-000000000122' AND user_id='00000000-0000-4000-8000-000000000112' AND title='پیام کاری جدید' AND href='/app/connect') THEN
+              RAISE EXCEPTION 'Conversation message did not notify its other participant';
+            END IF;
+            IF EXISTS (SELECT 1 FROM public.notifications WHERE company_id='00000000-0000-4000-8000-000000000122' AND user_id='00000000-0000-4000-8000-000000000111') THEN
+              RAISE EXCEPTION 'Message sender was incorrectly notified about their own message';
+            END IF;
+          END $verify_notifications$;
+          ROLLBACK;
+          SQL
+          echo "Task assignment and conversation participant notification triggers passed."
       - name: Exercise the exact failed-login upsert SQL on PostgreSQL
         env:
           PGPASSWORD: medar_test_password
