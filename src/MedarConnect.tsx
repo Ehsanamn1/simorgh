@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { type FormEvent, useCallback, useEffect, useState } from 'react';
 import { MessageCircle, Plus, RefreshCw, Send, Users } from 'lucide-react';
 import { api } from './lib/apiClient';
 import type { Membership } from './lib/types';
@@ -85,7 +85,7 @@ export function MedarConnect({ membership }: { membership: Membership }) {
     }
   }
 
-  async function sendMessage(event: React.FormEvent<HTMLFormElement>) {
+  async function sendMessage(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const text = draft.trim();
     if (!selectedId || !text || sending) return;
