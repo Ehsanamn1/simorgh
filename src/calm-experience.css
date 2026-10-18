@@ -1518,3 +1518,62 @@ html[data-theme="dark"] .bank-primary-button { color:#202a38; }
  .medar-connect-composer button { width:100%; }
  .medar-connect-message { width:94%; }
 }
+
+
+/* Operational exception inbox: prioritize ownership, due dates and closure evidence. */
+.medar-exception-page { display:grid; gap:15px; min-width:0; color:var(--obs-text); }
+.medar-exception-heading { display:flex; align-items:center; gap:12px; padding:18px; border:1px solid var(--obs-border); border-radius:17px; background:var(--obs-surface); }
+.medar-exception-heading-icon { display:grid; place-items:center; width:44px; height:44px; flex:none; border-radius:13px; color:var(--obs-accent); background:var(--obs-surface-2); }
+.medar-exception-heading>div { flex:1; min-width:0; }
+.medar-exception-eyebrow { color:var(--obs-accent); font-size:9px; font-weight:900; letter-spacing:.1em; }
+.medar-exception-heading h1 { margin:2px 0; font-size:clamp(19px,2.4vw,26px); line-height:1.5; }
+.medar-exception-heading p { margin:0; color:var(--obs-muted); font-size:11px; line-height:1.9; }
+.medar-exception-heading>button,.medar-exception-create>button,.medar-exception-actions button { display:inline-flex; align-items:center; justify-content:center; gap:6px; min-height:36px; padding:8px 11px; border:1px solid var(--obs-border); border-radius:10px; color:var(--obs-text); background:var(--obs-surface-2); font:inherit; font-size:10px; font-weight:800; cursor:pointer; }
+.medar-exception-create>button,.medar-exception-actions button:last-child { border-color:transparent; color:white; background:var(--obs-accent); }
+.medar-exception-heading button:disabled,.medar-exception-actions button:disabled,.medar-exception-create button:disabled { opacity:.5; cursor:not-allowed; }
+.medar-exception-alert,.medar-exception-notice { padding:10px 12px; border:1px solid var(--obs-border); border-radius:10px; font-size:11px; line-height:1.8; }
+.medar-exception-alert { color:var(--obs-critical); }
+.medar-exception-notice { color:var(--obs-accent); }
+.medar-exception-summary { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; }
+.medar-exception-summary>div { display:grid; gap:3px; padding:13px; border:1px solid var(--obs-border); border-radius:13px; background:var(--obs-surface); }
+.medar-exception-summary b { font-size:22px; line-height:1.5; font-variant-numeric:tabular-nums; }
+.medar-exception-summary span { color:var(--obs-muted); font-size:10px; }
+.medar-exception-layout { display:grid; grid-template-columns:minmax(240px,.75fr) minmax(0,1.6fr); align-items:start; gap:13px; }
+.medar-exception-create,.medar-exception-list-panel,.medar-exception-events { min-width:0; padding:14px; border:1px solid var(--obs-border); border-radius:15px; background:var(--obs-surface); }
+.medar-exception-create { display:grid; gap:11px; }
+.medar-exception-create h2,.medar-exception-list-title h2 { display:flex; align-items:center; gap:7px; margin:0; font-size:13px; }
+.medar-exception-create label { display:grid; gap:5px; color:var(--obs-muted); font-size:10px; font-weight:750; }
+.medar-exception-create input,.medar-exception-create textarea,.medar-exception-create select,.medar-exception-actions input { width:100%; min-width:0; padding:9px 10px; border:1px solid var(--obs-border); border-radius:9px; color:var(--obs-text); background:var(--obs-surface-2); font:inherit; font-size:11px; }
+.medar-exception-create textarea { resize:vertical; line-height:1.9; }
+.medar-exception-list-title { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:12px; }
+.medar-exception-list-title>span { color:var(--obs-muted); font-size:10px; }
+.medar-exception-list { display:grid; gap:9px; }
+.medar-exception-card { display:grid; gap:8px; padding:12px; border:1px solid var(--obs-border); border-radius:12px; background:var(--obs-surface); }
+.medar-exception-card.critical { border-inline-start:3px solid var(--obs-critical); }
+.medar-exception-card.warning { border-inline-start:3px solid var(--obs-accent); }
+.medar-exception-card-heading { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; }
+.medar-exception-card-heading>div { display:grid; gap:4px; }
+.medar-exception-card h3 { margin:0; font-size:12px; line-height:1.8; }
+.medar-exception-severity,.medar-exception-status { display:inline-flex; align-self:flex-start; padding:3px 7px; border:1px solid var(--obs-border); border-radius:20px; color:var(--obs-muted); font-size:9px; }
+.medar-exception-severity.critical { color:var(--obs-critical); }
+.medar-exception-card>p { margin:0; color:var(--obs-muted); font-size:10px; line-height:1.9; white-space:pre-wrap; overflow-wrap:anywhere; }
+.medar-exception-meta { display:flex; flex-wrap:wrap; align-items:center; gap:10px; color:var(--obs-muted); font-size:9px; }
+.medar-exception-meta span { display:inline-flex; align-items:center; gap:5px; }
+.medar-exception-resolution { padding:8px; border-radius:8px; background:var(--obs-surface-2); }
+.medar-exception-actions { display:grid; grid-template-columns:auto minmax(0,1fr) auto; gap:6px; align-items:center; }
+.medar-exception-actions input { font-size:10px; }
+.medar-exception-empty { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:7px; min-height:115px; color:var(--obs-muted); text-align:center; font-size:10px; line-height:1.8; }
+.medar-exception-empty svg { color:var(--obs-accent); }
+.medar-exception-empty b { color:var(--obs-text); font-size:12px; }
+.medar-exception-events { display:grid; gap:9px; }
+.medar-exception-events>article { display:flex; align-items:flex-start; gap:9px; padding:9px 0; border-bottom:1px solid var(--obs-border); }
+.medar-exception-events>article:last-child { border-bottom:0; }
+.medar-exception-event-dot { width:8px; height:8px; flex:none; margin-top:7px; border-radius:50%; background:var(--obs-subtle); }
+.medar-exception-event-dot.warning { background:var(--obs-accent); }
+.medar-exception-event-dot.critical { background:var(--obs-critical); }
+.medar-exception-events>article>div { flex:1; min-width:0; }
+.medar-exception-events>article b { font-size:11px; }
+.medar-exception-events>article p { margin:3px 0 0; color:var(--obs-muted); font-size:10px; }
+.medar-exception-events>article time { color:var(--obs-muted); font-size:9px; white-space:nowrap; }
+@media(max-width:850px) { .medar-exception-layout { grid-template-columns:minmax(0,1fr); } .medar-exception-create { order:2; } }
+@media(max-width:560px) { .medar-exception-heading { align-items:flex-start; flex-wrap:wrap; padding:13px; } .medar-exception-heading>div { flex:1 1 calc(100% - 60px); } .medar-exception-heading>button { margin-inline-start:auto; } .medar-exception-summary { gap:6px; } .medar-exception-summary>div { padding:10px; } .medar-exception-summary b { font-size:18px; } .medar-exception-actions { grid-template-columns:1fr; } }
