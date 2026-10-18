@@ -27,7 +27,7 @@ export function PushNotificationSettings({ membership }: { membership: Membershi
       try {
         const [result,registration] = await Promise.all([
           api.get<PushConfig>('/api/push/config?companyId='+encodeURIComponent(membership.company_id)),
-          supported() ? navigator.serviceWorker.register(new URL('service-worker.js',import.meta.env.BASE_URL),{scope:import.meta.env.BASE_URL}) : Promise.resolve(null),
+          supported() ? (()=>{ const base=new URL(import.meta.env.BASE_URL,window.location.origin); return navigator.serviceWorker.register(new URL('service-worker.js',base),{scope:base.pathname}); })() : Promise.resolve(null),
         ]);
         const current=registration ? await registration.pushManager.getSubscription() : null;
         if(alive){setConfig(result);setSubscription(current);if(supported())setPermission(Notification.permission);}
