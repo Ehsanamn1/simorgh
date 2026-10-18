@@ -18,7 +18,7 @@ export function normalizeBankDigits(value: string): string {
 function normalizeHeader(value: string): string {
   return normalizeBankDigits(value).trim().toLocaleLowerCase('fa-IR')
     .replace(/[\u200c\u200f\u202a-\u202e]/g, '')
-    .replace(/[\s\-]+/g, '_');
+    .replace(/[\s-]+/g, '_');
 }
 function detectDelimiter(firstLine: string): string {
   const candidates = [',',';','\t'];
@@ -101,7 +101,7 @@ function jalaliToGregorianDate(year:number,month:number,day:number,hour:number,m
 export function parseBankStatementDate(rawValue:string):string {
   const value=normalizeBankDigits(rawValue).trim();
   if(!value)throw new Error('تاریخ تراکنش خالی است.');
-  const parts=value.match(/^(\d{4})[\/.-](\d{1,2})[\/.-](\d{1,2})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?$/);
+  const parts=value.match(/^(\d{4})[.\x2f-](\d{1,2})[.\x2f-](\d{1,2})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?$/);
   if(parts){
     const year=Number(parts[1]),month=Number(parts[2]),day=Number(parts[3]);
     const hour=Number(parts[4]??0),minute=Number(parts[5]??0),second=Number(parts[6]??0);
