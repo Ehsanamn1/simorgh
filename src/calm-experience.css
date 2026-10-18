@@ -1267,3 +1267,26 @@ html[data-theme="dark"] .agent-primary-button { color: #202a38; }
  .module-permissions-header { font-size: 8px; padding-inline: 4px; }
  .module-permissions-actions > button { flex: 1 1 100%; }
 }
+
+/* Fresh driver locations on the operation map are visually distinct from fixed sites. */
+.farm-map-driver-marker { position: absolute; z-index: 5; transform: translate(-50%,-50%); display: inline-flex; align-items: center; gap: 5px; max-width: min(190px,44%); padding: 4px 7px 4px 4px; border: 1px solid #8b85d8; border-radius: 999px; background: #373270; color: #fff; box-shadow: 0 5px 16px rgb(33 28 93 / 28%); cursor: pointer; }
+.farm-map-driver-marker-icon { display: grid; place-items: center; width: 27px; height: 27px; flex: none; border-radius: 50%; background: #726ae0; color: #fff; }
+.farm-map-driver-marker-label { max-width: 145px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 9px; font-weight: 850; }
+.farm-map-fleet-list { border-top: 1px solid var(--obs-border); }
+.farm-map-fleet-heading { display: flex; align-items: center; gap: 7px; padding: 12px 13px; color: var(--obs-text); font-size: 10px; }
+.farm-map-fleet-heading svg { color: var(--obs-accent); }
+.farm-map-fleet-heading span { margin-inline-start: auto; color: var(--obs-muted); }
+.farm-map-fleet-notice { margin: 0 12px 10px; color: var(--obs-critical); font-size: 9px; line-height: 1.8; }
+.farm-map-fleet-row { display: flex; align-items: center; gap: 9px; padding: 10px 13px; border-top: 1px solid var(--obs-border); }
+.farm-map-fleet-dot { width: 9px; height: 9px; flex: none; border-radius: 50%; background: #a1a1aa; box-shadow: 0 0 0 3px rgb(161 161 170 / 13%); }
+.farm-map-fleet-dot.live { background: #31a879; box-shadow: 0 0 0 3px rgb(49 168 121 / 14%); }
+.farm-map-fleet-row > span:nth-child(2) { display: grid; gap: 3px; min-width: 0; flex: 1; }
+.farm-map-fleet-row b { overflow-wrap: anywhere; color: var(--obs-text); font-size: 10px; }
+.farm-map-fleet-row small { color: var(--obs-muted); font-size: 8px; line-height: 1.7; }
+.farm-map-fleet-row small.stale { color: var(--obs-critical); }
+.farm-map-fleet-updated { display: block; padding: 9px 13px; color: var(--obs-subtle); font-size: 8px; }
+@media (max-width: 560px) {
+ .farm-map-driver-marker { max-width: 47%; padding-inline-end: 5px; }
+ .farm-map-driver-marker-label { max-width: 94px; font-size: 8px; }
+ .farm-map-driver-marker-icon { width: 24px; height: 24px; }
+}
