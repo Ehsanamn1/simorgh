@@ -548,7 +548,7 @@ export const AI_PROVIDERS: Record<AiProvider, { label: string; model: string }> 
   openai: { label: 'OpenAI', model: 'gpt-6-luna' },
   gemini: { label: 'Gemini', model: 'gemini-3.8-flash' },
   deepseek: { label: 'DeepSeek', model: 'deepseek-flash' },
-  anthropic: { label: 'Claude', model: 'claude-sonnet-5' },
+  anthropic: { label: 'Claude', model: 'claude-sonnet-5-5' },
 };
 const COMPANY_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 function aiProvider(value: unknown): AiProvider | null {
@@ -562,9 +562,15 @@ async function aiCompanyMembership(c: Ctx, companyId: string, userId: string): P
   );
   return rows[0] as AiCompanyMembership | undefined ?? null;
 }
+export function requireAiEncryptionKey(value: string | undefined): string {
+  if (typeof value !== 'string' || value.trim().length === 0) {
+    throw new Error('AI_ENCRYPTION_KEY is not configured; a dedicated encryption secret is required.');
+  }
+  return value;
+}
+
 async function aiEncryptionKey(c: Ctx): Promise<CryptoKey> {
-  const master = c.env.AI_ENCRYPTION_KEY || c.env.DATABASE_URL;
-  if (!master) throw new Error('AI_ENCRYPTION_KEY is not configured');
+  const master = requireAiEncryptionKey(c.env.AI_ENCRYPTION_KEY);
   const digest = await crypto.subtle.digest('SHA-256', encoder.encode('medar-ai-key-v1:' + master));
   return crypto.subtle.importKey('raw', digest, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
 }

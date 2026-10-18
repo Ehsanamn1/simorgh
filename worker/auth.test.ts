@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   CREATE_OWNER_WORKSPACE_SQL,
   AI_PROVIDERS,
+  requireAiEncryptionKey,
   DUMMY_PASSWORD_HASH,
   FAILED_LOGIN_UPSERT_SQL,
   normalizeUsername,
@@ -22,7 +23,15 @@ describe('AI provider default model IDs', () => {
     expect(AI_PROVIDERS.openai.model).toBe('gpt-6-luna');
     expect(AI_PROVIDERS.gemini.model).toBe('gemini-3.8-flash');
     expect(AI_PROVIDERS.deepseek.model).toBe('deepseek-flash');
-    expect(AI_PROVIDERS.anthropic.model).toBe('claude-sonnet-5');
+    expect(AI_PROVIDERS.anthropic.model).toBe('claude-sonnet-5-5');
+  });
+});
+
+describe('dedicated AI encryption key', () => {
+  it('requires a non-empty dedicated secret instead of falling back to the database URL', () => {
+    expect(requireAiEncryptionKey('stable-dedicated-key')).toBe('stable-dedicated-key');
+    expect(() => requireAiEncryptionKey(undefined)).toThrow(/AI_ENCRYPTION_KEY/);
+    expect(() => requireAiEncryptionKey('')).toThrow(/AI_ENCRYPTION_KEY/);
   });
 });
 

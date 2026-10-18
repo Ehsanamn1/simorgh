@@ -305,6 +305,321 @@ jobs:
           DELETE FROM public.companies WHERE id='00000000-0000-4000-8000-000000000022';
           SQL
           echo "Concurrent deductions, purchase-order approval, partial/final receipt, stock ledger updates, and over-receipt rejection all passed."
+      - name: Verify partner settlement lifecycle, role restrictions, and bank ledger invariants
+        env:
+          PGPASSWORD: medar_test_password
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql -h 127.0.0.1 -U postgres -d medar_test -v ON_ERROR_STOP=1 <<'SQL'
+          BEGIN;
+          INSERT INTO public.companies (id,name) VALUES
+            ('00000000-0000-4000-8000-000000000332','CI settlement and bank ledger company'),
+            ('00000000-0000-4000-8000-000000000343','CI cross-tenant company');
+          INSERT INTO public.medar_users (id,username,username_normalized,phone_e164,display_name,password_hash) VALUES
+            ('00000000-0000-4000-8000-000000000331','ci.settlement.owner','ci.settlement.owner','+989190000331','CI settlement owner','not-a-login-hash'),
+            ('00000000-0000-4000-8000-000000000333','ci.settlement.supplier','ci.settlement.supplier','+989190000333','CI settlement supplier','not-a-login-hash'),
+            ('00000000-0000-4000-8000-000000000337','ci.settlement.staff','ci.settlement.staff','+989190000337','CI settlement staff','not-a-login-hash'),
+            ('00000000-0000-4000-8000-000000000338','ci.settlement.customer','ci.settlement.customer','+989190000338','CI settlement customer','not-a-login-hash'),
+            ('00000000-0000-4000-8000-000000000339','ci.settlement.driver','ci.settlement.driver','+989190000339','CI settlement driver','not-a-login-hash');
+          INSERT INTO public.suppliers (id,company_id,name)
+          VALUES ('00000000-0000-4000-8000-000000000334','00000000-0000-4000-8000-000000000332','CI settlement supplier');
+          INSERT INTO public.customers (id,company_id,name)
+          VALUES ('00000000-0000-4000-8000-000000000340','00000000-0000-4000-8000-000000000332','CI settlement customer');
+          INSERT INTO public.products (id,company_id,sku,name,kind,unit) VALUES
+            ('00000000-0000-4000-8000-000000000341','00000000-0000-4000-8000-000000000332','CI-SETTLEMENT-ROLE','CI settlement role matrix product','other','unit'),
+            ('00000000-0000-4000-8000-000000000345','00000000-0000-4000-8000-000000000343','CI-OTHER-TENANT','CI cross-tenant product','other','unit');
+          INSERT INTO public.suppliers (id,company_id,name)
+          VALUES ('00000000-0000-4000-8000-000000000346','00000000-0000-4000-8000-000000000343','CI cross-tenant supplier');
+          INSERT INTO public.memberships (company_id,user_id,role,active,created_by,supplier_id,customer_id) VALUES
+            ('00000000-0000-4000-8000-000000000332','00000000-0000-4000-8000-000000000331','owner',true,'00000000-0000-4000-8000-000000000331',NULL,NULL),
+            ('00000000-0000-4000-8000-000000000332','00000000-0000-4000-8000-000000000333','supplier',true,'00000000-0000-4000-8000-000000000331','00000000-0000-4000-8000-000000000334',NULL),
+            ('00000000-0000-4000-8000-000000000332','00000000-0000-4000-8000-000000000337','staff',true,'00000000-0000-4000-8000-000000000331',NULL,NULL),
+            ('00000000-0000-4000-8000-000000000332','00000000-0000-4000-8000-000000000338','customer',true,'00000000-0000-4000-8000-000000000331',NULL,'00000000-0000-4000-8000-000000000340'),
+            ('00000000-0000-4000-8000-000000000332','00000000-0000-4000-8000-000000000339','driver',true,'00000000-0000-4000-8000-000000000331',NULL,NULL);
+          INSERT INTO public.partnership_agreements (
+            id,company_id,supplier_id,agreement_code,status,effective_from,effective_to,
+            company_profit_share_pct,partner_profit_share_pct,shared_expense_categories,settlement_basis,
+            signed_document_path,signed_at,approved_by,approved_at,created_by
+          ) VALUES (
+            '00000000-0000-4000-8000-000000000335','00000000-0000-4000-8000-000000000332',
+            '00000000-0000-4000-8000-000000000334','CI-AGREEMENT-01','active',
+            current_date-30,current_date,60,40,ARRAY['feed'],'collected_cash',
+            'ci://signed-agreement',now(),'00000000-0000-4000-8000-000000000331',now(),
+            '00000000-0000-4000-8000-000000000331'
+          );
+          INSERT INTO public.partner_financial_entries (
+            company_id,supplier_id,agreement_id,entry_type,status,direction,amount,paid_amount,currency,
+            paid_by,payment_status,recognized_on,external_reference,created_by,posted_by,posted_at
+          ) VALUES (
+            '00000000-0000-4000-8000-000000000332','00000000-0000-4000-8000-000000000334',
+            '00000000-0000-4000-8000-000000000335','sale_collection','posted','inflow_to_company',
+            1000,1000,'TOMAN','customer','paid',current_date,'CI-COLLECT-0001',
+            '00000000-0000-4000-8000-000000000331',
+            '00000000-0000-4000-8000-000000000331',now()
+          );
+
+          DO $role_matrix$
+          DECLARE v_count integer;
+          BEGIN
+            PERFORM public.medar_record_inventory_movement(
+              '00000000-0000-4000-8000-000000000337',
+              '00000000-0000-4000-8000-000000000332',
+              '00000000-0000-4000-8000-000000000341',
+              'purchase_in',1,10,'00000000-0000-4000-8000-000000000334',
+              NULL,NULL,'CI-ROLE-STAFF-ALLOW','staff can record permitted receiving movements'
+            );
+            SELECT count(*) INTO v_count FROM public.inventory_movements
+              WHERE company_id='00000000-0000-4000-8000-000000000332'
+                AND reference_code='CI-ROLE-STAFF-ALLOW';
+            IF v_count<>1 THEN RAISE EXCEPTION 'Staff receiving movement was not recorded'; END IF;
+
+            BEGIN
+              PERFORM public.medar_record_inventory_movement(
+                '00000000-0000-4000-8000-000000000333',
+                '00000000-0000-4000-8000-000000000332',
+                '00000000-0000-4000-8000-000000000341',
+                'purchase_in',1,10,'00000000-0000-4000-8000-000000000334',
+                NULL,NULL,'CI-ROLE-SUPPLIER-DENY','supplier must not write inventory ledger'
+              );
+              RAISE EXCEPTION 'Supplier was incorrectly allowed to write inventory';
+            EXCEPTION WHEN OTHERS THEN
+              IF SQLERRM='Supplier was incorrectly allowed to write inventory' THEN RAISE; END IF;
+            END;
+
+            BEGIN
+              PERFORM public.medar_record_inventory_movement(
+                '00000000-0000-4000-8000-000000000338',
+                '00000000-0000-4000-8000-000000000332',
+                '00000000-0000-4000-8000-000000000341',
+                'purchase_in',1,10,'00000000-0000-4000-8000-000000000334',
+                NULL,NULL,'CI-ROLE-CUSTOMER-DENY','customer must not write inventory ledger'
+              );
+              RAISE EXCEPTION 'Customer was incorrectly allowed to write inventory';
+            EXCEPTION WHEN OTHERS THEN
+              IF SQLERRM='Customer was incorrectly allowed to write inventory' THEN RAISE; END IF;
+            END;
+
+            BEGIN
+              PERFORM public.medar_record_inventory_movement(
+                '00000000-0000-4000-8000-000000000339',
+                '00000000-0000-4000-8000-000000000332',
+                '00000000-0000-4000-8000-000000000341',
+                'purchase_in',1,10,'00000000-0000-4000-8000-000000000334',
+                NULL,NULL,'CI-ROLE-DRIVER-DENY','driver must not write inventory ledger'
+              );
+              RAISE EXCEPTION 'Driver was incorrectly allowed to write inventory';
+            EXCEPTION WHEN OTHERS THEN
+              IF SQLERRM='Driver was incorrectly allowed to write inventory' THEN RAISE; END IF;
+            END;
+
+            BEGIN
+              PERFORM public.medar_record_inventory_movement(
+                '00000000-0000-4000-8000-000000000331',
+                '00000000-0000-4000-8000-000000000343',
+                '00000000-0000-4000-8000-000000000345',
+                'purchase_in',1,10,'00000000-0000-4000-8000-000000000346',
+                NULL,NULL,'CI-ROLE-CROSS-TENANT-DENY','owner must not write to a different company'
+              );
+              RAISE EXCEPTION 'Cross-tenant inventory write was incorrectly accepted';
+            EXCEPTION WHEN OTHERS THEN
+              IF SQLERRM='Cross-tenant inventory write was incorrectly accepted' THEN RAISE; END IF;
+            END;
+          END $role_matrix$;
+
+          INSERT INTO public.operational_tasks (
+            company_id,assignee_user_id,assigned_by,title,status,due_at
+          ) VALUES (
+            '00000000-0000-4000-8000-000000000332',
+            '00000000-0000-4000-8000-000000000337',
+            '00000000-0000-4000-8000-000000000331',
+            'CI blocked task exception probe','blocked',now()+interval '1 hour'
+          );
+          DO $operations_ledger$
+          DECLARE v_events integer; v_cases integer; v_owner uuid;
+          BEGIN
+            SELECT count(*) INTO v_events FROM public.medar_operational_events
+              WHERE company_id='00000000-0000-4000-8000-000000000332'
+                AND source_type='task' AND title='CI blocked task exception probe';
+            SELECT count(*) INTO v_cases FROM public.medar_exception_cases
+              WHERE company_id='00000000-0000-4000-8000-000000000332'
+                AND title='CI blocked task exception probe' AND status='open';
+            SELECT assigned_user_id INTO v_owner FROM public.medar_exception_cases
+              WHERE company_id='00000000-0000-4000-8000-000000000332'
+                AND title='CI blocked task exception probe' AND status='open'
+              ORDER BY created_at DESC LIMIT 1;
+            IF v_events<>1 OR v_cases<>1 OR v_owner IS DISTINCT FROM '00000000-0000-4000-8000-000000000331'::uuid THEN
+              RAISE EXCEPTION 'Blocked-task event/exception automation failed: events %, cases %, owner %',v_events,v_cases,v_owner;
+            END IF;
+          END $operations_ledger$;
+
+          INSERT INTO public.orders (id,company_id,customer_id,reference,created_by)
+          VALUES (
+            '00000000-0000-4000-8000-000000000342',
+            '00000000-0000-4000-8000-000000000332',
+            '00000000-0000-4000-8000-000000000340',
+            'CI-ORDER-FAILED-001',
+            '00000000-0000-4000-8000-000000000331'
+          );
+          INSERT INTO public.shipments (id,company_id,order_id,driver_user_id,vehicle,stage,failure_reason)
+          VALUES (
+            '00000000-0000-4000-8000-000000000344',
+            '00000000-0000-4000-8000-000000000332',
+            '00000000-0000-4000-8000-000000000342',
+            '00000000-0000-4000-8000-000000000339',
+            'CI delivery vehicle','failed','CI simulated delivery failure'
+          );
+
+          DO $delivery_exception$
+          DECLARE v_cases integer; v_owner uuid;
+          BEGIN
+            SELECT count(*) INTO v_cases FROM public.medar_exception_cases
+              WHERE company_id='00000000-0000-4000-8000-000000000332'
+                AND title='CI delivery vehicle' AND status='open';
+            SELECT assigned_user_id INTO v_owner FROM public.medar_exception_cases
+              WHERE company_id='00000000-0000-4000-8000-000000000332'
+                AND title='CI delivery vehicle' AND status='open'
+              ORDER BY created_at DESC LIMIT 1;
+            IF v_cases<>1 OR v_owner IS DISTINCT FROM '00000000-0000-4000-8000-000000000331'::uuid THEN
+              RAISE EXCEPTION 'Failed-shipment exception automation failed: cases %, owner %',v_cases,v_owner;
+            END IF;
+          END $delivery_exception$;
+
+          DO $settlement$
+          DECLARE
+            v_period uuid;
+            v_status text;
+            v_due numeric;
+            v_cash numeric;
+            v_paid numeric;
+          BEGIN
+            v_period := public.medar_create_partner_settlement_period(
+              '00000000-0000-4000-8000-000000000331',
+              '00000000-0000-4000-8000-000000000335',
+              current_date-1,current_date
+            );
+            SELECT status,balance_due_to_partner,recorded_cash_available
+              INTO v_status,v_due,v_cash
+              FROM public.partner_settlement_periods WHERE id=v_period;
+            IF v_status<>'draft' OR v_due<>400 OR v_cash<>1000 THEN
+              RAISE EXCEPTION 'Settlement calculation mismatch: status %, due %, cash %',v_status,v_due,v_cash;
+            END IF;
+
+            BEGIN
+              PERFORM public.medar_approve_partner_settlement_period(
+                '00000000-0000-4000-8000-000000000333',v_period
+              );
+              RAISE EXCEPTION 'Supplier was incorrectly allowed to approve a settlement';
+            EXCEPTION WHEN OTHERS THEN
+              IF SQLERRM='Supplier was incorrectly allowed to approve a settlement' THEN RAISE; END IF;
+            END;
+
+            PERFORM public.medar_approve_partner_settlement_period(
+              '00000000-0000-4000-8000-000000000331',v_period
+            );
+            PERFORM public.medar_record_partner_settlement_payment(
+              '00000000-0000-4000-8000-000000000331',v_period,400,'CI-PAYMENT-0001',now()
+            );
+            SELECT status,settled_amount INTO v_status,v_paid
+              FROM public.partner_settlement_periods WHERE id=v_period;
+            IF v_status<>'settled' OR v_paid<>400 THEN
+              RAISE EXCEPTION 'Settlement payment transition mismatch: status %, paid %',v_status,v_paid;
+            END IF;
+
+            BEGIN
+              PERFORM public.medar_record_partner_settlement_payment(
+                '00000000-0000-4000-8000-000000000331',v_period,1,'CI-PAYMENT-OVERFLOW',now()
+              );
+              RAISE EXCEPTION 'Overpayment was incorrectly accepted';
+            EXCEPTION WHEN OTHERS THEN
+              IF SQLERRM='Overpayment was incorrectly accepted' THEN RAISE; END IF;
+            END;
+          END $settlement$;
+
+          INSERT INTO public.medar_bank_accounts (
+            id,company_id,label,bank_name,masked_account,currency,provider,connection_status,created_by
+          ) VALUES (
+            '00000000-0000-4000-8000-000000000336',
+            '00000000-0000-4000-8000-000000000332','CI bank account','CI Bank','****۱۲۳۴',
+            'IRR','manual_csv','manual_import','00000000-0000-4000-8000-000000000331'
+          );
+          INSERT INTO public.medar_bank_transactions (
+            company_id,bank_account_id,external_transaction_id,booked_at,amount,currency,direction,imported_by
+          ) VALUES (
+            '00000000-0000-4000-8000-000000000332','00000000-0000-4000-8000-000000000336',
+            'CI-BANK-000001',now(),125,'IRR','incoming','00000000-0000-4000-8000-000000000331'
+          ) ON CONFLICT(company_id,bank_account_id,external_transaction_id) DO NOTHING;
+          INSERT INTO public.medar_bank_transactions (
+            company_id,bank_account_id,external_transaction_id,booked_at,amount,currency,direction,imported_by
+          ) VALUES (
+            '00000000-0000-4000-8000-000000000332','00000000-0000-4000-8000-000000000336',
+            'CI-BANK-000001',now(),125,'IRR','incoming','00000000-0000-4000-8000-000000000331'
+          ) ON CONFLICT(company_id,bank_account_id,external_transaction_id) DO NOTHING;
+
+          DO $bank_ledger$
+          DECLARE v_count integer;
+          BEGIN
+            SELECT count(*) INTO v_count FROM public.medar_bank_transactions
+              WHERE company_id='00000000-0000-4000-8000-000000000332'
+                AND bank_account_id='00000000-0000-4000-8000-000000000336'
+                AND external_transaction_id='CI-BANK-000001';
+            IF v_count<>1 THEN RAISE EXCEPTION 'Duplicate bank import was not idempotent'; END IF;
+
+            BEGIN
+              INSERT INTO public.medar_bank_transactions (
+                company_id,bank_account_id,external_transaction_id,booked_at,amount,currency,direction,imported_by
+              ) VALUES (
+                '00000000-0000-4000-8000-000000000332','00000000-0000-4000-8000-000000000336',
+                'CI-BANK-INVALID-01',now(),-125,'IRR','incoming','00000000-0000-4000-8000-000000000331'
+              );
+              RAISE EXCEPTION 'Bank direction/amount mismatch was incorrectly accepted';
+            EXCEPTION WHEN OTHERS THEN
+              IF SQLERRM='Bank direction/amount mismatch was incorrectly accepted' THEN RAISE; END IF;
+            END;
+
+            BEGIN
+              INSERT INTO public.medar_bank_transactions (
+                company_id,bank_account_id,external_transaction_id,booked_at,amount,currency,direction,
+                reconciliation_status,imported_by
+              ) VALUES (
+                '00000000-0000-4000-8000-000000000332','00000000-0000-4000-8000-000000000336',
+                'CI-BANK-INVALID-02',now(),125,'IRR','incoming','reconciled',
+                '00000000-0000-4000-8000-000000000331'
+              );
+              RAISE EXCEPTION 'Reconciled transaction without an audit link was incorrectly accepted';
+            EXCEPTION WHEN OTHERS THEN
+              IF SQLERRM='Reconciled transaction without an audit link was incorrectly accepted' THEN RAISE; END IF;
+            END;
+          END $bank_ledger$;
+          ROLLBACK;
+          SQL
+          echo "Role matrix, blocked-task and failed-shipment exception automation, partner settlement calculation/authorization/approval/payment caps, bank-import idempotency, and ledger constraints passed."
+      - name: Verify PostgreSQL backup and restore on a disposable CI database
+        env:
+          PGPASSWORD: medar_test_password
+        shell: bash
+        run: |
+          set -euo pipefail
+          restore_db="medar_restore_test"
+          dump_file="$RUNNER_TEMP/medar-ci-backup.dump"
+          cleanup_restore() {
+            dropdb -h 127.0.0.1 -U postgres --if-exists "$restore_db" >/dev/null 2>&1 || true
+            psql -h 127.0.0.1 -U postgres -d medar_test -v ON_ERROR_STOP=1 -c "DROP TABLE IF EXISTS public.ci_backup_probe" >/dev/null 2>&1 || true
+            rm -f "$dump_file"
+          }
+          trap cleanup_restore EXIT
+          psql -h 127.0.0.1 -U postgres -d medar_test -v ON_ERROR_STOP=1 <<'SQL'
+          CREATE TABLE public.ci_backup_probe (id integer PRIMARY KEY, marker text NOT NULL);
+          INSERT INTO public.ci_backup_probe(id,marker) VALUES (1,'medar-backup-restore-roundtrip');
+          SQL
+          pg_dump -h 127.0.0.1 -U postgres -d medar_test --format=custom --no-owner --no-acl --file="$dump_file"
+          createdb -h 127.0.0.1 -U postgres "$restore_db"
+          pg_restore -h 127.0.0.1 -U postgres -d "$restore_db" --no-owner --no-acl "$dump_file"
+          restored_marker="$(psql -h 127.0.0.1 -U postgres -d "$restore_db" -v ON_ERROR_STOP=1 -Atqc "SELECT marker FROM public.ci_backup_probe WHERE id=1")"
+          restored_migrations="$(psql -h 127.0.0.1 -U postgres -d "$restore_db" -v ON_ERROR_STOP=1 -Atqc "SELECT count(*) FROM public.medar_schema_migrations")"
+          test "$restored_marker" = "medar-backup-restore-roundtrip"
+          test "$restored_migrations" = "24"
+          echo "PostgreSQL custom-format backup restored successfully with all 24 migration records and the fixture marker."
       - name: Summarize all dependency advisories
         shell: bash
         run: |
