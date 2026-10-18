@@ -1048,7 +1048,8 @@ test('role home loads the real notification inbox and acknowledges an unread bri
   await markRead.click();
   await expect(page.locator('.notification-item.unread')).toHaveCount(0);
   await expect(markRead).toHaveCount(0);
-  await expect(page.getByRole('heading', { name: 'اعلان‌های من' })).toContainText('۰');
+  await expect(page.locator('.notification-unread-count')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'خواندن همه' })).toHaveCount(0);
   expect(markReadCalls).toBe(1);
 });
 
