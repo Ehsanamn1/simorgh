@@ -506,9 +506,15 @@ test('manager can preview and import a mixed supplier/customer CSV with duplicat
   await page.getByRole('button', { name: /ثبت .* مخاطب در فضای کاری/ }).click();
   await expect(page.getByRole('status')).toContainText('واردکردن مخاطبین کامل شد');
   expect(Array.isArray(submitted?.contacts)).toBe(true);
-  const importedContacts = submitted?.contacts as Array<{ kind: string; name: string }>;
+  const importedContacts = submitted?.contacts as Array<{ kind: string; name: string; email?: string; organization?: string; notes?: string; tags?: string[] }>;
   expect(importedContacts).toHaveLength(2);
   expect(importedContacts.map(contact => contact.kind).sort()).toEqual(['customers', 'suppliers']);
+  const supplier = importedContacts.find(contact => contact.kind === 'suppliers');
+  expect(supplier).toMatchObject({ email: 'supplier@example.invalid', organization: 'North Farm', notes: 'egg producer' });
+  expect(supplier?.tags).toEqual(['producer','wholesale']);
+  const customer = importedContacts.find(contact => contact.kind === 'customers');
+  expect(customer).toMatchObject({ email: 'buyer@example.invalid', organization: 'City Store', notes: 'retail customer' });
+  expect(customer?.tags).toEqual(['retail','weekly']);
 });
 
 test('a signed-in user can change their own password through the protected Worker endpoint', async ({ page }, testInfo) => {
