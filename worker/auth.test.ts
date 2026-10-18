@@ -7,6 +7,7 @@ import {
   parseClientHeartbeat,
   resolveApiModeAccess,
   aggregateModulePermissionRows,
+  isBankReconciliationDirectionCompatible,
   scopeHasModulePermission,
   verifyPassword,
 } from './index';
@@ -101,6 +102,25 @@ describe('server-side username normalization', () => {
     expect(normalizeUsername('@@')).toBeNull();
     expect(normalizeUsername('_starts_with_punctuation')).toBeNull();
     expect(normalizeUsername('a'.repeat(33))).toBeNull();
+  });
+});
+
+describe('bank reconciliation direction safeguards', () => {
+  it('only reconciles bank receipts against incoming partner entries and payments against outgoing entries', () => {
+    expect(isBankReconciliationDirectionCompatible('partner_financial_entry', 'incoming', 'inflow_to_company')).toBe(true);
+    expect(isBankReconciliationDirectionCompatible('partner_financial_entry', 'incoming', 'partner_to_company')).toBe(true);
+    expect(isBankReconciliationDirectionCompatible('partner_financial_entry', 'outgoing', 'outflow_from_company')).toBe(true);
+    expect(isBankReconciliationDirectionCompatible('partner_financial_entry', 'outgoing', 'company_to_partner')).toBe(true);
+    expect(isBankReconciliationDirectionCompatible('partner_financial_entry', 'incoming', 'outflow_from_company')).toBe(false);
+    expect(isBankReconciliationDirectionCompatible('partner_financial_entry', 'outgoing', 'inflow_to_company')).toBe(false);
+  });
+
+  it('enforces direction for invoices, purchase orders, and settlements', () => {
+    expect(isBankReconciliationDirectionCompatible('invoice', 'incoming')).toBe(true);
+    expect(isBankReconciliationDirectionCompatible('invoice', 'outgoing')).toBe(false);
+    expect(isBankReconciliationDirectionCompatible('purchase_order', 'outgoing')).toBe(true);
+    expect(isBankReconciliationDirectionCompatible('settlement', 'incoming')).toBe(false);
+    expect(isBankReconciliationDirectionCompatible('unsupported', 'incoming')).toBe(false);
   });
 });
 

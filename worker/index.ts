@@ -731,13 +731,20 @@ app.post('/api/finance/bank-transactions/:id/reconcile', async (c) => {
   const sql=sqlFor(c);
   const [txn,target]=await Promise.all([
     sql.query('select direction,reconciliation_status from public.medar_bank_transactions where id=$1::uuid and company_id=$2::uuid limit 1',[transactionId,companyId]),
-    sql.query('select id from public.'+table+' where id=$1::uuid and company_id=$2::uuid limit 1',[entityId,companyId]),
+    sql.query(
+      entityType === 'partner_financial_entry'
+        ? 'select id,direction from public.'+table+' where id=$1::uuid and company_id=$2::uuid limit 1'
+        : 'select id from public.'+table+' where id=$1::uuid and company_id=$2::uuid limit 1',
+      [entityId,companyId]),
   ]);
   const transaction=txn[0] as {direction:string;reconciliation_status:string}|undefined;
   if(!transaction||!target.length)return c.json({message:'تراکنش یا سند در همین مجموعه پیدا نشد.'},404);
   if(transaction.reconciliation_status==='reconciled')return c.json({message:'این تراکنش قبلاً تطبیق نهایی شده است.'},409);
   if(transaction.reconciliation_status==='ignored')return c.json({message:'این تراکنش نادیده گرفته شده است.'},409);
-  if((entityType==='invoice'&&transaction.direction!=='incoming')||(['purchase_order','settlement'].includes(entityType)&&transaction.direction!=='outgoing'))return c.json({message:'جهت تراکنش با نوع سند هماهنگ نیست.'},422);
+  const targetDirection = (target[0] as { direction?: string }).direction;
+  if (!isBankReconciliationDirectionCompatible(entityType, transaction.direction, targetDirection)) {
+    return c.json({message:'جهت تراکنش با نوع سند هماهنگ نیست.'},422);
+  }
   const changed=await sql.query(
     "update public.medar_bank_transactions set reconciliation_status='reconciled',matched_entity_type=$1,matched_entity_id=$2::uuid,matched_by=$3::uuid,matched_at=now() where id=$4::uuid and company_id=$5::uuid and reconciliation_status in ('unmatched','suggested') returning id",
     [entityType,entityId,user.id,transactionId,companyId]);
@@ -2425,6 +2432,20 @@ export const MEDAR_STATUS_TRANSITIONS: Record<string, Record<string, readonly st
 };
 export function canTransitionMedarStatus(table: string, current: string, next: string): boolean {
   return (MEDAR_STATUS_TRANSITIONS[table]?.[current] ?? []).includes(next);
+}
+
+export function isBankReconciliationDirectionCompatible(
+  entityType: string,
+  transactionDirection: string,
+  targetDirection?: string | null,
+): boolean {
+  if (entityType === 'invoice') return transactionDirection === 'incoming';
+  if (entityType === 'purchase_order' || entityType === 'settlement') return transactionDirection === 'outgoing';
+  if (entityType === 'partner_financial_entry') {
+    if (transactionDirection === 'incoming') return targetDirection === 'inflow_to_company' || targetDirection === 'partner_to_company';
+    if (transactionDirection === 'outgoing') return targetDirection === 'outflow_from_company' || targetDirection === 'company_to_partner';
+  }
+  return false;
 }
 
 function applyInsertActorFields(table:string,row:Record<string,unknown>,columns:Set<string>,userId:string):Record<string,unknown> {
