@@ -2600,6 +2600,21 @@ export function isProductionBatchCompletionReady(
     hasReleasedLotAndPassingReview;
 }
 
+export function isPartnerFinancialEntryReadyToPost(
+  entryType: unknown,
+  paymentStatus: unknown,
+  paidAmount: unknown,
+  amount: unknown,
+  externalReference: unknown,
+): boolean {
+  if (!['sale_collection','partner_advance','settlement_payment'].includes(String(entryType))) return true;
+  const paid = Number(paidAmount);
+  const total = Number(amount);
+  return paymentStatus === 'paid' && Number.isFinite(total) && total > 0 &&
+    Number.isFinite(paid) && paid === total &&
+    typeof externalReference === 'string' && externalReference.trim().length > 0;
+}
+
 export function isBankReconciliationDirectionCompatible(
   entityType: string,
   transactionDirection: string,
@@ -2876,6 +2891,10 @@ app.post('/api/data/:table',async c=>{
     const nextState = String(requestedState);
     if (!canTransitionMedarStatus(table, currentState, nextState)) {
       return c.json({ message: 'این انتقال وضعیت با گردش‌کار فعلی مجاز نیست.' }, 422);
+    }
+    if (table === 'partner_financial_entries' && nextState === 'posted' &&
+        !isPartnerFinancialEntryReadyToPost(current.entry_type,current.payment_status,current.paid_amount,current.amount,current.external_reference)) {
+      return c.json({ message: 'ثبت نهایی این سند به مبلغ پرداخت‌شدهٔ کامل و مرجع رسید واقعی نیاز دارد.' }, 422);
     }
     if (table === 'production_batches' && nextState === 'submitted_for_review') {
       const produced = values?.produced_quantity ?? current.produced_quantity;
