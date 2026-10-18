@@ -66,6 +66,7 @@ export function MedarConnect({ membership }: { membership: Membership }) {
     }
   }, [companyId]);
 
+  useEffect(() => { void loadConversations(); void loadPeople(); }, [loadConversations, loadPeople]);
   useEffect(() => { void loadMessages(selectedId); }, [loadMessages, selectedId]);
 
   async function createConversation() {
