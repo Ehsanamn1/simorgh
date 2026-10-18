@@ -154,13 +154,34 @@ jobs:
         working-directory: worker
         shell: bash
         run: printf '%s' "$MEDAR_DATABASE_URL" | npx wrangler@4 secret put DATABASE_URL --name medar-ops
-      - name: Configure a dedicated AI encryption key when supplied
-        if: ${{ env.MEDAR_AI_ENCRYPTION_KEY != '' }}
+      - name: Configure a stable dedicated AI encryption key
         working-directory: worker
         shell: bash
         env:
           MEDAR_AI_ENCRYPTION_KEY: ${{ secrets.MEDAR_AI_ENCRYPTION_KEY }}
-        run: printf '%s' "$MEDAR_AI_ENCRYPTION_KEY" | npx wrangler@4 secret put AI_ENCRYPTION_KEY --name medar-ops
+        run: |
+          set -euo pipefail
+          if [[ -n "$MEDAR_AI_ENCRYPTION_KEY" ]]; then
+            printf '%s' "$MEDAR_AI_ENCRYPTION_KEY" | npx wrangler@4 secret put AI_ENCRYPTION_KEY --name medar-ops
+            echo "Dedicated AI encryption key configured from repository secret."
+          else
+            existing="$(npx wrangler@4 secret list --name medar-ops)"
+            if grep -q 'AI_ENCRYPTION_KEY' <<< "$existing"; then
+              echo "Existing AI encryption key preserved."
+            else
+              umask 077
+              node --input-type=module <<'NODE'
+          import { randomBytes } from 'node:crypto';
+          import { writeFileSync } from 'node:fs';
+          writeFileSync(process.env.RUNNER_TEMP + '/medar-ai-encryption-key', randomBytes(32).toString('base64url'), { mode: 0o600 });
+          NODE
+              encryption_key="$(cat "$RUNNER_TEMP/medar-ai-encryption-key")"
+              echo "::add-mask::$encryption_key"
+              printf '%s' "$encryption_key" | npx wrangler@4 secret put AI_ENCRYPTION_KEY --name medar-ops
+              rm -f "$RUNNER_TEMP/medar-ai-encryption-key"
+              echo "A stable random AI encryption key was generated and stored as a Worker secret."
+            fi
+          fi
       - name: Configure Web Push credentials for the operational Worker
         working-directory: worker
         shell: bash
