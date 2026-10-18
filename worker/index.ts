@@ -2009,6 +2009,21 @@ const RPC_TARGETS: Record<string, string> = {
   approve_purchase_order: 'medar_approve_purchase_order',
   receive_purchase_order: 'medar_receive_purchase_order',
 };
+const RPC_MODULE_PERMISSIONS: Record<string, { module: string; capability: ModulePermissionCapability }> = {
+  allocate_order_item: { module: 'orders', capability: 'can_update' },
+  record_inventory_movement: { module: 'inventory', capability: 'can_create' },
+  record_quality_review: { module: 'quality', capability: 'can_approve' },
+  start_operational_task: { module: 'operational-tasks', capability: 'can_update' },
+  submit_operational_task: { module: 'operational-tasks', capability: 'can_update' },
+  review_operational_task: { module: 'operational-tasks', capability: 'can_approve' },
+  create_partner_settlement_period: { module: 'partner-settlements', capability: 'can_create' },
+  refresh_partner_settlement_period: { module: 'partner-settlements', capability: 'can_update' },
+  approve_partner_settlement_period: { module: 'partner-settlements', capability: 'can_approve' },
+  record_partner_settlement_payment: { module: 'partner-settlements', capability: 'can_approve' },
+  create_purchase_order: { module: 'purchase-orders', capability: 'can_create' },
+  approve_purchase_order: { module: 'purchase-orders', capability: 'can_approve' },
+  receive_purchase_order: { module: 'purchase-orders', capability: 'can_update' },
+};
 function quoteSqlIdentifier(value: string): string {
  if(!/^[a-z_][a-z0-9_]*$/.test(value)) throw new Error('شناسه دیتابیس معتبر نیست.');
  return '"' + value + '"';
@@ -2645,6 +2660,7 @@ app.post('/api/rpc/:name', async (c) => {
       );
       const role = (manager[0] as { role: string } | undefined)?.role;
       if (!role || !['owner', 'admin', 'staff'].includes(role)) return c.json({ message: 'برای فهرست اعضای مجموعه دسترسی داخلی لازم است.' }, 403);
+      if (!(await userHasModulePermission(c, user.id, companyId, 'members', 'can_read'))) return c.json({ message: 'برای مشاهده اعضای مجموعه مجوز نداری.' }, 403);
       const members = await sql.query(
         "select m.id as membership_id,m.company_id,m.user_id,coalesce(u.username_normalized,u.username) as username," +
         "u.phone_e164 as phone,u.display_name as full_name,m.role::text,m.customer_id,m.supplier_id,m.active,m.created_at " +
@@ -2655,6 +2671,15 @@ app.post('/api/rpc/:name', async (c) => {
       return c.json({ data: members, error: null });
     }
 
+    const permission = RPC_MODULE_PERMISSIONS[requestedName];
+    if (permission) {
+      const companyValue = args._company ?? args.companyId ?? args.company_id ?? args._company_id;
+      const companyId = typeof companyValue === 'string' ? companyValue : '';
+      if (!COMPANY_ID_RE.test(companyId)) return c.json({ message: 'شناسه مجموعه برای این عملیات الزامی است.' }, 422);
+      if (!(await userHasModulePermission(c, user.id, companyId, permission.module, permission.capability))) {
+        return c.json({ message: 'مجوز لازم برای این عملیات در ماژول مربوطه وجود ندارد.' }, 403);
+      }
+    }
     const targetName = RPC_TARGETS[requestedName];
     const suppliedArgs: Record<string, unknown> = { ...args, _actor: user.id };
     if (requestedName === 'record_partner_settlement_payment' && suppliedArgs._paid_at == null) {
