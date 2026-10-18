@@ -310,7 +310,7 @@ function FarmMapPanel({sites,schemaWarning,membership}:{sites:Row[];schemaWarnin
     const capturedAt = Date.parse(String(point.captured_at ?? ''));
     if (!Number.isFinite(latitude) || !Number.isFinite(longitude) ||
         latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180 ||
-        !Number.isFinite(capturedAt) || Date.now() - capturedAt > 5 * 60 * 1000) return [];
+        !Number.isFinite(capturedAt) || Date.now() - capturedAt > 5 * 60 * 1000 || capturedAt > Date.now() + 60 * 1000) return [];
     return [{ shipmentId, shipment, point, latitude, longitude, capturedAt }];
   }), [fleetLatest, fleetShipments, fleetLastRefresh]);
   const iranFleetPoints = useMemo(() => freshFleetPoints.filter(item =>
@@ -417,10 +417,11 @@ function FarmMapPanel({sites,schemaWarning,membership}:{sites:Row[];schemaWarnin
         {fleetShipments.length===0?<p className="helper-note">در حال حاضر مأموریت فعالی برای نمایش نیست.</p>:fleetShipments.map(shipment=>{
           const point=fleetLatest[String(shipment.id)];
           const stamp=point?Date.parse(String(point.captured_at??'')):NaN;
-          const stale=!Number.isFinite(stamp)||Date.now()-stamp>5*60*1000;
+          const future=Number.isFinite(stamp)&&stamp>Date.now()+60*1000;
+          const stale=!Number.isFinite(stamp)||Date.now()-stamp>5*60*1000||future;
           return <div className="farm-map-fleet-row" key={'fleet-'+String(shipment.id)}>
             <span className={'farm-map-fleet-dot'+(point&&!stale?' live':'')}></span>
-            <span><b>{String(shipment.vehicle??('محموله '+String(shipment.id).slice(0,8).toUpperCase()))}</b><small>{point?dateTimeFa(String(point.captured_at)):'هنوز موقعیت ثبت نشده'}</small>{point&&stale&&<small className="stale">آخرین نقطه قدیمی است؛ نقطه زنده روی نقشه نمایش داده نمی‌شود</small>}</span>
+            <span><b>{String(shipment.vehicle??('محموله '+String(shipment.id).slice(0,8).toUpperCase()))}</b><small>{point?dateTimeFa(String(point.captured_at)):'هنوز موقعیت ثبت نشده'}</small>{point&&stale&&<small className="stale">{future?'زمان ثبت موقعیت نامعتبر است؛ نقطه زنده نمایش داده نمی‌شود':'آخرین نقطه قدیمی است؛ نقطه زنده روی نقشه نمایش داده نمی‌شود'}</small>}</span>
             <Badge value={String(shipment.stage??'in_transit')}/>
           </div>;
         })}

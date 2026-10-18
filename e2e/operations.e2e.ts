@@ -188,6 +188,11 @@ test('operations map shows fresh driver GPS without inventing coordinates and hi
   await page.reload({ waitUntil: 'domcontentloaded' });
   await expect(map.locator('.farm-map-driver-marker')).toHaveCount(0);
   await expect(map.locator('.farm-map-fleet-list')).toContainText('آخرین نقطه قدیمی است');
+
+  ageMs = -10 * 60 * 1000;
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await expect(map.locator('.farm-map-driver-marker')).toHaveCount(0);
+  await expect(map.locator('.farm-map-fleet-list')).toContainText('زمان ثبت موقعیت نامعتبر است');
 });
 
 test('generic farm types and daily rejected quantities are validated before writes', async ({ page }) => {
