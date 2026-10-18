@@ -341,6 +341,20 @@ jobs:
             const signupCookie = sessionCookie(signup);
             await expectUserSession(signupCookie, 'Signup');
 
+            stage = 'push-configuration';
+            const pushConfigResponse = await fetch(
+              base + '/api/push/config?companyId=' + encodeURIComponent(signupBody.companyId),
+              { headers: { cookie: signupCookie }, cache: 'no-store' },
+            );
+            const pushConfig = await pushConfigResponse.json();
+            await saveResult({ status: pushConfigResponse.status, body: pushConfig });
+            const pushPublicKey = typeof pushConfig.publicKey === 'string'
+              ? Buffer.from(pushConfig.publicKey, 'base64url')
+              : Buffer.alloc(0);
+            if (!pushConfigResponse.ok || pushConfig.enabled !== true || pushPublicKey.length !== 65 || pushPublicKey[0] !== 4) {
+              throw new Error('Live Web Push configuration is not ready: HTTP ' + pushConfigResponse.status + ' enabled=' + String(pushConfig.enabled) + ' publicKeyBytes=' + pushPublicKey.length);
+            }
+
             stage = 'presence-heartbeat';
             const clientId = crypto.randomUUID();
             const heartbeat = await post('/api/client/heartbeat', {
