@@ -39,5 +39,6 @@ if (platforms.length === 0) {
   console.log('Web assets built with the canonical Medar API. Add Android or iOS with npm run mobile:android:prepare or npm run mobile:ios:prepare.');
 } else {
   for (const platform of platforms) await run('npx', ['cap', 'sync', platform]);
+  if (platforms.includes('ios')) await run('node', ['scripts/configure-ios-privacy.mjs']);
 }
 console.log('Mobile build configured for ' + parsedBase.origin + '; all clients use the same Medar API and database.');

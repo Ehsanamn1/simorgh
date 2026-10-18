@@ -30,7 +30,9 @@
     "react-router-dom": "^7.9.4",
     "recharts": "^2.15.4",
     "@neondatabase/serverless": "^1.0.2",
-    "hono": "^4.9.7"
+    "hono": "^4.9.7",
+    "@capgo/capacitor-speech-recognition": "^8.4.4",
+    "@capgo/capacitor-speech-synthesis": "^8.0.20"
   },
   "devDependencies": {
     "@capacitor/cli": "^8.5.0",
