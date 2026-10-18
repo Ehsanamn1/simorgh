@@ -2702,13 +2702,14 @@ app.post('/api/data/:table',async c=>{
      if(table==='production_batches'){
       const siteId=typeof row.farm_site_id==='string'?row.farm_site_id:'';
       const supplierId=typeof row.supplier_id==='string'?row.supplier_id:null;
+      const productId=typeof row.product_id==='string'?row.product_id:'';
       const agreementId=typeof row.agreement_id==='string'?row.agreement_id:null;
       const flockCycleId=typeof row.flock_cycle_id==='string'?row.flock_cycle_id:null;
       const validId=(value:unknown)=>value===null||(typeof value==='string'&&/^[0-9a-f-]{36}$/i.test(value));
-      if(!/^[0-9a-f-]{36}$/i.test(siteId)||!validId(supplierId)||!validId(agreementId)||!validId(flockCycleId))return c.json({message:'شناسهٔ مزرعه، تأمین‌کننده، قرارداد یا چرخه معتبر نیست.'},422);
+      if(!/^[0-9a-f-]{36}$/i.test(siteId)||!supplierId||!validId(supplierId)||!validId(productId)||!validId(agreementId)||!validId(flockCycleId))return c.json({message:'برای بچ تولید، سایت فعال، تأمین‌کننده و محصول معتبر لازم است.'},422);
       const scopeRows=await runForUser(c,user.id,
-       "select fs.id from public.farm_sites fs where fs.id=$1::uuid and fs.company_id=$2::uuid and fs.supplier_id is not distinct from $3::uuid and ($4::uuid is null or exists (select 1 from public.partnership_agreements a where a.id=$4::uuid and a.company_id=$2::uuid and a.supplier_id is not distinct from $3::uuid and a.status='active')) and ($5::uuid is null or exists (select 1 from public.flock_cycles fc where fc.id=$5::uuid and fc.company_id=$2::uuid and fc.farm_site_id=fs.id))",
-       [siteId,companyId,supplierId,agreementId,flockCycleId]);
+       "select fs.id from public.farm_sites fs where fs.id=$1::uuid and fs.company_id=$2::uuid and fs.active=true and fs.supplier_id is not distinct from $3::uuid and exists (select 1 from public.products p where p.id=$6::uuid and p.company_id=$2::uuid) and ($4::uuid is null or exists (select 1 from public.partnership_agreements a where a.id=$4::uuid and a.company_id=$2::uuid and a.supplier_id is not distinct from $3::uuid and a.status='active')) and ($5::uuid is null or exists (select 1 from public.flock_cycles fc where fc.id=$5::uuid and fc.company_id=$2::uuid and fc.farm_site_id=fs.id))",
+       [siteId,companyId,supplierId,agreementId,flockCycleId,productId]);
       if(!scopeRows.length)return c.json({message:'مزرعه، تأمین‌کننده، قرارداد و چرخهٔ انتخاب‌شده با هم سازگار نیستند.'},422);
       if(row.lot_id){
        const lotRows=await runForUser(c,user.id,
