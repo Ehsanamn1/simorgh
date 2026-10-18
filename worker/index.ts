@@ -3197,7 +3197,7 @@ app.post('/api/connect/conversations/:id/messages', async (c) => {
   const participant = await sqlFor(c).query('select 1 from public.medar_conversation_participants where company_id=$1::uuid and conversation_id=$2::uuid and user_id=$3::uuid limit 1',[companyId,conversationId,user.id]);
   if (!participant.length) return c.json({ message: 'ارسال پیام به این گفت‌وگو مجاز نیست.' }, 403);
   const rows = await sqlFor(c).query(
-    'insert into public.medar_messages(company_id,conversation_id,sender_user_id,body,client_message_id) values ($1::uuid,$2::uuid,$3::uuid,$4,$5) on conflict (company_id,conversation_id,sender_user_id,client_message_id) where client_message_id is not null do update set body=medar_messages.body returning id::text as id,company_id::text as \"companyId\",conversation_id::text as \"conversationId\",sender_user_id::text as \"senderUserId\",body,created_at as \"createdAt\"',
+    'insert into public.medar_messages(company_id,conversation_id,sender_user_id,body,client_message_id) values ($1::uuid,$2::uuid,$3::uuid,$4,$5) on conflict (company_id,conversation_id,sender_user_id,client_message_id) where client_message_id is not null do update set body=medar_messages.body returning id::text as id,company_id::text as "companyId",conversation_id::text as "conversationId",sender_user_id::text as "senderUserId",body,created_at as "createdAt"',
     [companyId,conversationId,user.id,messageBody,clientMessageId || null],
   );
   const message = rows[0];
