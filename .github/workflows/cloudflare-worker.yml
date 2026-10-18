@@ -41,7 +41,7 @@ jobs:
         shell: bash
         run: |
           psql "$MEDAR_DATABASE_URL" -v ON_ERROR_STOP=1 -c "create table if not exists public.medar_schema_migrations (version text primary key, checksum text not null, applied_at timestamptz not null default now())"
-          for migration in worker/migrations/0007_existing_medar_schema_compat.sql worker/migrations/0008_operational_task_actions.sql worker/migrations/0009_inventory_movement_concurrency_lock.sql worker/migrations/0010_purchase_order_lifecycle.sql worker/migrations/0011_username_password_only.sql worker/migrations/0012_client_presence.sql worker/migrations/0013_ai_assistant_and_contacts.sql worker/migrations/0014_contact_intelligence.sql worker/migrations/0015_ai_action_approval_ledger.sql worker/migrations/0016_membership_module_permissions.sql worker/migrations/0017_delivery_video_evidence.sql worker/migrations/0018_bank_reconciliation_ledger.sql; do
+          for migration in worker/migrations/0007_existing_medar_schema_compat.sql worker/migrations/0008_operational_task_actions.sql worker/migrations/0009_inventory_movement_concurrency_lock.sql worker/migrations/0010_purchase_order_lifecycle.sql worker/migrations/0011_username_password_only.sql worker/migrations/0012_client_presence.sql worker/migrations/0013_ai_assistant_and_contacts.sql worker/migrations/0014_contact_intelligence.sql worker/migrations/0015_ai_action_approval_ledger.sql worker/migrations/0016_membership_module_permissions.sql worker/migrations/0017_delivery_video_evidence.sql worker/migrations/0018_bank_reconciliation_ledger.sql worker/migrations/0019_daily_briefing_notifications.sql; do
             version="$(basename "$migration")"
             checksum="$(sha256sum "$migration" | awk '{print $1}')"
             applied="$(psql "$MEDAR_DATABASE_URL" -v ON_ERROR_STOP=1 -Atqc "select checksum from public.medar_schema_migrations where version = '$version'")"
@@ -71,6 +71,10 @@ jobs:
               to_regclass('public.medar_membership_module_permissions') is not null and
               to_regclass('public.medar_bank_accounts') is not null and
               to_regclass('public.medar_bank_transactions') is not null and
+              to_regclass('public.notifications') is not null and
+              (select count(*) from information_schema.columns where table_schema='public' and table_name='notifications' and column_name='dedupe_key') = 1 and
+              exists (select 1 from pg_indexes where schemaname='public' and indexname='notifications_company_user_dedupe_key_uq') and
+              exists (select 1 from public.medar_schema_migrations where version='0019_daily_briefing_notifications.sql') and
               exists (select 1 from public.medar_schema_migrations where version = '0018_bank_reconciliation_ledger.sql') and
               exists (select 1 from pg_enum e join pg_type t on t.oid=e.enumtypid join pg_namespace n on n.oid=t.typnamespace where n.nspname='public' and t.typname='evidence_kind' and e.enumlabel='video') and
               to_regprocedure('public.medar_check_membership_permission_company()') is not null and
