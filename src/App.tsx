@@ -496,7 +496,7 @@ function Dashboard({ membership }: { membership: Membership }) {
     setMapError(map.error || supplierMap.error ? 'برای نمایش سایت‌ها و تأمین‌کنندگان روی نقشه، مهاجرت‌های موقعیت را روی پایگاه داده اجرا کن.' : '');
     const rowCount = (result: { count: number | null; data: unknown[] | null }) => result.count ?? result.data?.length ?? 0;
     setOrders((o.data ?? []) as Row[]);
-    setMapSites([...(map.data ?? []) as Row[], ...((supplierMap.data ?? []) as Row[]).map(site => ({ ...site, site_type: 'supplier' }))]);
+    setMapSites([...((map.data ?? []) as Row[]), ...((supplierMap.data ?? []) as Row[]).map(site => ({ ...site, site_type: 'supplier' }))]);
     setCounts({
       orders: rowCount(o), customers: rowCount(c), suppliers: rowCount(s), shipments: rowCount(sh), capacity: rowCount(cap),
       lateOrders: rowCount(late), overdueTasks: rowCount(due), reviewTasks: canManage ? rowCount(review) : 0,
