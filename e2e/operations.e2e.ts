@@ -1153,7 +1153,7 @@ test('Medar Connect creates a restricted conversation and sends an idempotent op
   const firstConversationId = '00000000-0000-4000-8000-000000000088';
   const newConversationId = '00000000-0000-4000-8000-000000000099';
   await installIsolatedSession(page, 'owner');
-  let conversations = [{
+  let conversations: Array<{ id: string; title: string; relatedEntityType: string | null; relatedEntityId: string | null; createdAt: string; updatedAt: string; lastReadAt: string | null; unreadCount: number; lastMessage: string | null }> = [{
     id: firstConversationId, title: 'هماهنگی ارسال', relatedEntityType: 'shipment',
     relatedEntityId: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
     lastReadAt: null, unreadCount: 1, lastMessage: 'بار آماده است',
