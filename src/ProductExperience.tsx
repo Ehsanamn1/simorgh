@@ -17,13 +17,13 @@ const routeIcons: Record<string, LucideIcon> = {
   'operational-tasks': ListTodo, 'partner-finance': CreditCard, 'farm-sites': Warehouse, incidents: Activity,
 };
 const priorities: Record<string, string[]> = {
-  manager: ['command', 'orders', 'shipments'],
-  supplier: ['operational-tasks', 'daily-production', 'supplier-capacity'],
+  manager: ['home', 'orders', 'shipments'],
+  supplier: ['operational-tasks', 'daily-production', 'supplier-settlement'],
   driver: ['driver-work'], customer: ['catalog', 'my-orders', 'my-account'],
 };
 type MobileNavigationLink = { key: string; route: string; label: string; Icon: LucideIcon; anchor?: string };
 const shortLabels: Record<string, string> = {
-  command: 'نمای کلی', orders: 'سفارش‌ها', shipments: 'ارسال‌ها', finance: 'مالی', catalog: 'خرید',
+  home: 'نمای کلی', command: 'نمای کلی', orders: 'سفارش‌ها', shipments: 'ارسال‌ها', finance: 'مالی', catalog: 'خرید',
   'my-orders': 'سفارش‌های من', 'my-account': 'حساب', 'supplier-work': 'کارهای من',
   'supplier-capacity': 'ظرفیت', 'supplier-settlement': 'تسویه', 'driver-work': 'محموله‌ها',
   'daily-production': 'ثبت تولید', 'operational-tasks': 'وظایف', 'partner-finance': 'دفتر شریک',
