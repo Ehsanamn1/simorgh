@@ -561,6 +561,71 @@ async function requestAiProvider(provider: AiProvider, model: string, key: strin
   return text.trim();
 }
 
+app.get('/api/finance/bank-accounts', async (c) => {
+  const user = await requireUser(c);
+  if (user instanceof Response) return user;
+  const companyId = c.req.query('companyId') ?? '';
+  if (!COMPANY_ID_RE.test(companyId)) return c.json({ message: 'شناسه مجموعه معتبر نیست.' }, 422);
+  if (!(await aiCompanyMembership(c, companyId, user.id))) return c.json({ message: 'به این فضای کاری دسترسی فعال نداری.' }, 403);
+  if (!(await userHasModulePermission(c, user.id, companyId, 'finance', 'can_read'))) return c.json({ message: 'مجوز مشاهده مالی نداری.' }, 403);
+  const sql = sqlFor(c);
+  const accounts = await sql.query(
+    'select a.id::text as id,a.label,a.bank_name as "bankName",a.masked_account as "maskedAccount",a.currency,a.provider,a.connection_status as "connectionStatus",a.active,a.last_imported_at as "lastImportedAt",a.created_at as "createdAt",' +
+    '(select count(*)::int from public.medar_bank_transactions t where t.company_id=a.company_id and t.bank_account_id=a.id) as "transactionCount",' +
+    "(select count(*)::int from public.medar_bank_transactions t where t.company_id=a.company_id and t.bank_account_id=a.id and t.reconciliation_status in ('unmatched','suggested')) as \"unmatchedCount\" " +
+    'from public.medar_bank_accounts a where a.company_id=$1::uuid and a.active=true order by a.created_at desc limit 100', [companyId]);
+  const summary = await sql.query(
+    "select count(*)::int as total,count(*) filter(where reconciliation_status in ('unmatched','suggested'))::int as unmatched,count(*) filter(where reconciliation_status='reconciled')::int as reconciled from public.medar_bank_transactions where company_id=$1::uuid",
+    [companyId]);
+  const [canCreate,canUpdate,canReconcile]=await Promise.all([
+    userHasModulePermission(c,user.id,companyId,'finance','can_create'),
+    userHasModulePermission(c,user.id,companyId,'finance','can_update'),
+    userHasModulePermission(c,user.id,companyId,'finance','can_approve')
+  ]);
+  return c.json({accounts,summary:summary[0]??{total:0,unmatched:0,reconciled:0},capabilities:{canCreate,canUpdate,canDelete:false,canReconcile}});
+});
+
+app.post('/api/finance/bank-accounts', async (c) => {
+  const user = await requireUser(c);
+  if (user instanceof Response) return user;
+  const body = await c.req.json<Record<string,unknown>>().catch(()=>null);
+  if (!body) return c.json({message:'اطلاعات حساب معتبر نیست.'},400);
+  const companyId=typeof body.companyId==='string'?body.companyId:'';
+  const label=typeof body.label==='string'?body.label.trim():'';
+  const bankName=typeof body.bankName==='string'?body.bankName.trim():'';
+  const maskedAccount=typeof body.maskedAccount==='string'?body.maskedAccount.trim():'';
+  const currency=typeof body.currency==='string'?body.currency.trim().toUpperCase():'IRR';
+  if(!COMPANY_ID_RE.test(companyId)||label.length<2||label.length>120||bankName.length>120||maskedAccount.length>40||!/^[A-Z]{3}$/.test(currency))return c.json({message:'اطلاعات حساب یا ارز معتبر نیست.'},422);
+  if(maskedAccount.replace(/\D/g,'').length>4||/\d{5,}/.test(maskedAccount))return c.json({message:'فقط چهار رقم پایانی را وارد کن؛ شماره کامل حساب ذخیره نمی‌شود.'},422);
+  const membership=await aiCompanyMembership(c,companyId,user.id);
+  if(!membership||!['owner','admin','staff'].includes(membership.role))return c.json({message:'فقط اعضای داخلی می‌توانند حساب تعریف کنند.'},403);
+  if(!(await userHasModulePermission(c,user.id,companyId,'finance','can_create')))return c.json({message:'مجوز ایجاد حساب مالی نداری.'},403);
+  const rows=await sqlFor(c).query(
+    "insert into public.medar_bank_accounts(company_id,label,bank_name,masked_account,currency,provider,connection_status,created_by) values($1::uuid,$2,$3,$4,$5,'manual_csv','manual_import',$6::uuid) returning id::text as id,label,bank_name as \"bankName\",masked_account as \"maskedAccount\",currency,provider,connection_status as \"connectionStatus\",active,created_at as \"createdAt\"",
+    [companyId,label,bankName,maskedAccount,currency,user.id]);
+  const account=rows[0];
+  await sqlFor(c).query("insert into public.medar_audit_log(actor_user_id,action,entity_type,entity_id,metadata) values($1::uuid,'bank_account.created','medar_bank_account',$2::text,jsonb_build_object('company_id',$3::text,'provider','manual_csv','currency',$4::text))",[user.id,String(account.id),companyId,currency]);
+  return c.json({account},201);
+});
+
+app.get('/api/finance/bank-transactions', async (c) => {
+  const user=await requireUser(c);
+  if(user instanceof Response)return user;
+  const companyId=c.req.query('companyId')??'',accountId=c.req.query('accountId')??'',status=c.req.query('status')??'all';
+  if(!COMPANY_ID_RE.test(companyId)||(accountId&&!COMPANY_ID_RE.test(accountId)))return c.json({message:'شناسه حساب معتبر نیست.'},422);
+  if(!['all','unmatched','suggested','reconciled','ignored'].includes(status))return c.json({message:'فیلتر وضعیت نامعتبر است.'},422);
+  if(!(await aiCompanyMembership(c,companyId,user.id)))return c.json({message:'به این فضای کاری دسترسی فعال نداری.'},403);
+  if(!(await userHasModulePermission(c,user.id,companyId,'finance','can_read')))return c.json({message:'مجوز مشاهده مالی نداری.'},403);
+  const params:unknown[]=[companyId];let where='company_id=$1::uuid';
+  if(accountId){params.push(accountId);where+=' and bank_account_id=$'+params.length+'::uuid';}
+  if(status!=='all'){params.push(status);where+=' and reconciliation_status=$'+params.length;}
+  params.push(500);
+  const transactions=await sqlFor(c).query(
+    'select id::text as id,bank_account_id::text as "bankAccountId",external_transaction_id as "externalTransactionId",booked_at as "bookedAt",amount::text as amount,currency,description,counterparty,reference,direction,reconciliation_status as "reconciliationStatus",matched_entity_type as "matchedEntityType",matched_entity_id::text as "matchedEntityId",matched_at as "matchedAt",imported_at as "importedAt" '+
+    'from public.medar_bank_transactions where '+where+' order by booked_at desc limit $'+params.length,params);
+  return c.json({transactions});
+});
+
 app.get('/api/ai/providers', async (c) => {
   const user = await requireUser(c);
   if (user instanceof Response) return user;
