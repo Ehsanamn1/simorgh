@@ -1114,7 +1114,7 @@ function ShipmentsPage({membership,search,driverMode=false}:{membership:Membersh
   trackingShipmentRef.current='';
   setTrackingShipmentId('');
   setTrackingState('');
-  if(watchId){try{await Geolocation.clearWatch({id:watchId});}catch{}}
+  if(watchId){try{await Geolocation.clearWatch({id:watchId});}catch(caught){setTrackingState(caught instanceof Error?'توقف ردیابی تأیید نشد؛ مجوز GPS دستگاه را بررسی کن.':'توقف ردیابی کامل نشد.')}}
   if(showNotice)setLocationNotice('ردیابی موقعیت متوقف شد.');
  };
  useEffect(()=>()=>{const watchId=locationWatchRef.current;locationWatchRef.current=null;trackingShipmentRef.current='';if(watchId)void Geolocation.clearWatch({id:watchId}).catch(()=>{});},[]);
