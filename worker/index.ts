@@ -3430,6 +3430,62 @@ app.post('/api/notifications/:id/read', async (c) => {
   return c.json({ ok: true, notification: rows[0] });
 });
 
+
+async function runWebPushOutbox(env: Bindings): Promise<void> {
+  if (!env.DATABASE_URL || !env.VAPID_PUBLIC_KEY || !env.VAPID_PRIVATE_KEY || !env.VAPID_SUBJECT) return;
+  const sql = neon(env.DATABASE_URL);
+  await sql.query(
+    "update public.medar_notification_outbox set status='failed',last_error='Retry limit reached',updated_at=now() where status='queued' and attempts>=8 and next_attempt_at<=now()",
+    [],
+  );
+  const rows = await sql.query(
+    "with candidates as (select o.id from public.medar_notification_outbox o where ((o.status='queued' and o.next_attempt_at<=now()) or (o.status='processing' and o.updated_at<now()-interval '10 minutes')) and o.attempts<8 and exists (select 1 from public.medar_push_subscriptions s where s.company_id=o.company_id and s.user_id=o.user_id and s.active=true and (s.expiration_time is null or s.expiration_time>now())) order by o.created_at asc limit 25 for update skip locked), claimed as (update public.medar_notification_outbox o set status='processing',attempts=o.attempts+1,updated_at=now() from candidates c where o.id=c.id returning o.id,o.company_id,o.user_id,o.payload,o.attempts) select c.id::text as \"outboxId\",c.company_id::text as \"companyId\",c.user_id::text as \"userId\",c.payload,c.attempts,s.id::text as \"subscriptionId\",s.endpoint,s.p256dh_key,s.auth_secret from claimed c join public.medar_push_subscriptions s on s.company_id=c.company_id and s.user_id=c.user_id and s.active=true and (s.expiration_time is null or s.expiration_time>now())",
+    [],
+  );
+  const groups = new Map<string, { companyId: string; userId: string; payload: Record<string, unknown>; attempts: number; subscriptions: Array<{ id: string; endpoint: string; p256dh_key: string; auth_secret: string }> }>();
+  for (const raw of rows as Array<Record<string, unknown>>) {
+    const outboxId = String(raw.outboxId);
+    let group = groups.get(outboxId);
+    if (!group) {
+      const payload = typeof raw.payload === 'string' ? JSON.parse(raw.payload) as Record<string, unknown> : raw.payload as Record<string, unknown>;
+      group = { companyId: String(raw.companyId), userId: String(raw.userId), payload, attempts: Number(raw.attempts), subscriptions: [] };
+      groups.set(outboxId, group);
+    }
+    group.subscriptions.push({ id: String(raw.subscriptionId), endpoint: String(raw.endpoint), p256dh_key: String(raw.p256dh_key), auth_secret: String(raw.auth_secret) });
+  }
+  for (const [outboxId, group] of groups) {
+    let delivered = false;
+    let retryable = false;
+    const errors: string[] = [];
+    for (const subscription of group.subscriptions) {
+      try {
+        const result = await sendWebPush(subscription, group.payload, env);
+        if (result.ok) {
+          delivered = true;
+          await sql.query("update public.medar_push_subscriptions set last_success_at=now(),last_error=null,updated_at=now() where id=$1::uuid", [subscription.id]);
+        } else if (result.gone) {
+          await sql.query("update public.medar_push_subscriptions set active=false,last_failure_at=now(),last_error='Push endpoint expired or was removed',updated_at=now() where id=$1::uuid", [subscription.id]);
+        } else {
+          retryable = result.status >= 500 || result.status === 429;
+          errors.push('Push service returned HTTP ' + result.status);
+          await sql.query("update public.medar_push_subscriptions set last_failure_at=now(),last_error=$2,updated_at=now() where id=$1::uuid", [subscription.id,errors[errors.length-1]]);
+        }
+      } catch (error) {
+        retryable = true;
+        const message = (error instanceof Error ? error.message : 'Push delivery failed').slice(0,450);
+        errors.push(message);
+        await sql.query("update public.medar_push_subscriptions set last_failure_at=now(),last_error=$2,updated_at=now() where id=$1::uuid", [subscription.id,message]);
+      }
+    }
+    const status = delivered ? 'sent' : group.attempts >= 8 || !retryable ? 'failed' : 'queued';
+    const delay = Math.min(3600, 30 * (2 ** Math.min(group.attempts,7)));
+    await sql.query(
+      "update public.medar_notification_outbox set status=$2,next_attempt_at=now()+($3::int * interval '1 second'),last_error=$4,sent_at=case when $2='sent' then now() else null end,updated_at=now() where id=$1::uuid",
+      [outboxId,status,delay,delivered ? null : (errors.join('; ').slice(0,490) || 'No active push subscription')],
+    );
+  }
+}
+
 async function runDailyBriefingNotifications(env: Bindings): Promise<void> {
   if (!env.DATABASE_URL) throw new Error('Database is not configured for scheduled daily briefings');
   const sql = neon(env.DATABASE_URL);
