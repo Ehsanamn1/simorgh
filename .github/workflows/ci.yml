@@ -82,6 +82,11 @@ jobs:
               to_regprocedure('public.medar_emit_operational_event()') is not null and
               exists (select 1 from pg_trigger where tgname='medar_emit_operational_event' and not tgisinternal) and
               exists (select 1 from public.medar_schema_migrations where version='0023_operational_event_hooks.sql') and
+              to_regprocedure('public.medar_notify_task_assignee()') is not null and
+              to_regprocedure('public.medar_notify_conversation_participants()') is not null and
+              exists (select 1 from pg_trigger where tgname='medar_notify_task_assignee' and not tgisinternal) and
+              exists (select 1 from pg_trigger where tgname='medar_notify_conversation_participants' and not tgisinternal) and
+              exists (select 1 from public.medar_schema_migrations where version='0024_connect_task_notifications.sql') and
               to_regprocedure('public.medar_check_membership_permission_company()') is not null and
               (select count(*) from information_schema.columns where table_schema='public' and table_name in ('customers','suppliers') and column_name in ('email','organization_name','contact_notes','contact_tags','contact_source')) = 10 and
               (select is_nullable = 'YES' from information_schema.columns where table_schema='public' and table_name='medar_users' and column_name='phone_e164') and
