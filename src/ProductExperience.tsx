@@ -125,8 +125,8 @@ export default function ProductExperience() {
 
   const mobileLinks = useMemo<MobileNavigationLink[]>(() => {
     const keys = new Set(allowedLinks.map(item => item.key));
-    const workspace = keys.has('catalog') ? 'customer' : keys.has('command') ? 'manager'
-      : keys.has('supplier-capacity') || keys.has('supplier-work') || keys.has('daily-production') ? 'supplier' : 'driver';
+    const workspace = keys.has('catalog') ? 'customer' : keys.has('orders') || keys.has('members') ? 'manager'
+      : keys.has('supplier-work') || keys.has('daily-production') ? 'supplier' : 'driver';
     if (workspace === 'driver' && keys.has('driver-work')) {
       return [
         { key: 'driver-cargo', route: 'driver-work', label: 'محموله‌ها', Icon: Truck, anchor: 'driver-shipments' },
