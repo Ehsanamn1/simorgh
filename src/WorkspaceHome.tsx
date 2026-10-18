@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  Activity, ArrowLeft, Building2, CalendarClock, CheckCircle2, ClipboardCheck,
-  CreditCard, Factory, FileText, LayoutDashboard, MapPin, Package, ShieldCheck,
+  Activity, ArrowLeft, CalendarClock, CheckCircle2, ClipboardCheck,
+  CreditCard, Factory, LayoutDashboard, MapPin, Package, ShieldCheck,
   Truck, Warehouse, MessageCircle,
 } from 'lucide-react';
 import type { AppRole, Membership, Row } from './lib/types';
