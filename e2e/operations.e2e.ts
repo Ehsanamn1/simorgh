@@ -377,6 +377,13 @@ test('owner can generate a shareable invitation link for a new supplier or drive
   const link = page.locator('.invite-code-panel .invite-code-value');
   await expect(link).toContainText('/simorgh/app/home?invite=' + code + '#signup');
   await expect(page.getByRole('button', { name: 'کپی لینک' })).toBeVisible();
+  const inviteUrl = (await link.innerText()).trim();
+  await page.route('**/api/auth/me', route => route.fulfill({
+    status: 200, contentType: 'application/json', body: JSON.stringify({ user: null, memberships: [] }),
+  }));
+  await page.goto(inviteUrl, { waitUntil: 'domcontentloaded' });
+  await expect(page.getByRole('dialog', { name: 'ورود امن مدار' })).toBeVisible();
+  await expect(page.getByLabel('کد دعوت شرکت (اختیاری)')).toHaveValue(code);
 });
 
 test('operations can show cached order reads after the browser goes offline', async ({ page }) => {
