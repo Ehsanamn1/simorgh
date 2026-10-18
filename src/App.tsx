@@ -172,25 +172,16 @@ function AppShell() {
     return query ? navItems.filter(item => (item.label + ' ' + item.group).toLocaleLowerCase('fa-IR').includes(query)) : navItems;
   }, [navItems, navSearch]);
   const navGroups = useMemo(() => {
-    // Keep routes and permissions intact, but group navigation around the work users do.
-    // Rarely used setup, import, audit and specialist production pages stay available in
-    // one collapsed group instead of competing with everyday work in the sidebar.
-    const specialistKeys: PageKey[] = [
-      'contacts', 'contacts-import', 'task-templates', 'audit', 'capacity', 'quality',
-      'farm-sites', 'flock-cycles', 'production-batches', 'daily-production',
-      'partnership-agreements', 'partner-finance', 'partner-settlements',
-    ];
+    // Five stable work areas. Routes and server-side permissions remain unchanged;
+    // specialist tools stay discoverable inside Operations or Management.
     const groupFor = (key: PageKey): string => {
-      if (key === 'home' || key === 'command') return 'نمای کلی';
-      if (key === 'agents') return 'دستیار هوشمند';
-      if (['connect', 'exceptions', 'goals', 'operational-tasks', 'incidents'].includes(key)) return 'کارها و پیگیری';
-      if (['orders', 'purchase-orders', 'customers', 'suppliers', 'products', 'inventory', 'catalog', 'my-orders', 'my-account'].includes(key)) return 'سفارش و زنجیره تأمین';
-      if (['finance', 'supplier-settlement'].includes(key)) return 'مالی';
-      if (specialistKeys.includes(key)) return 'بخش‌های تخصصی';
-      if (['shipments', 'driver-work', 'supplier-work', 'supplier-capacity'].includes(key)) return 'عملیات و تحویل';
-      return 'مدیریت دسترسی';
+      if (['home', 'command', 'connect', 'exceptions', 'goals', 'agents', 'operational-tasks', 'incidents'].includes(key)) return 'خانه و کارهای من';
+      if (['orders', 'purchase-orders', 'customers', 'suppliers', 'products', 'inventory', 'capacity', 'quality', 'shipments', 'catalog', 'my-orders', 'my-account', 'supplier-work', 'supplier-capacity', 'driver-work', 'farm-sites', 'flock-cycles', 'production-batches', 'daily-production'].includes(key)) return 'عملیات و سفارش‌ها';
+      if (['finance', 'supplier-settlement', 'partner-finance', 'partner-settlements'].includes(key)) return 'مالی و تسویه';
+      if (['members', 'contacts', 'contacts-import', 'partnership-agreements'].includes(key)) return 'افراد و قراردادها';
+      return 'مدیریت و تنظیمات';
     };
-    const order = ['نمای کلی', 'کارها و پیگیری', 'سفارش و زنجیره تأمین', 'عملیات و تحویل', 'مالی', 'دستیار هوشمند', 'بخش‌های تخصصی', 'مدیریت دسترسی'];
+    const order = ['خانه و کارهای من', 'عملیات و سفارش‌ها', 'مالی و تسویه', 'افراد و قراردادها', 'مدیریت و تنظیمات'];
     const grouped = new Map<string, typeof navItems>();
     for (const item of filteredNavItems) {
       const label = groupFor(item.key);
