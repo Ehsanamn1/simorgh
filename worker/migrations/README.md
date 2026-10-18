@@ -39,3 +39,6 @@ The Cloudflare operational deployment workflow applies this migration after vali
 
 
 17. `0017_delivery_video_evidence.sql` — adds the `video` delivery-evidence kind so private shipment evidence can describe video files. The Worker accepts MP4, WebM and QuickTime/MOV in the private evidence buckets up to 50 MiB; access still requires a valid company/mission relationship and the private R2 binding.
+
+
+18. `0018_bank_reconciliation_ledger.sql` — creates company-scoped bank account metadata and an idempotent imported-transaction ledger with an auditable manual reconciliation link. It stores no online banking credentials and never initiates transfers.
