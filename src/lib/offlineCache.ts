@@ -71,17 +71,21 @@ export async function writeOfflineResponse(queryKey: string, payload: Record<str
 }
 
 export async function readOfflineResponse(queryKey: string): Promise<Record<string, unknown> | null> {
-  const key = cacheKey(queryKey);
-  if (!key) return null;
-  const db = await openDatabase();
-  if (!db) return null;
-  const result = await new Promise<CachedResponse | null>(resolve => {
-    const tx = db.transaction(STORE_NAME, 'readonly');
-    const request = tx.objectStore(STORE_NAME).get(key);
-    request.onsuccess = () => resolve((request.result as CachedResponse | undefined) ?? null);
-    request.onerror = () => resolve(null);
-  });
-  db.close();
-  if (!result || result.partition !== currentPartition) return null;
-  return result.payload;
+  try {
+    const key = cacheKey(queryKey);
+    if (!key) return null;
+    const db = await openDatabase();
+    if (!db) return null;
+    const result = await new Promise<CachedResponse | null>(resolve => {
+      const tx = db.transaction(STORE_NAME, 'readonly');
+      const request = tx.objectStore(STORE_NAME).get(key);
+      request.onsuccess = () => resolve((request.result as CachedResponse | undefined) ?? null);
+      request.onerror = () => resolve(null);
+    });
+    db.close();
+    if (!result || result.partition !== currentPartition) return null;
+    return result.payload;
+  } catch {
+    return null;
+  }
 }
