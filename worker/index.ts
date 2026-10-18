@@ -2810,6 +2810,8 @@ app.put('/api/storage/:bucket',async c=>{
  const path=normalizePrivatePath(c.req.query('path')??'');if(!path)return c.json({message:'مسیر فایل معتبر نیست.'},422);
  const companyId=path.split('/')[0],role=await memberRoleForCompany(c,user.id,companyId);
  if(!role)return c.json({message:'برای این مجموعه دسترسی فعال نداری.'},403);
+ const moduleKey = bucket === 'delivery-evidence' ? 'shipments' : bucket === 'contract-documents' ? 'suppliers' : 'operational-tasks';
+ if(!(await userHasModulePermission(c,user.id,companyId,moduleKey,'can_create')))return c.json({message:'برای بارگذاری مدرک در این ماژول مجوز ایجاد نداری.'},403);
  if(!(await canAccessPrivateFile(c,user.id,bucket,path,'write')))return c.json({message:'نقش فعلی اجازه بارگذاری این مدرک در این مسیر را ندارد.'},403);
  const contentType=(c.req.header('content-type')??'application/octet-stream').split(';')[0].trim().toLowerCase();
  if(!rules.contentTypes.has(contentType))return c.json({message:'نوع فایل پشتیبانی نمی‌شود.'},415);
@@ -2829,6 +2831,9 @@ app.get('/api/storage/:bucket',async c=>{
  if(!c.env.FILE_STORE)return c.json({message:'فضای فایل خصوصی Cloudflare R2 هنوز پیکربندی نشده است.'},503);
  const bucket=c.req.param('bucket');if(!PRIVATE_BUCKET_RULES[bucket])return c.json({message:'مخزن فایل مجاز نیست.'},404);
  const path=normalizePrivatePath(c.req.query('path')??'');if(!path)return c.json({message:'مسیر فایل معتبر نیست.'},422);
+ const companyId=path.split('/')[0];
+ const moduleKey = bucket === 'delivery-evidence' ? 'shipments' : bucket === 'contract-documents' ? 'suppliers' : 'operational-tasks';
+ if(!(await userHasModulePermission(c,user.id,companyId,moduleKey,'can_read')))return c.json({message:'فایل پیدا نشد یا دسترسی به آن مجاز نیست.'},404);
  if(!(await canAccessPrivateFile(c,user.id,bucket,path,'read')))return c.json({message:'فایل پیدا نشد یا دسترسی به آن مجاز نیست.'},404);
  const meta=await runForUser(c,user.id,'select content_type from public.medar_files where bucket_id=$1 and name=$2 limit 1',[bucket,path]);
  if(!meta.length)return c.json({message:'فایل پیدا نشد یا دسترسی به آن مجاز نیست.'},404);
@@ -2851,7 +2856,9 @@ app.post('/api/storage/:bucket/remove',async c=>{
   const candidatesNames=candidates.map(row=>String(row.name));
   const names:string[]=[];
   for(const candidate of candidatesNames){
-   if(await canAccessPrivateFile(c,user.id,bucket,candidate,'delete'))names.push(candidate);
+   const companyId=candidate.split('/')[0];
+   const moduleKey = bucket === 'delivery-evidence' ? 'shipments' : bucket === 'contract-documents' ? 'suppliers' : 'operational-tasks';
+   if(await userHasModulePermission(c,user.id,companyId,moduleKey,'can_delete') && await canAccessPrivateFile(c,user.id,bucket,candidate,'delete'))names.push(candidate);
   }
   if(!names.length)return c.json({data:[],error:null});
   await c.env.FILE_STORE.delete(names.map(name=>bucket+'/'+name));
