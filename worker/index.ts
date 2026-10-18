@@ -548,7 +548,7 @@ export const AI_PROVIDERS: Record<AiProvider, { label: string; model: string }> 
   openai: { label: 'OpenAI', model: 'gpt-6-luna' },
   gemini: { label: 'Gemini', model: 'gemini-3.8-flash' },
   deepseek: { label: 'DeepSeek', model: 'deepseek-flash' },
-  anthropic: { label: 'Claude', model: 'claude-sonnet-5' },
+  anthropic: { label: 'Claude', model: 'claude-sonnet-5-5' },
 };
 const COMPANY_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 function aiProvider(value: unknown): AiProvider | null {
