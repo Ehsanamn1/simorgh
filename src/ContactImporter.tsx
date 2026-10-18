@@ -193,7 +193,7 @@ export function ContactImporter({companyId}:{companyId:string}) {
         const confident=(suggestion.kind==='customers'||suggestion.kind==='suppliers')&&suggestion.confidence>=0.75;
         return {
           ...contact,
-          ...(!contact.kindDetected&&confident?{kind:suggestion.kind as ImportKind,kindDetected:true}:{}),
+          ...(!contact.kindDetected&&confident?{kind:suggestion.kind as ImportKind}:{}),
           tags:[...new Set([...(contact.tags||[]),...suggestion.tags])].slice(0,12),
           aiConfidence:suggestion.confidence,
           aiReason:suggestion.reason,
