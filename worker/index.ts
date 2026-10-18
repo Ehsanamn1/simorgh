@@ -2151,13 +2151,17 @@ app.post('/api/data/:table',async c=>{
   const columns=await listTableColumns(c,table);
   if(!columns.has('company_id'))return c.json({message:'جدول فاقد محدوده شرکت است و از API عمومی قابل دسترسی نیست.'},403);
   const tableName='public.'+quoteSqlIdentifier(table);
+  const moduleKey=MODULE_KEY_BY_TABLE[table];
+  const moduleOverrides=moduleKey?await loadModulePermissionOverrides(c,scopes,moduleKey):new Map<string,ModulePermissionRow>();
+  const hasPermission=(scope:MembershipScope,capability:ModulePermissionCapability)=>!moduleKey||scopeHasModulePermission(scope,moduleOverrides,capability);
   if(action==='select'){
+   const readableScopes=scopes.filter(scope=>hasPermission(scope,'can_read'));
    const params:unknown[]=[];
    const filters=Array.isArray(body.filters)?body.filters as DataFilter[]:[];
    const where=buildFilterSql(filters,columns,params,1);
    const ors=Array.isArray(body.orFilters)?body.orFilters as DataFilter[]:[];
    const orWhere=buildFilterSql(ors,columns,params,1,'or');
-   const scope=buildMembershipScopeSql(table,columns,scopes,user.id,params,1);
+   const scope=buildMembershipScopeSql(table,columns,readableScopes,user.id,params,1);
    const condition=[scope,where,orWhere].filter(Boolean).map(x=>'('+x+')').join(' and ');
    const whereSql=' where '+condition;
    const counts=body.count===true?await runForUser(c,user.id,'select count(*)::int as count from '+tableName+whereSql,[...params]):[];
@@ -2188,6 +2192,7 @@ app.post('/api/data/:table',async c=>{
     const companyId=typeof original.company_id==='string'?original.company_id:'';
     const membership=companyRole(scopes,companyId);
     if(!membership)return c.json({message:'این شرکت به حساب فعلی تعلق ندارد.'},403);
+    if(!hasPermission(membership,'can_create'))return c.json({message:'برای ایجاد رکورد در این ماژول مجوز نداری.'},403);
     const row=applyInsertActorFields(table,original,columns,user.id);
     if(INTERNAL_ROLES.has(membership.role)){
      if(RPC_ONLY_TABLES.has(table))return c.json({message:'این رکورد باید از عملیات معتبر سمت سرور ثبت شود.'},403);
@@ -2286,11 +2291,15 @@ app.post('/api/data/:table',async c=>{
     scopes.some(m => m.role === 'customer' && m.customer_id);
   const externalDriverUpdate = isTransition && table === 'shipments' &&
     scopes.some(m => m.role === 'driver');
+  const mutationCapability: ModulePermissionCapability = action === 'delete'
+    ? 'can_delete'
+    : (isTransition && ['approved','paid'].includes(String(requestedState)) ? 'can_approve' : 'can_update');
+  const permissionFilteredScopes = scopes.filter(scope => hasPermission(scope, mutationCapability));
   const mutationScopes = isTransition
-    ? scopes.filter(m => INTERNAL_ROLES.has(m.role) ||
+    ? permissionFilteredScopes.filter(m => INTERNAL_ROLES.has(m.role) ||
         (externalOrderSubmit && m.role === 'customer') ||
         (externalDriverUpdate && m.role === 'driver'))
-    : scopes.filter(m => INTERNAL_ROLES.has(m.role));
+    : permissionFilteredScopes.filter(m => INTERNAL_ROLES.has(m.role));
   if (!mutationScopes.length) return c.json({ message: 'ویرایش یا حذف برای نقش فعلی مجاز نیست.' }, 403);
 
   const params: unknown[] = [];
