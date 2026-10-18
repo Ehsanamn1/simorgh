@@ -1579,3 +1579,16 @@ html[data-theme="dark"] .bank-primary-button { color:#202a38; }
 @media(max-width:560px) { .medar-exception-heading { align-items:flex-start; flex-wrap:wrap; padding:13px; } .medar-exception-heading>div { flex:1 1 calc(100% - 60px); } .medar-exception-heading>button { margin-inline-start:auto; } .medar-exception-summary { gap:6px; } .medar-exception-summary>div { padding:10px; } .medar-exception-summary b { font-size:18px; } .medar-exception-actions { grid-template-columns:1fr; } }
 
 .medar-connect-push-status { padding:10px 12px; border:1px solid var(--obs-border); border-radius:11px; color:var(--obs-muted); background:var(--obs-surface); font-size:10px; line-height:1.8; }
+
+
+.push-notification-settings { display:flex; align-items:center; gap:10px; padding:12px; margin:0 0 12px; border:1px solid var(--obs-border); border-radius:12px; background:var(--obs-surface-2); }
+.push-notification-icon { display:grid; place-items:center; width:34px; height:34px; flex:none; border:1px solid var(--obs-border); border-radius:10px; color:var(--obs-accent); }
+.push-notification-copy { flex:1; min-width:0; }
+.push-notification-copy>b { font-size:11px; }
+.push-notification-copy>p { margin:3px 0 0; color:var(--obs-muted); font-size:10px; line-height:1.8; }
+.push-notification-copy .push-notification-error { color:var(--obs-critical); }
+.push-notification-copy .push-notification-notice { color:var(--obs-accent); }
+.push-notification-settings>button { display:inline-flex; align-items:center; justify-content:center; gap:5px; min-height:34px; padding:7px 10px; border:1px solid var(--obs-border); border-radius:9px; color:var(--obs-text); background:var(--obs-surface); font:inherit; font-size:10px; font-weight:800; cursor:pointer; white-space:nowrap; }
+.push-notification-settings>button:disabled { opacity:.5; cursor:not-allowed; }
+.push-notification-status { display:inline-flex; align-items:center; gap:4px; color:var(--obs-muted); font-size:9px; }
+@media(max-width:560px) { .push-notification-settings { align-items:flex-start; flex-wrap:wrap; } .push-notification-copy { flex:1 1 calc(100% - 50px); } .push-notification-settings>button,.push-notification-status { margin-inline-start:44px; } }
