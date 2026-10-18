@@ -876,18 +876,6 @@ app.post('/api/ai/provider-test', async (c) => {
  * the authenticated user explicitly confirms the proposal through /execute.
  */
 
-async function financeAdminForCompany(c: Ctx, userId: string, companyId: string): Promise<boolean> {
-  const rows = await sqlFor(c).query(
-    "select exists(select 1 from public.memberships where user_id=$1::uuid and company_id=$2::uuid and active=true and role::text in ('owner','admin')) as allowed",
-    [userId, companyId],
-  );
-  return Boolean((rows[0] as { allowed?: boolean } | undefined)?.allowed);
-}
-async function bankTransactionFingerprint(parts: string[]): Promise<string> {
-  const digest = await crypto.subtle.digest('SHA-256', encoder.encode(parts.join('\u001f')));
-  return Array.from(new Uint8Array(digest), value => value.toString(16).padStart(2, '0')).join('');
-}
-
 /* Removed obsolete /api/finance/bank/* endpoints; the canonical /api/finance/bank-accounts and /api/finance/bank-transactions routes above enforce module permissions. */
 
 app.get('/api/ai/actions', async (c) => {
