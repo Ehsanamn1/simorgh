@@ -1430,3 +1430,23 @@ html[data-theme="dark"] .bank-primary-button { color:#202a38; }
  .notification-item-icon { width:30px; height:30px; }
  .notification-item-content p { font-size:9px; }
 }
+
+/* Calm navigation and dashboard density: show fewer choices at once without removing features. */
+.nav-group > summary { min-height: 42px; font-size: 11px; padding-inline: 11px; }
+.nav-group > summary small { display: none; }
+.nav-groups { gap: 8px; }
+.side-nav { gap: 3px; }
+.side-nav a { min-height: 39px; font-size: 11px; }
+.stats-grid.tower-stats { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; gap: 12px !important; }
+.tower-quick-grid { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; gap: 11px !important; }
+.tower-quick-grid > a { min-height: 66px !important; padding: 10px 11px !important; }
+@media (max-width: 980px) {
+  .stats-grid.tower-stats { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
+  .tower-quick-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+}
+@media (max-width: 560px) {
+  .stats-grid.tower-stats { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  .tower-quick-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  .page-heading { align-items: flex-start; }
+  .page-heading p { max-width: 42rem; }
+}
