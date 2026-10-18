@@ -1425,7 +1425,7 @@ function MembersPage({membership,search}:{membership:Membership;search:string}) 
   try{
    const memberId=String(row.membership_id??row.id??'');
    const result=await api.get<{modules:MemberModulePermission[]}>(`/api/workspace/members/${encodeURIComponent(memberId)}/permissions?companyId=${encodeURIComponent(membership.company_id)}`);
-   setModulePermissions(result.modules??[]);
+   setModulePermissions((result.modules??[]).filter(module=>!DEFERRED_NAV_KEYS.has(String(module.key) as PageKey)));
   }catch(caught){
    setPermissionsMember(null);
    setError(caught instanceof Error?caught.message:'دریافت مجوزهای عضو ناموفق بود.');
