@@ -260,7 +260,7 @@ export default function ProductExperience() {
                  {busy ? <><span className="signin-spinner" aria-hidden="true"/> در حال پردازش…</> : mode === 'signup' ? <>ساخت حساب و فضای کاری <ArrowLeft size={17}/></> : <>ورود به فضای کار <ArrowLeft size={17}/></>}
                </button>
              </form>
-             {mode === 'signin' && <p className="auth-recovery-note">این سامانه خصوصی است؛ ساخت حساب عمومی فعال نیست. برای دریافت دسترسی با مالک مجموعه هماهنگ کن. اگر دعوت معتبر داری، لینک دعوت را باز کن.</p>}
+             {mode === 'signin' && <p className="auth-recovery-note">این سامانه خصوصی است؛ ثبت‌نام عمومی غیرفعال است. برای دریافت دسترسی با مالک مجموعه هماهنگ کن. اگر دعوت معتبر داری، لینک دعوت را باز کن.</p>}
              {mode === 'signup' && <button type="button" className="auth-text-action" onClick={() => {setMode('signin');setError('');setNotice('');navigate({pathname:location.pathname,search:location.search,hash:'#signin'},{replace:true});}}>بازگشت به ورود</button>}
              <div className="signin-form-foot"><span><Check size={13}/> کنترل دسترسی سمت سرور</span><span>مدار · فضای امن</span></div>
           </div>
