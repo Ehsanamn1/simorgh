@@ -706,8 +706,8 @@ test('AI contact classification sends no phone, email or street address and only
   await expect(page.getByText(/پیشنهاد AI · ۹۳٪/)).toBeVisible();
 });
 
-test('a signed-in user can change their own password through the protected Worker endpoint', async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== 'desktop-chromium', 'Validate the credential-change request once; responsive auth and workspace layout are covered in every viewport.');
+test('a signed-in user can change their own password from Settings through the protected Worker endpoint', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop-chromium', 'Validate the credential-change request once; responsive settings layout is covered in every viewport.');
   await installIsolatedSession(page, 'owner');
   let submitted: Record<string, unknown> | undefined;
   await page.route('**/api/auth/password/change', async route => {
@@ -719,15 +719,14 @@ test('a signed-in user can change their own password through the protected Worke
     });
   });
 
-  await page.goto('/simorgh/app/command', { waitUntil: 'domcontentloaded' });
-  await page.getByRole('button', { name: /تغییر گذرواژه/ }).click();
-  await expect(page.getByRole('dialog', { name: 'تغییر گذرواژه' })).toBeVisible();
+  await page.goto('/simorgh/app/settings', { waitUntil: 'domcontentloaded' });
+  await expect(page.getByRole('heading', { name: 'امنیت حساب' })).toBeVisible();
   await page.getByLabel('گذرواژه فعلی').fill('Old-pass-2026');
-  await page.getByLabel('گذرواژه جدید', { exact: true }).fill('New-pass-2026');
-  await page.getByLabel('تکرار گذرواژه جدید').fill('New-pass-2026');
+  await page.getByLabel('گذرواژه جدید').fill('New-pass-2026');
+  await page.getByLabel('تکرار گذرواژه').fill('New-pass-2026');
   await page.getByRole('button', { name: 'ذخیره گذرواژه جدید' }).click();
 
-  await expect(page.getByRole('status')).toContainText('گذرواژه تغییر کرد');
+  await expect(page.locator('.settings-security [role="status"]')).toContainText('گذرواژه تغییر کرد');
   expect(submitted).toEqual({ currentPassword: 'Old-pass-2026', newPassword: 'New-pass-2026' });
 });
 
