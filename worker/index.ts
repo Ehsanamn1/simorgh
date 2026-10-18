@@ -816,6 +816,143 @@ app.post('/api/ai/actions/:id/cancel', async (c) => {
   return c.json({ ok: true });
 });
 
+
+/**
+ * Real-time Persian voice over WebRTC. The main provider key stays server-side;
+ * the browser sends SDP only after authenticated tenant membership is checked.
+ */
+app.post('/api/ai/realtime/session', async (c) => {
+  const user = await requireUser(c);
+  if (user instanceof Response) return user;
+  const companyId = c.req.query('companyId') ?? '';
+  if (!COMPANY_ID_RE.test(companyId)) return c.json({ message: 'شناسه مجموعه معتبر نیست.' }, 422);
+  const membership = await aiCompanyMembership(c, companyId, user.id);
+  if (!membership) return c.json({ message: 'به این فضای کاری دسترسی فعال نداری.' }, 403);
+
+  const sdp = await c.req.text().catch(() => '');
+  if (!sdp || sdp.length < 100 || sdp.length > 100000 || !sdp.startsWith('v=0')) {
+    return c.json({ message: 'درخواست شروع مکالمه صوتی معتبر نیست.' }, 422);
+  }
+
+  const sql = sqlFor(c);
+  const limits = await sql.query([
+    "select (select count(*)::int from public.medar_ai_usage_log where user_id=$1::uuid and model='gpt-realtime-2.1' and created_at>now()-interval '1 minute') as minute_count,",
+    "(select count(*)::int from public.medar_ai_usage_log where user_id=$1::uuid and model='gpt-realtime-2.1' and created_at>now()-interval '1 day') as day_count",
+  ].join(' '), [user.id]);
+  const usage = limits[0] as { minute_count: number; day_count: number } | undefined;
+  if (Number(usage?.minute_count ?? 0) >= 4 || Number(usage?.day_count ?? 0) >= 40) {
+    return c.json({ message: 'تعداد شروع مکالمه صوتی به سقف موقت رسیده است. کمی بعد دوباره تلاش کن.' }, 429);
+  }
+
+  const configs = await sql.query(
+    "select model,encrypted_api_key from public.medar_ai_provider_configs where company_id=$1::uuid and provider='openai' order by is_default desc,updated_at desc limit 1",
+    [companyId],
+  );
+  const config = configs[0] as { model: string; encrypted_api_key: string } | undefined;
+  if (!config) {
+    return c.json({ message: 'برای مکالمه صوتی realtime باید یک کلید OpenAI در تنظیمات همین مجموعه ذخیره شده باشد.' }, 409);
+  }
+  let apiKey: string;
+  try {
+    apiKey = await decryptAiKey(c, config.encrypted_api_key);
+  } catch {
+    return c.json({ message: 'کلید OpenAI قابل خواندن نیست؛ آن را دوباره در تنظیمات دستیار ذخیره کن.' }, 503);
+  }
+
+  let voiceContext: Record<string, unknown> = {};
+  try {
+    if (['owner','admin','staff'].includes(membership.role)) {
+      const metrics = await sql.query([
+        'select',
+        "(select count(*)::int from public.operational_tasks where company_id=$1::uuid and status not in ('approved','cancelled')) as active_tasks,",
+        "(select count(*)::int from public.operational_tasks where company_id=$1::uuid and due_at<now() and status not in ('approved','cancelled')) as overdue_tasks,",
+        "(select count(*)::int from public.operational_incidents where company_id=$1::uuid and status not in ('resolved','closed','cancelled')) as open_incidents,",
+        "(select count(*)::int from public.orders where company_id=$1::uuid and requested_delivery<current_date and status not in ('delivered','cancelled')) as late_orders",
+      ].join(' '), [companyId]);
+      const [tasks, incidents] = await Promise.all([
+        sql.query("select title,status,priority,due_at from public.operational_tasks where company_id=$1::uuid and status not in ('approved','cancelled') order by due_at asc nulls last limit 8", [companyId]),
+        sql.query("select title,severity,status,created_at from public.operational_incidents where company_id=$1::uuid and status not in ('resolved','closed','cancelled') order by created_at desc limit 4", [companyId]),
+      ]);
+      voiceContext = { metrics: metrics[0] ?? {}, activeTasks: tasks, openIncidents: incidents };
+      if (['owner','admin'].includes(membership.role)) {
+        const finance = await sql.query([
+          'select',
+          "(select count(*)::int from public.invoices where company_id=$1::uuid and status in ('issued','partially_paid','overdue')) as open_invoices,",
+          "(select count(*)::int from public.purchase_orders where company_id=$1::uuid and status in ('draft','approved','partially_received')) as open_purchase_orders",
+        ].join(' '), [companyId]);
+        voiceContext = { ...voiceContext, ownerMetrics: finance[0] ?? {} };
+      }
+    } else if (membership.role === 'supplier' && membership.supplierId) {
+      const [tasks, commitments] = await Promise.all([
+        sql.query("select title,status,priority,due_at from public.operational_tasks where company_id=$1::uuid and assignee_supplier_id=$2::uuid and status not in ('approved','cancelled') order by due_at asc nulls last limit 8", [companyId, membership.supplierId]),
+        sql.query("select count(*)::int as active_commitments from public.capacity_commitments where company_id=$1::uuid and supplier_id=$2::uuid and status in ('confirmed','committed') and period_end>=current_date", [companyId, membership.supplierId]),
+      ]);
+      voiceContext = { activeTasks: tasks, capacity: commitments[0] ?? {} };
+    } else if (membership.role === 'driver') {
+      const shipments = await sql.query("select s.stage,s.planned_departure,s.delivered_at,o.reference as order_reference from public.shipments s join public.orders o on o.company_id=s.company_id and o.id=s.order_id where s.company_id=$1::uuid and s.driver_user_id=$2::uuid and s.stage not in ('delivered','returned','failed') order by s.planned_departure asc nulls last limit 8", [companyId, user.id]);
+      voiceContext = { assignedOpenShipments: shipments.length, assignedShipments: shipments };
+    } else if (membership.role === 'customer' && membership.customerId) {
+      const orders = await sql.query("select reference,status,requested_delivery from public.orders where company_id=$1::uuid and customer_id=$2::uuid order by created_at desc limit 8", [companyId, membership.customerId]);
+      voiceContext = { ownRecentOrders: orders };
+    }
+  } catch {
+    voiceContext = { note: 'بعضی داده‌های نقش فعلی برای این مکالمه خوانده نشدند. درباره آن‌ها حدس نزن.' };
+  }
+
+  const instructions = [
+    'تو دستیار صوتی عملیاتی مدار هستی و با فارسی روان، طبیعی و کوتاه صحبت می‌کنی.',
+    'ابتدا پاسخ مستقیم بده؛ هنگام توضیح چند مرحله، جمله‌ها را کوتاه و قابل شنیدن نگه دار.',
+    'از اطلاعات زمینه فقط برای همین مجموعه و همین نقش استفاده کن. عدد، وضعیت، شخص یا رویداد نساز و زمان داده‌ها را در صورت نیاز توضیح بده.',
+    'تو در این نشست ابزار نوشتن یا پرداخت نداری. ادعا نکن وظیفه یا تغییر عملیاتی را ثبت کرده‌ای. برای ثبت وظیفه از مرکز ایجنت‌ها استفاده کن؛ عملیات مالی حساس نیازمند تأیید انسانی است.',
+    'اطلاعات تماس خصوصی و رازها را افشا نکن. اگر اطلاعات لازم وجود ندارد، واضح بگو.',
+    'نقش فعلی: ' + membership.role + '. زمان سرور: ' + new Date().toISOString() + '.',
+    'داده‌های مجاز و محدود همین مجموعه: ' + JSON.stringify(voiceContext),
+  ].join(' ');
+
+  const safetyDigest = await crypto.subtle.digest('SHA-256', encoder.encode('medar-realtime-safety-v1:' + user.id));
+  const safetyIdentifier = Array.from(new Uint8Array(safetyDigest), byte => byte.toString(16).padStart(2, '0')).join('');
+  const sessionConfig = {
+    type: 'realtime',
+    model: 'gpt-realtime-2.1',
+    instructions,
+    audio: {
+      input: {
+        transcription: { model: 'gpt-4o-mini-transcribe', language: 'fa' },
+        turn_detection: { type: 'semantic_vad' },
+      },
+      output: { voice: 'marin' },
+    },
+  };
+  const form = new FormData();
+  form.set('sdp', sdp);
+  form.set('session', JSON.stringify(sessionConfig));
+  try {
+    const upstream = await fetch('https://api.openai.com/v1/realtime/calls', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + apiKey, 'OpenAI-Safety-Identifier': safetyIdentifier },
+      body: form,
+    });
+    const answer = await upstream.text();
+    if (!upstream.ok || !answer.startsWith('v=0')) {
+      console.warn('Medar realtime voice session initialization failed with status', upstream.status);
+      return c.json({
+        message: upstream.status === 401 || upstream.status === 403
+          ? 'دسترسی API برای مکالمه realtime تأیید نشد؛ کلید و دسترسی مدل را بررسی کن.'
+          : upstream.status === 429
+            ? 'سرویس صوتی به سقف درخواست رسیده است؛ کمی بعد دوباره تلاش کن.'
+            : 'ارتباط realtime با سرویس صوتی برقرار نشد؛ اتصال و دسترسی مدل OpenAI را بررسی کن.',
+      }, upstream.status === 429 ? 429 : 502);
+    }
+    await sql.query(
+      'insert into public.medar_ai_usage_log(company_id,user_id,provider,model,input_chars) values($1::uuid,$2::uuid,$3,$4,$5)',
+      [companyId, user.id, 'openai', 'gpt-realtime-2.1', sdp.length],
+    );
+    return c.body(answer, 200, { 'Content-Type': 'application/sdp', 'Cache-Control': 'no-store' });
+  } catch {
+    return c.json({ message: 'اتصال realtime قطع شد؛ مجوز میکروفون، شبکه و تنظیمات OpenAI را بررسی کن.' }, 502);
+  }
+});
+
 app.post('/api/ai/chat', async (c) => {
   const user = await requireUser(c);
   if (user instanceof Response) return user;
