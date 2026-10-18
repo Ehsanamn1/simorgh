@@ -475,7 +475,7 @@ function Dashboard({ membership }: { membership: Membership }) {
       dataApi.from('shipments').select('id', { count: 'exact', head: true }).eq('company_id', company).not('stage', 'in', '(delivered,returned,failed)'),
       dataApi.from('capacity_commitments').select('id', { count: 'exact', head: true }).eq('company_id', company).in('status', ['confirmed','committed']).gte('period_end', today),
       dataApi.from('operational_tasks').select('id', { count: 'exact', head: true }).eq('company_id', company).not('status', 'in', '(approved,cancelled)'),
-      dataApi.from('memberships').select('id', { count: 'exact', head: true }).eq('company_id', company).eq('active', true),
+      dataApi.from('memberships').select('id', { count: 'exact', head: true }).eq('company_id', company).eq('active', true).not('role', 'in', '(owner,admin)'),
       dataApi.from('operational_tasks').select('id,title,status,priority,due_at', { count: 'exact' }).eq('company_id', company).lt('due_at', now).not('status', 'in', '(approved,cancelled)').order('due_at', { ascending: true }).limit(4),
       dataApi.from('operational_tasks').select('id,title,status,priority,due_at,submitted_at', { count: 'exact' }).eq('company_id', company).eq('status', 'submitted').order('submitted_at', { ascending: true }).limit(4),
       dataApi.from('operational_incidents').select('id,title,severity,status,created_at', { count: 'exact' }).eq('company_id', company).not('status', 'in', '(resolved,closed,cancelled)').order('created_at', { ascending: false }).limit(4),
@@ -539,7 +539,7 @@ function Dashboard({ membership }: { membership: Membership }) {
       <article className="stat-card"><div className="stat-card-top"><span>محموله‌های فعال</span><span className="stat-icon"><Truck size={17}/></span></div><b>{loading ? '—' : numberFa(counts.shipments)}</b><small>تحویل‌نشده و در جریان</small></article>
       <article className="stat-card"><div className="stat-card-top"><span>تعهدهای ظرفیت</span><span className="stat-icon"><Warehouse size={17}/></span></div><b>{loading ? '—' : numberFa(counts.capacity)}</b><small>تأییدشده یا متعهد و جاری</small></article>
       <article className="stat-card"><div className="stat-card-top"><span>وظایف باز</span><span className="stat-icon"><ClipboardCheck size={17}/></span></div><b>{loading ? '—' : numberFa(counts.openTasks)}</b><small>نیازمند پیگیری و تکمیل</small></article>
-      <article className="stat-card"><div className="stat-card-top"><span>اعضای فعال</span><span className="stat-icon"><Users size={17}/></span></div><b>{loading ? '—' : numberFa(counts.members)}</b><small>کاربران مجاز مجموعه</small></article>
+      <article className="stat-card"><div className="stat-card-top"><span>همکاران عملیاتی</span><span className="stat-icon"><Users size={17}/></span></div><b>{loading ? '—' : numberFa(counts.members)}</b><small>تأمین‌کنندگان، رانندگان و کارشناسان</small></article>
     </section>
     <section className="tower-quick-access" aria-label="دسترسی سریع">
       <div className="tower-quick-head"><div><span className="section-number">۰۱</span><div><h3>دسترسی سریع</h3><p>مسیرهای اصلی زنجیره تأمین و مدیریت همکاران</p></div></div></div>
