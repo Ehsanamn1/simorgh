@@ -2952,6 +2952,157 @@ app.post('/api/storage/:bucket/remove',async c=>{
 
 
 
+
+const OPERATIONAL_EVENT_SOURCES: Record<string, string> = {
+  order: 'orders', purchase_order: 'purchase_orders', task: 'operational_tasks',
+  shipment: 'shipments', invoice: 'invoices', inventory: 'inventory_movements',
+  production: 'production_batches', quality: 'quality_reviews', supplier: 'suppliers',
+};
+
+app.get('/api/operational/events', async (c) => {
+  const user = await requireUser(c);
+  if (user instanceof Response) return user;
+  const companyId = c.req.query('companyId') ?? '';
+  if (!COMPANY_ID_RE.test(companyId)) return c.json({ message: 'شناسه مجموعه معتبر نیست.' }, 422);
+  const membership = await aiCompanyMembership(c, companyId, user.id);
+  if (!membership) return c.json({ message: 'به این فضای کاری دسترسی فعال نداری.' }, 403);
+  if (!(await userHasModulePermission(c, user.id, companyId, 'operational-tasks', 'can_read'))) return c.json({ message: 'برای مشاهده رویدادها مجوز نداری.' }, 403);
+  const rows = await sqlFor(c).query(
+    'select e.id::text as id,e.event_type as "eventType",e.severity,e.source_type as "sourceType",e.source_id::text as "sourceId",e.title,e.body,e.payload,e.occurred_at as "occurredAt",e.actor_user_id::text as "actorUserId",u.username as "actorUsername" from public.medar_operational_events e left join public.medar_users u on u.id=e.actor_user_id where e.company_id=$1::uuid order by e.occurred_at desc limit 100',
+    [companyId],
+  );
+  return c.json({ events: rows });
+});
+
+app.post('/api/operational/events', async (c) => {
+  const user = await requireUser(c);
+  if (user instanceof Response) return user;
+  const body = await c.req.json<Record<string, unknown>>().catch(() => null);
+  if (!body) return c.json({ message: 'درخواست رویداد معتبر نیست.' }, 400);
+  const companyId = typeof body.companyId === 'string' ? body.companyId : '';
+  if (!COMPANY_ID_RE.test(companyId)) return c.json({ message: 'شناسه مجموعه معتبر نیست.' }, 422);
+  const membership = await aiCompanyMembership(c, companyId, user.id);
+  if (!membership || !['owner','admin','staff'].includes(membership.role) || !(await userHasModulePermission(c, user.id, companyId, 'operational-tasks', 'can_create'))) return c.json({ message: 'برای ثبت رویداد عملیاتی مجوز نداری.' }, 403);
+  const eventType = typeof body.eventType === 'string' ? body.eventType.trim() : '';
+  const severity = typeof body.severity === 'string' ? body.severity : 'info';
+  const sourceType = typeof body.sourceType === 'string' ? body.sourceType : 'system';
+  const sourceId = typeof body.sourceId === 'string' ? body.sourceId : '';
+  const title = typeof body.title === 'string' ? body.title.trim() : '';
+  const description = typeof body.body === 'string' ? body.body.trim() : '';
+  const idempotencyKey = typeof body.idempotencyKey === 'string' ? body.idempotencyKey.trim() : '';
+  const payload = body.payload && typeof body.payload === 'object' && !Array.isArray(body.payload) ? body.payload : {};
+  if (!/^[a-z][a-z0-9_.-]{1,79}$/.test(eventType)) return c.json({ message: 'نوع رویداد معتبر نیست.' }, 422);
+  if (!['info','warning','critical'].includes(severity)) return c.json({ message: 'شدت رویداد معتبر نیست.' }, 422);
+  if (!['order','purchase_order','task','shipment','invoice','inventory','production','quality','supplier','system','other'].includes(sourceType)) return c.json({ message: 'منبع رویداد معتبر نیست.' }, 422);
+  if (title.length < 2 || title.length > 180 || description.length > 4000) return c.json({ message: 'عنوان یا شرح رویداد معتبر نیست.' }, 422);
+  if (idempotencyKey && (idempotencyKey.length < 8 || idempotencyKey.length > 240)) return c.json({ message: 'کلید ثبت تکراری معتبر نیست.' }, 422);
+  if (sourceId && !COMPANY_ID_RE.test(sourceId)) return c.json({ message: 'شناسه رکورد مرتبط معتبر نیست.' }, 422);
+  if (sourceId) {
+    const sourceTable = OPERATIONAL_EVENT_SOURCES[sourceType];
+    if (!sourceTable) return c.json({ message: 'این نوع رویداد نمی‌تواند به رکورد عملیاتی متصل شود.' }, 422);
+    const found = await sqlFor(c).query('select 1 from public.' + sourceTable + ' where id=$1::uuid and company_id=$2::uuid limit 1', [sourceId, companyId]);
+    if (!found.length) return c.json({ message: 'رکورد مرتبط در این شرکت پیدا نشد.' }, 404);
+  }
+  const rows = await sqlFor(c).query(
+    'insert into public.medar_operational_events (company_id,actor_user_id,event_type,severity,source_type,source_id,title,body,payload,idempotency_key) values ($1::uuid,$2::uuid,$3,$4,$5,$6::uuid,$7,$8,$9::jsonb,$10) on conflict (company_id,idempotency_key) where idempotency_key is not null do update set idempotency_key=excluded.idempotency_key returning id::text as id,company_id::text as "companyId",event_type as "eventType",severity,source_type as "sourceType",source_id::text as "sourceId",title,body,payload,occurred_at as "occurredAt",actor_user_id::text as "actorUserId"',
+    [companyId,user.id,eventType,severity,sourceType,sourceId || null,title,description,JSON.stringify(payload),idempotencyKey || null],
+  );
+  const event = rows[0];
+  if (severity === 'warning' || severity === 'critical' || body.createException === true) {
+    const dedupeKey = idempotencyKey ? 'event:' + idempotencyKey : null;
+    await sqlFor(c).query(
+      "insert into public.medar_exception_cases(company_id,event_id,title,details,severity,created_by,dedupe_key) values ($1::uuid,$2::uuid,$3,$4,$5,$6::uuid,$7) on conflict (company_id,dedupe_key) where dedupe_key is not null and status not in ('resolved','closed') do update set updated_at=now() returning id",
+      [companyId,event.id,title,description,severity === 'critical' ? 'critical' : 'warning',user.id,dedupeKey],
+    );
+  }
+  return c.json({ ok: true, event }, 201);
+});
+
+app.get('/api/operational/exceptions', async (c) => {
+  const user = await requireUser(c);
+  if (user instanceof Response) return user;
+  const companyId = c.req.query('companyId') ?? '';
+  if (!COMPANY_ID_RE.test(companyId)) return c.json({ message: 'شناسه مجموعه معتبر نیست.' }, 422);
+  const membership = await aiCompanyMembership(c, companyId, user.id);
+  if (!membership || !['owner','admin','staff'].includes(membership.role) || !(await userHasModulePermission(c, user.id, companyId, 'operational-tasks', 'can_read'))) return c.json({ message: 'برای مشاهده صندوق استثناها مجوز نداری.' }, 403);
+  const status = c.req.query('status') ?? '';
+  if (status && !['open','acknowledged','in_progress','resolved','closed'].includes(status)) return c.json({ message: 'وضعیت مسئله معتبر نیست.' }, 422);
+  const rows = await sqlFor(c).query(
+    'select x.id::text as id,x.event_id::text as "eventId",x.title,x.details,x.severity,x.status,x.assigned_user_id::text as "assignedUserId",u.username as "assignedUsername",x.due_at as "dueAt",x.acknowledged_at as "acknowledgedAt",x.resolved_at as "resolvedAt",x.resolved_by::text as "resolvedBy",x.resolution_note as "resolutionNote",x.created_at as "createdAt",x.updated_at as "updatedAt" from public.medar_exception_cases x left join public.medar_users u on u.id=x.assigned_user_id where x.company_id=$1::uuid and ($2='' or x.status=$2) order by case x.severity when 'critical' then 0 else 1 end,x.due_at asc nulls last,x.created_at desc limit 100',
+    [companyId,status],
+  );
+  return c.json({ exceptions: rows });
+});
+
+app.post('/api/operational/exceptions', async (c) => {
+  const user = await requireUser(c);
+  if (user instanceof Response) return user;
+  const body = await c.req.json<Record<string, unknown>>().catch(() => null);
+  if (!body) return c.json({ message: 'درخواست ایجاد مسئله معتبر نیست.' }, 400);
+  const companyId = typeof body.companyId === 'string' ? body.companyId : '';
+  if (!COMPANY_ID_RE.test(companyId)) return c.json({ message: 'شناسه مجموعه معتبر نیست.' }, 422);
+  const membership = await aiCompanyMembership(c, companyId, user.id);
+  if (!membership || !['owner','admin','staff'].includes(membership.role) || !(await userHasModulePermission(c, user.id, companyId, 'operational-tasks', 'can_create'))) return c.json({ message: 'برای ایجاد مسئله عملیاتی مجوز نداری.' }, 403);
+  const title = typeof body.title === 'string' ? body.title.trim() : '';
+  const details = typeof body.details === 'string' ? body.details.trim() : '';
+  const severity = typeof body.severity === 'string' ? body.severity : 'warning';
+  const eventId = typeof body.eventId === 'string' ? body.eventId : '';
+  const assignedUserId = typeof body.assignedUserId === 'string' ? body.assignedUserId : '';
+  const dueAt = typeof body.dueAt === 'string' ? body.dueAt : '';
+  const dedupeKey = typeof body.dedupeKey === 'string' ? body.dedupeKey.trim() : '';
+  if (title.length < 2 || title.length > 180 || details.length > 4000) return c.json({ message: 'عنوان یا شرح مسئله معتبر نیست.' }, 422);
+  if (!['warning','critical'].includes(severity)) return c.json({ message: 'شدت مسئله معتبر نیست.' }, 422);
+  if (eventId && !COMPANY_ID_RE.test(eventId)) return c.json({ message: 'شناسه رویداد معتبر نیست.' }, 422);
+  if (assignedUserId && !COMPANY_ID_RE.test(assignedUserId)) return c.json({ message: 'شناسه مسئول معتبر نیست.' }, 422);
+  if (dueAt && !Number.isFinite(Date.parse(dueAt))) return c.json({ message: 'مهلت مسئله معتبر نیست.' }, 422);
+  if (dedupeKey && (dedupeKey.length < 8 || dedupeKey.length > 240)) return c.json({ message: 'کلید جلوگیری از تکرار معتبر نیست.' }, 422);
+  if (eventId) {
+    const found = await sqlFor(c).query('select 1 from public.medar_operational_events where id=$1::uuid and company_id=$2::uuid limit 1', [eventId,companyId]);
+    if (!found.length) return c.json({ message: 'رویداد مرتبط در این شرکت پیدا نشد.' }, 404);
+  }
+  if (assignedUserId) {
+    const found = await sqlFor(c).query('select 1 from public.memberships where company_id=$1::uuid and user_id=$2::uuid and active=true limit 1', [companyId,assignedUserId]);
+    if (!found.length) return c.json({ message: 'مسئول باید عضو فعال همین شرکت باشد.' }, 422);
+  }
+  const rows = await sqlFor(c).query(
+    "insert into public.medar_exception_cases(company_id,event_id,title,details,severity,assigned_user_id,due_at,created_by,dedupe_key) values ($1::uuid,$2::uuid,$3,$4,$5,$6::uuid,$7::timestamptz,$8::uuid,$9) on conflict (company_id,dedupe_key) where dedupe_key is not null and status not in ('resolved','closed') do update set updated_at=now() returning id::text as id,company_id::text as \"companyId\",event_id::text as \"eventId\",title,details,severity,status,assigned_user_id::text as \"assignedUserId\",due_at as \"dueAt\",created_at as \"createdAt\",updated_at as \"updatedAt\"",
+    [companyId,eventId || null,title,details,severity,assignedUserId || null,dueAt || null,user.id,dedupeKey || null],
+  );
+  return c.json({ ok: true, exception: rows[0] }, 201);
+});
+
+app.post('/api/operational/exceptions/:id/acknowledge', async (c) => {
+  const user = await requireUser(c);
+  if (user instanceof Response) return user;
+  const id = c.req.param('id');
+  const body = await c.req.json<Record<string, unknown>>().catch(() => null);
+  const companyId = typeof body?.companyId === 'string' ? body.companyId : '';
+  if (!COMPANY_ID_RE.test(id) || !COMPANY_ID_RE.test(companyId)) return c.json({ message: 'شناسه مسئله یا مجموعه معتبر نیست.' }, 422);
+  const membership = await aiCompanyMembership(c, companyId, user.id);
+  if (!membership || !['owner','admin','staff'].includes(membership.role)) return c.json({ message: 'برای رسیدگی به این مسئله دسترسی نداری.' }, 403);
+  if (!(await userHasModulePermission(c, user.id, companyId, 'operational-tasks', 'can_update'))) return c.json({ message: 'مجوز به‌روزرسانی مسئله را نداری.' }, 403);
+  const rows = await sqlFor(c).query("update public.medar_exception_cases set status='acknowledged',acknowledged_at=coalesce(acknowledged_at,now()),updated_at=now() where id=$1::uuid and company_id=$2::uuid and status in ('open','acknowledged') returning id::text as id,status,acknowledged_at as \"acknowledgedAt\"",[id,companyId]);
+  if (!rows.length) return c.json({ message: 'مسئله پیدا نشد یا وضعیت آن اجازه تأیید دریافت نمی‌دهد.' }, 409);
+  return c.json({ ok: true, exception: rows[0] });
+});
+
+app.post('/api/operational/exceptions/:id/resolve', async (c) => {
+  const user = await requireUser(c);
+  if (user instanceof Response) return user;
+  const id = c.req.param('id');
+  const body = await c.req.json<Record<string, unknown>>().catch(() => null);
+  const companyId = typeof body?.companyId === 'string' ? body.companyId : '';
+  const resolutionNote = typeof body?.resolutionNote === 'string' ? body.resolutionNote.trim() : '';
+  if (!COMPANY_ID_RE.test(id) || !COMPANY_ID_RE.test(companyId)) return c.json({ message: 'شناسه مسئله یا مجموعه معتبر نیست.' }, 422);
+  if (resolutionNote.length < 3 || resolutionNote.length > 2000) return c.json({ message: 'برای بستن مسئله، شرح نتیجهٔ حداقل ۳ نویسه‌ای لازم است.' }, 422);
+  const membership = await aiCompanyMembership(c, companyId, user.id);
+  if (!membership || !['owner','admin','staff'].includes(membership.role)) return c.json({ message: 'برای رسیدگی به این مسئله دسترسی نداری.' }, 403);
+  if (!(await userHasModulePermission(c, user.id, companyId, 'operational-tasks', 'can_update'))) return c.json({ message: 'مجوز به‌روزرسانی مسئله را نداری.' }, 403);
+  const rows = await sqlFor(c).query("update public.medar_exception_cases set status='resolved',resolved_at=now(),resolved_by=$3::uuid,resolution_note=$4,updated_at=now() where id=$1::uuid and company_id=$2::uuid and status not in ('resolved','closed') returning id::text as id,status,resolved_at as \"resolvedAt\",resolved_by::text as \"resolvedBy\",resolution_note as \"resolutionNote\"",[id,companyId,user.id,resolutionNote]);
+  if (!rows.length) return c.json({ message: 'مسئله پیدا نشد یا قبلاً بسته شده است.' }, 409);
+  return c.json({ ok: true, exception: rows[0] });
+});
+
 app.get('/api/notifications', async (c) => {
   const user = await requireUser(c);
   if (user instanceof Response) return user;
