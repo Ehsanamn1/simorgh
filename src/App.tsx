@@ -241,7 +241,7 @@ function FarmMapPanel({sites,schemaWarning}:{sites:Row[];schemaWarning:string}) 
   }), [mapped]);
   const [selectedId, setSelectedId] = useState('');
   const [mapMode, setMapMode] = useState<'iran'|'street'>('iran');
-  const showIranPaper = mapMode === 'iran' && iranMapped.length > 0;
+  const showIranPaper = mapMode === 'iran';
   const visibleMapped = showIranPaper ? iranMapped : mapped;
   useEffect(() => {
     setSelectedId(old => visibleMapped.some(site => String(site.id) === old) ? old : String(visibleMapped[0]?.id ?? ''));
@@ -273,8 +273,8 @@ function FarmMapPanel({sites,schemaWarning}:{sites:Row[];schemaWarning:string}) 
   const markerPosition=(site:Row)=>{
     const latitude=Number(site.latitude),longitude=Number(site.longitude);
     if(showIranPaper) return {
-      x:Math.min(88,Math.max(15,16+((longitude-43)/22)*70)),
-      y:Math.min(92,Math.max(7,8+((40-latitude)/16)*84)),
+      x:Math.min(83.3,Math.max(25.5,25.5+((longitude-43)/22)*57.8)),
+      y:Math.min(83.2,Math.max(5.3,5.3+((40-latitude)/16)*77.9)),
     };
     return {
       x:Math.min(98,Math.max(2,(longitude-bounds.west)/(bounds.east-bounds.west)*100)),
@@ -288,10 +288,10 @@ function FarmMapPanel({sites,schemaWarning}:{sites:Row[];schemaWarning:string}) 
     </div>
     <div className="farm-map-mode-toggle" role="group" aria-label="حالت نمایش نقشه">
       <button type="button" className={showIranPaper?'active':''} aria-pressed={showIranPaper} disabled={!iranMapped.length} onClick={()=>setMapMode('iran')}>نقشه کاغذی ایران</button>
-      <button type="button" className={!showIranPaper?'active':''} aria-pressed={!showIranPaper} onClick={()=>setMapMode('street')}>نقشه دقیق</button>
+      <button type="button" className={!showIranPaper?'active':''} aria-pressed={!showIranPaper} disabled={!mapped.length} onClick={()=>setMapMode('street')}>نقشه دقیق</button>
     </div>
     {schemaWarning ? <div className="farm-map-warning"><MapPin size={18}/><div><b>به‌روزرسانی ساختار نقشه لازم است</b><p>{schemaWarning}</p><small>پس از اجرای مهاجرت، طول و عرض جغرافیایی هر سایت را از بخش «سایت‌های مزرعه» وارد کن.</small></div></div>
-    : mapped.length ? <div className="farm-map-layout">
+    : (showIranPaper || mapped.length > 0) ? <div className="farm-map-layout">
       <div className={'farm-map-canvas'+(showIranPaper?' farm-map-canvas-iran':'')}>
         {showIranPaper ? <svg className="iran-paper-illustration" viewBox="0 0 600 380" role="img" aria-label="نمای شماتیک قلمرو ایران">
           <defs>
@@ -323,7 +323,7 @@ function FarmMapPanel({sites,schemaWarning}:{sites:Row[];schemaWarning:string}) 
           </button>;
         })}
       </div>
-      <div className="farm-map-sites" aria-label="فهرست موقعیت‌های ثبت‌شده">{visibleMapped.map(site=><button type="button" key={String(site.id)} className={'farm-map-site'+(String(site.id)===selectedId?' active':'')} aria-pressed={String(site.id)===selectedId} onClick={()=>setSelectedId(String(site.id))}><span className="farm-map-pin">{farmSiteIcon(site.site_type,16)}</span><span><b>{siteName(site)}</b><small>{[site.city,site.province].filter(Boolean).map(String).join(' · ') || 'نشانی ثبت نشده'}</small><small>{farmSiteTypeLabels[String(site.site_type ?? 'mixed')] ?? 'سایر'}</small></span></button>)}</div>
+      {visibleMapped.length ? <div className="farm-map-sites" aria-label="فهرست موقعیت‌های ثبت‌شده">{visibleMapped.map(site=><button type="button" key={String(site.id)} className={'farm-map-site'+(String(site.id)===selectedId?' active':'')} aria-pressed={String(site.id)===selectedId} onClick={()=>setSelectedId(String(site.id))}><span className="farm-map-pin">{farmSiteIcon(site.site_type,16)}</span><span><b>{siteName(site)}</b><small>{[site.city,site.province].filter(Boolean).map(String).join(' · ') || 'نشانی ثبت نشده'}</small><small>{farmSiteTypeLabels[String(site.site_type ?? 'mixed')] ?? 'سایر'}</small></span></button>)}</div> : <div className="farm-map-sites farm-map-sites-empty"><EmptyState title="موقعیت ثبت‌شده‌ای در محدوده ایران نیست" description="نقشه کاغذی فعال است؛ برای نمایش نشانگرها، مختصات واقعی سایت‌های ایران را در بخش سایت‌های مزرعه ثبت کن." icon={MapPin}/></div>}
     </div>
     : <EmptyState title="مختصات جغرافیایی ثبت نشده" description="از بخش سایت‌های مزرعه، مختصات واقعی را ذخیره کن تا موقعیت سایت‌ها روی نقشه نمایش داده شود. هیچ نقطه‌ی ساختگی نمایش داده نمی‌شود." icon={MapPin}/>}
     <div className="farm-map-operational-note"><ShieldCheck size={14}/><span>موقعیت‌های فعلی مربوط به سایت‌های ثبت‌شده‌اند؛ نمایش GPS زنده‌ی راننده پس از اتصال منبع موقعیت و ثبت رضایت/مجوز راننده فعال می‌شود.</span></div>
