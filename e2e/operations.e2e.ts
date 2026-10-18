@@ -348,9 +348,9 @@ test('supplier workspace keeps manager-only routes out of the allowed menu', asy
   await financeGroup.locator('summary').click();
   await expect(financeGroup.getByRole('link', { name: /تسویه‌های من/ })).toBeVisible();
   await operationsGroup.getByRole('link', { name: /کارهای واگذارشده/ }).click();
-  await expect(page.getByRole('heading', { name: 'میز کار تأمین‌کننده' })).toBeVisible();
-  await expect(page.locator('.role-ops-metrics-supplier')).toBeVisible();
-  await expect(page.locator('.role-ops-shortcuts')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'سفارش‌های واگذارشده' })).toBeVisible();
+  await expect(page.locator('.entity-panel')).toBeVisible();
+  await expect(page.locator('.role-ops, .role-ops-metrics, .role-ops-shortcuts')).toHaveCount(0);
   expect(await page.locator('.nav-group').count()).toBeLessThanOrEqual(8);
   expect(errors).toEqual([]);
 });
@@ -439,9 +439,9 @@ test('driver lands in assigned shipments and does not get customer or manager na
   await expect(page.locator('.workspace-home-link').filter({ hasText: 'محموله‌های من' })).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath('driver-role-home-viewport.png') });
   await page.locator('.workspace-home-link').filter({ hasText: 'محموله‌های من' }).click();
-  await expect(page.getByRole('heading', { name: 'مرکز مأموریت‌های راننده' })).toBeVisible();
-  await expect(page.locator('.role-ops-metrics-driver')).toBeVisible();
-  await expect(page.getByRole('link', { name: 'ارتباط با مدیر' })).toHaveAttribute('href', '/simorgh/app/connect');
+  await expect(page.getByRole('heading', { name: 'محموله‌های من' })).toBeVisible();
+  await expect(page.locator('#driver-shipments')).toBeVisible();
+  await expect(page.locator('.role-ops, .role-ops-metrics, .role-ops-shortcuts')).toHaveCount(0);
   if (viewportWidth <= 860) {
     const nav = page.locator('.mobile-workspace-nav');
     await expect(nav).toBeVisible();
