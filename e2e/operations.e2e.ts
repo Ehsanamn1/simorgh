@@ -327,6 +327,9 @@ test('contextual help stays compact at the bottom-left and can be dismissed', as
   expect(bounds!.x).toBeLessThanOrEqual(16);
   expect(bounds!.width).toBeLessThanOrEqual(230);
   expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(viewport!.height);
+  await guide.getByRole('button', { name: 'راهنمای کامل' }).click();
+  await expect(guide.locator('.guide-steps li:visible').count()).resolves.toBeGreaterThan(2);
+  await guide.getByRole('button', { name: 'کمتر' }).click();
   await guide.getByRole('button', { name: 'بستن راهنما' }).click();
   await expect(guide).toHaveCount(0);
 });
