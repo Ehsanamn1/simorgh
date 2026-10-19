@@ -3340,14 +3340,14 @@ const PRIVATE_BUCKET_RULES:Record<string,{maxBytes:number;contentTypes:Set<strin
  'contract-documents':{maxBytes:20*1024*1024,contentTypes:new Set(['application/pdf','image/jpeg','image/png'])},
  'capacity-evidence':{maxBytes:10*1024*1024,contentTypes:new Set(['application/pdf','image/jpeg','image/png','image/webp'])}
 };
-function encodePrivateBytes(bytes: Uint8Array): string {
+export function encodePrivateBytes(bytes: Uint8Array): string {
   let binary = '';
   for (let offset = 0; offset < bytes.length; offset += 0x4000) {
     binary += String.fromCharCode(...bytes.subarray(offset, Math.min(offset + 0x4000, bytes.length)));
   }
   return btoa(binary);
 }
-function decodePrivateBytes(encoded: string): Uint8Array {
+export function decodePrivateBytes(encoded: string): Uint8Array {
   const binary = atob(encoded);
   const bytes = new Uint8Array(binary.length);
   for (let offset = 0; offset < binary.length; offset += 1) bytes[offset] = binary.charCodeAt(offset);
