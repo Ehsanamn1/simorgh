@@ -484,12 +484,12 @@ app.post('/api/profile/complete', async (c) => {
   const rawPhone = typeof body.phone === 'string' ? body.phone.normalize('NFKC').trim() : '';
   const digitsMap: Record<string,string> = { '۰':'0','۱':'1','۲':'2','۳':'3','۴':'4','۵':'5','۶':'6','۷':'7','۸':'8','۹':'9','٠':'0','١':'1','٢':'2','٣':'3','٤':'4','٥':'5','٦':'6','٧':'7','٨':'8','٩':'9' };
   const asciiPhone = rawPhone.replace(/[۰-۹٠-٩]/g, digit => digitsMap[digit] ?? digit);
-  let phone = asciiPhone.replace(/[\s()\-]/g, '');
+  let phone = asciiPhone.replace(/[\s()-]/g, '');
   if (/^09\d{9}$/.test(phone)) phone = '+98' + phone.slice(1);
   else if (/^98\d{10}$/.test(phone)) phone = '+' + phone;
   const phoneDigits = phone.replace(/\D/g, '');
   const fullName = [firstName,lastName].filter(Boolean).join(' ').trim();
-  if (!firstName || firstName.length > 60 || !lastName || lastName.length > 80 || /[\x00-\x1f\x7f]/.test(fullName)) {
+  if (!firstName || firstName.length > 60 || !lastName || lastName.length > 80 || Array.from(fullName).some(char => char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127)) {
     return c.json({ message: 'نام و نام خانوادگی را با حداکثر طول مجاز وارد کن.' }, 422);
   }
   if (!/^\+?[0-9]{7,15}$/.test(phone) || phoneDigits.length < 7 || phoneDigits.length > 15) {
