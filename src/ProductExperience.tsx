@@ -17,9 +17,9 @@ const routeIcons: Record<string, LucideIcon> = {
   'operational-tasks': ListTodo, 'partner-finance': CreditCard, 'farm-sites': Warehouse, incidents: Activity,
 };
 const priorities: Record<string, string[]> = {
-  manager: ['home', 'orders', 'shipments'],
-  supplier: ['operational-tasks', 'daily-production', 'supplier-settlement'],
-  driver: ['driver-work'], customer: ['catalog', 'my-orders', 'my-account'],
+  manager: ['home', 'connect', 'shipments'],
+  supplier: ['operational-tasks', 'daily-production', 'connect'],
+  driver: ['driver-work'], customer: ['home'],
 };
 type MobileNavigationLink = { key: string; route: string; label: string; Icon: LucideIcon; anchor?: string };
 const shortLabels: Record<string, string> = {
@@ -40,7 +40,7 @@ function readAllowedLinks(): NavigationEntry[] {
   });
 }
 
-/** Secure operational sign-in. Self-registration creates an isolated owner workspace; joining an existing workspace requires an invitation. */
+/** Secure sign-in for a private workspace. Public self-registration is disabled; joining requires a valid invitation. */
 export default function ProductExperience() {
   const { user, loading, memberships, refreshSession, error: sessionError } = useAuth();
   const { theme, setTheme } = useAppTheme();
@@ -61,7 +61,7 @@ export default function ProductExperience() {
   const protectedRoute = location.pathname.includes('/app');
   // Protected operational routes are only active in builds that explicitly opt in.
   // The Pages showcase remains read-only; the same-origin Worker build enables this guarded UI.
-  // Creating a workspace grants owner access only to that new tenant; joining an existing tenant requires a server-issued invitation.
+  // Public workspace creation is disabled; joining requires a server-issued invitation.
   const authUiEnabled = import.meta.env.VITE_ENABLE_AUTH_UI === 'true' && isApiConfigured;
   const signInOpen = authUiEnabled && (((location.hash === '#signin' || location.hash === '#signup') && !user && !loading) || (protectedRoute && !user && !loading));
   const normalizedPath = location.pathname.startsWith(basePath) ? location.pathname.slice(basePath.length) || '/' : location.pathname;
@@ -72,7 +72,7 @@ export default function ProductExperience() {
     if (!user && /^[a-f0-9]{64}$/.test(invite)) {
       setJoinInviteCode(invite);
       setMode('signup');
-      setNotice('دعوت مجموعه دریافت شد؛ نام کاربری و رمز خودت را بساز تا به همان مجموعه متصل شوی.');
+      setNotice('دعوت معتبر مجموعه دریافت شد؛ حساب فقط در همان مجموعه و با نقش تعیین‌شده فعال می‌شود.');
     }
   }, [location.search, user?.id]);
 
@@ -166,20 +166,16 @@ export default function ProductExperience() {
     try {
       if (mode === 'signup') {
         const inviteCode = joinInviteCode.trim().toLowerCase();
-        if (inviteCode && !/^[a-f0-9]{64}$/.test(inviteCode)) {
-          setError('کد دعوت باید ۶۴ نویسهٔ معتبر داشته باشد.');
+        if (!/^[a-f0-9]{64}$/.test(inviteCode)) {
+          setError('ساخت حساب عمومی غیرفعال است؛ برای عضویت فقط از دعوت معتبر صادرشده توسط مالک استفاده کن.');
           return;
         }
-        if (inviteCode) {
-          await api.post('/api/auth/signup-with-invite', { username: cleanUsername, password, inviteCode });
-        } else {
-          await api.post('/api/auth/signup', { username: cleanUsername, password });
-        }
+        await api.post('/api/auth/signup-with-invite', { username: cleanUsername, password, inviteCode });
         await refreshSession();
         setPassword('');
         setJoinInviteCode('');
         setMode('signin');
-        setNotice(inviteCode ? 'حساب ساخته شد و با نقش تعیین‌شده به مجموعه پیوست.' : 'حساب و فضای کاری با موفقیت ساخته شد.');
+        setNotice('حساب با نقش تعیین‌شده به مجموعه پیوست.');
         navigate(protectedDestination, { replace: true });
       } else {
         await api.post('/api/auth/login', { username: cleanUsername, password });
@@ -249,14 +245,14 @@ export default function ProductExperience() {
             </div>
             <span className="signin-overline">{mode === 'signup' ? 'ثبت‌نام مجموعه' : 'ورود امن'}</span>
             <h2 id="simorgh-signin-title">{mode === 'signup' ? 'ساخت حساب و فضای کاری' : 'ورود به مدار'}</h2>
-            <p>{mode === 'signup' ? 'برای ساخت فضای شخصی کد را خالی بگذار؛ برای عضویت در شرکت، کد دعوت مدیر را وارد کن.' : 'برای ورود فقط نام کاربری و رمز عبور لازم است.'}</p>
+            <p>{mode === 'signup' ? 'برای پیوستن به مجموعه فقط از لینک دعوت یا کد معتبر صادرشده توسط مالک استفاده کن؛ ساخت فضای کاری عمومی غیرفعال است.' : 'برای ورود فقط نام کاربری و رمز عبور لازم است.'}</p>
             {sessionError && <div className="auth-feedback error session-connection-error" role="status">
               <span>{sessionError}</span>
               <button type="button" className="auth-text-action" onClick={() => void refreshSession()} disabled={loading}>تلاش دوباره برای اتصال</button>
             </div>}
              <form className="simorgh-signin-form" onSubmit={event => void submitAuth(event)}>
                <label htmlFor="simorgh-signin-username">نام کاربری</label><input id="simorgh-signin-username" className="auth-input" type="text" autoComplete="username" required minLength={3} maxLength={32} value={username} onChange={e => setUsername(e.target.value)} placeholder="نام کاربری" dir="ltr"/>
-               {mode === 'signup' && <><label htmlFor="simorgh-signup-invite">کد دعوت شرکت (اختیاری)</label><input id="simorgh-signup-invite" className="auth-input" type="text" autoComplete="off" inputMode="text" maxLength={64} value={joinInviteCode} onChange={e => setJoinInviteCode(e.target.value.toLowerCase().replace(/\s/g, ''))} placeholder="کد ۶۴ نویسه‌ای مدیر" dir="ltr"/><small className="auth-recovery-note">با کد دعوت، حساب از ابتدا فقط با نقش و دسترسی همان شرکت ساخته می‌شود؛ فضای مالک جداگانه ایجاد نمی‌شود.</small></>}
+               {mode === 'signup' && <><label htmlFor="simorgh-signup-invite">کد دعوت شرکت (الزامی)</label><input id="simorgh-signup-invite" className="auth-input" type="text" autoComplete="off" inputMode="text" required={mode === 'signup'} maxLength={64} value={joinInviteCode} onChange={e => setJoinInviteCode(e.target.value.toLowerCase().replace(/\s/g, ''))} placeholder="کد ۶۴ نویسه‌ای مدیر" dir="ltr"/><small className="auth-recovery-note">با کد دعوت، حساب از ابتدا فقط با نقش و دسترسی همان شرکت ساخته می‌شود؛ فضای مالک جداگانه ایجاد نمی‌شود.</small></>}
                <label htmlFor="simorgh-signin-password">گذرواژه</label>
                <div className="auth-password-wrap"><input id="simorgh-signin-password" className="auth-input" type={showPassword ? 'text' : 'password'} minLength={mode === 'signup' ? 8 : 1} maxLength={128} autoComplete={mode === 'signup' ? 'new-password' : 'current-password'} required value={password} onChange={e => setPassword(e.target.value)} placeholder={mode === 'signup' ? 'حداقل ۸ نویسه' : 'گذرواژه'} dir="ltr"/><button type="button" onClick={() => setShowPassword(value => !value)} aria-label={showPassword ? 'پنهان‌کردن گذرواژه' : 'نمایش گذرواژه'}>{showPassword ? <EyeOff size={16}/> : <Eye size={16}/>}</button></div>
                {error && <div className="auth-feedback error" role="alert">{error}</div>}{notice && <div className="auth-feedback success" role="status">{notice}</div>}
@@ -264,7 +260,7 @@ export default function ProductExperience() {
                  {busy ? <><span className="signin-spinner" aria-hidden="true"/> در حال پردازش…</> : mode === 'signup' ? <>ساخت حساب و فضای کاری <ArrowLeft size={17}/></> : <>ورود به فضای کار <ArrowLeft size={17}/></>}
                </button>
              </form>
-             {mode === 'signin' && <><p className="auth-recovery-note">برای بازنشانی امن گذرواژه، با مالک سامانه تماس بگیر؛ بازیابی بدون ایمیل یا عامل تأیید دوم فعلاً فعال نیست.</p><div className="signin-registration-cta"><span>برای مجموعه جدید حساب می‌خواهی؟</span><button type="button" onClick={() => {setMode('signup');setError('');setNotice('');navigate({pathname:location.pathname,search:location.search,hash:'#signup'},{replace:true});}}>ساخت حساب و فضای کاری</button></div></>}
+             {mode === 'signin' && <p className="auth-recovery-note">این سامانه خصوصی است؛ ثبت‌نام عمومی غیرفعال است. برای دریافت دسترسی با مالک مجموعه هماهنگ کن. اگر دعوت معتبر داری، لینک دعوت را باز کن.</p>}
              {mode === 'signup' && <button type="button" className="auth-text-action" onClick={() => {setMode('signin');setError('');setNotice('');navigate({pathname:location.pathname,search:location.search,hash:'#signin'},{replace:true});}}>بازگشت به ورود</button>}
              <div className="signin-form-foot"><span><Check size={13}/> کنترل دسترسی سمت سرور</span><span>مدار · فضای امن</span></div>
           </div>

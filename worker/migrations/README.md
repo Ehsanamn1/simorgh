@@ -60,3 +60,7 @@ The clean-database CI chain and guarded Cloudflare deployment migration list mus
 23. `0023_operational_event_hooks.sql` — emits idempotent events for core state changes and opens actionable cases for incidents, blocked tasks, and failed shipments.
 
 24. `0024_connect_task_notifications.sql` — creates idempotent in-app notifications when tasks are assigned/reassigned and when an explicit conversation participant receives a message. The existing outbox fans these notifications out to opted-in Push subscriptions; senders are excluded from message notifications.
+
+25. `0025_supplier_location_details.sql` — adds optional province/address fields and nullable coordinates to supplier records. Full Google Maps/OpenStreetMap links can supply a real pin without manual latitude/longitude entry.
+
+26. `0026_task_status_notifications.sql` — notifies assigned managers and active owners/admins when a task is submitted, approved, rejected, blocked or cancelled. Notifications are delivered through the existing in-app and opted-in Push pipeline.

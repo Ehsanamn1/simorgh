@@ -1,50 +1,16 @@
-export type SetupMetric = 'customers' | 'suppliers' | 'orders' | 'capacity' | 'goals';
-
+export type SetupMetric = 'suppliers' | 'capacity' | 'members' | 'tasks' | 'shipments';
 export type SetupCounts = Record<SetupMetric, number>;
 
 export const SETUP_MILESTONES = [
-  {
-    id: 'customers',
-    metric: 'customers',
-    title: 'اولین مشتری',
-    description: 'یک مشتری سازمانی ثبت کن',
-    route: '/app/customers',
-  },
-  {
-    id: 'suppliers',
-    metric: 'suppliers',
-    title: 'شبکه تأمین',
-    description: 'یک تأمین‌کننده معتبر ثبت کن',
-    route: '/app/suppliers',
-  },
-  {
-    id: 'orders',
-    metric: 'orders',
-    title: 'اولین سفارش',
-    description: 'یک سفارش واقعی در مدار بساز',
-    route: '/app/orders',
-  },
-  {
-    id: 'capacity',
-    metric: 'capacity',
-    title: 'ظرفیت برنامه‌ریزی‌شده',
-    description: 'ظرفیت تأییدشده یا متعهد ثبت کن',
-    route: '/app/capacity',
-  },
-  {
-    id: 'goals',
-    metric: 'goals',
-    title: 'هدف قابل‌پیگیری',
-    description: 'یک هدف اجرایی برای مجموعه تعریف کن',
-    route: '/app/goals',
-  },
+  { id: 'suppliers', metric: 'suppliers', title: 'شبکه تأمین', description: 'یک تأمین‌کننده معتبر ثبت کن', route: '/app/suppliers' },
+  { id: 'capacity', metric: 'capacity', title: 'ظرفیت قابل اتکا', description: 'یک تعهد ظرفیت تأییدشده ثبت کن', route: '/app/capacity' },
+  { id: 'members', metric: 'members', title: 'دسترسی همکاران', description: 'حساب تأمین‌کننده یا راننده را بساز', route: '/app/members' },
+  { id: 'tasks', metric: 'tasks', title: 'اولین مأموریت', description: 'یک وظیفه واقعی واگذار کن', route: '/app/operational-tasks' },
+  { id: 'shipments', metric: 'shipments', title: 'حمل‌ونقل فعال', description: 'یک محموله را تا تحویل پیگیری کن', route: '/app/shipments' },
 ] as const;
 
 export type SetupMilestoneId = (typeof SETUP_MILESTONES)[number]['id'];
-
-export type EvaluatedSetupMilestone = (typeof SETUP_MILESTONES)[number] & {
-  achieved: boolean;
-};
+export type EvaluatedSetupMilestone = (typeof SETUP_MILESTONES)[number] & { achieved: boolean };
 
 export function evaluateSetupMilestones(counts: SetupCounts): EvaluatedSetupMilestone[] {
   return SETUP_MILESTONES.map(milestone => ({
@@ -64,6 +30,5 @@ export function summarizeSetupMilestones(milestones: readonly EvaluatedSetupMile
       : achieved > 0
         ? 'راه‌اندازی آغاز شده'
         : 'گام نخست';
-
   return { total, achieved, percentage, phase };
 }

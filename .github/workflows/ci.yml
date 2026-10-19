@@ -49,7 +49,7 @@ jobs:
             worker/migrations/0009_inventory_movement_concurrency_lock.sql \
             worker/migrations/0010_purchase_order_lifecycle.sql   \
             worker/migrations/0011_username_password_only.sql \
-            worker/migrations/0012_client_presence.sql worker/migrations/0013_ai_assistant_and_contacts.sql worker/migrations/0014_contact_intelligence.sql worker/migrations/0015_ai_action_approval_ledger.sql worker/migrations/0016_membership_module_permissions.sql worker/migrations/0017_delivery_video_evidence.sql worker/migrations/0018_bank_reconciliation_ledger.sql worker/migrations/0019_daily_briefing_notifications.sql worker/migrations/0020_operational_event_exception_ledger.sql worker/migrations/0021_medar_connect_messaging.sql worker/migrations/0022_web_push_delivery_queue.sql worker/migrations/0023_operational_event_hooks.sql worker/migrations/0024_connect_task_notifications.sql; do
+            worker/migrations/0012_client_presence.sql worker/migrations/0013_ai_assistant_and_contacts.sql worker/migrations/0014_contact_intelligence.sql worker/migrations/0015_ai_action_approval_ledger.sql worker/migrations/0016_membership_module_permissions.sql worker/migrations/0017_delivery_video_evidence.sql worker/migrations/0018_bank_reconciliation_ledger.sql worker/migrations/0019_daily_briefing_notifications.sql worker/migrations/0020_operational_event_exception_ledger.sql worker/migrations/0021_medar_connect_messaging.sql worker/migrations/0022_web_push_delivery_queue.sql worker/migrations/0023_operational_event_hooks.sql worker/migrations/0024_connect_task_notifications.sql worker/migrations/0025_supplier_location_details.sql worker/migrations/0026_task_status_notifications.sql; do
             echo "Applying $migration"
             psql -h 127.0.0.1 -U postgres -d medar_test -v ON_ERROR_STOP=1 -1 -f "$migration"
             version="$(basename "$migration")"
@@ -87,6 +87,9 @@ jobs:
               exists (select 1 from pg_trigger where tgname='medar_notify_task_assignee' and not tgisinternal) and
               exists (select 1 from pg_trigger where tgname='medar_notify_conversation_participants' and not tgisinternal) and
               exists (select 1 from public.medar_schema_migrations where version='0024_connect_task_notifications.sql') and
+              exists (select 1 from public.medar_schema_migrations where version='0025_supplier_location_details.sql') and
+              to_regprocedure('public.medar_notify_task_status_change()') is not null and
+              (select count(*) from information_schema.columns where table_schema='public' and table_name='suppliers' and column_name in ('province','address','latitude','longitude')) = 4 and
               to_regprocedure('public.medar_check_membership_permission_company()') is not null and
               (select count(*) from information_schema.columns where table_schema='public' and table_name in ('customers','suppliers') and column_name in ('email','organization_name','contact_notes','contact_tags','contact_source')) = 10 and
               (select is_nullable = 'YES' from information_schema.columns where table_schema='public' and table_name='medar_users' and column_name='phone_e164') and
@@ -618,8 +621,8 @@ jobs:
           restored_marker="$(psql -h 127.0.0.1 -U postgres -d "$restore_db" -v ON_ERROR_STOP=1 -Atqc "SELECT marker FROM public.ci_backup_probe WHERE id=1")"
           restored_migrations="$(psql -h 127.0.0.1 -U postgres -d "$restore_db" -v ON_ERROR_STOP=1 -Atqc "SELECT count(*) FROM public.medar_schema_migrations")"
           test "$restored_marker" = "medar-backup-restore-roundtrip"
-          test "$restored_migrations" = "24"
-          echo "PostgreSQL custom-format backup restored successfully with all 24 migration records and the fixture marker."
+          test "$restored_migrations" = "26"
+          echo "PostgreSQL custom-format backup restored successfully with all 26 migration records and the fixture marker."
       - name: Summarize all dependency advisories
         shell: bash
         run: |

@@ -23,6 +23,9 @@
 .nav-tools-box .nav-group > .side-nav { gap:2px; padding:2px 0 6px; overflow:visible; }
 .nav-tools-box .side-nav a { min-height:37px; height:auto; padding:7px 9px; border-radius:9px; font-size:11px; }
 .nav-tools-box .side-nav a.selected { background:var(--obs-surface-2) !important; color:var(--obs-text) !important; box-shadow:inset -3px 0 var(--obs-accent); }
+.nav-tools-box .side-nav a.nav-primary-access, .nav-tools-box .side-nav a.nav-primary-connect { min-height:43px; margin:2px 0; font-weight:900; border:1px solid color-mix(in srgb,var(--obs-accent) 42%,var(--obs-border)); background:color-mix(in srgb,var(--obs-accent) 9%,var(--obs-surface)); color:var(--obs-text); }
+.nav-tools-box .side-nav a.nav-primary-access svg, .nav-tools-box .side-nav a.nav-primary-connect svg { color:var(--obs-accent); }
+.nav-tools-box .side-nav a.nav-primary-access span, .nav-tools-box .side-nav a.nav-primary-connect span { font-size:12px; font-weight:950; }
 .sidebar-settings-link {
   display:flex; align-items:center; gap:9px; padding:10px 9px; margin:8px 0 3px;
   border:1px solid var(--obs-border); border-radius:11px; background:var(--obs-surface);
@@ -83,6 +86,7 @@
   .settings-password-form { grid-template-columns:1fr; }
 }
 @media (max-width: 720px) {
+  .topbar-home-link { display:none !important; }
   .medar-settings-page { grid-template-columns:minmax(0,1fr); gap:12px; }
   .medar-settings-page > .page-heading, .settings-connection { grid-column:auto; }
   .settings-section { padding:15px; border-radius:15px; }
@@ -160,6 +164,8 @@ html[data-theme] .form-error, html[data-theme] .form-success { border-radius:10p
 
 /* Compact account action and explicit network state; colors follow the active theme tokens. */
 .topbar-logout { flex:none; }
+.settings-account-actions .button-danger { display:inline-flex; align-items:center; gap:8px; min-height:40px; padding:9px 14px; border:1px solid color-mix(in srgb,var(--obs-critical) 40%,var(--obs-border)); border-radius:10px; background:color-mix(in srgb,var(--obs-critical) 10%,var(--obs-surface)); color:var(--obs-text); font-weight:850; cursor:pointer; }
+.settings-account-actions .button-danger:hover { border-color:var(--obs-critical); background:color-mix(in srgb,var(--obs-critical) 17%,var(--obs-surface)); }
 .network-status {
   display:inline-flex; align-items:center; gap:6px; min-height:27px; padding:4px 9px;
   border:1px solid var(--obs-border); border-radius:999px; background:var(--obs-surface);
@@ -189,3 +195,30 @@ html[data-theme="light"] .network-status { background:var(--obs-surface); }
 .invite-link-code small { color:var(--obs-muted); font-size:10px; }
 .invite-link-code code { color:var(--obs-muted); font:10px ui-monospace,Consolas,monospace; overflow-wrap:anywhere; }
 .invite-link-code .button-ghost { min-height:30px; margin-inline-start:auto; }
+
+
+.member-role-filters { display:flex; flex-wrap:wrap; gap:8px; margin:12px 0; }
+.member-role-filters button { display:inline-flex; align-items:center; justify-content:center; gap:8px; min-height:38px; padding:7px 12px; border:1px solid var(--obs-border); border-radius:10px; background:var(--obs-surface); color:var(--obs-muted); font-size:12px; font-weight:750; cursor:pointer; }
+.member-role-filters button.active { color:var(--obs-text); border-color:color-mix(in srgb,var(--obs-accent) 55%,var(--obs-border)); background:color-mix(in srgb,var(--obs-accent) 11%,var(--obs-surface)); font-weight:900; }
+.member-role-filters button small { min-width:20px; padding:2px 5px; border-radius:999px; background:var(--obs-surface-2); color:var(--obs-text); font-variant-numeric:tabular-nums; }
+@media (max-width: 600px) { .member-role-filters { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); } .member-role-filters button:first-child { grid-column:1/-1; } }
+
+.workspace-home-guide-button { display:inline-flex; align-items:center; gap:8px; margin-top:14px; padding:10px 14px; min-height:40px; border:1px solid color-mix(in srgb,var(--obs-accent) 45%,var(--obs-border)); border-radius:11px; background:color-mix(in srgb,var(--obs-accent) 9%,var(--obs-surface)); color:var(--obs-text); font-size:12px; font-weight:900; cursor:pointer; }
+.workspace-home-guide-button:hover { background:color-mix(in srgb,var(--obs-accent) 16%,var(--obs-surface)); }
+
+.tower-recent-activity-list { display:grid; gap:0; }
+.tower-recent-activity-row { display:flex; align-items:center; gap:12px; min-height:58px; padding:10px 2px; border-bottom:1px solid var(--obs-border); color:var(--obs-text); text-decoration:none; }
+.tower-recent-activity-row:last-child { border-bottom:0; }
+.tower-recent-activity-row > span:nth-child(2) { display:grid; gap:4px; min-width:0; flex:1; }
+.tower-recent-activity-row b { font-size:12px; font-weight:850; }
+.tower-recent-activity-row small { color:var(--obs-muted); font-size:11px; }
+.tower-recent-activity-icon { display:grid; place-items:center; width:32px; height:32px; flex:none; border:1px solid var(--obs-border); border-radius:10px; color:var(--obs-accent); background:var(--obs-surface-2); }
+.tower-recent-activity-row:hover { background:var(--obs-surface-2); }
+
+.medar-connect-mission-bridge { display:flex; align-items:center; gap:12px; margin:12px 0 18px; padding:14px; border:1px solid var(--obs-border); border-radius:14px; background:var(--obs-surface); }
+.medar-connect-mission-icon { display:grid; place-items:center; flex:none; width:40px; height:40px; border-radius:12px; background:color-mix(in srgb,var(--obs-accent) 12%,var(--obs-surface-2)); color:var(--obs-accent); }
+.medar-connect-mission-copy { display:grid; gap:4px; flex:1; min-width:0; }
+.medar-connect-mission-copy b { font-size:13px; font-weight:900; color:var(--obs-text); }
+.medar-connect-mission-copy span { color:var(--obs-muted); font-size:11px; line-height:1.8; }
+.medar-connect-mission-bridge > a { display:inline-flex; align-items:center; justify-content:center; gap:7px; padding:9px 12px; border-radius:10px; background:var(--obs-accent); color:#fff; text-decoration:none; font-size:11px; font-weight:900; white-space:nowrap; }
+@media (max-width: 640px) { .medar-connect-mission-bridge { align-items:flex-start; flex-wrap:wrap; } .medar-connect-mission-copy { flex-basis:calc(100% - 56px); } .medar-connect-mission-bridge > a { width:100%; } }

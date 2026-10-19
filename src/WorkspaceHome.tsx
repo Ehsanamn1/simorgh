@@ -1,14 +1,15 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { HelpGuide } from './HelpGuide';
 import {
-  Activity, ArrowLeft, Building2, CalendarClock, CheckCircle2, ClipboardCheck,
-  CreditCard, Factory, FileText, LayoutDashboard, MapPin, Package, ShieldCheck,
-  Truck, Warehouse,
+  Activity, ArrowLeft, BookOpen, CalendarClock, CheckCircle2, ClipboardCheck,
+  Factory, LayoutDashboard, MapPin, ShieldCheck,
+  Truck, Warehouse, MessageCircle,
 } from 'lucide-react';
 import type { AppRole, Membership, Row } from './lib/types';
 import { dataApi } from './lib/dataClient';
 import { InAppNotifications } from './InAppNotifications';
-import { dateFa, dateTimeFa, moneyFa, numberFa, roleLabel, statusLabel } from './lib/format';
+import { dateTimeFa, numberFa, roleLabel, statusLabel } from './lib/format';
 
 type QuickLink = { key: string; title: string; detail: string; icon: typeof LayoutDashboard };
 type BriefingItem = { id: string; title: string; detail: string; to: string; tone?: 'warning' | 'critical' | 'info' };
@@ -16,47 +17,48 @@ type Metric = { label: string; value: number; detail: string; icon: typeof Layou
 
 const roleQuickLinks: Record<AppRole, QuickLink[]> = {
   owner: [
-    { key: 'command', title: 'نمای کلی کسب‌وکار', detail: 'اولویت‌ها و موارد نیازمند اقدام', icon: LayoutDashboard },
-    { key: 'orders', title: 'سفارش‌ها', detail: 'جریان سفارش تا تحویل', icon: FileText },
-    { key: 'operational-tasks', title: 'کارها و پیگیری', detail: 'وظایف، سررسیدها و رخدادها', icon: ClipboardCheck },
-    { key: 'finance', title: 'مالی و تسویه', detail: 'فاکتور و مغایرت‌گیری', icon: CreditCard },
+    { key: 'suppliers', title: 'شبکه تأمین‌کنندگان', detail: 'پرونده‌ها، ظرفیت و وضعیت همکاری', icon: Factory },
+    { key: 'members', title: 'دسترسی کاربران', detail: 'ایجاد حساب تأمین‌کننده و راننده', icon: ShieldCheck },
+    { key: 'connect', title: 'مرکز ارتباطات', detail: 'واگذاری مأموریت و پیگیری پاسخ‌ها', icon: MessageCircle },
+    { key: 'shipments', title: 'حمل‌ونقل و رانندگان', detail: 'محموله‌ها و وضعیت تحویل', icon: Truck },
+    { key: 'operational-tasks', title: 'وظایف و مأموریت‌ها', detail: 'واگذاری کار و بررسی تکمیل', icon: ClipboardCheck },
   ],
   admin: [
-    { key: 'command', title: 'نمای کلی کسب‌وکار', detail: 'اولویت‌ها و موارد نیازمند اقدام', icon: LayoutDashboard },
-    { key: 'orders', title: 'سفارش‌ها', detail: 'جریان سفارش تا تحویل', icon: FileText },
-    { key: 'operational-tasks', title: 'کارها و پیگیری', detail: 'وظایف، سررسیدها و رخدادها', icon: ClipboardCheck },
-    { key: 'finance', title: 'مالی و تسویه', detail: 'فاکتور و مغایرت‌گیری', icon: CreditCard },
+    { key: 'suppliers', title: 'شبکه تأمین‌کنندگان', detail: 'پرونده‌ها، ظرفیت و وضعیت همکاری', icon: Factory },
+    { key: 'members', title: 'دسترسی کاربران', detail: 'ایجاد حساب همکاران مجاز', icon: ShieldCheck },
+    { key: 'connect', title: 'مرکز ارتباطات', detail: 'واگذاری مأموریت و پیگیری پاسخ‌ها', icon: MessageCircle },
+    { key: 'shipments', title: 'حمل‌ونقل و رانندگان', detail: 'محموله‌ها و وضعیت تحویل', icon: Truck },
+    { key: 'operational-tasks', title: 'وظایف و مأموریت‌ها', detail: 'واگذاری کار و بررسی تکمیل', icon: ClipboardCheck },
   ],
   staff: [
-    { key: 'command', title: 'نمای کلی عملیات', detail: 'کارهای باز و هشدارها', icon: LayoutDashboard },
-    { key: 'operational-tasks', title: 'وظایف عملیاتی', detail: 'کارهای در جریان', icon: ClipboardCheck },
-    { key: 'shipments', title: 'ارسال و تحویل', detail: 'محموله‌های فعال', icon: Truck },
-    { key: 'inventory', title: 'موجودی و انبار', detail: 'گردش کالا', icon: Warehouse },
+    { key: 'suppliers', title: 'شبکه تأمین‌کنندگان', detail: 'پرونده‌ها و وضعیت همکاری', icon: Factory },
+    { key: 'operational-tasks', title: 'وظایف عملیاتی', detail: 'مأموریت‌ها و تکمیل کار', icon: ClipboardCheck },
+    { key: 'connect', title: 'مرکز ارتباطات', detail: 'هماهنگی با همکاران', icon: MessageCircle },
+    { key: 'shipments', title: 'حمل‌ونقل', detail: 'محموله‌های فعال', icon: Truck },
   ],
   supplier: [
     { key: 'operational-tasks', title: 'کارهای واگذارشده', detail: 'وظیفه و سررسید', icon: ClipboardCheck },
     { key: 'daily-production', title: 'ثبت روزانه', detail: 'ثبت واقعی تولید و عملیات', icon: Factory },
     { key: 'supplier-capacity', title: 'ظرفیت من', detail: 'اعلام و تأیید ظرفیت', icon: Warehouse },
-    { key: 'supplier-settlement', title: 'تسویه‌های من', detail: 'وضعیت مالی ثبت‌شده', icon: CreditCard },
-    { key: 'farm-sites', title: 'سایت‌های مزرعه', detail: 'مشخصات موقعیت‌های مجاز', icon: MapPin },
+    { key: 'farm-sites', title: 'موقعیت‌های کاری', detail: 'مشخصات مزرعه و محل تأمین', icon: MapPin },
+    { key: 'connect', title: 'مرکز ارتباطات', detail: 'پیام‌ها و مأموریت‌های مدیر', icon: MessageCircle },
   ],
   driver: [
     { key: 'driver-work', title: 'محموله‌های من', detail: 'تحویل، وضعیت و مدارک', icon: Truck },
   ],
   customer: [
-    { key: 'catalog', title: 'کاتالوگ خرید', detail: 'محصولات فعال', icon: Package },
-    { key: 'my-orders', title: 'سفارش‌های من', detail: 'وضعیت و موعد تحویل', icon: FileText },
-    { key: 'my-account', title: 'حساب سازمانی', detail: 'مشخصات و شرایط حساب', icon: Building2 },
+    { key: 'settings', title: 'تنظیمات حساب', detail: 'تنظیمات دسترسی و ظاهر', icon: ShieldCheck },
   ],
 };
 
 export function WorkspaceHome({ membership, userName }: { membership: Membership; userName: string }) {
+  const [guideOpen, setGuideOpen] = useState(false);
   const [metrics, setMetrics] = useState<Metric[]>([]);
   const [items, setItems] = useState<BriefingItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const role = membership.role;
-  const links = roleQuickLinks[role].slice(0, 4);
+  const links = roleQuickLinks[role].slice(0, role === 'driver' ? 1 : 5);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -68,20 +70,25 @@ export function WorkspaceHome({ membership, userName }: { membership: Membership
       const nextItems: BriefingItem[] = [];
 
       if (role === 'owner' || role === 'admin' || role === 'staff') {
-        const [tasks, overdueOrders, incidents] = await Promise.all([
+        const [tasks, suppliers, capacity, shipments, incidents] = await Promise.all([
           dataApi.from('operational_tasks').select('id,title,status,priority,due_at', { count: 'exact' }).eq('company_id', companyId).not('status', 'in', '(approved,cancelled)').order('due_at', { ascending: true }).limit(8),
-          dataApi.from('orders').select('id,reference,status,requested_delivery', { count: 'exact' }).eq('company_id', companyId).lt('requested_delivery', today).not('status', 'in', '(delivered,cancelled)').order('requested_delivery', { ascending: true }).limit(8),
+          dataApi.from('suppliers').select('id,name,city,active', { count: 'exact' }).eq('company_id', companyId).eq('active', true).order('name').limit(8),
+          dataApi.from('capacity_commitments').select('id,status,period_end,confirmed_qty,committed_qty', { count: 'exact' }).eq('company_id', companyId).in('status', ['confirmed','committed']).gte('period_end', today).order('period_end', { ascending: true }).limit(8),
+          dataApi.from('shipments').select('id,stage,vehicle,planned_departure,updated_at', { count: 'exact' }).eq('company_id', companyId).not('stage', 'in', '(delivered,returned,failed)').order('updated_at', { ascending: false }).limit(8),
           dataApi.from('operational_incidents').select('id,title,severity,status', { count: 'exact' }).eq('company_id', companyId).not('status', 'in', '(resolved,closed,cancelled)').order('created_at', { ascending: false }).limit(8),
         ]);
-        const failure = tasks.error ?? overdueOrders.error ?? incidents.error;
+        const failure = tasks.error ?? suppliers.error ?? capacity.error ?? shipments.error ?? incidents.error;
         if (failure) throw new Error(failure.message);
         const taskRows = (tasks.data ?? []) as Row[];
-        const lateRows = (overdueOrders.data ?? []) as Row[];
+        const supplierRows = (suppliers.data ?? []) as Row[];
+        const capacityRows = (capacity.data ?? []) as Row[];
+        const shipmentRows = (shipments.data ?? []) as Row[];
         const incidentRows = (incidents.data ?? []) as Row[];
         nextMetrics = [
           { label: 'وظایف باز', value: tasks.count ?? taskRows.length, detail: 'برای پیگیری و تکمیل', icon: ClipboardCheck, to: '/app/operational-tasks' },
-          { label: 'سفارش‌های عقب‌افتاده', value: overdueOrders.count ?? lateRows.length, detail: 'موعد تحویل گذشته', icon: Truck, to: '/app/orders' },
-          { label: 'رخدادهای باز', value: incidents.count ?? incidentRows.length, detail: 'نیازمند بررسی', icon: Activity, to: '/app/incidents' },
+          { label: 'تأمین‌کنندگان فعال', value: suppliers.count ?? supplierRows.length, detail: 'اعضای شبکه تأمین', icon: Factory, to: '/app/suppliers' },
+          { label: 'ظرفیت تأییدشده', value: capacity.count ?? capacityRows.length, detail: 'تعهدهای معتبر جاری', icon: Warehouse, to: '/app/capacity' },
+          { label: 'محموله‌های فعال', value: shipments.count ?? shipmentRows.length, detail: 'در حال بارگیری یا حمل', icon: Truck, to: '/app/shipments' },
         ];
         taskRows.slice(0, 4).forEach(row => nextItems.push({
           id: 'task-' + String(row.id),
@@ -90,12 +97,12 @@ export function WorkspaceHome({ membership, userName }: { membership: Membership
           to: '/app/operational-tasks',
           tone: row.due_at && new Date(String(row.due_at)).getTime() < Date.now() ? 'warning' : 'info',
         }));
-        lateRows.slice(0, 3).forEach(row => nextItems.push({
-          id: 'order-' + String(row.id),
-          title: 'سفارش ' + String(row.reference ?? String(row.id).slice(0, 8)) + ' از موعد گذشته',
-          detail: 'موعد تحویل: ' + dateFa(String(row.requested_delivery ?? '')),
-          to: '/app/orders',
-          tone: 'critical',
+        shipmentRows.slice(0, 3).forEach(row => nextItems.push({
+          id: 'shipment-' + String(row.id),
+          title: 'محموله ' + String(row.vehicle ?? String(row.id).slice(0, 8).toUpperCase()),
+          detail: 'مرحله: ' + (statusLabel[String(row.stage)] ?? String(row.stage ?? 'ثبت‌نشده')) + (row.planned_departure ? ' · حرکت: ' + dateTimeFa(String(row.planned_departure)) : ''),
+          to: '/app/shipments',
+          tone: 'info',
         }));
         incidentRows.slice(0, 2).forEach(row => nextItems.push({
           id: 'incident-' + String(row.id),
@@ -150,36 +157,12 @@ export function WorkspaceHome({ membership, userName }: { membership: Membership
           tone: 'info',
         }));
       } else {
-        const [orders, invoices] = await Promise.all([
-          dataApi.from('orders').select('id,reference,status,requested_delivery,created_at', { count: 'exact' }).eq('company_id', companyId).eq('customer_id', membership.customer_id ?? '').not('status', 'in', '(delivered,cancelled)').order('created_at', { ascending: false }).limit(6),
-          dataApi.from('invoices').select('id,reference,status,amount,due_date', { count: 'exact' }).eq('company_id', companyId).eq('customer_id', membership.customer_id ?? '').not('status', 'in', '(paid,cancelled)').order('due_date', { ascending: true }).limit(4),
-        ]);
-        const failure = orders.error ?? invoices.error;
-        if (failure) throw new Error(failure.message);
-        const orderRows = (orders.data ?? []) as Row[];
-        const invoiceRows = (invoices.data ?? []) as Row[];
-        nextMetrics = [
-          { label: 'سفارش‌های در جریان', value: orders.count ?? orderRows.length, detail: 'سفارش‌های فعال حساب شما', icon: Package, to: '/app/my-orders' },
-          { label: 'فاکتورهای تسویه‌نشده', value: invoices.count ?? invoiceRows.length, detail: 'برای بررسی مالی', icon: CreditCard, to: '/app/my-orders' },
-        ];
-        orderRows.slice(0, 5).forEach(row => nextItems.push({
-          id: 'customer-order-' + String(row.id),
-          title: 'سفارش ' + String(row.reference ?? String(row.id).slice(0, 8)),
-          detail: (statusLabel[String(row.status)] ?? String(row.status ?? 'ثبت‌نشده')) + (row.requested_delivery ? ' · تحویل درخواستی ' + dateFa(String(row.requested_delivery)) : ''),
-          to: '/app/my-orders',
-          tone: 'info',
-        }));
-        invoiceRows.filter(row => row.due_date && String(row.due_date) < today).forEach(row => nextItems.push({
-          id: 'customer-invoice-' + String(row.id),
-          title: 'فاکتور سررسیدگذشته ' + String(row.reference ?? ''),
-          detail: moneyFa(String(row.amount ?? 0)) + ' · سررسید ' + dateFa(String(row.due_date)),
-          to: '/app/my-orders',
-          tone: 'warning',
-        }));
+        nextMetrics = [{ label: 'دسترسی عملیاتی', value: 0, detail: 'نقش سفارش‌دهنده در نسخه فعلی غیرفعال است', icon: ShieldCheck, to: '/app/settings' }];
+        nextItems.push({ id: 'customer-disabled', title: 'دسترسی سفارش‌گیری غیرفعال است', detail: 'مدار برای مدیریت زنجیره تأمین، تأمین‌کنندگان و رانندگان استفاده می‌شود. برای تغییر نقش با مالک مجموعه هماهنگ کن.', to: '/app/settings', tone: 'info' });
       }
       const urgency: Record<NonNullable<BriefingItem['tone']>, number> = { critical: 0, warning: 1, info: 2 };
       nextItems.sort((a, b) => urgency[a.tone ?? 'info'] - urgency[b.tone ?? 'info']);
-      setMetrics(nextMetrics.slice(0, 3));
+      setMetrics(nextMetrics.slice(0, 4));
       setItems(nextItems);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'خلاصه‌ی امروز دریافت نشد.');
@@ -198,7 +181,7 @@ export function WorkspaceHome({ membership, userName }: { membership: Membership
     staff: { title: 'کارهای امروز شما', description: 'وظایف باز و مواردی که برای تکمیل عملیات نیاز به اقدام دارند.' },
     supplier: { title: 'برنامه‌ی امروز تأمین‌کننده', description: 'کارهای واگذارشده و ظرفیت‌هایی که هنوز نیازمند پیگیری‌اند.' },
     driver: { title: 'برنامه‌ی امروز راننده', description: 'محموله‌های فعال و کارهای ثبت‌شده برای شما.' },
-    customer: { title: 'وضعیت سفارش‌های سازمان شما', description: 'سفارش‌های در جریان و فاکتورهای باز حساب سازمانی.' },
+    customer: { title: 'دسترسی محدود', description: 'نقش سفارش‌دهنده در نسخه فعلی فعال نیست؛ مدار روی مدیریت زنجیره تأمین متمرکز است.' },
   };
   const heading = roleHeading[role];
 
@@ -207,9 +190,11 @@ export function WorkspaceHome({ membership, userName }: { membership: Membership
       <div className="workspace-home-identity"><span className="workspace-home-mark"><LayoutDashboard size={22}/></span><div><span className="workspace-home-eyebrow">فضای کاری اختصاصی شما</span><h1>سلام {userName || 'همکار مدار'}</h1><p>{heading.title} · <b>{roleLabel[role]}</b></p></div></div>
       <p className="workspace-home-description">{heading.description}</p>
       <div className="workspace-home-meta"><span><ShieldCheck size={15}/> دسترسی بر پایه‌ی نقش تأییدشده</span><span><CalendarClock size={15}/> خلاصه‌ی به‌روزشونده از رکوردهای سیستم</span></div>
+      <button type="button" className="workspace-home-guide-button" onClick={() => setGuideOpen(true)}><BookOpen size={16}/> راهنمای قدم‌به‌قدم شروع کار</button>
     </section>
 
     <InAppNotifications membership={membership}/>
+    {guideOpen && <HelpGuide role={role} onClose={() => setGuideOpen(false)}/>} 
 
     <section className="workspace-home-section">
       <div className="workspace-home-section-heading"><div><span className="workspace-home-eyebrow">نگاه سریع</span><h2>بخش‌های پرکاربرد شما</h2></div><small>{links.length.toLocaleString('fa-IR')} میان‌بر</small></div>

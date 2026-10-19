@@ -1,5 +1,6 @@
 import { type FormEvent, useCallback, useEffect, useState } from 'react';
-import { MessageCircle, Plus, RefreshCw, Send, Users } from 'lucide-react';
+import { ArrowLeft, ClipboardCheck, MessageCircle, Plus, RefreshCw, Send, Users } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { api } from './lib/apiClient';
 import type { Membership } from './lib/types';
 import { PushNotificationSettings } from './PushNotificationSettings';
@@ -117,6 +118,11 @@ export function MedarConnect({ membership }: { membership: Membership }) {
       <button className="medar-connect-refresh" type="button" onClick={() => void loadConversations()} disabled={loading}><RefreshCw size={15}/> تازه‌سازی</button>
     </header>
     <PushNotificationSettings membership={membership}/>
+    {internal && <div className="medar-connect-mission-bridge">
+      <div className="medar-connect-mission-icon"><ClipboardCheck size={20}/></div>
+      <div className="medar-connect-mission-copy"><b>واگذاری و پیگیری مأموریت</b><span>برای تعیین مسئول، موعد و بررسی تکمیل کار وارد وظایف عملیاتی شو؛ تغییر وضعیت مأموریت برای افراد مجاز اعلان ایجاد می‌کند.</span></div>
+      <Link to="/app/operational-tasks">مدیریت مأموریت‌ها <ArrowLeft size={15}/></Link>
+    </div>}
     {error && <div className="medar-connect-alert" role="alert">{error}</div>}
     {notice && <div className="medar-connect-notice" role="status">{notice}</div>}
     <div className="medar-connect-layout">
