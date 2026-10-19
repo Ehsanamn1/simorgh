@@ -146,8 +146,8 @@ function AppShell() {
     const name = user.full_name.trim();
     const incomplete = !user.phone.trim() || !name || name.toLocaleLowerCase('en') === user.username.toLocaleLowerCase('en');
     if (incomplete) {
-      setProfileFirstName(name && name !== user.username ? name.split(/\\s+/)[0] : '');
-      setProfileLastName(name && name !== user.username ? name.split(/\\s+/).slice(1).join(' ') : '');
+      setProfileFirstName(name && name !== user.username ? name.split(/\s+/)[0] : '');
+      setProfileLastName(name && name !== user.username ? name.split(/\s+/).slice(1).join(' ') : '');
       setProfilePhone(user.phone || '');
       setProfileOpen(true);
     }
