@@ -3460,7 +3460,12 @@ app.get('/api/storage/:bucket',async c=>{
   if(object){object.writeHttpMetadata(headers);headers.set('Content-Type',String(row.content_type??object.httpMetadata?.contentType??'application/octet-stream'));return new Response(object.body,{status:200,headers});}
  }
  if(typeof row.content_base64==='string'&&row.content_base64.length){
-  try{return new Response(decodePrivateBytes(row.content_base64),{status:200,headers});}catch{return c.json({message:'محتوای فایل خصوصی قابل بازیابی نیست.'},500);}
+  try{
+   const decoded=decodePrivateBytes(row.content_base64);
+   const body=new ArrayBuffer(decoded.byteLength);
+   new Uint8Array(body).set(decoded);
+   return new Response(body,{status:200,headers});
+  }catch{return c.json({message:'محتوای فایل خصوصی قابل بازیابی نیست.'},500);}
  }
  return c.json({message:'فایل در فضای ذخیره‌سازی پیدا نشد.'},404);
 });
