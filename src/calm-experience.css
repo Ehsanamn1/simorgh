@@ -1892,14 +1892,14 @@ html[data-theme="dark"] .guide-backdrop{background:transparent}
   pointer-events: none !important;
   box-shadow: 0 8px 26px rgb(11 28 17 / 16%), 0 0 0 1px color-mix(in srgb, var(--obs-border) 80%, transparent) !important;
 }
-.guide-dialog:not(.show-global-manual) .guide-trust-note,
-.guide-dialog:not(.show-global-manual) .guide-section-title,
-.guide-dialog:not(.show-global-manual) .guide-mobile-tip,
-.guide-dialog:not(.show-global-manual) .guide-role-links,
-.guide-dialog:not(.show-global-manual) .guide-footer,
+.guide-dialog:not(.show-global-manual):not(.show-full-section-guide) .guide-trust-note,
+.guide-dialog:not(.show-global-manual):not(.show-full-section-guide) .guide-section-title,
+.guide-dialog:not(.show-global-manual):not(.show-full-section-guide) .guide-mobile-tip,
+.guide-dialog:not(.show-global-manual):not(.show-full-section-guide) .guide-role-links,
+.guide-dialog:not(.show-global-manual):not(.show-full-section-guide) .guide-footer,
 .guide-dialog:not(.show-global-manual) .guide-global-manual,
-.guide-dialog:not(.show-global-manual) .guide-heading-copy > .eyebrow,
-.guide-dialog:not(.show-global-manual) .guide-heading-copy > p:not(.guide-section-name) {
+.guide-dialog:not(.show-global-manual):not(.show-full-section-guide) .guide-heading-copy > .eyebrow,
+.guide-dialog:not(.show-global-manual):not(.show-full-section-guide) .guide-heading-copy > p:not(.guide-section-name) {
   display: none !important;
 }
 .guide-heading { gap: 6px !important; align-items: center !important; }
@@ -1940,6 +1940,39 @@ html[data-theme="dark"] .guide-backdrop{background:transparent}
 .guide-dialog.show-global-manual .guide-heading-copy > p:not(.guide-section-name) { display: block !important; }
 .guide-dialog.show-global-manual .guide-heading { display: flex !important; }
 .guide-dialog.show-global-manual .guide-global-manual { display: block !important; }
+
+.guide-dialog:not(.show-global-manual) .guide-step-expand {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-height: 24px !important;
+  padding: 4px 6px !important;
+  border: 1px solid var(--obs-border) !important;
+  border-radius: 7px !important;
+  background: var(--obs-surface-2) !important;
+  color: var(--obs-accent) !important;
+  font-size: 8px !important;
+  font-weight: 800 !important;
+  white-space: nowrap !important;
+  pointer-events: auto !important;
+}
+.guide-dialog.show-full-section-guide {
+  width: min(390px, calc(100vw - 24px)) !important;
+  max-height: 72dvh !important;
+  overflow: auto !important;
+  padding: 11px !important;
+  pointer-events: auto !important;
+}
+.guide-dialog.show-full-section-guide .guide-steps li { display: flex !important; }
+.guide-dialog.show-full-section-guide .guide-global-manual { display: none !important; }
+.guide-dialog.show-full-section-guide .guide-trust-note,
+.guide-dialog.show-full-section-guide .guide-section-title,
+.guide-dialog.show-full-section-guide .guide-mobile-tip,
+.guide-dialog.show-full-section-guide .guide-role-links,
+.guide-dialog.show-full-section-guide .guide-footer,
+.guide-dialog.show-full-section-guide .guide-heading-copy > .eyebrow,
+.guide-dialog.show-full-section-guide .guide-heading-copy > p:not(.guide-section-name) { display: block !important; }
+
 @media (min-width: 901px) {
   .nav-groups { gap: 4px !important; }
   .nav-group > summary { min-height: 35px !important; padding-block: 6px !important; }
@@ -1960,6 +1993,8 @@ html[data-theme="dark"] .guide-backdrop{background:transparent}
   .guide-section-name { font-size: 8px !important; }
   .guide-steps { margin-top: 3px !important; }
   .guide-steps li { font-size: 7.5px !important; }
+  .guide-dialog.show-full-section-guide { width: min(390px, calc(100vw - 16px)) !important; max-height: 70dvh !important; overflow: auto !important; pointer-events: auto !important; }
+  .guide-dialog.show-full-section-guide .guide-steps li { display: flex !important; }
   .guide-dialog.show-global-manual {
     position: relative !important;
     width: min(390px, calc(100vw - 16px)) !important;
