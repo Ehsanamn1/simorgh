@@ -23,6 +23,20 @@ type AuthUser = { id: string; username: string; phone: string; full_name: string
 type CurrentSession = { user: AuthUser; sessionId: string; tokenHash: string };
 
 const app = new Hono<AppEnv>();
+
+// The public-demo hostname is no longer an entry point to a demo UI.
+// Keep its health/read-only API behavior for compatibility, but route every
+// browser-facing path to the protected operational application.
+app.use('*', async (c, next) => {
+  if (c.env.MEDAR_MODE === 'public-demo' && !c.req.path.startsWith('/api/')) {
+    const target = new URL(c.req.url);
+    target.protocol = 'https:';
+    target.hostname = 'medar-ops.dengxiao445.workers.dev';
+    target.port = '';
+    return c.redirect(target.toString(), 302);
+  }
+  await next();
+});
 export type MedarClientPlatform = 'web' | 'android' | 'ios';
 export type MedarClientHeartbeat = { companyId: string; clientId: string; platform: MedarClientPlatform; appVersion: string };
 
