@@ -1316,7 +1316,6 @@ function MembersPage({membership,search}:{membership:Membership;search:string}) 
  const [loading,setLoading]=useState(true);
  const [error,setError]=useState('');
  const [notice,setNotice]=useState('');
- const [open,setOpen]=useState(false);
  const [accountOpen,setAccountOpen]=useState(false);
  const [busy,setBusy]=useState(false);
  const [accountName,setAccountName]=useState('');
@@ -1325,11 +1324,8 @@ function MembersPage({membership,search}:{membership:Membership;search:string}) 
  const [accountRole,setAccountRole]=useState<AppRole>('supplier');
  const [accountCustomerId,setAccountCustomerId]=useState('');
  const [accountSupplierId,setAccountSupplierId]=useState('');
- const [inviteRole,setInviteRole]=useState<AppRole>('staff');
- const [inviteCode,setInviteCode]=useState('');
- const [inviteLink,setInviteLink]=useState('');
  const [customers,setCustomers]=useState<Row[]>([]);const [suppliers,setSuppliers]=useState<Row[]>([]);
- const [inviteCustomerId,setInviteCustomerId]=useState('');const [inviteSupplierId,setInviteSupplierId]=useState('');const [resetSecret,setResetSecret]=useState('');
+const [resetSecret,setResetSecret]=useState('');
  const [permissionsMember,setPermissionsMember]=useState<Row|null>(null);
  const [modulePermissions,setModulePermissions]=useState<MemberModulePermission[]>([]);
  const [permissionsLoading,setPermissionsLoading]=useState(false);
@@ -1354,23 +1350,6 @@ function MembersPage({membership,search}:{membership:Membership;search:string}) 
   } finally {setLoading(false);}
  };
  useEffect(()=>{void load();},[membership.company_id]);
- const createInvite=async()=>{
-  setBusy(true);setError('');setNotice('');setInviteCode('');setInviteLink('');
-  try {
-   const result=await api.post<{inviteCode:string;expiresAt:string}>('/api/workspace/invites',{
-    companyId:membership.company_id,role:inviteRole,
-    customerId:inviteRole==='customer'?inviteCustomerId:null,
-    supplierId:inviteRole==='supplier'?inviteSupplierId:null,
-   });
-   setInviteCode(result.inviteCode);
-   const basePath = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL : import.meta.env.BASE_URL + '/';
-   setInviteLink(new URL(basePath + 'app/home?invite=' + encodeURIComponent(result.inviteCode) + '#signup', window.location.origin).toString());
-   setNotice('لینک دعوت ساخته شد؛ فرد با بازکردن آن مستقیماً فرم ساخت حساب را با دعوت آماده‌شده می‌بیند. لینک تا ۷ روز معتبر است.');
-   setOpen(false);
-  } catch(caught) {
-   setError(caught instanceof Error?caught.message:'ساخت کد دعوت ناموفق بود.');
-  } finally {setBusy(false);}
- };
  const createAccount=async()=>{
   setBusy(true);setError('');setNotice('');setResetSecret('');
   try{
@@ -1500,13 +1479,6 @@ function MembersPage({membership,search}:{membership:Membership;search:string}) 
    {accountRole==='supplier'&&<label className="full-span">پرونده تأمین‌کننده (اختیاری)<select value={accountSupplierId} onChange={e=>setAccountSupplierId(e.target.value)}><option value="">ساخت پرونده پس از تکمیل پروفایل کاربر</option>{suppliers.map(row=><option key={String(row.id)} value={String(row.id)}>{String(row.name)}</option>)}</select><small>اگر پرونده‌ای انتخاب نکنی، هنگام تکمیل پروفایل، پرونده اولیه به‌صورت خودکار ایجاد و به این حساب متصل می‌شود.</small></label>}
    {error&&<div className="form-error full-span">{error}</div>}
    <div className="modal-actions"><Button variant="soft" onClick={()=>setAccountOpen(false)} disabled={busy}>انصراف</Button><Button type="submit" disabled={busy||accountUsername.trim().length<3||accountPassword.length<12||(accountRole==='customer'&&!accountCustomerId)}>{busy?'در حال ساخت حساب…':'ساخت حساب و نمایش اطلاعات ورود'}</Button></div>
-  </form></Modal>}
-  {open&&<Modal title="ساخت کد دعوت" subtitle="این کد اجازه ثبت‌نام و اتصال به همین مجموعه را با نقش تعیین‌شده می‌دهد؛ کد نقش مالک تولید نمی‌کند." onClose={()=>setOpen(false)}><form className="record-form" onSubmit={e=>{e.preventDefault();void createInvite();}}>
-   <label className="full-span">نقش دسترسی<select value={inviteRole} onChange={e=>{setInviteRole(e.target.value as AppRole);setInviteCustomerId('');setInviteSupplierId('');}}>{options.map(r=><option value={r} key={r}>{roleLabel[r]}</option>)}</select></label>
-   {inviteRole==='customer'&&<label className="full-span">حساب مشتری<select required value={inviteCustomerId} onChange={e=>setInviteCustomerId(e.target.value)}><option value="">انتخاب مشتری همان مجموعه…</option>{customers.map(row=><option key={String(row.id)} value={String(row.id)}>{String(row.name)}</option>)}</select></label>}
-   {inviteRole==='supplier'&&<label className="full-span">حساب تأمین‌کننده<select required value={inviteSupplierId} onChange={e=>setInviteSupplierId(e.target.value)}><option value="">انتخاب تأمین‌کننده همان مجموعه…</option>{suppliers.map(row=><option key={String(row.id)} value={String(row.id)}>{String(row.name)}</option>)}</select></label>}
-   {error&&<div className="form-error full-span">{error}</div>}
-   <div className="modal-actions"><Button variant="soft" onClick={()=>setOpen(false)}>انصراف</Button><Button type="submit" disabled={busy||(inviteRole==='customer'&&!inviteCustomerId)||(inviteRole==='supplier'&&!inviteSupplierId)}>{busy?'در حال ساخت…':'ساخت کد دعوت'}</Button></div>
   </form></Modal>}
  </>;
 }
