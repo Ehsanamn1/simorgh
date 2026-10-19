@@ -14,8 +14,4 @@ ALTER TABLE public.medar_users
   ADD CONSTRAINT medar_users_requested_role_check
   CHECK (requested_role IN ('owner','admin','customer','supplier','driver','staff'));
 
--- The normalized key is authoritative for login and uniqueness. Backfill only
--- missing values, without rewriting usernames that may already be in use.
-UPDATE public.medar_users
-SET username_normalized = lower(btrim(username))
-WHERE username_normalized IS NULL OR btrim(username_normalized) = '';
+-- New accounts explicitly persist the normalized username in the Worker insert.
