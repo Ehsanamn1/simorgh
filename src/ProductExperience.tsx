@@ -136,7 +136,7 @@ export default function ProductExperience() {
     event.preventDefault();
     const cleanUsername = username.trim();
     const validUsername = cleanUsername.length >= 3 && cleanUsername.length <= 32 &&
-      /^[\\p{L}\\p{N}._-]+$/u.test(cleanUsername) && !/^[._-]|[._-]$/.test(cleanUsername);
+      /^[\p{L}\p{N}._-]+$/u.test(cleanUsername) && !/^[._-]|[._-]$/.test(cleanUsername);
     if (!validUsername) {
       setError('نام کاربری باید ۳ تا ۳۲ نویسه باشد و با نقطه یا خط تیره شروع یا تمام نشود.');
       return;
