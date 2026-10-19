@@ -2216,3 +2216,12 @@ html[data-theme="dark"] .guide-backdrop{background:transparent}
   }
 }
 @media (prefers-reduced-motion: reduce) { .medar-help-dialog { animation: none !important; } }
+
+
+/* Compact guide must hide supplemental content until the user expands it. */
+.medar-help-dialog:not(.show-full-section-guide):not(.show-global-manual) .medar-help-trust-note,
+.medar-help-dialog:not(.show-full-section-guide):not(.show-global-manual) .medar-help-section-title,
+.medar-help-dialog:not(.show-full-section-guide):not(.show-global-manual) .medar-help-global-manual,
+.medar-help-dialog:not(.show-full-section-guide):not(.show-global-manual) .medar-help-mobile-tip,
+.medar-help-dialog:not(.show-full-section-guide):not(.show-global-manual) .medar-help-role-links,
+.medar-help-dialog:not(.show-full-section-guide):not(.show-global-manual) .medar-help-footer { display: none !important; }
