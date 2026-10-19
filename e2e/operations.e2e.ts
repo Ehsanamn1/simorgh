@@ -403,6 +403,23 @@ test('owner access panel uses direct account creation without invitation codes',
   await expect(page.locator('.invite-code-panel')).toHaveCount(0);
 });
 
+test('desktop sidebar groups and module links use compact spacing', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await installIsolatedSession(page, 'owner');
+  await page.goto('/simorgh/app/home', { waitUntil: 'domcontentloaded' });
+  const groups = page.locator('.app-sidebar .nav-groups');
+  await expect(groups).toBeVisible();
+  const gap = await groups.evaluate(element => Number.parseFloat(getComputedStyle(element).rowGap));
+  expect(gap).toBeLessThanOrEqual(2);
+  const summary = page.locator('.app-sidebar .nav-group > summary').first();
+  await expect(summary).toBeVisible();
+  const summaryHeight = await summary.evaluate(element => element.getBoundingClientRect().height);
+  expect(summaryHeight).toBeLessThanOrEqual(31);
+  const link = page.locator('.app-sidebar .side-nav a').first();
+  const linkHeight = await link.evaluate(element => element.getBoundingClientRect().height);
+  expect(linkHeight).toBeLessThanOrEqual(30);
+});
+
 test('supplier directory remains readable from cache when offline', async ({ page }) => {
   await installIsolatedSession(page, 'owner');
   let apiReachable = true;
