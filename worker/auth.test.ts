@@ -12,6 +12,7 @@ import {
   FAILED_LOGIN_UPSERT_SQL,
   normalizeUsername,
   MEMBER_ACCOUNT_INSERT_SQL,
+  MEMBER_ACCOUNT_ALLOWED_ROLES,
   parseClientHeartbeat,
   resolveApiModeAccess,
   aggregateModulePermissionRows,
@@ -96,6 +97,11 @@ describe('production and partner-finance status workflows', () => {
 });
 
 describe('dedicated member account creation SQL', () => {
+  it('accepts every supported member role, including customer, and excludes owner self-provisioning', () => {
+    expect(MEMBER_ACCOUNT_ALLOWED_ROLES).toEqual(['admin', 'staff', 'supplier', 'driver', 'customer']);
+    expect(MEMBER_ACCOUNT_ALLOWED_ROLES).not.toContain('owner');
+  });
+
   it('writes both the canonical username and the required normalized username column', () => {
     expect(MEMBER_ACCOUNT_INSERT_SQL).toContain('insert into public.medar_users(username,username_normalized,display_name,password_hash,requested_role,account_status)');
     expect(MEMBER_ACCOUNT_INSERT_SQL).toContain("values($1,$1,$2,$3,$4,'active')");
