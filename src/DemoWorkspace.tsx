@@ -114,7 +114,7 @@ const settlementRows: DemoRow[] = [
   { id: 'SET-087', primary: 'تسویه تأمین‌کننده', secondary: 'دوره نیمه اول مهر · سند نمونه', value: '۴۸ میلیون تومان', status: 'منتظر تطبیق', tone: 'warn', date: 'دوره نمونه' },
 ];
 const accountRows: DemoRow[] = [
-  { id: 'ACC-001', primary: 'حساب سازمانی نمونه', secondary: 'نمایش معرفی مدار · بدون اتصال به حساب واقعی', value: 'نمونه', status: 'فقط‌خواندنی', tone: 'neutral', date: 'بدون اطلاعات واقعی' },
+  { id: 'ACC-001', primary: 'حساب سازمانی نمونه', secondary: 'نمایش معرفی صحرا · بدون اتصال به حساب واقعی', value: 'نمونه', status: 'فقط‌خواندنی', tone: 'neutral', date: 'بدون اطلاعات واقعی' },
 ];
 
 const rowsByPage: Record<string, DemoRow[]> = {
@@ -251,7 +251,7 @@ export default function DemoWorkspace() {
       {sidebarOpen && <button className="demo-sidebar-scrim" aria-label="بستن منوی ناوبری" onClick={() => setSidebarOpen(false)} />}
       <aside className={`demo-sidebar ${sidebarOpen ? 'is-open' : ''}`}>
         <div className="demo-brand-row"><MedarLogo/><button className="demo-mobile-close" onClick={() => setSidebarOpen(false)} aria-label="بستن منو"><X size={19}/></button></div>
-        <div className="demo-workspace-switch"><span className="demo-workspace-avatar"><Building2 size={19}/></span><span><b>مجموعه نمونه مدار</b><small>فضای کاری نمایشی</small></span><ChevronLeft size={15}/></div>
+        <div className="demo-workspace-switch"><span className="demo-workspace-avatar"><Building2 size={19}/></span><span><b>مجموعه نمونه صحرا</b><small>فضای کاری نمایشی</small></span><ChevronLeft size={15}/></div>
         <div className="demo-env-badge"><span className="demo-env-dot"/>دموی قابل ارائه <span className="demo-env-ltr">PREVIEW</span></div>
         <nav className="demo-nav" aria-label="ناوبری فضای کاری">
           {groupOrder.map((group) => {
@@ -269,7 +269,7 @@ export default function DemoWorkspace() {
         </nav>
         <div className="demo-sidebar-foot">
           <div className="demo-side-health"><span className={`demo-health-dot ${health}`}/><div><b>{health === 'online' ? 'سرویس اصلی آنلاین' : health === 'checking' ? 'در حال بررسی اتصال' : 'سرویس بررسی نشد'}</b><small>{health === 'online' ? 'Worker و پایگاه‌داده پاسخ می‌دهند' : health === 'checking' ? 'بررسی واقعی API' : 'نمایش نمونه مستقل از API'}</small></div></div>
-          <div className="demo-profile"><span className="demo-profile-avatar">م</span><span><b>دموی معرفی مدار</b><small>دسترسی فقط‌خواندنی</small></span><ShieldCheck size={17}/></div>
+          <div className="demo-profile"><span className="demo-profile-avatar">م</span><span><b>دموی معرفی صحرا</b><small>دسترسی فقط‌خواندنی</small></span><ShieldCheck size={17}/></div>
         </div>
       </aside>
 
@@ -277,7 +277,7 @@ export default function DemoWorkspace() {
         <header className="demo-topbar">
           <div className="demo-topbar-title">
             <button className="demo-menu-button" onClick={() => setSidebarOpen(true)} aria-label="بازکردن منوی ناوبری"><Menu size={20}/></button>
-            <div className="demo-breadcrumb"><span>مدار</span><ChevronLeft size={14}/><b>{page.label}</b></div>
+            <div className="demo-breadcrumb"><span>صحرا</span><ChevronLeft size={14}/><b>{page.label}</b></div>
           </div>
           <div className="demo-topbar-tools">
             <label className="demo-search"><Search size={17}/><input aria-label="جست‌وجو در داده‌های نمونه" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="جست‌وجو در این بخش…"/><kbd>⌘ K</kbd></label>
@@ -292,14 +292,14 @@ export default function DemoWorkspace() {
           <section className="demo-preview-notice" role="status">
             <span className="demo-preview-notice-icon"><ShieldCheck size={18}/></span>
             <div><b>محیط نمایشی — داده‌های این صفحه نمونه هستند</b><p>این نسخه برای معرفی محصول است؛ ثبت سفارش، پرداخت، حذف و هرگونه تغییر در اطلاعات عملیاتی عمداً غیرفعال است.</p></div>
-            <a className="demo-ops-link" href="https://medar-ops.dengxiao445.workers.dev/app/command" aria-label="ورود به فضای عملیاتی مدار"><ShieldCheck size={15}/><span>ورود عملیاتی</span><ArrowLeft size={13}/></a>
+            <a className="demo-ops-link" href="https://medar-ops.dengxiao445.workers.dev/app/command" aria-label="ورود به فضای عملیاتی صحرا"><ShieldCheck size={15}/><span>ورود عملیاتی</span><ArrowLeft size={13}/></a>
             <span className="demo-preview-chip">READ ONLY</span>
           </section>
 
           {activePage === 'command' ? (
             <>
               <div className="demo-page-heading">
-                <div><span className="demo-eyebrow"><span/>MEDAR / OPERATIONS OVERVIEW</span><h1>عملیات، در یک نگاه.</h1><p>نمایی یکپارچه از سفارش، تولید، موجودی و تحویل؛ بدون جابه‌جایی بین فایل‌ها و پیام‌ها.</p></div>
+                <div><span className="demo-eyebrow"><span/>SAHRA / OPERATIONS OVERVIEW</span><h1>عملیات، در یک نگاه.</h1><p>نمایی یکپارچه از سفارش، تولید، موجودی و تحویل؛ بدون جابه‌جایی بین فایل‌ها و پیام‌ها.</p></div>
                 <button className="demo-secondary-button" onClick={() => selectPage('orders')}>رفتن به سفارش‌ها <ArrowLeft size={16}/></button>
               </div>
               <section className="demo-stats-grid" aria-label="شاخص‌های نمونه">
@@ -313,7 +313,7 @@ export default function DemoWorkspace() {
               <section className="demo-quick-access" aria-label="دسترسی سریع">
                 <div className="demo-quick-heading">
                   <span className="demo-quick-heading-mark"><Sparkles size={17}/></span>
-                  <div><b>دسترسی سریع</b><small>میانبرهای اصلی عملیات مدار</small></div>
+                  <div><b>دسترسی سریع</b><small>میانبرهای اصلی عملیات صحرا</small></div>
                   <span className="demo-quick-count">۴ میانبر</span>
                 </div>
                 <div className="demo-quick-grid">
@@ -355,7 +355,7 @@ export default function DemoWorkspace() {
           ) : (
             <>
               <div className="demo-page-heading">
-                <div><span className="demo-eyebrow"><span/>{page.group.toUpperCase()} / MEDAR</span><h1>{page.label}</h1><p>{page.description}</p></div>
+                <div><span className="demo-eyebrow"><span/>{page.group.toUpperCase()} / SAHRA</span><h1>{page.label}</h1><p>{page.description}</p></div>
                 <span className="demo-read-only-badge"><ShieldCheck size={15}/> فقط‌خواندنی</span>
               </div>
               <div className="demo-module-summary">
@@ -370,7 +370,7 @@ export default function DemoWorkspace() {
             </>
           )}
 
-          <footer className="demo-footer"><span><MedarLogo compact/> مدار <i/> دموی تعاملی</span><span>{lastChecked ? `آخرین بررسی API: ${new Intl.DateTimeFormat('fa-IR', { hour: '2-digit', minute: '2-digit' }).format(lastChecked)}` : 'در انتظار بررسی API'} <i/> مقادیر عملیاتی، نمونه هستند</span></footer>
+          <footer className="demo-footer"><span><MedarLogo compact/> صحرا <i/> دموی تعاملی</span><span>{lastChecked ? `آخرین بررسی API: ${new Intl.DateTimeFormat('fa-IR', { hour: '2-digit', minute: '2-digit' }).format(lastChecked)}` : 'در انتظار بررسی API'} <i/> مقادیر عملیاتی، نمونه هستند</span></footer>
         </div>
       </main>
       <nav className="demo-mobile-bottom-nav" aria-label="ناوبری اصلی موبایل">

@@ -3,46 +3,46 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#F4F7F2" />
+    <meta name="theme-color" content="#1B2A3A" />
     <script>
       try {
         var savedTheme = localStorage.getItem('simorgh-theme') === 'dark' ? 'dark' : 'light';
         document.documentElement.dataset.theme = savedTheme;
         document.documentElement.style.colorScheme = savedTheme;
-        document.querySelector('meta[name="theme-color"]').content = savedTheme === 'light' ? '#F4F7F2' : '#171A20';
+        document.querySelector('meta[name="theme-color"]').content = savedTheme === 'light' ? '#F3ECE6' : '#1B2A3A';
       } catch (e) { document.documentElement.dataset.theme = 'light'; document.documentElement.style.colorScheme = 'light'; }
     </script>
     <meta name="color-scheme" content="light dark" />
-    <meta name="description" content="مدار — سامانه‌ی یکپارچه‌ی مدیریت مزرعه، سفارش، عملیات، مالی و ارسال." />
-    <title>مدار | مدیریت یکپارچه مزرعه و عملیات</title>
+    <meta name="description" content="صحرا — راهبران زنجیره ارزش؛ سامانه یکپارچه مدیریت تأمین، تولید، انبار، لجستیک و امور مالی." />
+    <title>صحرا | راهبران زنجیره ارزش</title>
     <link rel="manifest" href="%BASE_URL%manifest.webmanifest" />
-    <link rel="icon" type="image/svg+xml" href="%BASE_URL%medar-icon.svg" />
+    <link rel="icon" type="image/svg+xml" href="%BASE_URL%sahra-icon.svg" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
     <style>
-      html,body{margin:0;min-width:320px;min-height:100%;background:#F4F7F2;color:#26372C;font-family:Vazirmatn,Tahoma,sans-serif}
-      #app-boot-screen{position:fixed;inset:0;z-index:99999;display:grid;place-items:center;padding:24px;background:radial-gradient(ellipse at 50% 20%,rgba(39,103,73,.08),transparent 42%),#F4F7F2;transition:opacity .18s ease}
-      .boot-card{width:min(100%,380px);box-sizing:border-box;padding:28px;border:1px solid #D4E0D1;border-radius:20px;background:#FFFFFF;text-align:center;box-shadow:0 24px 80px rgba(0,0,0,.3)}
+      html,body{margin:0;min-width:320px;min-height:100%;background:#F3ECE6;color:#242D37;font-family:Vazirmatn,Tahoma,sans-serif}
+      #app-boot-screen{position:fixed;inset:0;z-index:99999;display:grid;place-items:center;padding:24px;background:radial-gradient(ellipse at 50% 20%,rgba(143,111,82,.09),transparent 42%),#F3ECE6;transition:opacity .18s ease}
+      .boot-card{width:min(100%,380px);box-sizing:border-box;padding:28px;border:1px solid #DCD3CA;border-radius:20px;background:#FFFFFF;text-align:center;box-shadow:0 24px 80px rgba(0,0,0,.3)}
       .boot-mark{display:grid;place-items:center;width:54px;height:54px;margin:0 auto 16px;border:0;border-radius:16px;background:transparent;overflow:hidden}.boot-mark img{display:block;width:54px;height:54px;object-fit:contain}
       .boot-brand{font-size:21px;font-weight:850;letter-spacing:-.03em}
-      .boot-brand-sub{display:block;margin-top:2px;color:#276749;font-size:11px}
-      .boot-spinner{width:23px;height:23px;margin:22px auto 14px;border:2px solid #D4E0D1;border-top-color:#276749;border-radius:50%;animation:boot-spin .8s linear infinite}
-      .boot-wait{color:#607265;font-size:11px;line-height:1.9}
+      .boot-brand-sub{display:block;margin-top:2px;color:#8F6F52;font-size:11px}
+      .boot-spinner{width:23px;height:23px;margin:22px auto 14px;border:2px solid #DCD3CA;border-top-color:#8F6F52;border-radius:50%;animation:boot-spin .8s linear infinite}
+      .boot-wait{color:#77766F;font-size:11px;line-height:1.9}
       .boot-failure{display:none;margin-top:14px}
-      .boot-failure p{color:#607265;font-size:11px;line-height:1.9}
-      .boot-failure button{width:100%;min-height:44px;border:1px solid #276749;border-radius:11px;background:#276749;color:#FFFFFF;font:inherit;font-size:12px;font-weight:850;cursor:pointer}
+      .boot-failure p{color:#77766F;font-size:11px;line-height:1.9}
+      .boot-failure button{width:100%;min-height:44px;border:1px solid #8F6F52;border-radius:11px;background:#8F6F52;color:#FFFFFF;font:inherit;font-size:12px;font-weight:850;cursor:pointer}
       #app-boot-screen.has-error .boot-spinner,#app-boot-screen.has-error .boot-wait{display:none}
       #app-boot-screen.has-error .boot-failure{display:block}
-      html[data-theme="light"],html[data-theme="light"] body{background:#F4F7F2;color:#26372C}
-      html[data-theme="light"] #app-boot-screen{background:radial-gradient(ellipse at 50% 20%,rgba(39,103,73,.08),transparent 42%),#F4F7F2}
-      html[data-theme="light"] .boot-card{border-color:#D4E0D1;background:#fff;box-shadow:0 24px 80px rgba(34,68,45,.08)}
-      html[data-theme="light"] .boot-brand-sub{color:#276749}
-      html[data-theme="light"] .boot-spinner{border-color:#D4E0D1;border-top-color:#276749}
-      html[data-theme="light"] .boot-wait,html[data-theme="light"] .boot-failure p{color:#607265}
-      html[data-theme="light"] .boot-failure button{border-color:#276749;background:#276749;color:#fff}
+      html[data-theme="light"],html[data-theme="light"] body{background:#F3ECE6;color:#242D37}
+      html[data-theme="light"] #app-boot-screen{background:radial-gradient(ellipse at 50% 20%,rgba(143,111,82,.09),transparent 42%),#F3ECE6}
+      html[data-theme="light"] .boot-card{border-color:#DCD3CA;background:#fff;box-shadow:0 24px 80px rgba(34,68,45,.08)}
+      html[data-theme="light"] .boot-brand-sub{color:#8F6F52}
+      html[data-theme="light"] .boot-spinner{border-color:#DCD3CA;border-top-color:#8F6F52}
+      html[data-theme="light"] .boot-wait,html[data-theme="light"] .boot-failure p{color:#77766F}
+      html[data-theme="light"] .boot-failure button{border-color:#8F6F52;background:#8F6F52;color:#fff}
       html[data-theme="dark"],html[data-theme="dark"] body{background:#171A20;color:#EDF0F5}
       html[data-theme="dark"] #app-boot-screen{background:radial-gradient(ellipse at 50% 20%,rgba(167,187,211,.08),transparent 42%),#171A20}
       html[data-theme="dark"] .boot-card{border-color:#3B4351;background:#20242C;box-shadow:0 24px 80px rgba(0,0,0,.3)}
@@ -57,8 +57,8 @@
   <body>
     <div id="app-boot-screen" role="status" aria-live="polite">
       <div class="boot-card">
-        <div class="boot-mark" aria-hidden="true"><img src="%BASE_URL%medar-icon.svg" alt="" width="54" height="54" /></div>
-        <div class="boot-brand">مدار<span class="boot-brand-sub">مدیریت یکپارچه عملیات</span></div>
+        <div class="boot-mark" aria-hidden="true"><img src="%BASE_URL%sahra-icon.svg" alt="" width="54" height="54" /></div>
+        <div class="boot-brand">صحرا<span class="boot-brand-sub">SAHRA VALUE CHAIN LEADERS</span></div>
         <div class="boot-spinner" aria-hidden="true"></div>
         <div class="boot-wait">در حال راه‌اندازی محیط عملیاتی…</div>
         <div class="boot-failure" role="alert">

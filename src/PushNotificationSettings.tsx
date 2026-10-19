@@ -70,7 +70,7 @@ export function PushNotificationSettings({ membership }: { membership: Membershi
     <div className="push-notification-icon">{subscription?<Bell size={17}/>:<ShieldCheck size={17}/>}</div>
     <div className="push-notification-copy">
       <b>اعلان روی گوشی و مرورگر</b>
-      {loading?<p>در حال بررسی پشتیبانی دستگاه…</p>:!supported()?<p>این مرورگر اعلان Push را پشتیبانی نمی‌کند؛ اعلان‌های داخل مدار همچنان در دسترس‌اند.</p>:!config?.enabled?<p>ارسال خارجی هنوز روی محیط عملیاتی پیکربندی نشده است؛ این وضعیت به‌معنی فعال‌بودن Push نیست.</p>:permission==='denied'?<p>اجازهٔ اعلان رد شده است. از تنظیمات سایت در مرورگر اجازه را فعال کن.</p>:subscription?<p>این دستگاه مشترک اعلان‌هاست. اعلان‌ها بر اساس عضویت و دسترسی همین حساب ارسال می‌شوند.</p>:<p>با اجازهٔ شما، اعلان‌های مهم مدار روی این دستگاه نمایش داده می‌شوند.</p>}
+      {loading?<p>در حال بررسی پشتیبانی دستگاه…</p>:!supported()?<p>این مرورگر اعلان Push را پشتیبانی نمی‌کند؛ اعلان‌های داخل صحرا همچنان در دسترس‌اند.</p>:!config?.enabled?<p>ارسال خارجی هنوز روی محیط عملیاتی پیکربندی نشده است؛ این وضعیت به‌معنی فعال‌بودن Push نیست.</p>:permission==='denied'?<p>اجازهٔ اعلان رد شده است. از تنظیمات سایت در مرورگر اجازه را فعال کن.</p>:subscription?<p>این دستگاه مشترک اعلان‌هاست. اعلان‌ها بر اساس عضویت و دسترسی همین حساب ارسال می‌شوند.</p>:<p>با اجازهٔ شما، اعلان‌های مهم صحرا روی این دستگاه نمایش داده می‌شوند.</p>}
       {error&&<p className="push-notification-error" role="alert">{error}</p>}
       {notice&&<p className="push-notification-notice" role="status">{notice}</p>}
     </div>

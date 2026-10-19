@@ -132,7 +132,7 @@ const types: Option[] = [
   {value:'other',label:'سایر محصول'},
 ];
 const siteTypes: Option[] = [
-  {value:'crop',label:'کشت زراعی'},{value:'livestock',label:'دامداری'},
+  {value:'crop',label:'کشت زراعی'},{value:'livestock',label:'داصحرای'},
   {value:'poultry',label:'پرورش طیور'},{value:'dairy',label:'واحد لبنی'},
   {value:'aquaculture',label:'آبزی‌پروری'},{value:'greenhouse',label:'گلخانه'},
   {value:'orchard',label:'باغ'},{value:'apiary',label:'زنبورستان'},
@@ -194,7 +194,7 @@ export function OperationsWorkspacePage({kind,membership,search}:{kind:Operation
   const [taskView,setTaskView]=useState<'active'|'completed'>('active');
 
   const load=async()=>{
-    if(!dataApi){setError('اتصال API مدار در این build تنظیم نشده است.');setLoading(false);return;}
+    if(!dataApi){setError('اتصال API صحرا در این build تنظیم نشده است.');setLoading(false);return;}
     setLoading(true);setError('');
     const [main,suppliers,sites,batches,templates,agreements,entries,products]=await Promise.all([
       dataApi.from(cfg.table).select('*').eq('company_id',membership.company_id).order('created_at',{ascending:false}).limit(200),
@@ -447,19 +447,19 @@ export function OperationsWorkspacePage({kind,membership,search}:{kind:Operation
     setNotice(success);await load();
   };
   const updateRow=(table:string,id:unknown,patch:Record<string,unknown>)=>{
-    if(!dataApi)return Promise.resolve({error:{message:'API مدار تنظیم نشده است.'}});
+    if(!dataApi)return Promise.resolve({error:{message:'API صحرا تنظیم نشده است.'}});
     return dataApi.from(table).update(patch).eq('company_id',membership.company_id).eq('id',String(id));
   };
   const assigned=(row:Row)=>membership.role==='supplier'
     ? String(row.assignee_supplier_id)===String(membership.supplier_id)
     : String(row.assignee_user_id)===String(membership.user_id)||manager;
   const startTask=(row:Row)=>action(
-    ()=>dataApi?dataApi.rpc('start_operational_task',{_task:String(row.id)}):Promise.resolve({error:{message:'API مدار تنظیم نشده است.'}}),
+    ()=>dataApi?dataApi.rpc('start_operational_task',{_task:String(row.id)}):Promise.resolve({error:{message:'API صحرا تنظیم نشده است.'}}),
     'وظیفه شروع شد.'
   );
   const submitTask=(row:Row)=>{
     const note=window.prompt('یادداشت تکمیل کار (اختیاری):')??'';
-    return action(()=>dataApi?dataApi.rpc('submit_operational_task',{_task:String(row.id),_completion_note:note}):Promise.resolve({error:{message:'API مدار تنظیم نشده است.'}}),'وظیفه برای بازبینی ارسال شد.');
+    return action(()=>dataApi?dataApi.rpc('submit_operational_task',{_task:String(row.id),_completion_note:note}):Promise.resolve({error:{message:'API صحرا تنظیم نشده است.'}}),'وظیفه برای بازبینی ارسال شد.');
   };
   const reviewTask=async(row:Row,decision:'approved'|'rejected')=>{
     const note=window.prompt(decision==='approved'?'یادداشت تأیید (اختیاری):':'علت رد و اقدام اصلاحی:')??'';
@@ -537,8 +537,8 @@ export function OperationsWorkspacePage({kind,membership,search}:{kind:Operation
     const first=refs.agreements.find(a=>['active','suspended','expired','terminated'].includes(String(a.status)));
     setDraft({agreement_id:first?.id?String(first.id):''});setPeriodStart('');setPeriodEnd('');setError('');setOpenForm(true);
   };
-  const refreshPeriod=(row:Row)=>void action(()=>dataApi?dataApi.rpc('refresh_partner_settlement_period',{_period:String(row.id)}):Promise.resolve({error:{message:'API مدار تنظیم نشده است.'}}),'محاسبات دوره از دفتر مالی بازخوانی شد.');
-  const approvePeriod=(row:Row)=>void action(()=>dataApi?dataApi.rpc('approve_partner_settlement_period',{_period:String(row.id)}):Promise.resolve({error:{message:'API مدار تنظیم نشده است.'}}),'دوره تسویه تأیید و قفل شد.');
+  const refreshPeriod=(row:Row)=>void action(()=>dataApi?dataApi.rpc('refresh_partner_settlement_period',{_period:String(row.id)}):Promise.resolve({error:{message:'API صحرا تنظیم نشده است.'}}),'محاسبات دوره از دفتر مالی بازخوانی شد.');
+  const approvePeriod=(row:Row)=>void action(()=>dataApi?dataApi.rpc('approve_partner_settlement_period',{_period:String(row.id)}):Promise.resolve({error:{message:'API صحرا تنظیم نشده است.'}}),'دوره تسویه تأیید و قفل شد.');
   const payPeriod=async(e:FormEvent<HTMLFormElement>)=>{
     e.preventDefault();if(!dataApi||!paymentPeriod)return;
     setBusy(true);setError('');setNotice('');

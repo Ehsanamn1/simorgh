@@ -7,7 +7,7 @@ async function installIsolatedSession(page: Page, role: 'owner' | 'supplier' | '
   const companyId = '00000000-0000-4000-8000-000000000022';
   const supplierId = '00000000-0000-4000-8000-000000000033';
   const customerId = '00000000-0000-4000-8000-000000000055';
-  const fullName = role === 'owner' ? 'مالک آزمایشی مدار' : role === 'supplier' ? 'تأمین‌کننده آزمایشی مدار' : role === 'driver' ? 'راننده آزمایشی مدار' : role === 'unprovisioned' ? 'کاربر بدون عضویت مدار' : 'مشتری آزمایشی مدار';
+  const fullName = role === 'owner' ? 'مالک آزمایشی صحرا' : role === 'supplier' ? 'تأمین‌کننده آزمایشی صحرا' : role === 'driver' ? 'راننده آزمایشی صحرا' : role === 'unprovisioned' ? 'کاربر بدون عضویت صحرا' : 'مشتری آزمایشی صحرا';
   const username = role + '_test';
   const user = { id: userId, username, phone: '+989120000011', full_name: fullName };
   const memberships = role === 'unprovisioned' ? [] : [{
@@ -16,7 +16,7 @@ async function installIsolatedSession(page: Page, role: 'owner' | 'supplier' | '
     customer_id: role === 'customer' ? customerId : null,
     supplier_id: role === 'supplier' ? supplierId : null,
     active: true,
-    company: { name: 'شرکت آزمایشی مدار' },
+    company: { name: 'شرکت آزمایشی صحرا' },
   }];
 
   // The application session and workspace reads are simulated at the HTTP boundary.
@@ -57,7 +57,7 @@ test('manager workspace retains operations and captures a real rendered control-
   await installIsolatedSession(page, 'owner');
   await page.goto('/simorgh/app', { waitUntil: 'domcontentloaded' });
     await expect(page).toHaveURL(/home$/);
-  await expect(page.getByRole('heading', { name: /سلام مالک آزمایشی مدار/ })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /سلام مالک آزمایشی صحرا/ })).toBeVisible();
   await expect(page.locator('.workspace-home-hero')).toContainText('کنترل امروز کسب‌وکار');
   await expect(page.getByRole('heading', { name: 'بخش‌های پرکاربرد شما' })).toBeVisible();
   await expect(page.locator('.workspace-home-link')).toHaveCount(6);
@@ -91,7 +91,7 @@ test('manager workspace retains operations and captures a real rendered control-
       await page.goto('/simorgh/app/home', { waitUntil: 'domcontentloaded' });
     }
     await expect(page).toHaveURL(/home$/);
-    await expect(page.getByRole('heading', { name: /سلام مالک آزمایشی مدار/ })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /سلام مالک آزمایشی صحرا/ })).toBeVisible();
   }
   const dimensions = await page.evaluate(() => ({ viewport: innerWidth, document: document.documentElement.scrollWidth, body: document.body.scrollWidth }));
   expect(dimensions.document).toBeLessThanOrEqual(dimensions.viewport);
@@ -460,7 +460,7 @@ test('supplier workspace keeps manager-only routes out of the allowed menu', asy
     await page.getByRole('button', { name: 'بازکردن منو' }).click();
     await expect(page.locator('.app-sidebar')).toHaveClass(/open/);
   }
-  await expect(page.getByRole('heading', { name: /سلام تأمین‌کننده آزمایشی مدار/ })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /سلام تأمین‌کننده آزمایشی صحرا/ })).toBeVisible();
   await expect(page.locator('.workspace-home-hero')).toContainText('برنامه‌ی امروز تأمین‌کننده');
   await expect(page.locator('.workspace-home-link')).toHaveCount(6);
   expect(await page.locator('.workspace-home-action').count()).toBeLessThanOrEqual(5);
@@ -548,7 +548,7 @@ test('driver lands in assigned shipments and does not get customer or manager na
   await installIsolatedSession(page, 'driver');
   await page.goto('/simorgh/app', { waitUntil: 'domcontentloaded' });
     await expect(page).toHaveURL(/home$/);
-  await expect(page.getByRole('heading', { name: /سلام راننده آزمایشی مدار/ })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /سلام راننده آزمایشی صحرا/ })).toBeVisible();
   await expect(page.locator('.workspace-home-hero')).toContainText('برنامه‌ی امروز راننده');
   await expect(page.locator('.workspace-home-link').filter({ hasText: 'محموله‌های من' })).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath('driver-role-home-viewport.png') });
@@ -663,8 +663,8 @@ test('owner can configure module access for a staff member and restore inherited
     await route.fulfill({
       status: 200, contentType: 'application/json',
       body: JSON.stringify({ members: [
-        { membership_id: '00000000-0000-4000-8000-000000000046', company_id: companyId, user_id: '00000000-0000-4000-8000-000000000011', role: 'owner', active: true, username: 'owner_test', full_name: 'مالک آزمایشی مدار', phone: null, created_at: new Date().toISOString() },
-        { membership_id: memberId, company_id: companyId, user_id: staffUserId, role: 'staff', active: true, username: 'staff_test', full_name: 'کارشناس آزمایشی مدار', phone: null, created_at: new Date().toISOString() },
+        { membership_id: '00000000-0000-4000-8000-000000000046', company_id: companyId, user_id: '00000000-0000-4000-8000-000000000011', role: 'owner', active: true, username: 'owner_test', full_name: 'مالک آزمایشی صحرا', phone: null, created_at: new Date().toISOString() },
+        { membership_id: memberId, company_id: companyId, user_id: staffUserId, role: 'staff', active: true, username: 'staff_test', full_name: 'کارشناس آزمایشی صحرا', phone: null, created_at: new Date().toISOString() },
       ] }),
     });
   });
@@ -842,8 +842,8 @@ test('settings centralizes password, real connection health, and light/dark pref
   }));
 
   await page.goto('/simorgh/app/settings', { waitUntil: 'domcontentloaded' });
-  await expect(page.getByRole('heading', { name: 'تنظیمات مدار' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'اتصال مدار' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'تنظیمات صحرا' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'اتصال صحرا' })).toBeVisible();
   await expect(page.getByText('پاسخ‌گو')).toBeVisible();
   await expect(page.getByRole('button', { name: 'خروج از حساب' })).toBeVisible();
   await expect(page.getByText('دستگاه‌های شناخته‌شده')).toBeVisible();
@@ -888,7 +888,7 @@ test('closing contextual help persists across navigation until explicitly reopen
   await expect(page).not.toHaveURL(/\/simorgh\/app\/members$/);
   await expect(guide).toHaveCount(0);
 
-  const helpButton = page.getByRole('button', { name: 'راهنمای مدار' });
+  const helpButton = page.getByRole('button', { name: 'راهنمای صحرا' });
   if (await helpButton.isVisible()) {
     await helpButton.click();
     await expect(guide).toBeVisible();

@@ -31,7 +31,7 @@ test('public demo is navigable, searchable and clearly read-only', async ({ page
     noticeTitle: getComputedStyle(document.querySelector('.demo-preview-notice b')!).color,
     metricText: getComputedStyle(document.querySelector('.demo-stat-value')!).color,
   }));
-  expect(lightPalette.bodyBackground).toBe('rgb(244, 247, 247)');
+  expect(lightPalette.bodyBackground).toBe('rgb(243, 236, 230)');
   expect(lightPalette.noticeTitle).not.toBe(lightPalette.bodyBackground);
   expect(lightPalette.metricText).not.toBe(lightPalette.bodyBackground);
 
@@ -41,7 +41,7 @@ test('public demo is navigable, searchable and clearly read-only', async ({ page
   await page.getByRole('button', { name: 'تغییر حالت نمایش' }).click();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   await expect.poll(() => page.evaluate(() => localStorage.getItem('simorgh-theme'))).toBe('dark');
-  const operationalEntry = page.getByRole('link', { name: 'ورود به فضای عملیاتی مدار' });
+  const operationalEntry = page.getByRole('link', { name: 'ورود به فضای عملیاتی صحرا' });
   await expect(operationalEntry).toBeVisible();
   await expect(operationalEntry).toHaveAttribute('href', 'https://medar-ops.dengxiao445.workers.dev/app/command');
 
@@ -60,7 +60,7 @@ test('public demo is navigable, searchable and clearly read-only', async ({ page
   expect(dimensions.document).toBeLessThanOrEqual(dimensions.viewport);
   expect(dimensions.body).toBeLessThanOrEqual(dimensions.viewport);
   expect(errors).toEqual([]);
-  await page.screenshot({ path: testInfo.outputPath('medar-public-demo.png'), fullPage: true });
+  await page.screenshot({ path: testInfo.outputPath('sahra-public-demo.png'), fullPage: true });
 });
 
 test('mobile demo has four bottom navigation items, all key modules, and working shortcuts', async ({ page }) => {
@@ -81,7 +81,7 @@ test('mobile demo has four bottom navigation items, all key modules, and working
   await expect(bottomNav.locator('button')).toHaveCount(4);
   await expect(page.locator('.demo-quick-access')).toBeVisible();
   await expect(page.locator('.demo-quick-action')).toHaveCount(4);
-  await expect(page.getByRole('link', { name: 'ورود به فضای عملیاتی مدار' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'ورود به فضای عملیاتی صحرا' })).toBeVisible();
 
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
   const lightMobileDimensions = await page.evaluate(() => ({ viewport: innerWidth, document: document.documentElement.scrollWidth, body: document.body.scrollWidth }));
@@ -110,4 +110,38 @@ test('mobile demo has four bottom navigation items, all key modules, and working
   expect(sizes.document).toBeLessThanOrEqual(sizes.viewport);
   expect(sizes.body).toBeLessThanOrEqual(sizes.viewport);
   expect(errors).toEqual([]);
+});
+
+
+test('Sahra identity and responsive layout stay consistent across reference viewports', async ({ page }) => {
+  await page.route('**/api/health', route => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({ ok: true, database: true, service: 'medar-api' }),
+  }));
+  await page.route('**/api/auth/me', route => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({ user: null, memberships: [] }),
+  }));
+  await page.goto('/simorgh/demo', { waitUntil: 'domcontentloaded' });
+  await expect(page.locator('.demo-workspace .sahra-lockup').first()).toBeVisible();
+  await expect(page.locator('.demo-workspace .brand-words b')).toContainText('صحرا');
+  await expect(page).toHaveTitle(/صحرا \| راهبران زنجیره ارزش/);
+
+  for (const viewport of [
+    { width: 320, height: 720 },
+    { width: 393, height: 852 },
+    { width: 768, height: 1024 },
+    { width: 1024, height: 768 },
+    { width: 1440, height: 900 },
+  ]) {
+    await page.setViewportSize(viewport);
+    await expect(page.locator('.demo-workspace')).toBeVisible();
+    const dimensions = await page.evaluate(() => ({
+      viewport: document.documentElement.clientWidth,
+      document: document.documentElement.scrollWidth,
+      body: document.body.scrollWidth,
+    }));
+    expect(dimensions.document, `document overflow at ${viewport.width}px`).toBeLessThanOrEqual(dimensions.viewport);
+    expect(dimensions.body, `body overflow at ${viewport.width}px`).toBeLessThanOrEqual(dimensions.viewport);
+  }
 });

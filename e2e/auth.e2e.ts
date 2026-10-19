@@ -11,11 +11,11 @@ test('the app opens a username-and-password sign-in without an email field', asy
   }));
   await page.goto('/simorgh/', { waitUntil: 'domcontentloaded' });
 
-  await expect(page).toHaveTitle(/مدار \| مدیریت یکپارچه مزرعه و عملیات/);
+  await expect(page).toHaveTitle(/صحرا \| راهبران زنجیره ارزش| راهبران زنجیره ارزش/);
   await expect(page).toHaveURL(/\/simorgh\/app\/command$/);
   await expect(page.locator('#app-boot-screen')).toHaveCount(0);
   await expect(page.locator('.simorgh-signin-layer')).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'ورود به مدار' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'ورود به صحرا' })).toBeVisible();
   await expect(page.getByLabel('نام کاربری')).toBeVisible();
   await expect(page.getByLabel('گذرواژه', { exact: true })).toBeVisible();
   const signInThemeToggle = page.getByRole('button', { name: 'تغییر حالت نمایش' });
@@ -50,13 +50,13 @@ test('public signup and invitation-code access are disabled; owners provision ac
   });
 
   await page.goto('/simorgh/', { waitUntil: 'domcontentloaded' });
-  await expect(page.getByRole('heading', { name: 'ورود به مدار' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'ورود به صحرا' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'ساخت حساب و فضای کاری' })).toHaveCount(0);
   await expect(page.getByText(/ثبت‌نام عمومی غیرفعال است/)).toBeVisible();
 
   await page.goto('/simorgh/app/command#signup', { waitUntil: 'domcontentloaded' });
   await expect(page.locator('.simorgh-signin-layer')).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'ورود به مدار' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'ورود به صحرا' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'ساخت حساب و فضای کاری' })).toHaveCount(0);
   await expect(page.getByText(/ثبت‌نام عمومی غیرفعال است/)).toBeVisible();
   expect(signupRequests).toBe(0);
@@ -91,4 +91,31 @@ test('a blocked JavaScript bundle shows a recovery state instead of a black page
   await expect(page.locator('#app-boot-screen')).toHaveClass(/has-error/, { timeout: 12_000 });
   await expect(page.getByRole('alert')).toContainText('برنامه بارگذاری نشد');
   await expect(page.getByRole('button', { name: 'بارگذاری دوباره' })).toBeVisible();
+});
+
+
+test('Sahra mobile sign-in follows the reference palette and fits a 393x852 viewport', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await page.route('**/api/auth/me', route => route.fulfill({
+    status: 200, contentType: 'application/json', body: JSON.stringify({ user: null, memberships: [] }),
+  }));
+  await page.setViewportSize({ width: 393, height: 852 });
+  await page.goto('/simorgh/', { waitUntil: 'domcontentloaded' });
+  await expect(page.locator('.simorgh-signin-layer')).toBeVisible();
+  await expect(page.locator('.simorgh-signin-form-card')).toBeVisible();
+  await expect(page.locator('.simorgh-signin-form-card .brand-symbol')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'ورود به صحرا' })).toBeVisible();
+  const palette = await page.evaluate(() => ({
+    formArea: getComputedStyle(document.querySelector('.simorgh-signin-form-area')!).backgroundColor,
+    button: getComputedStyle(document.querySelector('.signin-submit')!).backgroundColor,
+    viewport: document.documentElement.clientWidth,
+    document: document.documentElement.scrollWidth,
+    body: document.body.scrollWidth,
+  }));
+  expect(palette.formArea).toBe('rgb(243, 236, 230)');
+  expect(palette.button).toBe('rgb(143, 111, 82)');
+  expect(palette.document).toBeLessThanOrEqual(palette.viewport);
+  expect(palette.body).toBeLessThanOrEqual(palette.viewport);
+  expect(errors).toEqual([]);
 });
