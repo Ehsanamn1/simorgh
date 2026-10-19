@@ -479,9 +479,14 @@ app.post('/api/profile/complete', async (c) => {
   if (user instanceof Response) return user;
   const body = await c.req.json<Record<string, unknown>>().catch(() => null);
   if (!body) return c.json({ message: 'اطلاعات پروفایل معتبر نیست.' }, 400);
+  const companyId = typeof body.companyId === 'string' ? body.companyId : '';
+  if (!COMPANY_ID_RE.test(companyId)) return c.json({ message: 'فضای کاری انتخاب‌شده معتبر نیست.' }, 422);
   const firstName = typeof body.firstName === 'string' ? body.firstName.normalize('NFKC').trim() : '';
   const lastName = typeof body.lastName === 'string' ? body.lastName.normalize('NFKC').trim() : '';
   const rawPhone = typeof body.phone === 'string' ? body.phone.normalize('NFKC').trim() : '';
+  const province = typeof body.province === 'string' ? body.province.normalize('NFKC').trim() : '';
+  const city = typeof body.city === 'string' ? body.city.normalize('NFKC').trim() : '';
+  const address = typeof body.address === 'string' ? body.address.normalize('NFKC').trim() : '';
   const digitsMap: Record<string,string> = { '۰':'0','۱':'1','۲':'2','۳':'3','۴':'4','۵':'5','۶':'6','۷':'7','۸':'8','۹':'9','٠':'0','١':'1','٢':'2','٣':'3','٤':'4','٥':'5','٦':'6','٧':'7','٨':'8','٩':'9' };
   const asciiPhone = rawPhone.replace(/[۰-۹٠-٩]/g, digit => digitsMap[digit] ?? digit);
   let phone = asciiPhone.replace(/[\s()-]/g, '');
@@ -496,17 +501,26 @@ app.post('/api/profile/complete', async (c) => {
     return c.json({ message: 'شماره تلفن معتبر وارد کن؛ برای ایران می‌توانی ۰۹۱۲… یا +98912… بنویسی.' }, 422);
   }
   const sql = sqlFor(c);
+  const memberships = await sql.query("select role::text as role,supplier_id from public.memberships where user_id=$1::uuid and company_id=$2::uuid and active=true limit 1",[user.id,companyId]);
+  const membership = memberships[0] as {role?:string;supplier_id?:string|null}|undefined;
+  if (!membership) return c.json({ message: 'این حساب عضو فضای کاری انتخاب‌شده نیست.' }, 403);
+  const isSupplier = membership.role === 'supplier';
+  if (isSupplier && (province.length < 2 || province.length > 80 || city.length < 2 || city.length > 80 || address.length < 5 || address.length > 240)) {
+    return c.json({ message: 'برای حساب تأمین‌کننده، استان، شهر و نشانی دقیق محل فعالیت الزامی است.' }, 422);
+  }
   const updated = await sql.query(
     "with updated_user as (" +
       "update public.medar_users set display_name=$2,phone_e164=$3,updated_at=now() where id=$1::uuid returning id,coalesce(username_normalized,username) as username,display_name as full_name,phone_e164 as phone" +
     "), upsert_profile as (" +
       "insert into public.profiles(id,full_name,phone) select id,$2,$3 from updated_user on conflict(id) do update set full_name=excluded.full_name,phone=excluded.phone,updated_at=now() returning id" +
+    "), existing_supplier_update as (" +
+      "update public.suppliers s set phone=$3,province=coalesce(nullif($4,''),s.province),city=coalesce(nullif($5,''),s.city),address=coalesce(nullif($6,''),s.address) from public.memberships m where m.user_id=$1::uuid and m.company_id=$7::uuid and m.active=true and m.role::text='supplier' and m.supplier_id=s.id and s.company_id=m.company_id returning s.id" +
     "), new_supplier as (" +
-      "insert into public.suppliers(company_id,name,phone,active) select m.company_id,case when exists(select 1 from public.suppliers existing where existing.company_id=m.company_id and lower(existing.name)=lower($2)) then left($2,120)||' ('||left(u.id::text,8)||')' else $2 end,$3,true from public.memberships m join updated_user u on u.id=m.user_id where m.active=true and m.role::text='supplier' and m.supplier_id is null returning id,company_id" +
+      "insert into public.suppliers(company_id,name,phone,province,city,address,active) select m.company_id,case when exists(select 1 from public.suppliers existing where existing.company_id=m.company_id and lower(existing.name)=lower($2)) then left($2,120)||' ('||left(u.id::text,8)||')' else $2 end,$3,nullif($4,''),nullif($5,''),nullif($6,''),true from public.memberships m join updated_user u on u.id=m.user_id where m.user_id=$1::uuid and m.company_id=$7::uuid and m.active=true and m.role::text='supplier' and m.supplier_id is null returning id,company_id" +
     "), link_supplier as (" +
-      "update public.memberships m set supplier_id=s.id from new_supplier s where m.user_id=$1::uuid and m.company_id=s.company_id and m.role::text='supplier' and m.active=true and m.supplier_id is null returning m.id" +
+      "update public.memberships m set supplier_id=s.id from new_supplier s where m.user_id=$1::uuid and m.company_id=s.company_id and m.company_id=$7::uuid and m.role::text='supplier' and m.active=true and m.supplier_id is null returning m.id" +
     ") select * from updated_user",
-    [user.id, fullName, phone],
+    [user.id, fullName, phone, province, city, address, companyId],
   );
   const row = updated[0] as Record<string,unknown> | undefined;
   if (!row) return c.json({ message: 'ذخیره مشخصات حساب انجام نشد.' }, 500);
