@@ -170,14 +170,14 @@ export default function ProductExperience() {
       </nav>, appMain)}
     {authUiEnabled && user && waitingScreen && memberships.length === 0 && createPortal(
       <section className="access-request-card" dir="rtl" aria-labelledby="access-request-title">
-        <div className="access-request-heading"><span className="access-request-icon"><ShieldCheck size={20}/></span><div><span className="obsidian-eyebrow">فضای کاری خصوصی</span><h2 id="access-request-title">دسترسی در انتظار تخصیص</h2><p>این حساب هنوز به فضای کاری متصل نیست. مالک یا مدیر باید از بخش «افراد و دسترسی‌ها» حساب شما را به مجموعه وصل کند. ثبت‌نام عمومی و ورود با کد دعوت غیرفعال است.</p></div></div>
+        <div className="access-request-heading"><span className="access-request-icon"><ShieldCheck size={20}/></span><div><span className="obsidian-eyebrow">فضای کاری خصوصی</span><h2 id="access-request-title">دسترسی در انتظار تخصیص</h2><p>این حساب هنوز به فضای کاری متصل نیست. مالک یا مدیر باید از بخش «افراد و دسترسی‌ها» حساب اختصاصی شما را بسازد و به مجموعه متصل کند.</p></div></div>
         <div className="access-request-form"><button className="obsidian-primary wide" type="button" onClick={() => void refreshSession()} disabled={loading}>بررسی دوباره دسترسی <ArrowLeft size={16}/></button></div>
       </section>, waitingScreen)}
     {signInOpen && !user && (
       <section className="simorgh-signin-layer" role="dialog" aria-modal="true" aria-labelledby="simorgh-signin-title" aria-label="ورود امن مدار">
         <div className="simorgh-signin-brand">
           <div className="simorgh-signin-brand-top"><span className="simorgh-signin-mark"><ShieldCheck size={26}/></span><span><strong>مدار</strong><small>مدیریت یکپارچه عملیات</small></span></div>
-          <div className="simorgh-signin-story"><span className="signin-overline">مدار / فضای کاری امن</span><h1>یک شبکه.<br/><em>کنترل دقیق.</em></h1><p>مدیریت مزرعه، منابع، سفارش، کیفیت، حمل و حساب‌ها؛ در یک فضای کاری امن و قابل پیگیری.</p><div className="signin-assurance"><ShieldCheck size={17}/><span>نقش‌های داخلی و مدیریتی فقط با دعوت یا تأیید مالک فعال می‌شوند.</span></div></div>
+          <div className="simorgh-signin-story"><span className="signin-overline">مدار / فضای کاری امن</span><h1>یک شبکه.<br/><em>کنترل دقیق.</em></h1><p>مدیریت مزرعه، منابع، سفارش، کیفیت، حمل و حساب‌ها؛ در یک فضای کاری امن و قابل پیگیری.</p><div className="signin-assurance"><ShieldCheck size={17}/><span>حساب‌های داخلی و مدیریتی را مالک یا مدیر مجاز مستقیماً می‌سازد.</span></div></div>
           <div className="signin-brand-foot"><span>عملیات و منابع</span><span>ورود امن</span></div>
         </div>
         <div className="simorgh-signin-form-area">
@@ -204,7 +204,7 @@ export default function ProductExperience() {
                  {busy ? <><span className="signin-spinner" aria-hidden="true"/> در حال ورود…</> : <>ورود به فضای کار <ArrowLeft size={17}/></>}
                </button>
              </form>
-             <p className="auth-recovery-note">این سامانه خصوصی است؛ ثبت‌نام عمومی و ورود با کد دعوت غیرفعال است. برای دریافت دسترسی با مالک یا مدیر مجموعه هماهنگ کن.</p>
+             <p className="auth-recovery-note">ثبت‌نام عمومی غیرفعال است؛ برای دریافت دسترسی با مالک یا مدیر مجموعه هماهنگ کن تا حساب اختصاصی با نام کاربری و رمز عبور بسازد.</p>
              
              <div className="signin-form-foot"><span><Check size={13}/> کنترل دسترسی سمت سرور</span><span>مدار · فضای امن</span></div>
           </div>
