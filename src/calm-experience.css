@@ -1822,3 +1822,6 @@ html[data-theme="dark"] .guide-backdrop{background:transparent}
 .guide-dialog.show-global-manual .guide-global-manual{display:block}
 .guide-dialog.show-full-section-guide .guide-global-manual{display:none}
 @media(max-width:560px){.guide-backdrop{left:8px;bottom:76px;width:min(230px,calc(100vw - 16px));pointer-events:none}.guide-dialog{max-height:22dvh;padding:10px}.guide-dialog .guide-heading-copy h2{font-size:14px}.guide-dialog .guide-steps li:nth-child(n+3){display:none}.guide-dialog.show-full-section-guide,.guide-dialog.show-global-manual{width:min(390px,calc(100vw - 16px));max-height:72dvh}.guide-dialog.show-full-section-guide .guide-steps li{display:flex}}
+
+.guide-section-name{margin:2px 0 4px;font-size:11px;font-weight:900;color:var(--obs-text)}
+.guide-heading-copy>p:not(.guide-section-name){margin-top:3px}
