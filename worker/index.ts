@@ -3424,8 +3424,10 @@ app.put('/api/storage/:bucket',async c=>{
  if(!(await canAccessPrivateFile(c,user.id,bucket,path,'write')))return c.json({message:'نقش فعلی اجازه بارگذاری این مدرک در این مسیر را ندارد.'},403);
  const contentType=(c.req.header('content-type')??'application/octet-stream').split(';')[0].trim().toLowerCase();
  if(!rules.contentTypes.has(contentType))return c.json({message:'نوع فایل پشتیبانی نمی‌شود.'},415);
- const len=Number(c.req.header('content-length')??0);if(len>rules.maxBytes)return c.json({message:'حجم فایل از محدودیت مخزن بیشتر است.'},413);
- const bytes=await c.req.arrayBuffer();if(bytes.byteLength>rules.maxBytes)return c.json({message:'حجم فایل از محدودیت مخزن بیشتر است.'},413);
+ const effectiveMaxBytes=c.env.FILE_STORE?rules.maxBytes:Math.min(rules.maxBytes,10*1024*1024);
+ const sizeError=c.env.FILE_STORE?'حجم فایل از محدودیت مخزن بیشتر است.':'بدون R2، سقف ذخیره‌سازی خصوصی دیتابیس ۱۰ مگابایت برای هر فایل است.';
+ const len=Number(c.req.header('content-length')??0);if(len>effectiveMaxBytes)return c.json({message:sizeError},413);
+ const bytes=await c.req.arrayBuffer();if(bytes.byteLength>effectiveMaxBytes)return c.json({message:sizeError},413);
  const existing=await runForUser(c,user.id,'select id from public.medar_files where bucket_id=$1 and name=$2 limit 1',[bucket,path]);
  if(existing.length&&c.req.header('x-upsert')!=='true')return c.json({message:'فایلی با این مسیر قبلاً وجود دارد.'},409);
  const key=bucket+'/'+path;
