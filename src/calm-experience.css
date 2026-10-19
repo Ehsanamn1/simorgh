@@ -1825,3 +1825,8 @@ html[data-theme="dark"] .guide-backdrop{background:transparent}
 
 .guide-section-name{margin:2px 0 4px;font-size:11px;font-weight:900;color:var(--obs-text)}
 .guide-heading-copy>p:not(.guide-section-name){margin-top:3px}
+
+.guide-dialog .guide-footer button{pointer-events:auto}
+.guide-dialog:not(.show-global-manual) .guide-footer button{display:none}
+.guide-dialog:not(.show-global-manual) .guide-step-expand{display:none}
+.guide-dialog.show-global-manual{pointer-events:auto;width:min(540px,calc(100vw - 36px));max-height:min(78dvh,820px)}
