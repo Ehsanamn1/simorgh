@@ -123,7 +123,7 @@ test('Sahra identity and responsive layout stay consistent across reference view
     body: JSON.stringify({ user: null, memberships: [] }),
   }));
   await page.goto('/simorgh/demo', { waitUntil: 'domcontentloaded' });
-  await expect(page.locator('.demo-workspace .sahra-lockup')).toBeVisible();
+  await expect(page.locator('.demo-workspace .sahra-lockup').first()).toBeVisible();
   await expect(page.locator('.demo-workspace .brand-words b')).toContainText('صحرا');
   await expect(page).toHaveTitle(/صحرا \| راهبران زنجیره ارزش/);
 
