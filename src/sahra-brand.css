@@ -1,0 +1,133 @@
+/* SAHRA brand system — based on the approved Sahra Value Chain Leaders reference.
+   Shared semantic tokens keep the redesign consistent without changing business logic. */
+:root {
+  --sahra-navy: #1B2A3A;
+  --sahra-navy-deep: #142130;
+  --sahra-navy-soft: #2B3C4E;
+  --sahra-copper: #8F6F52;
+  --sahra-copper-light: #B58A68;
+  --sahra-cream: #F3ECE6;
+  --sahra-paper: #EBE5DF;
+  --sahra-white: #FFFCF9;
+  --sahra-ink: #242D37;
+  --sahra-muted: #77766F;
+  --sahra-border: #DCD3CA;
+  --sahra-success: #4F806D;
+  --sahra-warning: #B78348;
+  --sahra-danger: #B45D55;
+  --obs-bg: var(--sahra-cream);
+  --obs-surface: var(--sahra-white);
+  --obs-surface-2: #F0E9E2;
+  --obs-elevated: #FFFFFF;
+  --obs-border: var(--sahra-border);
+  --obs-text: var(--sahra-ink);
+  --obs-muted: #666B70;
+  --obs-subtle: #88857F;
+  --obs-accent: var(--sahra-copper);
+  --obs-accent-2: var(--sahra-navy);
+  --obs-highlight: #D8C4B2;
+  --obs-warning: var(--sahra-warning);
+  --obs-critical: var(--sahra-danger);
+  --obs-positive: var(--sahra-success);
+  --obs-radius-sm: 8px;
+  --obs-radius-md: 12px;
+  --obs-radius-lg: 20px;
+  --obs-radius-xl: 24px;
+  --obs-shadow: 0 8px 26px rgb(27 42 58 / 7%);
+  --obs-shadow-raised: 0 18px 48px rgb(27 42 58 / 12%);
+  --sim-canvas: var(--sahra-cream);
+  --sim-surface: var(--sahra-white);
+  --sim-text: var(--sahra-ink);
+  --sim-muted: #666B70;
+  --sim-border: var(--sahra-border);
+  --sim-soft: var(--sahra-paper);
+  --sim-emerald-700: var(--sahra-copper);
+  --sim-forest-950: var(--sahra-navy-deep);
+  --sim-forest-900: var(--sahra-navy);
+  --sim-forest-800: var(--sahra-navy-soft);
+  --sim-lime: #D8C4B2;
+  --sim-warning: var(--sahra-warning);
+  --sim-danger: var(--sahra-danger);
+  --sim-info: #607C92;
+  --sim-status-success: var(--sahra-success);
+  --sim-status-warning: var(--sahra-warning);
+  --sim-status-danger: var(--sahra-danger);
+  --sim-status-info: #607C92;
+  --sim-chart-1: var(--sahra-copper);
+  --sim-chart-2: var(--sahra-navy);
+  --sim-chart-3: #B58A68;
+  --sim-chart-4: #718A79;
+  --sim-chart-5: #B45D55;
+  --sim-focus-ring: 3px solid rgb(143 111 82 / 52%);
+  --forest: var(--sahra-navy);
+  --forest-2: var(--sahra-navy-soft);
+  --lime: var(--sahra-copper-light);
+  --paper: var(--sahra-cream);
+  --line: var(--sahra-border);
+  --muted: var(--sahra-muted);
+  --soft: var(--sahra-paper);
+  --danger: var(--sahra-danger);
+  --shadow: var(--obs-shadow);
+  --shadow-raised: var(--obs-shadow-raised);
+  color-scheme: light;
+}
+html, body { background: var(--sahra-cream); color: var(--sahra-ink); }
+body { font-family: Vazirmatn, Tahoma, sans-serif; }
+::selection { background: #D8C4B2; color: var(--sahra-navy); }
+.portal { background: radial-gradient(ellipse at 82% 0%, rgb(143 111 82 / 9%), transparent 34%), var(--sahra-cream); color: var(--sahra-ink); }
+.portal-header { background: rgb(27 42 58 / 96%); border-color: #344557; color: #F3ECE6; }
+.portal-header .portal-brand, .portal-header .portal-brand:visited { color: #F3ECE6; }
+.portal-header-nav a { color: #D5D7D8; }
+.portal-header-nav a:hover { color: #D8B79B; }
+.portal-signin-link { background: var(--sahra-copper); border-color: var(--sahra-copper); color: #fffaf5; }
+.portal-signin-link:hover { background: #A27D5D; border-color: #A27D5D; }
+.portal-hero h1, .portal-section-heading h2, .portal-governance h2, .portal-how h2 { color: var(--sahra-navy); }
+.portal-kicker, .portal-overline, .obsidian-eyebrow { color: var(--sahra-copper); }
+.portal-hero-lead, .portal-section-heading p, .portal-governance-copy p, .portal-how p { color: #686D70; }
+.portal-primary-action { background: var(--sahra-navy); border-color: var(--sahra-navy); color: #fff; }
+.portal-primary-action:hover { background: var(--sahra-navy-soft); }
+.portal-secondary-action { background: var(--sahra-white); border-color: var(--sahra-border); color: var(--sahra-navy); }
+.portal-role-card, .portal-selection-bar, .portal-preview, .portal-governance, .portal-how { background: var(--sahra-white); border-color: var(--sahra-border); box-shadow: var(--obs-shadow); }
+.portal-role-card strong, .portal-preview-heading h2 { color: var(--sahra-navy); }
+.portal-role-card p, .portal-preview-nav>div { color: #686D70; }
+.portal-role-card.is-selected { background: #F4EAE0; border-color: var(--sahra-copper); }
+.portal-card-icon, .portal-card-arrow, .portal-selection-symbol, .portal-preview-nav>div.active { background: #F0E3D7; border-color: #D9C0AA; color: var(--sahra-copper); }
+.portal-card-bottom, .portal-preview-private { border-color: var(--sahra-border); }
+.portal-preview-aside { background: var(--sahra-navy); border-color: #344557; }
+.portal-preview-aside, .portal-preview-aside .portal-preview-brand { color: #F3ECE6; }
+.portal-preview-aside .portal-preview-section-label { color: #B9C2CA; }
+.portal-preview-aside .portal-preview-nav>div { color: #D5D7D8; }
+.portal-preview-aside .portal-preview-nav>div.active { background: #344557; color: #fff; border-color: #536678; }
+.portal-preview-aside .portal-preview-private { color: #D5D7D8; border-color: #344557; }
+.brand-symbol { background: var(--sahra-navy) !important; color: var(--sahra-cream) !important; border: 1px solid rgb(181 138 104 / 48%); border-radius: 12px !important; }
+.brand-words b { color: var(--sahra-navy) !important; letter-spacing: -.025em; }
+.brand-words small { color: var(--sahra-copper) !important; font-family: Inter, Vazirmatn, sans-serif; letter-spacing: .035em; font-size: 8px; }
+.sahra-lockup .brand-symbol svg { width: 32px; height: 32px; }
+.portal-header .brand-words b, .portal-preview-aside .brand-words b { color: var(--sahra-cream) !important; }
+.portal-header .brand-words small, .portal-preview-aside .brand-words small { color: #D1B49B !important; }
+html[data-theme="dark"] {
+  --obs-bg: #142130;
+  --obs-surface: #1B2A3A;
+  --obs-surface-2: #223448;
+  --obs-elevated: #2B3C4E;
+  --obs-border: #3A4B5C;
+  --obs-text: #F3ECE6;
+  --obs-muted: #C1C4C6;
+  --obs-subtle: #9FA8B0;
+  --obs-accent: #B58A68;
+  --obs-accent-2: #C7D0D8;
+  --obs-highlight: #D8C4B2;
+  --sim-canvas: #142130;
+  --sim-surface: #1B2A3A;
+  --sim-text: #F3ECE6;
+  --sim-muted: #C1C4C6;
+  --sim-border: #3A4B5C;
+  --sim-soft: #223448;
+  color-scheme: dark;
+}
+html[data-theme="dark"], html[data-theme="dark"] body { background: #142130; color: #F3ECE6; }
+html[data-theme="dark"] .brand-words b { color: #F3ECE6 !important; }
+html[data-theme="dark"] .portal { background: #142130; color: #F3ECE6; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}
