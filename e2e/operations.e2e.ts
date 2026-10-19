@@ -318,7 +318,7 @@ test('owner can create a supplier login and copy the one-time credentials', asyn
 test('contextual help stays compact at the bottom-left and can be dismissed', async ({ page }) => {
   await installIsolatedSession(page, 'owner');
   await page.goto('/simorgh/app/members', { waitUntil: 'domcontentloaded' });
-  const guide = page.locator('.guide-backdrop');
+  const guide = page.locator('.medar-help-backdrop');
   await expect(guide).toBeVisible();
   const bounds = await guide.boundingBox();
   const viewport = page.viewportSize();
@@ -328,11 +328,70 @@ test('contextual help stays compact at the bottom-left and can be dismissed', as
   expect(bounds!.width).toBeLessThanOrEqual(230);
   expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(viewport!.height);
   await guide.getByRole('button', { name: 'راهنمای کامل' }).click();
-  const expandedStepCount = await guide.locator('.guide-steps li:visible').count();
+  const expandedStepCount = await guide.locator('.medar-help-steps li:visible').count();
   expect(expandedStepCount).toBeGreaterThan(2);
   await guide.getByRole('button', { name: 'کمتر' }).click();
   await guide.getByRole('button', { name: 'بستن راهنما' }).click();
   await expect(guide).toHaveCount(0);
+});
+
+test('contextual help expands on mobile without escaping the viewport and can close', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await installIsolatedSession(page, 'owner');
+  await page.goto('/simorgh/app/members', { waitUntil: 'domcontentloaded' });
+  const guide = page.locator('.medar-help-backdrop');
+  await expect(guide).toBeVisible();
+  const compact = await guide.boundingBox();
+  expect(compact).not.toBeNull();
+  expect(compact!.x).toBeLessThanOrEqual(10);
+  expect(compact!.width).toBeLessThanOrEqual(205);
+  expect(compact!.y + compact!.height).toBeLessThan(844 - 60);
+  await guide.getByRole('button', { name: 'راهنمای کامل' }).click();
+  await expect(guide.locator('.medar-help-steps li:visible')).toHaveCount(5);
+  const expanded = await guide.locator('.medar-help-dialog').boundingBox();
+  expect(expanded).not.toBeNull();
+  expect(expanded!.x).toBeGreaterThanOrEqual(0);
+  expect(expanded!.x + expanded!.width).toBeLessThanOrEqual(390);
+  expect(expanded!.y).toBeGreaterThanOrEqual(0);
+  await guide.getByRole('button', { name: 'بستن راهنما' }).click();
+  await expect(guide).toHaveCount(0);
+});
+
+test('dedicated member account creation submits once and remains successful when related lists are unavailable', async ({ page }) => {
+  await installIsolatedSession(page, 'owner');
+  await page.route('**/api/workspace/members?*', route => route.fulfill({
+    status: 200, contentType: 'application/json', body: JSON.stringify({ members: [] }),
+  }));
+  await page.route('**/api/data/**', route => route.fulfill({
+    status: 200, contentType: 'application/json', body: JSON.stringify({ data: [], count: 0, error: null }),
+  }));
+  let submitted: Record<string, unknown> | null = null;
+  await page.route('**/api/workspace/members/create', async route => {
+    submitted = route.request().postDataJSON() as Record<string, unknown>;
+    await route.fulfill({
+      status: 201, contentType: 'application/json',
+      body: JSON.stringify({ member: {
+        id: '00000000-0000-4000-8000-000000000066',
+        username: 'staff_regression_203', full_name: 'عضو آزمایشی',
+        membership_id: '00000000-0000-4000-8000-000000000067',
+        company_id: companyId, role: 'staff',
+      } }),
+    });
+  });
+  await page.goto('/simorgh/app/members', { waitUntil: 'domcontentloaded' });
+  await page.getByRole('button', { name: /ساخت حساب جدید/ }).click();
+  await page.getByLabel(/نام کاربری/).fill('Staff_Regression_203');
+  await page.getByLabel(/رمز عبور اولیه/).fill('Safe-Test-Password-203!');
+  await page.getByLabel('نقش کاربر').selectOption('staff');
+  await page.getByRole('button', { name: 'ساخت حساب و نمایش اطلاعات ورود' }).click();
+  await expect(page.getByText(/حساب ساخته شد/)).toBeVisible();
+  expect(submitted).toMatchObject({
+    companyId,
+    username: 'staff_regression_203',
+    password: 'Safe-Test-Password-203!',
+    role: 'staff',
+  });
+  await expect(page.locator('.invite-code-value')).toContainText('staff_regression_203');
 });
 
 test('owner access panel uses direct account creation without invitation codes', async ({ page }) => {
@@ -342,6 +401,23 @@ test('owner access panel uses direct account creation without invitation codes',
   await expect(page.getByRole('button', { name: /ساخت حساب جدید/ })).toBeVisible();
   await expect(page.getByRole('button', { name: 'کد دعوت' })).toHaveCount(0);
   await expect(page.locator('.invite-code-panel')).toHaveCount(0);
+});
+
+test('desktop sidebar groups and module links use compact spacing', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await installIsolatedSession(page, 'owner');
+  await page.goto('/simorgh/app/home', { waitUntil: 'domcontentloaded' });
+  const groups = page.locator('.app-sidebar .nav-groups');
+  await expect(groups).toBeVisible();
+  const gap = await groups.evaluate(element => Number.parseFloat(getComputedStyle(element).rowGap));
+  expect(gap).toBeLessThanOrEqual(2);
+  const summary = page.locator('.app-sidebar .nav-group > summary').first();
+  await expect(summary).toBeVisible();
+  const summaryHeight = await summary.evaluate(element => element.getBoundingClientRect().height);
+  expect(summaryHeight).toBeLessThanOrEqual(31);
+  const link = page.locator('.app-sidebar .side-nav a').first();
+  const linkHeight = await link.evaluate(element => element.getBoundingClientRect().height);
+  expect(linkHeight).toBeLessThanOrEqual(30);
 });
 
 test('supplier directory remains readable from cache when offline', async ({ page }) => {

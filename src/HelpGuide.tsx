@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { ArrowLeft, BookOpen, CheckCircle2, ClipboardCheck, Factory, MapPin, Package, ShieldCheck, Smartphone, Truck, Users, Warehouse, X } from 'lucide-react';
 import type { AppRole } from './lib/types';
 
@@ -125,23 +126,23 @@ export function HelpGuide({ role, section, onClose }: HelpGuideProps) {
     window.addEventListener('keydown', handleKeyDown);
     return () => { window.removeEventListener('keydown', handleKeyDown); };
   }, [onClose]);
-  return <div className="guide-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}>
-    <section className={"guide-dialog"+(showManual?" show-global-manual":showFullSection?" show-full-section-guide":"")} role="dialog" aria-modal="false" aria-labelledby="medar-guide-title" dir="rtl">
-      <header className="guide-heading">
-        <span className="guide-book-icon"><BookOpen size={23}/></span>
-        <div className="guide-heading-copy"><span className="eyebrow">راهنمای تعاملی مدار</span><h2 id="medar-guide-title">{showManual ? 'راهنمای جامع مدیریت مدار' : 'راهنمای این بخش'}</h2><p className="guide-section-name">{(section ? sectionNames[section] : undefined) ?? 'راهنمای جامع مدیریت مدار'}</p><p>مخصوص نقش «{roleNames[role ?? ''] ?? 'کاربر'}» · فارسی و راست‌چین</p></div>
-        <button type="button" className="guide-step-expand" onClick={()=>setShowFullSection(value=>!value)} aria-expanded={showFullSection}>{showFullSection?"کمتر":"راهنمای کامل"}</button><button type="button" className="guide-manual-toggle" onClick={()=>setShowManual(value=>!value)}><BookOpen size={14}/>{showManual?"راهنمای بخش":"راهنمای کلی"}</button><button type="button" className="guide-close" onClick={onClose} aria-label="بستن راهنما"><X size={18}/></button>
+  return createPortal(<div className="medar-help-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}>
+    <section className={"medar-help-dialog"+(showManual?" show-global-manual":showFullSection?" show-full-section-guide":"")} role="dialog" aria-modal="false" aria-labelledby="medar-help-title" dir="rtl">
+      <header className="medar-help-heading">
+        <span className="medar-help-book-icon"><BookOpen size={23}/></span>
+        <div className="medar-help-heading-copy"><span className="eyebrow">راهنمای تعاملی مدار</span><h2 id="medar-help-title">{showManual ? 'راهنمای جامع مدیریت مدار' : 'راهنمای این بخش'}</h2><p className="medar-help-section-name">{(section ? sectionNames[section] : undefined) ?? 'راهنمای جامع مدیریت مدار'}</p><p>مخصوص نقش «{roleNames[role ?? ''] ?? 'کاربر'}» · فارسی و راست‌چین</p></div>
+        <button type="button" className="medar-help-step-expand" onClick={()=>{setShowManual(false);setShowFullSection(value=>!value);}} aria-expanded={showFullSection}>{showFullSection?"کمتر":"راهنمای کامل"}</button><button type="button" className="medar-help-manual-toggle" onClick={()=>{setShowFullSection(false);setShowManual(value=>!value);}}><BookOpen size={14}/>{showManual?"راهنمای بخش":"راهنمای کلی"}</button><button type="button" className="medar-help-close" onClick={onClose} aria-label="بستن راهنما"><X size={18}/></button>
       </header>
-      <div className="guide-trust-note"><ShieldCheck size={19}/><p><b>قاعدهٔ اصلی</b><span>مدار ابزار ثبت و پیگیری عملیات واقعی است. هیچ ظرفیت، تحویل، موقعیت یا تأییدی را بدون داده و مدرک واقعی قطعی فرض نکن.</span></p></div>
-      <div className="guide-section-title"><span>قدم‌های این بخش</span><small>{steps.length.toLocaleString('fa-IR')} مرحله</small></div>
-      <ol className="guide-steps">{visibleSteps.map((step,index)=><li key={step}><span className="guide-step-number">{index+1}</span><span>{step}</span><CheckCircle2 size={17} className="guide-step-check"/></li>)}</ol>
-      <div className="guide-global-manual">
-        <div className="guide-section-title"><span><BookOpen size={16}/> راهنمای کلی؛ از صفر تا مدیریت روزانه</span><small>{globalSections.length.toLocaleString('fa-IR')} فصل</small></div>
-        {globalSections.map(([title,steps])=><article className="guide-manual-chapter" key={title}><h3>{title}</h3><ul>{steps.map((step,index)=><li key={index}>{step}</li>)}</ul></article>)}
+      <div className="medar-help-trust-note"><ShieldCheck size={19}/><p><b>قاعدهٔ اصلی</b><span>مدار ابزار ثبت و پیگیری عملیات واقعی است. هیچ ظرفیت، تحویل، موقعیت یا تأییدی را بدون داده و مدرک واقعی قطعی فرض نکن.</span></p></div>
+      <div className="medar-help-section-title"><span>قدم‌های این بخش</span><small>{steps.length.toLocaleString('fa-IR')} مرحله</small></div>
+      <ol className="medar-help-steps">{visibleSteps.map((step,index)=><li key={step}><span className="medar-help-step-number">{index+1}</span><span>{step}</span><CheckCircle2 size={17} className="medar-help-step-check"/></li>)}</ol>
+      <div className="medar-help-global-manual">
+        <div className="medar-help-section-title"><span><BookOpen size={16}/> راهنمای کلی؛ از صفر تا مدیریت روزانه</span><small>{globalSections.length.toLocaleString('fa-IR')} فصل</small></div>
+        {globalSections.map(([title,steps])=><article className="medar-help-manual-chapter" key={title}><h3>{title}</h3><ul>{steps.map((step,index)=><li key={index}>{step}</li>)}</ul></article>)}
       </div>
-      <div className="guide-mobile-tip"><span className="guide-tip-icon"><Smartphone size={21}/></span><div><b>موبایل، آفلاین و حریم خصوصی</b><p>منوی پایین و فهرست نقش‌محور فقط بخش‌های مجاز را نشان می‌دهند. داده‌های جدید فقط پس از تأیید سرور قطعی‌اند. مجوز GPS را خود کاربر می‌دهد؛ مکان‌یابی را می‌توان قطع کرد.</p></div></div>
-      <div className="guide-role-links"><span><Factory size={16}/> تأمین</span><span><ClipboardCheck size={16}/> وظایف</span><span><Users size={16}/> نقش‌ها</span><span><Truck size={16}/> حمل‌ونقل</span><span><MapPin size={16}/> موقعیت واقعی</span><span><Warehouse size={16}/> ظرفیت</span><span><Package size={16}/> مدارک</span></div>
-      <footer className="guide-footer"><span>برای دیدن راهنمای هر صفحه، به همان بخش برو؛ راهنمای کلی همه مراحل را یکجا نشان می‌دهد.</span>{showManual&&<button type="button" className="button-primary" onClick={onClose}>متوجه شدم <ArrowLeft size={16}/></button>}</footer>
+      <div className="medar-help-mobile-tip"><span className="medar-help-tip-icon"><Smartphone size={21}/></span><div><b>موبایل، آفلاین و حریم خصوصی</b><p>منوی پایین و فهرست نقش‌محور فقط بخش‌های مجاز را نشان می‌دهند. داده‌های جدید فقط پس از تأیید سرور قطعی‌اند. مجوز GPS را خود کاربر می‌دهد؛ مکان‌یابی را می‌توان قطع کرد.</p></div></div>
+      <div className="medar-help-role-links"><span><Factory size={16}/> تأمین</span><span><ClipboardCheck size={16}/> وظایف</span><span><Users size={16}/> نقش‌ها</span><span><Truck size={16}/> حمل‌ونقل</span><span><MapPin size={16}/> موقعیت واقعی</span><span><Warehouse size={16}/> ظرفیت</span><span><Package size={16}/> مدارک</span></div>
+      <footer className="medar-help-footer"><span>برای دیدن راهنمای هر صفحه، به همان بخش برو؛ راهنمای کلی همه مراحل را یکجا نشان می‌دهد.</span>{showManual&&<button type="button" className="button-primary" onClick={onClose}>متوجه شدم <ArrowLeft size={16}/></button>}</footer>
     </section>
-  </div>;
+  </div>, document.body);
 }

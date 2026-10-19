@@ -1372,9 +1372,12 @@ const [resetSecret,setResetSecret]=useState('');
      dataApi.from('customers').select('id,name').eq('company_id',membership.company_id).order('name'),
      dataApi.from('suppliers').select('id,name').eq('company_id',membership.company_id).order('name'),
     ]);
-    if(customerResult.error)throw new Error(customerResult.error.message);
-    if(supplierResult.error)throw new Error(supplierResult.error.message);
-    setCustomers((customerResult.data??[]) as Row[]);setSuppliers((supplierResult.data??[]) as Row[]);
+    // Related-record lists are optional for account provisioning. Their failure must not
+    // turn a successful member load/create into a visible false failure.
+    setCustomers(customerResult.error?[]:(customerResult.data??[]) as Row[]);
+    setSuppliers(supplierResult.error?[]:(supplierResult.data??[]) as Row[]);
+   } else {
+    setCustomers([]);setSuppliers([]);
    }
   } catch(caught) {
    setError(caught instanceof Error?caught.message:'دریافت اعضای مجموعه ناموفق بود.');
