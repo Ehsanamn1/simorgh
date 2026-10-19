@@ -1804,3 +1804,10 @@ html[data-theme="dark"] .guide-backdrop{background:transparent}
 .guide-heading-copy{min-width:0;flex:1}
 .guide-dialog.show-global-manual .guide-global-manual{overflow:visible}
 @media(max-width:560px){.guide-dialog.show-global-manual{width:min(390px,calc(100vw - 16px));max-height:72dvh}.guide-dialog.show-global-manual .guide-global-manual{display:block}.guide-dialog.show-global-manual .guide-manual-chapter{padding:8px}.guide-dialog.show-global-manual .guide-manual-chapter p{font-size:9px}}
+
+.ops-task-view-switch{display:flex;align-items:center;gap:6px;margin:0 0 12px;padding:5px;border:1px solid var(--obs-border);border-radius:13px;background:var(--obs-surface-2);width:fit-content;max-width:100%}
+.ops-task-view-switch button{display:inline-flex;align-items:center;gap:8px;padding:9px 12px;border:1px solid transparent;border-radius:9px;background:transparent;color:var(--obs-muted);font-size:10px;font-weight:850;cursor:pointer;transition:background .18s ease,color .18s ease,transform .18s ease}
+.ops-task-view-switch button span{display:inline-grid;place-items:center;min-width:21px;height:21px;padding:0 5px;border-radius:99px;background:var(--obs-surface);font-size:9px}
+.ops-task-view-switch button.active{background:var(--obs-surface);border-color:var(--obs-border);color:var(--obs-text);box-shadow:0 2px 8px rgb(0 0 0 / 4%)}
+.ops-task-view-switch button.active span{background:color-mix(in srgb,var(--obs-positive) 14%,var(--obs-surface));color:var(--obs-positive)}
+@media(prefers-reduced-motion:reduce){.ops-task-view-switch button{transition:none}}
