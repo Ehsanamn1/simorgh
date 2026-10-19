@@ -1849,8 +1849,8 @@ html[data-theme="dark"] .guide-backdrop{background:transparent}
 .guide-manual-chapter li{padding-inline-start:2px;color:var(--obs-muted);font-size:10px;line-height:1.95}
 .guide-manual-chapter li::marker{color:var(--obs-accent)}
 
-/* Mobile guide is a compact, click-through helper; it must never trap operational taps. */
-@media(max-width:600px){
+/* Compact/tablet guide is a click-through helper; it must never trap operational taps. */
+@media(max-width:900px){
   .guide-backdrop{position:fixed;left:8px;right:auto;top:auto;bottom:76px;width:min(230px,calc(100vw - 16px));height:auto;padding:0;pointer-events:none;background:transparent!important;backdrop-filter:none!important;z-index:1200}
   .guide-dialog{position:relative;inset:auto;width:100%;max-height:22dvh;padding:10px;border-radius:13px;pointer-events:none;overflow:auto}
   .guide-dialog .guide-close,.guide-dialog .guide-manual-toggle,.guide-dialog .guide-step-expand,.guide-dialog .guide-footer button{pointer-events:auto}
