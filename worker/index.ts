@@ -2882,6 +2882,7 @@ app.post('/api/data/:table',async c=>{
     if(membership.role==='supplier'){
       const reviewFields=['status','confirmed_qty','committed_qty','evidence_review_status','evidence_reviewed_by','evidence_reviewed_at','evidence_review_note'];
       if(reviewFields.some(field=>Object.prototype.hasOwnProperty.call(values??{},field)))return c.json({message:'تأمین‌کننده نمی‌تواند ظرفیت یا مدرک خودش را تأیید کند.'},403);
+      if(!writeFilters.some(filter=>filter.column==='evidence_review_status'&&filter.op==='eq'&&filter.value==='rejected'))return c.json({message:'مدرک فقط پس از رد رسمی قابل ارسال مجدد است.'},403);
       const allowedSupplierEvidenceFields=['evidence_path','evidence_name','evidence_mime_type','evidence_uploaded_at'];
       if(Object.keys(values??{}).some(field=>!allowedSupplierEvidenceFields.includes(field)))return c.json({message:'تأمین‌کننده فقط می‌تواند مدرک ردشده را اصلاح و دوباره ارسال کند.'},403);
       if(!values?.evidence_path||!values?.evidence_name||!values?.evidence_mime_type||!values?.evidence_uploaded_at)return c.json({message:'برای ارسال دوباره، فایل و مشخصات کامل مدرک الزامی است.'},422);
