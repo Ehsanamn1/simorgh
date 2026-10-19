@@ -92,3 +92,29 @@ test('a blocked JavaScript bundle shows a recovery state instead of a black page
   await expect(page.getByRole('alert')).toContainText('برنامه بارگذاری نشد');
   await expect(page.getByRole('button', { name: 'بارگذاری دوباره' })).toBeVisible();
 });
+
+
+test('Sahra mobile sign-in follows the reference palette and fits a 393x852 viewport', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await page.route('**/api/auth/me', route => route.fulfill({
+    status: 200, contentType: 'application/json', body: JSON.stringify({ user: null, memberships: [] }),
+  }));
+  await page.setViewportSize({ width: 393, height: 852 });
+  await page.goto('/simorgh/', { waitUntil: 'domcontentloaded' });
+  await expect(page.locator('.simorgh-signin-layer')).toBeVisible();
+  await expect(page.locator('.simorgh-signin-form-card')).toBeVisible();
+  await expect(page.locator('.simorgh-signin-form-card .brand-words b')).toContainText('صحرا');
+  const palette = await page.evaluate(() => ({
+    formArea: getComputedStyle(document.querySelector('.simorgh-signin-form-area')!).backgroundColor,
+    button: getComputedStyle(document.querySelector('.signin-submit')!).backgroundColor,
+    viewport: document.documentElement.clientWidth,
+    document: document.documentElement.scrollWidth,
+    body: document.body.scrollWidth,
+  }));
+  expect(palette.formArea).toBe('rgb(243, 236, 230)');
+  expect(palette.button).toBe('rgb(143, 111, 82)');
+  expect(palette.document).toBeLessThanOrEqual(palette.viewport);
+  expect(palette.body).toBeLessThanOrEqual(palette.viewport);
+  expect(errors).toEqual([]);
+});
