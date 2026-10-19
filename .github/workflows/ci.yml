@@ -93,7 +93,8 @@ jobs:
               exists (select 1 from public.medar_schema_migrations where version='0028_capacity_evidence_storage_bucket.sql') and
               exists (select 1 from public.medar_schema_migrations where version='0029_medar_private_file_database_fallback.sql') and
               exists (select 1 from public.medar_schema_migrations where version='0030_member_account_role_constraints.sql') and
-              exists (select 1 from pg_constraint where conrelid='public.medar_users'::regclass and conname='medar_users_requested_role_check' and pg_get_constraintdef(oid) like '%admin%') and
+              exists (select 1 from public.medar_schema_migrations where version='0031_member_provisioning_schema_guard.sql') and
+              exists (select 1 from pg_constraint where conrelid='public.medar_users'::regclass and conname='medar_users_requested_role_check' and pg_get_constraintdef(oid) like '%admin%' and pg_get_constraintdef(oid) like '%customer%') and
               exists (select 1 from information_schema.columns where table_schema='public' and table_name='medar_files' and column_name='content_base64') and
               exists (select 1 from pg_constraint where conrelid='public.medar_files'::regclass and conname='medar_files_bucket_id_check' and pg_get_constraintdef(oid) like '%capacity-evidence%') and
               to_regprocedure('public.medar_notify_task_status_change()') is not null and
