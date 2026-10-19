@@ -117,19 +117,20 @@ const globalSections: Array<[string, string[]]> = [
 ];
 export function HelpGuide({ role, section, onClose }: HelpGuideProps) {
   const [showManual, setShowManual] = useState(false);
+  const [showFullSection, setShowFullSection] = useState(false);
   const steps = sectionSteps(section, role);
-  const visibleSteps = showManual ? steps : steps.slice(0, 2);
+  const visibleSteps = showManual || showFullSection ? steps : steps.slice(0, 2);
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose(); };
     window.addEventListener('keydown', handleKeyDown);
     return () => { window.removeEventListener('keydown', handleKeyDown); };
   }, [onClose]);
   return <div className="guide-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}>
-    <section className={"guide-dialog"+(showManual?" show-global-manual":"")} role="dialog" aria-modal="false" aria-labelledby="medar-guide-title" dir="rtl">
+    <section className={"guide-dialog"+(showManual?" show-global-manual":showFullSection?" show-full-section-guide":"")} role="dialog" aria-modal="false" aria-labelledby="medar-guide-title" dir="rtl">
       <header className="guide-heading">
         <span className="guide-book-icon"><BookOpen size={23}/></span>
         <div className="guide-heading-copy"><span className="eyebrow">راهنمای تعاملی مدار</span><h2 id="medar-guide-title">{showManual ? 'راهنمای جامع مدیریت مدار' : 'راهنمای این بخش'}</h2><p className="guide-section-name">{(section ? sectionNames[section] : undefined) ?? 'راهنمای جامع مدیریت مدار'}</p><p>مخصوص نقش «{roleNames[role ?? ''] ?? 'کاربر'}» · فارسی و راست‌چین</p></div>
-        <button type="button" className="guide-manual-toggle" onClick={()=>setShowManual(value=>!value)}><BookOpen size={14}/>{showManual?"راهنمای بخش":"راهنمای کلی"}</button><button type="button" className="guide-close" onClick={onClose} aria-label="بستن راهنما"><X size={18}/></button>
+        <button type="button" className="guide-step-expand" onClick={()=>setShowFullSection(value=>!value)} aria-expanded={showFullSection}>{showFullSection?"کمتر":"راهنمای کامل"}</button><button type="button" className="guide-manual-toggle" onClick={()=>setShowManual(value=>!value)}><BookOpen size={14}/>{showManual?"راهنمای بخش":"راهنمای کلی"}</button><button type="button" className="guide-close" onClick={onClose} aria-label="بستن راهنما"><X size={18}/></button>
       </header>
       <div className="guide-trust-note"><ShieldCheck size={19}/><p><b>قاعدهٔ اصلی</b><span>مدار ابزار ثبت و پیگیری عملیات واقعی است. هیچ ظرفیت، تحویل، موقعیت یا تأییدی را بدون داده و مدرک واقعی قطعی فرض نکن.</span></p></div>
       <div className="guide-section-title"><span>قدم‌های این بخش</span><small>{steps.length.toLocaleString('fa-IR')} مرحله</small></div>
