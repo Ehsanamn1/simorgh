@@ -867,3 +867,59 @@ test('settings centralizes password, real connection health, and light/dark pref
   await expect(page.locator('.sidebar-settings-link, .profile-row')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'خروج از حساب' })).toHaveCount(0);
 });
+
+test('closing contextual help persists across navigation until explicitly reopened', async ({ page }, testInfo) => {
+  const viewportWidth = Number((testInfo.project.use as { viewport?: { width?: number } }).viewport?.width || 1365);
+  await installIsolatedSession(page, 'owner');
+  await page.goto('/simorgh/app/members', { waitUntil: 'domcontentloaded' });
+
+  const guide = page.locator('.medar-help-backdrop');
+  await expect(guide).toBeVisible();
+  await guide.getByRole('button', { name: 'بستن راهنما' }).click();
+  await expect(guide).toHaveCount(0);
+
+  if (viewportWidth <= 860) {
+    const mobileHome = page.locator('.mobile-workspace-nav a').first();
+    await expect(mobileHome).toBeVisible();
+    await mobileHome.click();
+  } else {
+    await page.locator('.topbar-home-link').click();
+  }
+  await expect(page).not.toHaveURL(/\/simorgh\/app\/members$/);
+  await expect(guide).toHaveCount(0);
+
+  const helpButton = page.getByRole('button', { name: 'راهنمای مدار' });
+  if (await helpButton.isVisible()) {
+    await helpButton.click();
+    await expect(guide).toBeVisible();
+    await guide.getByRole('button', { name: 'بستن راهنما' }).click();
+    await expect(guide).toHaveCount(0);
+  }
+});
+
+test('authenticated workspace remains usable without horizontal overflow across common breakpoints', async ({ page }) => {
+  await installIsolatedSession(page, 'owner');
+  await page.goto('/simorgh/app/home', { waitUntil: 'domcontentloaded' });
+  await expect(page.locator('.app-frame')).toBeVisible();
+
+  for (const width of [320, 360, 375, 390, 414, 640, 768, 1024, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    const dimensions = await page.evaluate(() => ({
+      viewport: document.documentElement.clientWidth,
+      document: document.documentElement.scrollWidth,
+      body: document.body.scrollWidth,
+    }));
+    expect(dimensions.document, `workspace document overflow at ${width}px`).toBeLessThanOrEqual(dimensions.viewport);
+    expect(dimensions.body, `workspace body overflow at ${width}px`).toBeLessThanOrEqual(dimensions.viewport);
+  }
+});
+
+test('reduced-motion preference is respected by the interface', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await installIsolatedSession(page, 'owner');
+  await page.goto('/simorgh/app/home', { waitUntil: 'domcontentloaded' });
+  await expect(page.locator('.app-frame')).toBeVisible();
+
+  const transitionDuration = await page.locator('.app-sidebar a').first().evaluate(element => getComputedStyle(element).transitionDuration);
+  expect(transitionDuration.split(',').every(value => Number.parseFloat(value) <= 0.001)).toBe(true);
+});
