@@ -1,6 +1,6 @@
 {
-  "name": "مدار | مدیریت یکپارچه مزرعه و عملیات",
-  "short_name": "مدار",
+  "name": "صحرا | مدیریت یکپارچه مزرعه و عملیات",
+  "short_name": "صحرا",
   "description": "سامانه‌ی یکپارچه‌ی مدیریت مزرعه، عملیات، سفارش، کیفیت، ارسال و امور مالی",
   "lang": "fa",
   "dir": "rtl",
@@ -12,11 +12,11 @@
     "minimal-ui"
   ],
   "orientation": "any",
-  "background_color": "#101719",
-  "theme_color": "#101719",
+  "background_color": "#1B2A3A",
+  "theme_color": "#1B2A3A",
   "icons": [
     {
-      "src": "./medar-icon.svg",
+      "src": "./sahra-icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any maskable"
