@@ -1,5 +1,4 @@
 import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
-import { createReadStream } from 'node:fs';
 import { Readable } from 'node:stream';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -37,7 +36,7 @@ export const privateFileStore = {
       throw error;
     }
     let metadata = {};
-    try { metadata = JSON.parse(await readFile(target + '.meta.json', 'utf8')); } catch {}
+    try { metadata = JSON.parse(await readFile(target + '.meta.json', 'utf8')); } catch { /* Fall back to a safe generic content type. */ }
     const body = Readable.toWeb(Readable.from([stat]));
     return {
       body,
