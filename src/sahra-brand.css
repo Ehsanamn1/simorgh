@@ -279,3 +279,82 @@ html[data-theme="dark"] .global-search, html[data-theme="dark"] .icon-action, ht
   .page-container { padding-inline: 10px !important; }
   .app-topbar { gap: 8px; }
 }
+
+
+/* Public read-only product tour: keep the showcase visually consistent with the real app. */
+.demo-workspace {
+  --demo-navy: #1B2A3A;
+  --demo-navy-deep: #142130;
+  --demo-copper: #8F6F52;
+  --demo-copper-light: #B58A68;
+  --demo-cream: #F3ECE6;
+  --demo-paper: #EBE5DF;
+  background: var(--demo-cream) !important;
+  color: var(--sahra-ink) !important;
+}
+.demo-sidebar { background: linear-gradient(180deg, #1B2A3A 0%, #142130 100%) !important; border-left-color: #344557 !important; }
+.demo-brand-row .brand-symbol { background: #24374A !important; color: #F3ECE6 !important; box-shadow: none !important; border: 1px solid #8F6F52 !important; }
+.demo-brand-row .brand-words b { color: #F3ECE6 !important; }
+.demo-brand-row .brand-words small { color: #D1B49B !important; }
+.demo-workspace-switch { background: #24374A !important; border-color: #3B4D60 !important; }
+.demo-workspace-switch b, .demo-side-health b, .demo-profile b { color: #F3ECE6 !important; }
+.demo-workspace-switch small, .demo-side-health small, .demo-profile small, .demo-nav-label { color: #C1C7CC !important; }
+.demo-workspace-avatar, .demo-profile-avatar { background: #35495D !important; border-color: #8F6F52 !important; color: #F3ECE6 !important; }
+.demo-env-badge, .demo-profile>svg { color: #D1B49B !important; }
+.demo-env-dot { background: #B58A68 !important; box-shadow: 0 0 0 4px rgb(181 138 104 / 12%) !important; }
+.demo-nav-item { color: #D4D9DD !important; }
+.demo-nav-item>svg { color: #C2C9CF !important; }
+.demo-nav-item:hover { background: #2A3D50 !important; color: #FFFFFF !important; }
+.demo-nav-item.is-active { background: #35495D !important; border-color: #536678 !important; color: #FFFFFF !important; }
+.demo-nav-item.is-active>svg, .demo-nav-active-mark { color: #D1B49B !important; background: #B58A68 !important; }
+.demo-topbar { background: rgb(255 252 249 / 95%) !important; border-bottom-color: var(--sahra-border) !important; }
+.demo-breadcrumb, .demo-date { color: #77766F !important; }
+.demo-breadcrumb b { color: var(--sahra-navy) !important; }
+.demo-search, .demo-icon-button, .demo-menu-button { background: #FFFCF9 !important; border-color: var(--sahra-border) !important; color: var(--sahra-navy) !important; }
+.demo-search:focus-within { border-color: var(--sahra-copper) !important; box-shadow: 0 0 0 3px rgb(143 111 82 / 14%) !important; }
+.demo-search input { color: var(--sahra-ink) !important; }
+.demo-search input::placeholder { color: #77766F !important; }
+.demo-content { background: var(--sahra-cream) !important; }
+.demo-eyebrow, .demo-kicker, .demo-section-kicker { color: var(--sahra-copper) !important; }
+.demo-content h1, .demo-content h2, .demo-content h3 { color: var(--sahra-navy); }
+.demo-content p { color: #686D70; }
+.demo-card, .demo-stat-card, .demo-panel, .demo-quick-access, .demo-table-wrap, .demo-chart-card,
+.demo-quick-action, .demo-activity-card, .demo-module-card {
+  background: #FFFCF9 !important;
+  border-color: var(--sahra-border) !important;
+  box-shadow: 0 8px 26px rgb(27 42 58 / 6%);
+}
+.demo-stat-card, .demo-stat-value, .demo-quick-action>b, .demo-quick-heading b { color: var(--sahra-navy) !important; }
+.demo-stat-label, .demo-stat-card small, .demo-quick-action>small, .demo-quick-count { color: #686D70 !important; }
+.demo-stat-icon, .demo-quick-action>span, .demo-quick-heading>span {
+  background: #F0E3D7 !important; border-color: #D9C0AA !important; color: var(--sahra-copper) !important;
+}
+.demo-nav-active-mark { background: var(--sahra-copper) !important; }
+.demo-ops-link { background: var(--sahra-navy) !important; border-color: var(--sahra-navy) !important; color: #FFFFFF !important; }
+.demo-ops-link:hover { background: #2B3C4E !important; border-color: var(--sahra-copper) !important; }
+.demo-mobile-bottom-nav { background: rgb(27 42 58 / 97%) !important; border-color: #3B4D60 !important; }
+.demo-mobile-bottom-nav>button { color: #D4D9DD !important; }
+.demo-mobile-bottom-nav>button.is-active { background: #35495D !important; color: #FFFFFF !important; }
+.demo-mobile-bottom-nav>button.is-active>svg { color: #D1B49B !important; }
+.demo-table th { background: #F0E9E2 !important; color: #5D6267 !important; }
+.demo-table td { background: #FFFCF9 !important; color: var(--sahra-ink) !important; border-color: #E7DFD7 !important; }
+.demo-table tbody tr:hover td { background: #F8F0E8 !important; }
+.demo-preview-notice { background: #F0E3D7 !important; border-color: #D9C0AA !important; color: var(--sahra-navy) !important; }
+.demo-preview-notice b { color: var(--sahra-navy) !important; }
+html[data-theme="dark"] .demo-workspace { background: #142130 !important; color: #F3ECE6 !important; }
+html[data-theme="dark"] .demo-topbar { background: rgb(27 42 58 / 97%) !important; }
+html[data-theme="dark"] .demo-content { background: #142130 !important; }
+html[data-theme="dark"] .demo-content h1, html[data-theme="dark"] .demo-content h2, html[data-theme="dark"] .demo-content h3 { color: #F3ECE6 !important; }
+html[data-theme="dark"] .demo-content p, html[data-theme="dark"] .demo-breadcrumb { color: #C1C4C6 !important; }
+html[data-theme="dark"] .demo-card, html[data-theme="dark"] .demo-stat-card,
+html[data-theme="dark"] .demo-panel, html[data-theme="dark"] .demo-quick-access,
+html[data-theme="dark"] .demo-table-wrap, html[data-theme="dark"] .demo-chart-card,
+html[data-theme="dark"] .demo-quick-action, html[data-theme="dark"] .demo-activity-card,
+html[data-theme="dark"] .demo-module-card {
+  background: #1B2A3A !important; border-color: #3A4B5C !important; color: #F3ECE6 !important;
+}
+html[data-theme="dark"] .demo-stat-card, html[data-theme="dark"] .demo-stat-value,
+html[data-theme="dark"] .demo-quick-action>b, html[data-theme="dark"] .demo-quick-heading b { color: #F3ECE6 !important; }
+html[data-theme="dark"] .demo-table th { background: #223448 !important; color: #D3D7DA !important; }
+html[data-theme="dark"] .demo-table td { background: #1B2A3A !important; color: #E5E1DC !important; border-color: #3A4B5C !important; }
+html[data-theme="dark"] .demo-preview-notice { background: #2B3C4E !important; border-color: #536678 !important; color: #F3ECE6 !important; }
