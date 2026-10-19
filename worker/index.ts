@@ -500,7 +500,7 @@ app.post('/api/profile/complete', async (c) => {
     "with updated_user as (" +
       "update public.medar_users set display_name=$2,phone_e164=$3,updated_at=now() where id=$1::uuid returning id,coalesce(username_normalized,username) as username,display_name as full_name,phone_e164 as phone" +
     "), upsert_profile as (" +
-      "insert into public.profiles(id,full_name,phone) select id,$2,$3 from updated_user on conflict(id) do update set full_name=excluded.full_name,phone=excluded.phone returning id" +
+      "insert into public.profiles(id,full_name,phone) select id,$2,$3 from updated_user on conflict(id) do update set full_name=excluded.full_name,phone=excluded.phone,updated_at=now() returning id" +
     "), new_supplier as (" +
       "insert into public.suppliers(company_id,name,phone,active) select m.company_id,case when exists(select 1 from public.suppliers existing where existing.company_id=m.company_id and lower(existing.name)=lower($2)) then left($2,120)||' ('||left(u.id::text,8)||')' else $2 end,$3,true from public.memberships m join updated_user u on u.id=m.user_id where m.active=true and m.role::text='supplier' and m.supplier_id is null returning id,company_id" +
     "), link_supplier as (" +
