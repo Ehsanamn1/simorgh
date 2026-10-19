@@ -299,7 +299,7 @@ export default function DemoWorkspace() {
           {activePage === 'command' ? (
             <>
               <div className="demo-page-heading">
-                <div><span className="demo-eyebrow"><span/>MEDAR / OPERATIONS OVERVIEW</span><h1>عملیات، در یک نگاه.</h1><p>نمایی یکپارچه از سفارش، تولید، موجودی و تحویل؛ بدون جابه‌جایی بین فایل‌ها و پیام‌ها.</p></div>
+                <div><span className="demo-eyebrow"><span/>SAHRA / OPERATIONS OVERVIEW</span><h1>عملیات، در یک نگاه.</h1><p>نمایی یکپارچه از سفارش، تولید، موجودی و تحویل؛ بدون جابه‌جایی بین فایل‌ها و پیام‌ها.</p></div>
                 <button className="demo-secondary-button" onClick={() => selectPage('orders')}>رفتن به سفارش‌ها <ArrowLeft size={16}/></button>
               </div>
               <section className="demo-stats-grid" aria-label="شاخص‌های نمونه">
@@ -355,7 +355,7 @@ export default function DemoWorkspace() {
           ) : (
             <>
               <div className="demo-page-heading">
-                <div><span className="demo-eyebrow"><span/>{page.group.toUpperCase()} / MEDAR</span><h1>{page.label}</h1><p>{page.description}</p></div>
+                <div><span className="demo-eyebrow"><span/>{page.group.toUpperCase()} / SAHRA</span><h1>{page.label}</h1><p>{page.description}</p></div>
                 <span className="demo-read-only-badge"><ShieldCheck size={15}/> فقط‌خواندنی</span>
               </div>
               <div className="demo-module-summary">
