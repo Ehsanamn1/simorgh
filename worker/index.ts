@@ -2076,6 +2076,8 @@ app.get('/api/workspace/members', async (c) => {
   return c.json({ members });
 });
 
+export const MEMBER_ACCOUNT_ALLOWED_ROLES = ['admin', 'staff', 'supplier', 'driver', 'customer'];
+
 export const MEMBER_ACCOUNT_INSERT_SQL =
   "with new_user as (" +
     "insert into public.medar_users(username,username_normalized,display_name,password_hash,requested_role,account_status) " +
@@ -2108,7 +2110,7 @@ app.post('/api/workspace/members/create', async (c) => {
   const role = typeof body.role === 'string' ? body.role : '';
   const customerId = typeof body.customerId === 'string' && body.customerId ? body.customerId : null;
   const supplierId = typeof body.supplierId === 'string' && body.supplierId ? body.supplierId : null;
-  const allowedRoles = ['admin', 'staff', 'supplier', 'driver'];
+  const allowedRoles = MEMBER_ACCOUNT_ALLOWED_ROLES;
   if (!COMPANY_ID_RE.test(companyId) || !username || !allowedRoles.includes(role)) {
     return c.json({ message: 'شناسه مجموعه، نام کاربری یا نقش معتبر نیست.' }, 422);
   }
