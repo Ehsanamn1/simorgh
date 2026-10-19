@@ -1494,3 +1494,27 @@ input, select, textarea { accent-color: #45784e; }
   .medar-help-trust-note, .medar-help-mobile-tip, .medar-help-role-links, .medar-help-footer { margin-top: 8px !important; }
   .medar-help-steps li { gap: 7px !important; padding: 8px !important; font-size: 10px !important; }
 }
+
+
+/* Medar mobile-first navigation refinement */
+.mobile-bottom-nav{display:none}
+@media(max-width:640px){
+  .app-main{padding-bottom:calc(68px + env(safe-area-inset-bottom, 0px))}
+  .mobile-bottom-nav{
+    position:fixed;right:0;left:0;bottom:0;z-index:30;
+    display:flex;align-items:stretch;justify-content:space-around;gap:2px;
+    min-height:60px;padding:7px 7px calc(7px + env(safe-area-inset-bottom, 0px));
+    background:rgba(251,252,249,.97);border-top:1px solid #dfe7dc;
+    box-shadow:0 -8px 26px #183b2710;backdrop-filter:blur(14px);
+  }
+  .mobile-bottom-nav a{
+    flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
+    border-radius:10px;color:#718776;font-size:10px;font-weight:700;text-decoration:none;
+    min-height:43px;transition:background .15s,color .15s;
+  }
+  .mobile-bottom-nav a svg{flex:none}
+  .mobile-bottom-nav a.active{color:#245a3b;background:#eaf3e5}
+  .mobile-bottom-nav a:focus-visible{outline:2px solid #679c68;outline-offset:1px}
+  .app-footer{padding-bottom:10px}
+}
+@media(min-width:641px){.mobile-bottom-nav{display:none!important}}
