@@ -31,7 +31,7 @@ test('public demo is navigable, searchable and clearly read-only', async ({ page
     noticeTitle: getComputedStyle(document.querySelector('.demo-preview-notice b')!).color,
     metricText: getComputedStyle(document.querySelector('.demo-stat-value')!).color,
   }));
-  expect(lightPalette.bodyBackground).toBe('rgb(244, 247, 247)');
+  expect(lightPalette.bodyBackground).toBe('rgb(243, 236, 230)');
   expect(lightPalette.noticeTitle).not.toBe(lightPalette.bodyBackground);
   expect(lightPalette.metricText).not.toBe(lightPalette.bodyBackground);
 
@@ -60,7 +60,7 @@ test('public demo is navigable, searchable and clearly read-only', async ({ page
   expect(dimensions.document).toBeLessThanOrEqual(dimensions.viewport);
   expect(dimensions.body).toBeLessThanOrEqual(dimensions.viewport);
   expect(errors).toEqual([]);
-  await page.screenshot({ path: testInfo.outputPath('medar-public-demo.png'), fullPage: true });
+  await page.screenshot({ path: testInfo.outputPath('sahra-public-demo.png'), fullPage: true });
 });
 
 test('mobile demo has four bottom navigation items, all key modules, and working shortcuts', async ({ page }) => {
