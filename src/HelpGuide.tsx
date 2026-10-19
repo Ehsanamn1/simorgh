@@ -1,114 +1,85 @@
 import { useEffect } from 'react';
-import { ArrowLeft, BookOpen, CheckCircle2, Package, ShieldCheck, Smartphone, Truck, Users, Warehouse, X } from 'lucide-react';
+import { ArrowLeft, BookOpen, CheckCircle2, ClipboardCheck, Factory, MapPin, Package, ShieldCheck, Smartphone, Truck, Users, Warehouse, X } from 'lucide-react';
 import type { AppRole } from './lib/types';
 
-type HelpGuideProps = {
-  role?: AppRole;
-  onClose: () => void;
-};
+type HelpGuideProps = { role?: AppRole; section?: string; onClose: () => void };
 
 const roleNames: Record<string, string> = {
-  owner: 'مالک مجموعه',
-  admin: 'مدیر',
-  staff: 'کارشناس',
-  supplier: 'تأمین‌کننده',
-  customer: 'کاربر محدود',
-  driver: 'راننده',
+  owner: 'مالک مجموعه', admin: 'مدیر', staff: 'کارشناس عملیات',
+  supplier: 'تأمین‌کننده', customer: 'کاربر محدود', driver: 'راننده',
 };
-
-function roleSteps(role?: AppRole): string[] {
-  if (role === 'driver') {
-    return [
-      'از «محموله‌های من» فهرست ارسال‌های واگذارشده به حساب خودت را باز کن.',
-      'جزئیات محموله، مقصد و وضعیت فعلی را بررسی کن.',
-      'پس از انجام واقعی هر مرحله، وضعیت را طبق گزینه‌های مجاز ثبت کن؛ اگر موردی مبهم است با مدیر مجموعه هماهنگ کن.',
-    ];
-  }
-  if (role === 'supplier') {
-    return [
-      'در «کارهای واگذارشده» کارهای مربوط به خودت و وضعیت هر کدام را ببین.',
-      'مقدار و بازه‌ی قابل ارائه را در «ظرفیت من» ثبت یا به‌روزرسانی کن.',
-      'برای گزارش پیشرفت، اعلام مشکل یا دریافت مأموریت جدید از «مرکز ارتباطات» استفاده کن؛ ظرفیت و بازهٔ قابل ارائه را به‌روز نگه دار.',
-    ];
-  }
-  if (role === 'customer') {
-    return [
-      'این سامانه برای مدیریت زنجیره تأمین و همکاران تأییدشده است؛ ثبت سفارش عمومی در این نقش فعال نیست.',
-      'برای دریافت وظایف یا دسترسی مناسب، با مالک مجموعه هماهنگ کن.',
-      'فقط اطلاعات و بخش‌هایی را که نقش شما مجاز کرده است مشاهده کن.',
-    ];
-  }
-  return [
-    'از «دسترسی کاربران» برای ساخت حساب اختصاصی تأمین‌کننده، راننده یا کارشناس استفاده کن؛ ثبت‌نام عمومی غیرفعال است.',
-    'در «شبکه تأمین‌کنندگان» اطلاعات تماس، استان، شهر و ظرفیت قابل اتکا را ثبت کن؛ مختصات دقیق اجباری نیست.',
-    'در «مرکز ارتباطات» مأموریت را به همکار مربوط واگذار کن و پاسخ را پیگیری کن؛ در «حمل‌ونقل» مراحل بارگیری تا تحویل را بررسی کن.',
-  ];
+const sectionNames: Record<string, string> = {
+  home: 'خانه و وضعیت روز', command: 'مرکز فرمان', suppliers: 'شبکه تأمین‌کنندگان',
+  members: 'افراد و دسترسی‌ها', connect: 'مرکز ارتباطات', capacity: 'ظرفیت تأمین',
+  'supplier-capacity': 'ظرفیت من', 'supplier-work': 'کارهای واگذارشده',
+  'operational-tasks': 'وظایف و مأموریت‌ها', shipments: 'حمل‌ونقل',
+  'driver-work': 'محموله‌های من', 'daily-production': 'ثبت روزانه تولید',
+  'farm-sites': 'موقعیت‌های کاری', settings: 'تنظیمات', quality: 'کنترل کیفیت',
+  inventory: 'موجودی', audit: 'تاریخچه تغییرات',
+};
+function sectionSteps(section?: string, role?: AppRole): string[] {
+  const common: Record<string, string[]> = {
+    home: ['ابتدا اعلان‌های خوانده‌نشده و کارهای دارای موعد نزدیک را بررسی کن.', 'از میانبرهای پرکاربرد برای ورود مستقیم به کارهای روزانه استفاده کن.', 'وضعیت‌ها و ظرفیت‌ها فقط وقتی معتبرند که رکورد واقعی و به‌روز ثبت شده باشد.', 'برای مرور کامل همه ماژول‌ها، «راهنمای کلی مدار» را باز کن.'],
+    command: ['کارت‌های وضعیت را با آخرین داده‌های واقعی مقایسه کن؛ عدد خالی یا صفر را با حدس پر نکن.', 'هشدارها را باز کن و برای هر مورد یک اقدام مشخص تعیین کن.', 'ظرفیت تأییدشده را از ظرفیت صرفاً اعلام‌شده جدا نگه دار.', 'رویدادهای اخیر و تاریخچه تغییرات را برای پیگیری مسئولیت بررسی کن.'],
+    suppliers: ['برای هر تأمین‌کننده نام، استان، شهر و نشانی قابل تماس را تکمیل کن.', 'حساب ورود فرد را از «افراد و دسترسی‌ها» بساز و نقش درست را انتخاب کن.', 'ظرفیت را به‌صورت دوره‌ای و با واحد، بازه و منبع مدرک ثبت کن.', 'مدارک را بازبینی کن؛ تا تأیید مدیر، داده اعلام‌شده را ظرفیت تأییدشده تلقی نکن.', 'در صورت تغییر نشانی، شماره یا وضعیت همکاری، رکورد را به‌روزرسانی کن.'],
+    members: ['«ساخت حساب» را بزن و نام کاربری یکتا و رمز اولیه امن تعیین کن.', 'نقش را بر اساس مسئولیت واقعی انتخاب کن؛ فقط مالک باید نقش مدیر بسازد.', 'برای تأمین‌کننده، در صورت وجود پرونده مرتبط آن را متصل کن؛ کاربر جدید پس از ورود مشخصات فردی را تکمیل می‌کند.', 'نام کاربری و رمز را از مسیر امن به خود فرد تحویل بده؛ رمز را در گروه عمومی نفرست.', 'در صورت خروج فرد، دسترسی او را غیرفعال کن و در صورت نیاز رمز را بازنشانی کن.'],
+    connect: ['برای کار، مسئول مشخص، شرح روشن و موعد قابل انجام تعیین کن.', 'توافق‌ها و تغییرات مهم را در گفت‌وگوی همان مجموعه ثبت کن.', 'پاسخ و وضعیت مأموریت را دنبال کن؛ پیام به‌تنهایی جای ثبت نتیجه عملیاتی را نمی‌گیرد.', 'اعلان‌ها را بررسی کن و پس از اقدام، نتیجه را در ماژول مربوط ثبت کن.'],
+    capacity: ['نوع محصول/خدمت، واحد اندازه‌گیری و بازه زمانی ظرفیت را دقیق انتخاب کن.', 'ظرفیت اعلام‌شده را از مقدار متعهدشده و مقدار تأییدشده جدا نگه دار.', 'برای هر اعلام روزانه، عکس یا سند مرتبط، تاریخ ثبت و توضیح منبع را نگه دار.', 'مدیر باید مدرک را بررسی و نتیجه تأیید یا رد را ثبت کند؛ مدرک نامعتبر را تأیید نکن.', 'ظرفیت منقضی یا قدیمی را برای تصمیم امروز استفاده نکن.'],
+    'supplier-capacity': ['ظرفیت قابل ارائه را با واحد درست و تاریخ شروع/پایان ثبت کن.', 'مدرک پشتیبان خوانا و مرتبط با همان تاریخ و مقدار پیوست کن.', 'اگر مقدار تغییر کرد، رکورد تازه یا اصلاح مستند ثبت کن؛ اطلاعات قبلی را با حدس جایگزین نکن.', 'وضعیت تأیید مدیر را پیگیری کن و ظرفیت تأییدنشده را قطعی فرض نکن.'],
+    'supplier-work': ['ابتدا شرح، موعد، پیوست‌ها و معیار تکمیل مأموریت را بخوان.', 'کار را به مراحل واقعی تقسیم کن و وضعیت را هنگام انجام به‌روزرسانی کن.', 'برای تحویل کار، توضیح نتیجه و مدرک قابل بررسی اضافه کن.', 'پس از ارسال برای بررسی، بازخورد مدیر را دنبال کن و در صورت رد، اصلاحات را مستند انجام بده.'],
+    'operational-tasks': ['وظیفه را با عنوان روشن، مسئول، اولویت و موعد واقعی بساز.', 'وضعیت «در حال انجام» را از «ارسال برای بررسی» و «تأیید نهایی» جدا نگه دار.', 'مدرک و یادداشت تکمیل را در همان وظیفه ثبت کن تا مدیر بتواند راستی‌آزمایی کند.', 'مدیر مدارک را بررسی و تأیید یا با دلیل مشخص برای اصلاح برمی‌گرداند.', 'تاریخچه و اعلان تغییر وضعیت برای پیگیری استفاده می‌شوند؛ تأیید خودکار فرض نکن.'],
+    shipments: ['محموله را به راننده و وسیله نقلیه درست تخصیص بده.', 'مبدأ، مقصد، زمان برنامه‌ریزی‌شده و مدارک بارگیری را کنترل کن.', 'مراحل بارگیری، حرکت، رسیدن و تحویل را فقط پس از وقوع واقعی ثبت کن.', 'مدرک تحویل را بازبینی کن و رخدادها یا تأخیرها را با توضیح ثبت کن.'],
+    'driver-work': ['فقط محموله‌های تخصیص‌یافته به حساب خودت را بررسی کن.', 'پیش از حرکت، مقصد و اطلاعات محموله را کنترل کن.', 'وضعیت هر مرحله را پس از وقوع واقعی ثبت کن و مدرک تحویل را بارگذاری کن.', 'مکان‌یابی اختیاری است؛ فقط با اجازه دستگاه فعال می‌شود و در صورت قطع GPS، وضعیت را صادقانه اعلام کن.'],
+    'daily-production': ['تاریخ عملیات، محل، محصول و واحد اندازه‌گیری را قبل از ثبت بررسی کن.', 'مقدار تولید واقعی و مقدار مردود/ضایعات را جداگانه وارد کن.', 'عکس یا مدرک همان روز را همراه توضیح و منبع ثبت کن.', 'ارسال برای بررسی به معنی تأیید نیست؛ وضعیت تأیید مدیر را دنبال کن.'],
+    'farm-sites': ['نام محل، استان، شهر و نشانی واقعی را وارد کن.', 'مختصات را فقط از لینک معتبر نقشه یا اجازه GPS به دست آور؛ مختصات حدسی وارد نکن.', 'اطلاعات محل را با پرونده تأمین‌کننده و ظرفیت مرتبط نگه دار.'],
+    settings: ['رمز عبور را به‌صورت دوره‌ای و در صورت افشاشدن فوراً تغییر بده.', 'حالت روشن/تاریک را متناسب با محیط انتخاب کن.', 'وضعیت اتصال را بررسی کن؛ در حالت آفلاین تغییرات جدید تا تأیید سرور قطعی نیستند.', 'خروج از حساب را در دستگاه مشترک فراموش نکن.'],
+    quality: ['نمونه، معیار، مقدار و واحد را مستند ثبت کن.', 'برای عدم انطباق، مدرک و توضیح قابل پیگیری پیوست کن.', 'نتیجه قبول، مشروط یا رد را مطابق شواهد واقعی ثبت کن.'],
+    inventory: ['ورودی و خروجی را از مسیر عملیاتی ثبت کن؛ موجودی را دستی و بدون سند تغییر نده.', 'واحد و مرجع هر حرکت را کنترل کن.', 'اختلاف موجودی را با شمارش و مدرک بررسی کن.'],
+  };
+  const selected = section ? common[section] : undefined;
+  if (selected) return selected;
+  if (role === 'driver') return common['driver-work'];
+  if (role === 'supplier') return common['supplier-work'];
+  if (role === 'staff') return common['operational-tasks'];
+  return ['از «افراد و دسترسی‌ها» حساب اختصاصی همکاران را بساز و نقش متناسب تعیین کن.', 'پرونده تأمین‌کنندگان و ظرفیت‌ها را با اطلاعات و مدارک واقعی کامل کن.', 'وظایف را به مسئول مشخص بسپار و تکمیل را با مدرک بررسی کن.', 'حمل‌ونقل را از تخصیص تا تحویل واقعی پیگیری کن.', 'اعلان‌ها، تاریخچه و وضعیت اتصال را هر روز مرور کن.'];
 }
-
-export function HelpGuide({ role, onClose }: HelpGuideProps) {
-  const steps = roleSteps(role);
+const globalSections = [
+  ['۱. شروع امن', 'مالک حساب‌ها را می‌سازد، نقش‌ها باید حداقلی باشند و رمزها فقط از مسیر امن تحویل داده شوند. ثبت‌نام عمومی و سفارش‌گذاری عمومی در این نسخه فعال نیست.'],
+  ['۲. افراد و نقش‌ها', 'مالک/مدیر حساب می‌سازد، نقش را انتخاب می‌کند، در صورت لزوم پرونده تأمین‌کننده را متصل می‌کند و دسترسی را هنگام پایان همکاری غیرفعال می‌کند. هر نقش فقط باید به مسیرهای مجاز خودش دسترسی داشته باشد.'],
+  ['۳. شبکه تأمین', 'پرونده هر تأمین‌کننده را با اطلاعات تماس و محل واقعی نگه دارید. ظرفیت اعلام‌شده، متعهدشده و تأییدشده یک مفهوم نیستند؛ برای تصمیم عملیاتی فقط ظرفیت معتبر در بازه جاری را ملاک بگیرید.'],
+  ['۴. ظرفیت و اثبات', 'برای گزارش روزانه یا ظرفیت قابل ارائه، مقدار، واحد، تاریخ/بازه، توضیح و مدرک مرتبط لازم است. مدیر باید کیفیت و ارتباط مدرک را بررسی و نتیجه تأیید/رد را ثبت کند.'],
+  ['۵. وظایف و ارتباطات', 'هر مأموریت باید شرح، مسئول، موعد و معیار تکمیل داشته باشد. «ارسال برای بررسی» با «تأیید نهایی» فرق دارد. اختلاف یا اصلاح باید با یادداشت و مدرک قابل پیگیری باشد.'],
+  ['۶. حمل‌ونقل و راننده', 'محموله به راننده تخصیص می‌یابد؛ مراحل فقط پس از رخداد واقعی به‌روزرسانی می‌شوند. مکان‌یابی تنها با اجازه دستگاه است و اگر GPS قطع شد، آخرین زمان به‌روزرسانی باید شفاف بماند.'],
+  ['۷. اعلان‌ها و تکمیل کار', 'اعلان یادآور است، نه جایگزین ثبت عملیات. پس از خواندن اعلان، کار را در ماژول مرتبط انجام بده؛ وضعیت تسک را با نتیجه و مدرک به‌روزرسانی کن.'],
+  ['۸. داده، تاریخ و آفلاین', 'تاریخ‌های نمایشی فارسی هستند، اما داده‌های سرور با قالب استاندارد ذخیره می‌شوند. در حالت آفلاین فقط داده کش‌شده قابل مشاهده است؛ نوشتن جدید تا تأیید سرور قطعی نیست.'],
+  ['۹. کنترل روزانه مالک', 'هر روز ظرفیت تأییدشده، موارد منتظر بررسی، تسک‌های سررسیدشده، محموله‌های در جریان و اعلان‌های امنیتی را مرور کنید. تصمیم‌ها را بر اساس داده و مدرک تازه بگیرید.'],
+];
+export function HelpGuide({ role, section, onClose }: HelpGuideProps) {
+  const steps = sectionSteps(section, role);
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
-    };
+    const handleKeyDown = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose(); };
     window.addEventListener('keydown', handleKeyDown);
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      window.removeEventListener('keydown', handleKeyDown);
-    };
+    return () => { document.body.style.overflow = previousOverflow; window.removeEventListener('keydown', handleKeyDown); };
   }, [onClose]);
-
-  return (
-    <div className="guide-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}>
-      <section className="guide-dialog" role="dialog" aria-modal="true" aria-labelledby="medar-guide-title" dir="rtl">
-        <header className="guide-heading">
-          <span className="guide-book-icon"><BookOpen size={23}/></span>
-          <div className="guide-heading-copy">
-            <span className="eyebrow">راهنمای کوتاه مدار</span>
-            <h2 id="medar-guide-title">از اینجا شروع کن</h2>
-            <p>نمای فعلی برای نقش «{roleNames[role ?? ''] ?? 'کاربر'}» تنظیم شده است.</p>
-          </div>
-          <button type="button" className="guide-close" onClick={onClose} aria-label="بستن راهنما"><X size={18}/></button>
-        </header>
-
-        <div className="guide-trust-note">
-          <ShieldCheck size={19}/>
-          <p><b>یک فضای کاری مشترک</b><span>وب و اپ‌های موبایل با یک حساب، API مرکزی و پایگاه داده کار می‌کنند. نقش شما تعیین می‌کند کدام بخش‌ها و عملیات در دسترس باشند.</span></p>
-        </div>
-
-        <div className="guide-section-title"><span>قدم‌های پیشنهادی</span><small>۳ مرحله</small></div>
-        <ol className="guide-steps">
-          {steps.map((step, index) => (
-            <li key={step}>
-              <span className="guide-step-number">{index + 1}</span>
-              <span>{step}</span>
-              <CheckCircle2 size={17} className="guide-step-check"/>
-            </li>
-          ))}
-        </ol>
-
-        <div className="guide-mobile-tip">
-          <span className="guide-tip-icon"><Smartphone size={21}/></span>
-          <div>
-            <b>روی موبایل چطور کار کنم؟</b>
-            <p>با نام کاربری و گذرواژه وارد شو. دکمه‌ی منو، فهرست بخش‌های مجاز تو را باز می‌کند؛ روی هر بخش بزن، رکورد را بررسی کن و تغییرات را ذخیره کن. اطلاعات زنده برای همگام‌شدن به اتصال اینترنت نیاز دارند.</p>
-          </div>
-        </div>
-
-        <div className="guide-role-links">
-          <span><Package size={16}/> عملیات ثبت‌شده</span>
-          <span><Warehouse size={16}/> داده‌ی مرکزی</span>
-          <span><Users size={16}/> دسترسی بر اساس نقش</span>
-          <span><Truck size={16}/> گردش‌کار متصل</span>
-        </div>
-
-        <footer className="guide-footer">
-          <span>هر تغییری که ثبت می‌کنی در فضای کاری همان مجموعه ذخیره می‌شود.</span>
-          <button type="button" className="button-primary" onClick={onClose}>متوجه شدم <ArrowLeft size={16}/></button>
-        </footer>
-      </section>
-    </div>
-  );
+  return <div className="guide-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}>
+    <section className="guide-dialog" role="dialog" aria-modal="true" aria-labelledby="medar-guide-title" dir="rtl">
+      <header className="guide-heading">
+        <span className="guide-book-icon"><BookOpen size={23}/></span>
+        <div className="guide-heading-copy"><span className="eyebrow">راهنمای تعاملی مدار</span><h2 id="medar-guide-title">{section ? 'راهنمای بخش «'+(sectionNames[section] ?? 'فعلی')+'»' : 'راهنمای جامع مدیریت مدار'}</h2><p>مخصوص نقش «{roleNames[role ?? ''] ?? 'کاربر'}» · فارسی و راست‌چین</p></div>
+        <button type="button" className="guide-close" onClick={onClose} aria-label="بستن راهنما"><X size={18}/></button>
+      </header>
+      <div className="guide-trust-note"><ShieldCheck size={19}/><p><b>قاعدهٔ اصلی</b><span>مدار ابزار ثبت و پیگیری عملیات واقعی است. هیچ ظرفیت، تحویل، موقعیت یا تأییدی را بدون داده و مدرک واقعی قطعی فرض نکن.</span></p></div>
+      <div className="guide-section-title"><span>قدم‌های این بخش</span><small>{steps.length.toLocaleString('fa-IR')} مرحله</small></div>
+      <ol className="guide-steps">{steps.map((step,index)=><li key={step}><span className="guide-step-number">{index+1}</span><span>{step}</span><CheckCircle2 size={17} className="guide-step-check"/></li>)}</ol>
+      <div className="guide-global-manual">
+        <div className="guide-section-title"><span><BookOpen size={16}/> راهنمای کلی؛ از صفر تا مدیریت روزانه</span><small>{globalSections.length.toLocaleString('fa-IR')} فصل</small></div>
+        {globalSections.map(([title,body])=><article className="guide-manual-chapter" key={title}><h3>{title}</h3><p>{body}</p></article>)}
+      </div>
+      <div className="guide-mobile-tip"><span className="guide-tip-icon"><Smartphone size={21}/></span><div><b>موبایل، آفلاین و حریم خصوصی</b><p>منوی پایین و فهرست نقش‌محور فقط بخش‌های مجاز را نشان می‌دهند. داده‌های جدید فقط پس از تأیید سرور قطعی‌اند. مجوز GPS را خود کاربر می‌دهد؛ مکان‌یابی را می‌توان قطع کرد.</p></div></div>
+      <div className="guide-role-links"><span><Factory size={16}/> تأمین</span><span><ClipboardCheck size={16}/> وظایف</span><span><Users size={16}/> نقش‌ها</span><span><Truck size={16}/> حمل‌ونقل</span><span><MapPin size={16}/> موقعیت واقعی</span><span><Warehouse size={16}/> ظرفیت</span><span><Package size={16}/> مدارک</span></div>
+      <footer className="guide-footer"><span>برای دیدن راهنمای هر صفحه، به همان بخش برو؛ این راهنما همیشه از دکمهٔ راهنما قابل دسترسی است.</span><button type="button" className="button-primary" onClick={onClose}>متوجه شدم <ArrowLeft size={16}/></button></footer>
+    </section>
+  </div>;
 }
