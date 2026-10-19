@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ArrowLeft, BookOpen, CheckCircle2, ClipboardCheck, Factory, MapPin, Package, ShieldCheck, Smartphone, Truck, Users, Warehouse, X } from 'lucide-react';
 import type { AppRole } from './lib/types';
@@ -119,15 +119,34 @@ const globalSections: Array<[string, string[]]> = [
 export function HelpGuide({ role, section, onClose }: HelpGuideProps) {
   const [showManual, setShowManual] = useState(false);
   const [showFullSection, setShowFullSection] = useState(false);
+  const dialogRef = useRef<HTMLElement | null>(null);
   const steps = sectionSteps(section, role);
   const visibleSteps = showManual || showFullSection ? steps : steps.slice(0, 2);
   useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose(); };
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+    const getFocusable = () => Array.from(dialog.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    )).filter(element => element.getAttribute('aria-hidden') !== 'true');
+    getFocusable()[0]?.focus();
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') { event.preventDefault(); onClose(); return; }
+      if (event.key !== 'Tab') return;
+      const focusable = getFocusable();
+      if (!focusable.length) { event.preventDefault(); dialog.focus(); return; }
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && (document.activeElement === first || !dialog.contains(document.activeElement))) {
+        event.preventDefault(); last.focus();
+      } else if (!event.shiftKey && (document.activeElement === last || !dialog.contains(document.activeElement))) {
+        event.preventDefault(); first.focus();
+      }
+    };
     window.addEventListener('keydown', handleKeyDown);
     return () => { window.removeEventListener('keydown', handleKeyDown); };
   }, [onClose]);
   return createPortal(<div className="medar-help-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}>
-    <section className={"medar-help-dialog"+(showManual?" show-global-manual":showFullSection?" show-full-section-guide":"")} role="dialog" aria-modal="false" aria-labelledby="medar-help-title" dir="rtl">
+    <section className={"medar-help-dialog"+(showManual?" show-global-manual":showFullSection?" show-full-section-guide":"")} role="dialog" aria-modal="true" aria-labelledby="medar-help-title" dir="rtl" tabIndex={-1} ref={dialogRef}>
       <header className="medar-help-heading">
         <span className="medar-help-book-icon"><BookOpen size={23}/></span>
         <div className="medar-help-heading-copy"><span className="eyebrow">راهنمای تعاملی صحرا</span><h2 id="medar-help-title">{showManual ? 'راهنمای جامع مدیریت صحرا' : 'راهنمای این بخش'}</h2><p className="medar-help-section-name">{(section ? sectionNames[section] : undefined) ?? 'راهنمای جامع مدیریت صحرا'}</p><p>مخصوص نقش «{roleNames[role ?? ''] ?? 'کاربر'}» · فارسی و راست‌چین</p></div>
