@@ -2248,3 +2248,66 @@ html[data-theme="dark"] .guide-backdrop{background:transparent}
     inset: auto auto calc(env(safe-area-inset-bottom, 0px) + 78px) 8px !important;
   }
 }
+
+
+/* Help card geometry: stable viewport anchor and predictable sizing on both form factors. */
+.medar-help-backdrop {
+  left: 12px !important;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 16px) !important;
+  right: auto !important;
+  top: auto !important;
+  width: 236px !important;
+  max-width: calc(100vw - 24px) !important;
+}
+.medar-help-dialog {
+  width: 100% !important;
+  min-width: 0 !important;
+  overflow-wrap: anywhere !important;
+}
+.medar-help-dialog .medar-help-heading {
+  display: grid !important;
+  grid-template-columns: 25px minmax(0,1fr) auto auto 23px !important;
+  align-items: center !important;
+  gap: 4px !important;
+}
+.medar-help-dialog .medar-help-heading-copy { min-width: 0 !important; }
+.medar-help-dialog .medar-help-heading-copy h2 { overflow-wrap: anywhere !important; }
+.medar-help-dialog .medar-help-step-expand,
+.medar-help-dialog .medar-help-manual-toggle,
+.medar-help-dialog .medar-help-close { flex-shrink: 0 !important; }
+.medar-help-dialog.show-full-section-guide,
+.medar-help-dialog.show-global-manual {
+  left: 12px !important;
+  right: auto !important;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 16px) !important;
+  width: min(420px, calc(100vw - 24px)) !important;
+  max-height: min(72dvh, 680px) !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+}
+@media (min-width: 901px) {
+  .medar-help-backdrop { width: 252px !important; }
+  .medar-help-dialog .medar-help-heading { grid-template-columns: 25px minmax(0,1fr) auto auto 23px !important; }
+}
+@media (max-width: 900px) {
+  .medar-help-backdrop {
+    left: 8px !important;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 78px) !important;
+    width: min(220px, calc(100vw - 16px)) !important;
+    max-width: calc(100vw - 16px) !important;
+  }
+  .medar-help-dialog .medar-help-heading {
+    grid-template-columns: 22px minmax(0,1fr) auto 22px !important;
+    gap: 3px !important;
+  }
+  .medar-help-dialog .medar-help-manual-toggle { display: none !important; }
+  .medar-help-dialog.show-global-manual .medar-help-manual-toggle { display: inline-flex !important; }
+  .medar-help-dialog.show-full-section-guide,
+  .medar-help-dialog.show-global-manual {
+    left: 8px !important;
+    right: auto !important;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 78px) !important;
+    width: min(420px, calc(100vw - 16px)) !important;
+    max-height: min(68dvh, 620px) !important;
+  }
+}
