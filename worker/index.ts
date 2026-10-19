@@ -3411,7 +3411,7 @@ app.get('/api/storage/:bucket',async c=>{
  const bucket=c.req.param('bucket');if(!PRIVATE_BUCKET_RULES[bucket])return c.json({message:'مخزن فایل مجاز نیست.'},404);
  const path=normalizePrivatePath(c.req.query('path')??'');if(!path)return c.json({message:'مسیر فایل معتبر نیست.'},422);
  const companyId=path.split('/')[0];
- const moduleKey = bucket === 'delivery-evidence' ? 'shipments' : bucket === 'contract-documents' ? 'suppliers' : 'operational-tasks';
+ const moduleKey = bucket === 'delivery-evidence' ? 'shipments' : bucket === 'contract-documents' ? 'suppliers' : bucket === 'capacity-evidence' ? 'capacity' : 'operational-tasks';
  if(!(await userHasModulePermission(c,user.id,companyId,moduleKey,'can_read')))return c.json({message:'فایل پیدا نشد یا دسترسی به آن مجاز نیست.'},404);
  if(!(await canAccessPrivateFile(c,user.id,bucket,path,'read')))return c.json({message:'فایل پیدا نشد یا دسترسی به آن مجاز نیست.'},404);
  const meta=await runForUser(c,user.id,'select content_type from public.medar_files where bucket_id=$1 and name=$2 limit 1',[bucket,path]);
@@ -3436,7 +3436,7 @@ app.post('/api/storage/:bucket/remove',async c=>{
   const names:string[]=[];
   for(const candidate of candidatesNames){
    const companyId=candidate.split('/')[0];
-   const moduleKey = bucket === 'delivery-evidence' ? 'shipments' : bucket === 'contract-documents' ? 'suppliers' : 'operational-tasks';
+   const moduleKey = bucket === 'delivery-evidence' ? 'shipments' : bucket === 'contract-documents' ? 'suppliers' : bucket === 'capacity-evidence' ? 'capacity' : 'operational-tasks';
    if(await userHasModulePermission(c,user.id,companyId,moduleKey,'can_delete') && await canAccessPrivateFile(c,user.id,bucket,candidate,'delete'))names.push(candidate);
   }
   if(!names.length)return c.json({data:[],error:null});
