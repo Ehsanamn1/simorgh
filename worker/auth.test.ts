@@ -193,10 +193,11 @@ describe('shared web/mobile presence payload validation', () => {
 });
 
 describe('server-side username normalization', () => {
-  it('lets PostgreSQL generate username_normalized during owner signup', () => {
+  it('writes normalized username explicitly during owner signup', () => {
     const columns = CREATE_OWNER_WORKSPACE_SQL.match(/insert into public\.medar_users\(([^)]+)\)/i)?.[1];
     expect(columns?.split(',').map((column) => column.trim())).toEqual([
       'username',
+      'username_normalized',
       'display_name',
       'password_hash',
       'requested_role',
