@@ -1,4 +1,4 @@
-name: Simorgh CI
+name: Sahra CI
 on:
   push:
     branches: [main]
@@ -8,6 +8,7 @@ permissions:
   contents: read
 jobs:
   verify:
+    timeout-minutes: 30
     runs-on: ubuntu-latest
     services:
       postgres:

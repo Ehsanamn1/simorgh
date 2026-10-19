@@ -1,4 +1,4 @@
-name: Deploy Simorgh to GitHub Pages
+name: Deploy Sahra to GitHub Pages
 on:
   workflow_dispatch:
   push:
@@ -12,6 +12,7 @@ concurrency:
 
 jobs:
   build:
+    timeout-minutes: 25
     if: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'push' }}
     runs-on: ubuntu-latest
     steps:
@@ -56,6 +57,7 @@ jobs:
           path: dist
 
   deploy:
+    timeout-minutes: 25
     if: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'push' }}
     environment:
       name: github-pages

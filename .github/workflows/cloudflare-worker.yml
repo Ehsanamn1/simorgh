@@ -1,4 +1,4 @@
-name: Deploy Medar to Cloudflare Workers
+name: Deploy Sahra to Cloudflare Workers
 on:
   workflow_dispatch:
   push:
@@ -8,6 +8,7 @@ permissions:
   contents: read
 jobs:
   deploy:
+    timeout-minutes: 30
     runs-on: ubuntu-latest
     env:
       MEDAR_DATABASE_URL: ${{ secrets.MEDAR_DATABASE_URL }}
