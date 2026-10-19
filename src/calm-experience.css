@@ -1775,3 +1775,23 @@ html[data-theme="dark"] .guide-backdrop{background:transparent}
 @keyframes guideFloatIn{from{opacity:0;transform:translateY(8px) scale(.99)}to{opacity:1;transform:translateY(0) scale(1)}}
 @media(max-width:560px){.guide-backdrop{left:8px;bottom:76px;width:min(350px,calc(100vw - 16px))}.guide-dialog{max-height:48dvh;padding:13px}.guide-heading-copy h2{font-size:16px}.guide-global-manual{display:none}.guide-role-links{gap:5px}}
 @media(prefers-reduced-motion:reduce){.guide-dialog{animation:none}}
+
+/* Celebration is deliberately brief and subtle: it confirms server-approved completion, not merely a click. */
+.task-celebration-toast{position:fixed;z-index:1200;top:82px;left:20px;display:flex;align-items:center;gap:11px;width:min(360px,calc(100vw - 28px));padding:13px 15px;border:1px solid color-mix(in srgb,var(--obs-positive) 38%,var(--obs-border));border-radius:16px;background:color-mix(in srgb,var(--obs-positive) 8%,var(--obs-surface));color:var(--obs-text);box-shadow:0 16px 44px rgb(8 28 16 / 18%);animation:taskCelebrateIn .32s cubic-bezier(.2,.8,.2,1) both}
+.task-celebration-icon{display:grid;place-items:center;flex:none;width:39px;height:39px;border-radius:13px;background:color-mix(in srgb,var(--obs-positive) 17%,var(--obs-surface));color:var(--obs-positive);animation:taskCelebratePop .45s .05s cubic-bezier(.2,1.4,.4,1) both}
+.task-celebration-toast>span:nth-child(2){display:grid;gap:3px;min-width:0;flex:1}
+.task-celebration-toast b{font-size:11px;font-weight:900}
+.task-celebration-toast small{font-size:10px;color:var(--obs-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.task-celebration-spark{color:var(--obs-positive);animation:taskSparkle .8s ease-in-out infinite alternate}
+@keyframes taskCelebrateIn{from{opacity:0;transform:translateY(-9px) scale(.97)}to{opacity:1;transform:translateY(0) scale(1)}}
+@keyframes taskCelebratePop{from{transform:scale(.65) rotate(-12deg)}to{transform:scale(1) rotate(0)}}
+@keyframes taskSparkle{from{transform:rotate(-10deg) scale(.9);opacity:.65}to{transform:rotate(12deg) scale(1.08);opacity:1}}
+.capacity-evidence-review{display:grid;gap:13px}
+.capacity-evidence-file{display:grid;gap:8px;padding:12px;border:1px solid var(--obs-border);border-radius:12px;background:var(--obs-surface-2)}
+.capacity-evidence-file>b{font-size:11px;overflow-wrap:anywhere}
+.capacity-evidence-file img{display:block;max-width:100%;max-height:320px;object-fit:contain;border-radius:8px;background:#fff}
+.capacity-evidence-file a{color:var(--obs-accent);font-size:11px;font-weight:800;text-decoration:underline}
+.capacity-evidence-review label{display:grid;gap:6px;color:var(--obs-muted);font-size:10px;font-weight:800}
+.capacity-evidence-review input,.capacity-evidence-review textarea{width:100%;min-width:0;padding:10px 11px;border:1px solid var(--obs-border);border-radius:9px;background:var(--obs-surface-2);color:var(--obs-text)}
+@media(max-width:560px){.task-celebration-toast{top:70px;left:10px;width:calc(100vw - 20px)}}
+@media(prefers-reduced-motion:reduce){.task-celebration-toast,.task-celebration-icon,.task-celebration-spark{animation:none}}
