@@ -1530,7 +1530,7 @@ function SupplierCapacityPage({membership,search}:{membership:Membership;search:
   const path=membership.company_id+'/'+membership.supplier_id+'/capacity-'+Date.now()+'-'+file.name.replace(/[^\w.-]/g,'_');
   const uploaded=await dataApi.storage.from('capacity-evidence').upload(path,file,{upsert:false,contentType:file.type});
   if(uploaded.error){setBusy(false);setError(uploaded.error.message);return;}
-  const {error:e}=await dataApi.from('capacity_commitments').update({evidence_path:path,evidence_name:file.name,evidence_mime_type:file.type,evidence_uploaded_at:new Date().toISOString()}).eq('id',String(row.id)).eq('company_id',membership.company_id).eq('supplier_id',membership.supplier_id);
+  const {error:e}=await dataApi.from('capacity_commitments').update({evidence_path:path,evidence_name:file.name,evidence_mime_type:file.type,evidence_uploaded_at:new Date().toISOString()}).eq('id',String(row.id)).eq('company_id',membership.company_id).eq('supplier_id',membership.supplier_id).eq('evidence_review_status','rejected');
   setBusy(false);
   if(e){await dataApi.storage.from('capacity-evidence').remove([path]);setError(e.message);return;}
   setReplacementTarget(null);setNotice('مدرک اصلاح‌شده ارسال شد و دوباره در صف بررسی مدیر قرار گرفت.');await load();
