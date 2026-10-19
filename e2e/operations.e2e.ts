@@ -886,3 +886,30 @@ test('closing contextual help persists across navigation until explicitly reopen
   await guide.getByRole('button', { name: 'بستن راهنما' }).click();
   await expect(guide).toHaveCount(0);
 });
+
+test('authenticated workspace remains usable without horizontal overflow across common breakpoints', async ({ page }) => {
+  await installIsolatedSession(page, 'owner');
+  await page.goto('/simorgh/app/home', { waitUntil: 'domcontentloaded' });
+  await expect(page.locator('.app-frame')).toBeVisible();
+
+  for (const width of [320, 360, 375, 390, 414, 640, 768, 1024, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    const dimensions = await page.evaluate(() => ({
+      viewport: document.documentElement.clientWidth,
+      document: document.documentElement.scrollWidth,
+      body: document.body.scrollWidth,
+    }));
+    expect(dimensions.document, `workspace document overflow at ${width}px`).toBeLessThanOrEqual(dimensions.viewport);
+    expect(dimensions.body, `workspace body overflow at ${width}px`).toBeLessThanOrEqual(dimensions.viewport);
+  }
+});
+
+test('reduced-motion preference is respected by the interface', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await installIsolatedSession(page, 'owner');
+  await page.goto('/simorgh/app/home', { waitUntil: 'domcontentloaded' });
+  await expect(page.locator('.app-frame')).toBeVisible();
+
+  const transitionDuration = await page.locator('.app-sidebar a').first().evaluate(element => getComputedStyle(element).transitionDuration);
+  expect(transitionDuration.split(',').every(value => Number.parseFloat(value) <= 0.001)).toBe(true);
+});
