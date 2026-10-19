@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Activity, ArrowLeft, Boxes, Building2, Check, ClipboardCheck, CreditCard, Factory, FileText, Home, LayoutDashboard, ListTodo, MapPin, Menu, Moon, Package, ShieldCheck, Sun, Target, Truck, Warehouse, X, UserPlus, Eye, EyeOff } from 'lucide-react';
+import { Activity, ArrowLeft, Boxes, Building2, Check, ClipboardCheck, CreditCard, Factory, FileText, Home, LayoutDashboard, ListTodo, MapPin, Menu, Moon, Package, ShieldCheck, Sun, Target, Truck, Warehouse, X, Eye, EyeOff } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useAuth } from './lib/AuthContext';
 import { useAppTheme } from './lib/ThemeContext';
@@ -9,7 +9,6 @@ import { api, isApiConfigured } from './lib/apiClient';
 import { MedarLogo } from './MedarLogo';
 
 type NavigationEntry = { key: string; label: string };
-type AuthMode = 'signin' | 'signup';
 const routeIcons: Record<string, LucideIcon> = {
   command: LayoutDashboard, orders: FileText, goals: Target, shipments: Truck, finance: CreditCard, catalog: Boxes,
   'my-orders': Package, 'my-account': Building2, 'supplier-work': ClipboardCheck, 'supplier-capacity': Warehouse,
@@ -49,10 +48,8 @@ export default function ProductExperience() {
   const [appMain, setAppMain] = useState<HTMLElement | null>(null);
   const [waitingScreen, setWaitingScreen] = useState<HTMLElement | null>(null);
   const [allowedLinks, setAllowedLinks] = useState<NavigationEntry[]>([]);
-  const [mode, setMode] = useState<AuthMode>('signin');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [joinInviteCode, setJoinInviteCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
@@ -61,20 +58,11 @@ export default function ProductExperience() {
   const protectedRoute = location.pathname.includes('/app');
   // Protected operational routes are only active in builds that explicitly opt in.
   // The Pages showcase remains read-only; the same-origin Worker build enables this guarded UI.
-  // Public workspace creation is disabled; joining requires a server-issued invitation.
+  // Private workspaces are provisioned by an owner/admin; no public signup or invite-code join.
   const authUiEnabled = import.meta.env.VITE_ENABLE_AUTH_UI === 'true' && isApiConfigured;
   const signInOpen = authUiEnabled && (((location.hash === '#signin' || location.hash === '#signup') && !user && !loading) || (protectedRoute && !user && !loading));
   const normalizedPath = location.pathname.startsWith(basePath) ? location.pathname.slice(basePath.length) || '/' : location.pathname;
   const protectedDestination = normalizedPath === '/app/command' || normalizedPath === '/app' || normalizedPath === '/' ? '/app/home' : normalizedPath.startsWith('/app') ? normalizedPath : '/app/home';
-
-  useEffect(() => {
-    const invite = new URLSearchParams(location.search).get('invite')?.trim().toLowerCase() ?? '';
-    if (!user && /^[a-f0-9]{64}$/.test(invite)) {
-      setJoinInviteCode(invite);
-      setMode('signup');
-      setNotice('دعوت معتبر مجموعه دریافت شد؛ حساب فقط در همان مجموعه و با نقش تعیین‌شده فعال می‌شود.');
-    }
-  }, [location.search, user?.id]);
 
   useEffect(() => {
     const refreshTargets = () => {
@@ -121,7 +109,7 @@ export default function ProductExperience() {
       document.body.style.overflow = oldOverflow;
       document.removeEventListener('keydown', onKeyDown);
     };
-  }, [signInOpen, protectedRoute, mode, location.pathname, location.search, navigate]);
+  }, [signInOpen, protectedRoute, location.pathname, location.search, navigate]);
 
   const mobileLinks = useMemo<MobileNavigationLink[]>(() => {
     const keys = new Set(allowedLinks.map(item => item.key));
@@ -153,60 +141,22 @@ export default function ProductExperience() {
       setError('نام کاربری باید ۳ تا ۳۲ نویسه باشد و با نقطه یا خط تیره شروع یا تمام نشود.');
       return;
     }
-    if (mode === 'signup') {
-      if (password.length < 8 || password.length > 128) {
-        setError('رمز عبور باید بین ۸ تا ۱۲۸ نویسه باشد.');
-        return;
-      }
-    } else if (password.length < 1 || password.length > 128) {
+    if (password.length < 1 || password.length > 128) {
       setError('نام کاربری یا رمز عبور نادرست است.');
       return;
     }
     setBusy(true); setError(''); setNotice('');
     try {
-      if (mode === 'signup') {
-        const inviteCode = joinInviteCode.trim().toLowerCase();
-        if (!/^[a-f0-9]{64}$/.test(inviteCode)) {
-          setError('ساخت حساب عمومی غیرفعال است؛ برای عضویت فقط از دعوت معتبر صادرشده توسط مالک استفاده کن.');
-          return;
-        }
-        await api.post('/api/auth/signup-with-invite', { username: cleanUsername, password, inviteCode });
-        await refreshSession();
-        setPassword('');
-        setJoinInviteCode('');
-        setMode('signin');
-        setNotice('حساب با نقش تعیین‌شده به مجموعه پیوست.');
-        navigate(protectedDestination, { replace: true });
-      } else {
-        await api.post('/api/auth/login', { username: cleanUsername, password });
-        await refreshSession();
-        setPassword('');
-        navigate(protectedDestination, { replace: true });
-      }
+      await api.post('/api/auth/login', { username: cleanUsername, password });
+      await refreshSession();
+      setPassword('');
+      navigate(protectedDestination, { replace: true });
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'ارتباط با سرویس مدار برقرار نشد. دوباره تلاش کن.');
     } finally {
       setBusy(false);
     }
   }
-
-  async function submitInviteJoin(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const code = joinInviteCode.trim().toLowerCase();
-    if (!/^[a-f0-9]{64}$/.test(code)) { setError('کد دعوت معتبر ۶۴ نویسه‌ای وارد کن.'); return; }
-    setBusy(true); setError(''); setNotice('');
-    try {
-      await api.post('/api/workspace/join', { inviteCode: code });
-      await refreshSession();
-      setJoinInviteCode('');
-      setNotice('عضویت با موفقیت فعال شد؛ در حال بارگذاری فضای کاری.');
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'پیوستن به مجموعه ناموفق بود.');
-    } finally {
-      setBusy(false);
-    }
-  }
-
 
   return <>
     {user && appMain && mobileLinks.length > 0 && createPortal(
@@ -220,20 +170,14 @@ export default function ProductExperience() {
       </nav>, appMain)}
     {authUiEnabled && user && waitingScreen && memberships.length === 0 && createPortal(
       <section className="access-request-card" dir="rtl" aria-labelledby="access-request-title">
-        <div className="access-request-heading"><span className="access-request-icon"><UserPlus size={20}/></span><div><span className="obsidian-eyebrow">فضای کاری مدار</span><h2 id="access-request-title">پیوستن به مجموعه</h2><p>برای اتصال حساب موجود، کد دعوتی را وارد کن که مالک یا مدیر مجموعه برایت ساخته است. انتخاب نقش به‌تنهایی دسترسی ایجاد نمی‌کند.</p></div></div>
-        <form className="access-request-form" onSubmit={submitInviteJoin}>
-          <label className="wide">کد دعوت<input className="auth-input" required minLength={64} maxLength={64} autoComplete="off" value={joinInviteCode} onChange={e => setJoinInviteCode(e.target.value.toLowerCase())} placeholder="کد دعوت ۶۴ نویسه‌ای" dir="ltr"/></label>
-          {error && <div className="auth-feedback error wide" role="alert">{error}</div>}
-          {notice && <div className="auth-feedback success wide" role="status">{notice}</div>}
-          <button className="obsidian-primary wide" type="submit" disabled={busy || joinInviteCode.trim().length !== 64}>{busy ? 'در حال بررسی دعوت…' : 'پیوستن به مجموعه'} <ArrowLeft size={16}/></button>
-        </form>
-        <p className="access-request-foot"><ShieldCheck size={15}/> اگر کد دعوت نداری، از مالک مجموعه بخواه از بخش «دسترسی کاربران» برایت دعوت بسازد.</p>
+        <div className="access-request-heading"><span className="access-request-icon"><ShieldCheck size={20}/></span><div><span className="obsidian-eyebrow">فضای کاری خصوصی</span><h2 id="access-request-title">دسترسی در انتظار تخصیص</h2><p>این حساب هنوز به فضای کاری متصل نیست. مالک یا مدیر باید از بخش «افراد و دسترسی‌ها» حساب اختصاصی شما را بسازد و به مجموعه متصل کند.</p></div></div>
+        <div className="access-request-form"><button className="obsidian-primary wide" type="button" onClick={() => void refreshSession()} disabled={loading}>بررسی دوباره دسترسی <ArrowLeft size={16}/></button></div>
       </section>, waitingScreen)}
     {signInOpen && !user && (
       <section className="simorgh-signin-layer" role="dialog" aria-modal="true" aria-labelledby="simorgh-signin-title" aria-label="ورود امن مدار">
         <div className="simorgh-signin-brand">
           <div className="simorgh-signin-brand-top"><span className="simorgh-signin-mark"><ShieldCheck size={26}/></span><span><strong>مدار</strong><small>مدیریت یکپارچه عملیات</small></span></div>
-          <div className="simorgh-signin-story"><span className="signin-overline">مدار / فضای کاری امن</span><h1>یک شبکه.<br/><em>کنترل دقیق.</em></h1><p>مدیریت مزرعه، منابع، سفارش، کیفیت، حمل و حساب‌ها؛ در یک فضای کاری امن و قابل پیگیری.</p><div className="signin-assurance"><ShieldCheck size={17}/><span>نقش‌های داخلی و مدیریتی فقط با دعوت یا تأیید مالک فعال می‌شوند.</span></div></div>
+          <div className="simorgh-signin-story"><span className="signin-overline">مدار / فضای کاری امن</span><h1>یک شبکه.<br/><em>کنترل دقیق.</em></h1><p>مدیریت مزرعه، منابع، سفارش، کیفیت، حمل و حساب‌ها؛ در یک فضای کاری امن و قابل پیگیری.</p><div className="signin-assurance"><ShieldCheck size={17}/><span>حساب‌های داخلی و مدیریتی را مالک یا مدیر مجاز مستقیماً می‌سازد.</span></div></div>
           <div className="signin-brand-foot"><span>عملیات و منابع</span><span>ورود امن</span></div>
         </div>
         <div className="simorgh-signin-form-area">
@@ -243,25 +187,25 @@ export default function ProductExperience() {
               <MedarLogo compact className="signin-form-logo"/>
               <button type="button" className="signin-theme-toggle" onClick={() => setTheme(current => current === 'dark' ? 'light' : 'dark')} aria-pressed={theme === 'light'} aria-label="تغییر حالت نمایش" title={theme === 'dark' ? 'فعال‌کردن حالت روشن' : 'فعال‌کردن حالت تاریک'}>{theme === 'dark' ? <Sun size={17}/> : <Moon size={17}/>}</button>
             </div>
-            <span className="signin-overline">{mode === 'signup' ? 'ثبت‌نام مجموعه' : 'ورود امن'}</span>
-            <h2 id="simorgh-signin-title">{mode === 'signup' ? 'ساخت حساب و فضای کاری' : 'ورود به مدار'}</h2>
-            <p>{mode === 'signup' ? 'برای پیوستن به مجموعه فقط از لینک دعوت یا کد معتبر صادرشده توسط مالک استفاده کن؛ ساخت فضای کاری عمومی غیرفعال است.' : 'برای ورود فقط نام کاربری و رمز عبور لازم است.'}</p>
+            <span className="signin-overline">ورود امن</span>
+            <h2 id="simorgh-signin-title">ورود به مدار</h2>
+            <p>برای ورود فقط نام کاربری و رمز عبور لازم است.</p>
             {sessionError && <div className="auth-feedback error session-connection-error" role="status">
               <span>{sessionError}</span>
               <button type="button" className="auth-text-action" onClick={() => void refreshSession()} disabled={loading}>تلاش دوباره برای اتصال</button>
             </div>}
              <form className="simorgh-signin-form" onSubmit={event => void submitAuth(event)}>
                <label htmlFor="simorgh-signin-username">نام کاربری</label><input id="simorgh-signin-username" className="auth-input" type="text" autoComplete="username" required minLength={3} maxLength={32} value={username} onChange={e => setUsername(e.target.value)} placeholder="نام کاربری" dir="ltr"/>
-               {mode === 'signup' && <><label htmlFor="simorgh-signup-invite">کد دعوت شرکت (الزامی)</label><input id="simorgh-signup-invite" className="auth-input" type="text" autoComplete="off" inputMode="text" required={mode === 'signup'} maxLength={64} value={joinInviteCode} onChange={e => setJoinInviteCode(e.target.value.toLowerCase().replace(/\s/g, ''))} placeholder="کد ۶۴ نویسه‌ای مدیر" dir="ltr"/><small className="auth-recovery-note">با کد دعوت، حساب از ابتدا فقط با نقش و دسترسی همان شرکت ساخته می‌شود؛ فضای مالک جداگانه ایجاد نمی‌شود.</small></>}
+               
                <label htmlFor="simorgh-signin-password">گذرواژه</label>
-               <div className="auth-password-wrap"><input id="simorgh-signin-password" className="auth-input" type={showPassword ? 'text' : 'password'} minLength={mode === 'signup' ? 8 : 1} maxLength={128} autoComplete={mode === 'signup' ? 'new-password' : 'current-password'} required value={password} onChange={e => setPassword(e.target.value)} placeholder={mode === 'signup' ? 'حداقل ۸ نویسه' : 'گذرواژه'} dir="ltr"/><button type="button" onClick={() => setShowPassword(value => !value)} aria-label={showPassword ? 'پنهان‌کردن گذرواژه' : 'نمایش گذرواژه'}>{showPassword ? <EyeOff size={16}/> : <Eye size={16}/>}</button></div>
+               <div className="auth-password-wrap"><input id="simorgh-signin-password" className="auth-input" type={showPassword ? 'text' : 'password'} minLength={1} maxLength={128} autoComplete="current-password" required value={password} onChange={e => setPassword(e.target.value)} placeholder="گذرواژه" dir="ltr"/><button type="button" onClick={() => setShowPassword(value => !value)} aria-label={showPassword ? 'پنهان‌کردن گذرواژه' : 'نمایش گذرواژه'}>{showPassword ? <EyeOff size={16}/> : <Eye size={16}/>}</button></div>
                {error && <div className="auth-feedback error" role="alert">{error}</div>}{notice && <div className="auth-feedback success" role="status">{notice}</div>}
                <button className="signin-submit" type="submit" disabled={busy || !username.trim() || !password}>
-                 {busy ? <><span className="signin-spinner" aria-hidden="true"/> در حال پردازش…</> : mode === 'signup' ? <>ساخت حساب و فضای کاری <ArrowLeft size={17}/></> : <>ورود به فضای کار <ArrowLeft size={17}/></>}
+                 {busy ? <><span className="signin-spinner" aria-hidden="true"/> در حال ورود…</> : <>ورود به فضای کار <ArrowLeft size={17}/></>}
                </button>
              </form>
-             {mode === 'signin' && <p className="auth-recovery-note">این سامانه خصوصی است؛ ثبت‌نام عمومی غیرفعال است. برای دریافت دسترسی با مالک مجموعه هماهنگ کن. اگر دعوت معتبر داری، لینک دعوت را باز کن.</p>}
-             {mode === 'signup' && <button type="button" className="auth-text-action" onClick={() => {setMode('signin');setError('');setNotice('');navigate({pathname:location.pathname,search:location.search,hash:'#signin'},{replace:true});}}>بازگشت به ورود</button>}
+             <p className="auth-recovery-note">ثبت‌نام عمومی غیرفعال است؛ برای دریافت دسترسی با مالک یا مدیر مجموعه هماهنگ کن تا حساب اختصاصی با نام کاربری و رمز عبور بسازد.</p>
+             
              <div className="signin-form-foot"><span><Check size={13}/> کنترل دسترسی سمت سرور</span><span>مدار · فضای امن</span></div>
           </div>
         </div>

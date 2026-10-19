@@ -22,6 +22,7 @@ const roleQuickLinks: Record<AppRole, QuickLink[]> = {
     { key: 'connect', title: 'مرکز ارتباطات', detail: 'واگذاری مأموریت و پیگیری پاسخ‌ها', icon: MessageCircle },
     { key: 'shipments', title: 'حمل‌ونقل و رانندگان', detail: 'محموله‌ها و وضعیت تحویل', icon: Truck },
     { key: 'operational-tasks', title: 'وظایف و مأموریت‌ها', detail: 'واگذاری کار و بررسی تکمیل', icon: ClipboardCheck },
+    { key: 'capacity', title: 'ظرفیت و تأمین روزانه', detail: 'مقادیر اعلام‌شده و تأییدشده', icon: Warehouse },
   ],
   admin: [
     { key: 'suppliers', title: 'شبکه تأمین‌کنندگان', detail: 'پرونده‌ها، ظرفیت و وضعیت همکاری', icon: Factory },
@@ -29,12 +30,15 @@ const roleQuickLinks: Record<AppRole, QuickLink[]> = {
     { key: 'connect', title: 'مرکز ارتباطات', detail: 'واگذاری مأموریت و پیگیری پاسخ‌ها', icon: MessageCircle },
     { key: 'shipments', title: 'حمل‌ونقل و رانندگان', detail: 'محموله‌ها و وضعیت تحویل', icon: Truck },
     { key: 'operational-tasks', title: 'وظایف و مأموریت‌ها', detail: 'واگذاری کار و بررسی تکمیل', icon: ClipboardCheck },
+    { key: 'capacity', title: 'ظرفیت و تأمین روزانه', detail: 'بررسی ظرفیت مجموعه', icon: Warehouse },
   ],
   staff: [
     { key: 'suppliers', title: 'شبکه تأمین‌کنندگان', detail: 'پرونده‌ها و وضعیت همکاری', icon: Factory },
     { key: 'operational-tasks', title: 'وظایف عملیاتی', detail: 'مأموریت‌ها و تکمیل کار', icon: ClipboardCheck },
     { key: 'connect', title: 'مرکز ارتباطات', detail: 'هماهنگی با همکاران', icon: MessageCircle },
     { key: 'shipments', title: 'حمل‌ونقل', detail: 'محموله‌های فعال', icon: Truck },
+    { key: 'capacity', title: 'ظرفیت تأمین', detail: 'مرور ظرفیت‌های مجموعه', icon: Warehouse },
+    { key: 'settings', title: 'تنظیمات حساب', detail: 'پروفایل و اتصال', icon: ShieldCheck },
   ],
   supplier: [
     { key: 'operational-tasks', title: 'کارهای واگذارشده', detail: 'وظیفه و سررسید', icon: ClipboardCheck },
@@ -42,9 +46,13 @@ const roleQuickLinks: Record<AppRole, QuickLink[]> = {
     { key: 'supplier-capacity', title: 'ظرفیت من', detail: 'اعلام و تأیید ظرفیت', icon: Warehouse },
     { key: 'farm-sites', title: 'موقعیت‌های کاری', detail: 'مشخصات مزرعه و محل تأمین', icon: MapPin },
     { key: 'connect', title: 'مرکز ارتباطات', detail: 'پیام‌ها و مأموریت‌های مدیر', icon: MessageCircle },
+    { key: 'settings', title: 'پروفایل و تنظیمات', detail: 'اطلاعات حساب و رمز عبور', icon: ShieldCheck },
   ],
   driver: [
     { key: 'driver-work', title: 'محموله‌های من', detail: 'تحویل، وضعیت و مدارک', icon: Truck },
+    { key: 'operational-tasks', title: 'وظایف من', detail: 'کارهای واگذارشده و موعدها', icon: ClipboardCheck },
+    { key: 'connect', title: 'مرکز ارتباطات', detail: 'پیام‌های مدیر عملیات', icon: MessageCircle },
+    { key: 'settings', title: 'پروفایل و تنظیمات', detail: 'اطلاعات حساب و رمز عبور', icon: ShieldCheck },
   ],
   customer: [
     { key: 'settings', title: 'تنظیمات حساب', detail: 'تنظیمات دسترسی و ظاهر', icon: ShieldCheck },
@@ -58,7 +66,7 @@ export function WorkspaceHome({ membership, userName }: { membership: Membership
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const role = membership.role;
-  const links = roleQuickLinks[role].slice(0, role === 'driver' ? 1 : 5);
+  const links = roleQuickLinks[role].slice(0, 6);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -194,7 +202,7 @@ export function WorkspaceHome({ membership, userName }: { membership: Membership
     </section>
 
     <InAppNotifications membership={membership}/>
-    {guideOpen && <HelpGuide role={role} onClose={() => setGuideOpen(false)}/>} 
+    {guideOpen && <HelpGuide role={role} section="home" onClose={() => setGuideOpen(false)}/>} 
 
     <section className="workspace-home-section">
       <div className="workspace-home-section-heading"><div><span className="workspace-home-eyebrow">نگاه سریع</span><h2>بخش‌های پرکاربرد شما</h2></div><small>{links.length.toLocaleString('fa-IR')} میان‌بر</small></div>

@@ -386,13 +386,7 @@ async function recordFailedLogin(c: Ctx, keys: string[]): Promise<void> {
   await sql.query("delete from public.medar_rate_limits where updated_at<now()-interval '1 day'");
 }
 
-async function recordSignupFailure(c: Ctx, key: string): Promise<void> {
-  try {
-    await recordFailedLogin(c, [key]);
-  } catch {
-    // A rate-limit storage failure must not mask the primary signup response.
-  }
-}
+
 
 export const CREATE_OWNER_WORKSPACE_SQL = `
 with new_user as (
@@ -478,6 +472,59 @@ app.get('/api/auth/me', async (c) => {
   const session = await currentSession(c);
   if (!session) return c.json({ user: null, memberships: [] });
   return c.json({ user: session.user, memberships: await getMemberships(c, session.user.id) });
+});
+
+app.post('/api/profile/complete', async (c) => {
+  const user = await requireUser(c);
+  if (user instanceof Response) return user;
+  const body = await c.req.json<Record<string, unknown>>().catch(() => null);
+  if (!body) return c.json({ message: 'اطلاعات پروفایل معتبر نیست.' }, 400);
+  const companyId = typeof body.companyId === 'string' ? body.companyId : '';
+  if (!COMPANY_ID_RE.test(companyId)) return c.json({ message: 'فضای کاری انتخاب‌شده معتبر نیست.' }, 422);
+  const firstName = typeof body.firstName === 'string' ? body.firstName.normalize('NFKC').trim() : '';
+  const lastName = typeof body.lastName === 'string' ? body.lastName.normalize('NFKC').trim() : '';
+  const rawPhone = typeof body.phone === 'string' ? body.phone.normalize('NFKC').trim() : '';
+  const province = typeof body.province === 'string' ? body.province.normalize('NFKC').trim() : '';
+  const city = typeof body.city === 'string' ? body.city.normalize('NFKC').trim() : '';
+  const address = typeof body.address === 'string' ? body.address.normalize('NFKC').trim() : '';
+  const digitsMap: Record<string,string> = { '۰':'0','۱':'1','۲':'2','۳':'3','۴':'4','۵':'5','۶':'6','۷':'7','۸':'8','۹':'9','٠':'0','١':'1','٢':'2','٣':'3','٤':'4','٥':'5','٦':'6','٧':'7','٨':'8','٩':'9' };
+  const asciiPhone = rawPhone.replace(/[۰-۹٠-٩]/g, digit => digitsMap[digit] ?? digit);
+  let phone = asciiPhone.replace(/[\s()-]/g, '');
+  if (/^09\d{9}$/.test(phone)) phone = '+98' + phone.slice(1);
+  else if (/^98\d{10}$/.test(phone)) phone = '+' + phone;
+  const phoneDigits = phone.replace(/\D/g, '');
+  const fullName = [firstName,lastName].filter(Boolean).join(' ').trim();
+  if (!firstName || firstName.length > 60 || !lastName || lastName.length > 80 || Array.from(fullName).some(char => char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127)) {
+    return c.json({ message: 'نام و نام خانوادگی را با حداکثر طول مجاز وارد کن.' }, 422);
+  }
+  if (!/^\+?[0-9]{7,15}$/.test(phone) || phoneDigits.length < 7 || phoneDigits.length > 15) {
+    return c.json({ message: 'شماره تلفن معتبر وارد کن؛ برای ایران می‌توانی ۰۹۱۲… یا +98912… بنویسی.' }, 422);
+  }
+  const sql = sqlFor(c);
+  const memberships = await sql.query("select role::text as role,supplier_id from public.memberships where user_id=$1::uuid and company_id=$2::uuid and active=true limit 1",[user.id,companyId]);
+  const membership = memberships[0] as {role?:string;supplier_id?:string|null}|undefined;
+  if (!membership) return c.json({ message: 'این حساب عضو فضای کاری انتخاب‌شده نیست.' }, 403);
+  const isSupplier = membership.role === 'supplier';
+  if (isSupplier && (province.length < 2 || province.length > 80 || city.length < 2 || city.length > 80 || address.length < 5 || address.length > 240)) {
+    return c.json({ message: 'برای حساب تأمین‌کننده، استان، شهر و نشانی دقیق محل فعالیت الزامی است.' }, 422);
+  }
+  const updated = await sql.query(
+    "with updated_user as (" +
+      "update public.medar_users set display_name=$2,phone_e164=$3,updated_at=now() where id=$1::uuid returning id,coalesce(username_normalized,username) as username,display_name as full_name,phone_e164 as phone" +
+    "), upsert_profile as (" +
+      "insert into public.profiles(id,full_name,phone) select id,$2,$3 from updated_user on conflict(id) do update set full_name=excluded.full_name,phone=excluded.phone,updated_at=now() returning id" +
+    "), existing_supplier_update as (" +
+      "update public.suppliers s set phone=$3,province=coalesce(nullif($4,''),s.province),city=coalesce(nullif($5,''),s.city),address=coalesce(nullif($6,''),s.address) from public.memberships m where m.user_id=$1::uuid and m.company_id=$7::uuid and m.active=true and m.role::text='supplier' and m.supplier_id=s.id and s.company_id=m.company_id returning s.id" +
+    "), new_supplier as (" +
+      "insert into public.suppliers(company_id,name,phone,province,city,address,active) select m.company_id,case when exists(select 1 from public.suppliers existing where existing.company_id=m.company_id and lower(existing.name)=lower($2)) then left($2,120)||' ('||left(u.id::text,8)||')' else $2 end,$3,nullif($4,''),nullif($5,''),nullif($6,''),true from public.memberships m join updated_user u on u.id=m.user_id where m.user_id=$1::uuid and m.company_id=$7::uuid and m.active=true and m.role::text='supplier' and m.supplier_id is null returning id,company_id" +
+    "), link_supplier as (" +
+      "update public.memberships m set supplier_id=s.id from new_supplier s where m.user_id=$1::uuid and m.company_id=s.company_id and m.company_id=$7::uuid and m.role::text='supplier' and m.active=true and m.supplier_id is null returning m.id" +
+    ") select * from updated_user",
+    [user.id, fullName, phone, province, city, address, companyId],
+  );
+  const row = updated[0] as Record<string,unknown> | undefined;
+  if (!row) return c.json({ message: 'ذخیره مشخصات حساب انجام نشد.' }, 500);
+  return c.json({ ok: true, user: safeUser(row), message: 'مشخصات حساب ذخیره شد.' });
 });
 
 /** Record a low-sensitivity heartbeat for this authenticated client in an existing company. */
@@ -1750,63 +1797,7 @@ app.post('/api/auth/signup', async (c) => {
 });
 
 app.post('/api/auth/signup-with-invite', async (c) => {
-  const body = await c.req.json<Record<string, unknown>>().catch(() => null);
-  if (!body) return c.json({ message: 'اطلاعات ثبت‌نام معتبر نیست.' }, 400);
-  const username = normalizeUsername(body.username);
-  const password = typeof body.password === 'string' ? body.password : '';
-  const inviteCode = typeof body.inviteCode === 'string' ? body.inviteCode.trim().toLowerCase() : '';
-  if (!username) return c.json({ message: 'نام کاربری باید ۳ تا ۳۲ نویسه باشد و با نقطه یا خط تیره شروع یا تمام نشود.' }, 422);
-  if (password.length < 8 || password.length > 128) return c.json({ message: 'رمز عبور باید بین ۸ تا ۱۲۸ نویسه باشد.' }, 422);
-  if (!/^[a-f0-9]{64}$/.test(inviteCode)) return c.json({ message: 'برای پیوستن به مجموعه، کد دعوت معتبر ۶۴ نویسه‌ای وارد کن.' }, 422);
-
-  const signupIp = c.req.header('cf-connecting-ip') ?? 'unknown';
-  const signupBucket = await sha256('signup-ip-v2:' + signupIp);
-  if (await isRateLimited(c, [signupBucket])) return c.json({ message: 'تلاش‌های ثبت‌نام از این اتصال بیش از حد است؛ ۱۵ دقیقه دیگر دوباره امتحان کن.' }, 429);
-
-  const sql = sqlFor(c);
-  try {
-    const passwordHash = await hashPassword(password);
-    const tokenHash = await sha256(inviteCode);
-    // Consume the invitation and create the account + membership in one statement.
-    // A duplicate username or invalid invite rolls back the whole statement, including uses++.
-    const result = await sql.query(
-      "with invite as (" +
-        "update public.company_invites set uses=uses+1,updated_at=now() " +
-        "where token_hash=$3 and role <> 'customer'::public.app_role and revoked_at is null and expires_at>now() and uses<max_uses " +
-        "returning company_id,role,customer_id,supplier_id" +
-      "), new_user as (" +
-        "insert into public.medar_users(username,display_name,password_hash,requested_role,account_status) " +
-        "select $1,$1,$2,i.role,'active' from invite i " +
-        "returning id,username,username_normalized,display_name" +
-      "), new_profile as (" +
-        "insert into public.profiles(id,full_name,phone) select id,display_name,null from new_user " +
-        "on conflict(id) do update set full_name=excluded.full_name returning id" +
-      "), new_membership as (" +
-        "insert into public.memberships(company_id,user_id,role,active,created_by,customer_id,supplier_id) " +
-        "select i.company_id,u.id,i.role,true,u.id,i.customer_id,i.supplier_id from invite i cross join new_user u " +
-        "returning id,company_id,role" +
-      ") select u.id,u.username_normalized as username,null::text as phone,u.display_name as full_name," +
-      "m.company_id as \"companyId\" from new_user u cross join new_membership m",
-      [username, passwordHash, tokenHash],
-    );
-    const created = result[0] as (Record<string, unknown> & { id: string; companyId: string }) | undefined;
-    if (!created) {
-      await recordSignupFailure(c, signupBucket);
-      return c.json({ message: 'کد دعوت نامعتبر، منقضی یا مصرف‌شده است.' }, 422);
-    }
-    await createSession(c, created.id);
-    const memberships = await getMemberships(c, created.id);
-    await sql.query("delete from public.medar_rate_limits where key_hash=$1", [signupBucket]);
-    return c.json({ user: safeUser(created), companyId: created.companyId, memberships }, 201);
-  } catch (error) {
-    const databaseError = error as { code?: string; constraint?: string };
-    if (databaseError.code === '23505') {
-      await recordSignupFailure(c, signupBucket);
-      return c.json({ message: 'این نام کاربری قبلاً ثبت شده است.' }, 409);
-    }
-    await recordSignupFailure(c, signupBucket);
-    throw error;
-  }
+  return c.json({ message: 'ثبت‌نام با کد دعوت غیرفعال است؛ حساب باید توسط مالک یا مدیر مجموعه ساخته شود.' }, 410);
 });
 
 app.post('/api/auth/login', async (c) => {
@@ -1876,63 +1867,18 @@ app.post('/api/workspace/invites', async (c) => {
   if (user instanceof Response) return user;
   const body = await c.req.json<Record<string, unknown>>().catch(() => null);
   const companyId = typeof body?.companyId === 'string' ? body.companyId : '';
-  const role = typeof body?.role === 'string' ? body.role : '';
-  const customerId = typeof body?.customerId === 'string' ? body.customerId : null;
-  const supplierId = typeof body?.supplierId === 'string' ? body.supplierId : null;
-  const allowedRoles = ['admin', 'staff', 'supplier', 'driver'];
-  if (!/^[0-9a-f-]{36}$/i.test(companyId) || !allowedRoles.includes(role)) return c.json({ message: 'شرکت یا نقش دعوت معتبر نیست.' }, 422);
-  if ((role === 'customer' && (!customerId || supplierId)) || (role === 'supplier' && (!supplierId || customerId)) || (!['customer','supplier'].includes(role) && (customerId || supplierId))) {
-    return c.json({ message: 'برای نقش مشتری یا تأمین‌کننده باید حساب مربوط به همان مجموعه انتخاب شود.' }, 422);
-  }
+  if (!COMPANY_ID_RE.test(companyId)) return c.json({ message: 'شناسه مجموعه معتبر نیست.' }, 422);
   const sql = sqlFor(c);
-  const memberships = await sql`select role from public.memberships where user_id = ${user.id} and company_id = ${companyId} and active = true limit 1`;
-  const actorRole = (memberships[0] as { role: string } | undefined)?.role;
-  if (!actorRole || !['owner', 'admin'].includes(actorRole)) return c.json({ message: 'برای ساخت دعوت، دسترسی مالک یا مدیر لازم است.' }, 403);
-  if (role === 'admin' && actorRole !== 'owner') return c.json({ message: 'فقط مالک می‌تواند مدیر جدید دعوت کند.' }, 403);
-  if (customerId) {
-    const found = await sql`select 1 from public.customers where id = ${customerId} and company_id = ${companyId} limit 1`;
-    if (!found.length) return c.json({ message: 'حساب مشتری به این مجموعه تعلق ندارد.' }, 422);
-  }
-  if (supplierId) {
-    const found = await sql`select 1 from public.suppliers where id = ${supplierId} and company_id = ${companyId} limit 1`;
-    if (!found.length) return c.json({ message: 'حساب تأمین‌کننده به این مجموعه تعلق ندارد.' }, 422);
-  }
-  const code = randomToken();
-  const tokenHash = await sha256(code);
-  const rows = await sql`
-    insert into public.company_invites(company_id, role, token_hash, created_by, expires_at, customer_id, supplier_id, max_uses)
-    values (${companyId}, ${role}::public.app_role, ${tokenHash}, ${user.id}, now() + interval '7 days', ${customerId}, ${supplierId}, 1)
-    returning id, expires_at
-  `;
-  return c.json({ inviteCode: code, inviteId: (rows[0] as { id: string }).id, expiresAt: (rows[0] as { expires_at: string }).expires_at }, 201);
+  const memberships = await sql`select role::text as role from public.memberships where user_id = ${user.id} and company_id = ${companyId} and active = true limit 1`;
+  if (!['owner','admin'].includes(String((memberships[0] as {role?:string}|undefined)?.role ?? ''))) return c.json({ message: 'فقط مالک یا مدیر مجاز است.' }, 403);
+  return c.json({ message: 'دعوت‌نامه در این نسخه غیرفعال است؛ حساب را مستقیماً از بخش افراد و دسترسی‌ها بساز.' }, 410);
 });
 
 app.post('/api/workspace/join', async (c) => {
   const user = await requireUser(c);
   if (user instanceof Response) return user;
-  const body = await c.req.json<Record<string, unknown>>().catch(() => null);
-  const code = typeof body?.inviteCode === 'string' ? body.inviteCode.trim().toLowerCase() : '';
-  if (!/^[a-f0-9]{64}$/.test(code)) return c.json({ message: 'کد دعوت معتبر نیست.' }, 422);
-  const tokenHash = await sha256(code);
-  const sql = sqlFor(c);
-  const rows = await sql`
-    with invite as (
-      update public.company_invites set uses = uses + 1, updated_at = now()
-      where token_hash = ${tokenHash} and role <> 'customer'::public.app_role and revoked_at is null and expires_at > now() and uses < max_uses
-      returning company_id, role, customer_id, supplier_id
-    ), membership as (
-      insert into public.memberships(company_id, user_id, role, active, created_by, customer_id, supplier_id)
-      select company_id, ${user.id}, role, true, ${user.id}, customer_id, supplier_id from invite
-      on conflict (company_id, user_id, role) do update set active = true, customer_id = excluded.customer_id, supplier_id = excluded.supplier_id
-      returning id, company_id, role
-    )
-    select id, company_id, role from membership limit 1
-  `;
-  const joined = rows[0] as { id: string; company_id: string; role: string } | undefined;
-  if (!joined) return c.json({ message: 'دعوت منقضی، لغوشده یا نامعتبر است.' }, 422);
-  return c.json({ membership: joined, memberships: await getMemberships(c, user.id) }, 201);
+  return c.json({ message: 'پیوستن با کد دعوت غیرفعال است؛ از مالک مجموعه بخواه حساب اختصاصی بسازد.' }, 410);
 });
-
 
 app.get('/api/workspace/my-module-permissions', async (c) => {
   const user = await requireUser(c);
@@ -2123,7 +2069,8 @@ app.post('/api/workspace/members/create', async (c) => {
   if (!body) return c.json({ message: 'اطلاعات حساب معتبر نیست.' }, 400);
   const companyId = typeof body.companyId === 'string' ? body.companyId : '';
   const username = normalizeUsername(body.username);
-  const fullName = typeof body.fullName === 'string' ? body.fullName.normalize('NFKC').trim() : '';
+  const requestedName = typeof body.fullName === 'string' ? body.fullName.normalize('NFKC').trim() : '';
+  const fullName = requestedName || username;
   const password = typeof body.password === 'string' ? body.password : '';
   const role = typeof body.role === 'string' ? body.role : '';
   const customerId = typeof body.customerId === 'string' && body.customerId ? body.customerId : null;
@@ -2132,14 +2079,14 @@ app.post('/api/workspace/members/create', async (c) => {
   if (!COMPANY_ID_RE.test(companyId) || !username || !allowedRoles.includes(role)) {
     return c.json({ message: 'شناسه مجموعه، نام کاربری یا نقش معتبر نیست.' }, 422);
   }
-  if (!fullName || fullName.length > 100 || Array.from(fullName).some(char => char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127)) {
-    return c.json({ message: 'نام و نام خانوادگی باید بین ۱ تا ۱۰۰ نویسه باشد.' }, 422);
+  if (requestedName.length > 100 || Array.from(requestedName).some(char => char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127)) {
+    return c.json({ message: 'نام و نام خانوادگی در صورت ورود نباید بیشتر از ۱۰۰ نویسه باشد.' }, 422);
   }
   if (password.length < 12 || password.length > 128) {
     return c.json({ message: 'رمز عبور اولیه باید بین ۱۲ تا ۱۲۸ نویسه باشد.' }, 422);
   }
   if ((role === 'customer' && (!customerId || supplierId)) ||
-      (role === 'supplier' && (!supplierId || customerId)) ||
+      (role === 'supplier' && customerId) ||
       (!['customer', 'supplier'].includes(role) && (customerId || supplierId))) {
     return c.json({ message: 'برای نقش مشتری یا تأمین‌کننده، حساب مرتبط همان مجموعه را انتخاب کن.' }, 422);
   }
@@ -2827,6 +2774,16 @@ app.post('/api/data/:table',async c=>{
     const row=applyInsertActorFields(table,original,columns,user.id);
     if(INTERNAL_ROLES.has(membership.role)){
      if(RPC_ONLY_TABLES.has(table))return c.json({message:'این رکورد باید از عملیات معتبر سمت سرور ثبت شود.'},403);
+     if(table==='capacity_commitments'){
+      const supplierId=typeof row.supplier_id==='string'?row.supplier_id:'';
+      const productId=typeof row.product_id==='string'?row.product_id:'';
+      const evidencePath=typeof row.evidence_path==='string'?row.evidence_path:'';
+      if(!/^[0-9a-f-]{36}$/i.test(supplierId)||!evidencePath.startsWith(companyId+'/'+supplierId+'/capacity-')||!row.evidence_name||!['application/pdf','image/jpeg','image/png','image/webp'].includes(String(row.evidence_mime_type??'')))return c.json({message:'برای ظرفیت، تأمین‌کننده و مدرک معتبر الزامی است.'},422);
+      const valid=await runForUser(c,user.id,"select 1 from public.suppliers s join public.products p on p.company_id=s.company_id where s.id=$1::uuid and s.company_id=$2::uuid and s.active=true and p.id=$3::uuid and p.active=true limit 1",[supplierId,companyId,productId]);
+      if(!valid.length)return c.json({message:'تأمین‌کننده یا محصول ظرفیت به این مجموعه تعلق ندارد یا غیرفعال است.'},422);
+      if(!Number.isFinite(Number(row.declared_qty))||Number(row.declared_qty)<=0||!row.period_start||!row.period_end||String(row.period_end)<String(row.period_start))return c.json({message:'مقدار و بازه ظرفیت معتبر نیست.'},422);
+      row.status='declared';row.confirmed_qty=null;row.committed_qty=null;row.evidence_review_status='pending_review';row.evidence_reviewed_by=null;row.evidence_reviewed_at=null;row.evidence_review_note=null;row.created_by=user.id;
+     }
      if(table==='orders'){row.status='draft';row.created_by=user.id;}
      if(table==='shipments')row.stage='planned';
      if(table==='operational_tasks')row.status='pending';
@@ -2885,6 +2842,16 @@ app.post('/api/data/:table',async c=>{
      }
      sanitized.push(row);continue;
     }
+    if(membership.role==='supplier'&&membership.supplier_id&&table==='capacity_commitments'){
+     const supplierId=String(original.supplier_id??'');
+     const productId=String(original.product_id??'');
+     const evidencePath=String(original.evidence_path??'');
+     if(supplierId!==membership.supplier_id||!evidencePath.startsWith(companyId+'/'+membership.supplier_id+'/capacity-')||!original.evidence_name||!['application/pdf','image/jpeg','image/png','image/webp'].includes(String(original.evidence_mime_type??'')))return c.json({message:'فقط ظرفیت خودت را همراه مدرک معتبر می‌توانی ثبت کنی.'},403);
+     if(!Number.isFinite(Number(original.declared_qty))||Number(original.declared_qty)<=0||!original.period_start||!original.period_end||String(original.period_end)<String(original.period_start))return c.json({message:'مقدار و بازه ظرفیت معتبر نیست.'},422);
+     const valid=await runForUser(c,user.id,"select 1 from public.products where id=$1::uuid and company_id=$2::uuid and active=true limit 1",[productId,companyId]);
+     if(!valid.length)return c.json({message:'محصول انتخاب‌شده برای این مجموعه معتبر نیست.'},422);
+     row.supplier_id=membership.supplier_id;row.status='declared';row.confirmed_qty=null;row.committed_qty=null;row.evidence_review_status='pending_review';row.evidence_reviewed_by=null;row.evidence_reviewed_at=null;row.evidence_review_note=null;row.created_by=user.id;sanitized.push(row);continue;
+    }
     if(membership.role==='supplier'&&membership.supplier_id&&table==='task_evidence'){
      const sql=sqlFor(c),taskId=String(original.task_id??'');
      const assigned=await sql.query("select id from public.operational_tasks where id=$1::uuid and company_id=$2::uuid and assignee_supplier_id=$3::uuid limit 1",[taskId,companyId,membership.supplier_id]);
@@ -2907,6 +2874,25 @@ app.post('/api/data/:table',async c=>{
   const values = action === 'update' && body.values && typeof body.values === 'object' && !Array.isArray(body.values)
     ? body.values as Record<string, unknown>
     : null;
+  if(table==='capacity_commitments'&&action==='update'){
+    const companyFilter=writeFilters.find(filter=>filter.column==='company_id'&&filter.op==='eq');
+    const companyId=typeof companyFilter?.value==='string'?companyFilter.value:'';
+    const membership=companyId?companyRole(scopes,companyId):null;
+    if(!membership)return c.json({message:'برای بررسی یا تغییر ظرفیت باید شرکت را مشخص کنی.'},422);
+    if(membership.role==='supplier'){
+      const reviewFields=['status','confirmed_qty','committed_qty','evidence_review_status','evidence_reviewed_by','evidence_reviewed_at','evidence_review_note'];
+      if(reviewFields.some(field=>Object.prototype.hasOwnProperty.call(values??{},field)))return c.json({message:'تأمین‌کننده نمی‌تواند ظرفیت یا مدرک خودش را تأیید کند.'},403);
+      if(!writeFilters.some(filter=>filter.column==='evidence_review_status'&&filter.op==='eq'&&filter.value==='rejected'))return c.json({message:'مدرک فقط پس از رد رسمی قابل ارسال مجدد است.'},403);
+      const allowedSupplierEvidenceFields=['evidence_path','evidence_name','evidence_mime_type','evidence_uploaded_at'];
+      if(Object.keys(values??{}).some(field=>!allowedSupplierEvidenceFields.includes(field)))return c.json({message:'تأمین‌کننده فقط می‌تواند مدرک ردشده را اصلاح و دوباره ارسال کند.'},403);
+      if(!values?.evidence_path||!values?.evidence_name||!values?.evidence_mime_type||!values?.evidence_uploaded_at)return c.json({message:'برای ارسال دوباره، فایل و مشخصات کامل مدرک الزامی است.'},422);
+      const path=String(values.evidence_path);
+      if(!path.startsWith(companyId+'/'+String(membership.supplier_id??'')+'/capacity-'))return c.json({message:'مسیر مدرک باید به تأمین‌کننده فعلی تعلق داشته باشد.'},403);
+      values.evidence_review_status='pending_review';values.evidence_reviewed_by=null;values.evidence_reviewed_at=null;values.evidence_review_note=null;values.status='declared';values.confirmed_qty=null;values.committed_qty=null;
+    } else if(!['owner','admin'].includes(membership.role)){
+      return c.json({message:'فقط مالک یا مدیر مجاز است ظرفیت و نتیجه بررسی مدرک را تغییر دهد.'},403);
+    }
+  }
   const transitionField: Record<string, string> = {
     orders: 'status', shipments: 'stage', invoices: 'status', settlements: 'status',
     production_batches: 'status', partner_financial_entries: 'status',
@@ -3351,7 +3337,8 @@ app.post('/api/access-requests',async c=>{
 const PRIVATE_BUCKET_RULES:Record<string,{maxBytes:number;contentTypes:Set<string>}>={
  'delivery-evidence':{maxBytes:50*1024*1024,contentTypes:new Set(['image/jpeg','image/png','image/webp','video/mp4','video/webm','video/quicktime','application/pdf'])},
  'operational-evidence':{maxBytes:50*1024*1024,contentTypes:new Set(['image/jpeg','image/png','image/webp','video/mp4','video/webm','video/quicktime','application/pdf'])},
- 'contract-documents':{maxBytes:20*1024*1024,contentTypes:new Set(['application/pdf','image/jpeg','image/png'])}
+ 'contract-documents':{maxBytes:20*1024*1024,contentTypes:new Set(['application/pdf','image/jpeg','image/png'])},
+ 'capacity-evidence':{maxBytes:10*1024*1024,contentTypes:new Set(['application/pdf','image/jpeg','image/png','image/webp'])}
 };
 function normalizePrivatePath(value:string):string|null{
  const parts=value.split('/');
@@ -3386,6 +3373,12 @@ async function canAccessPrivateFile(c: Ctx, userId: string, bucket: string, path
         : "") +
       ")" +
     ") " +
+    "when $4='capacity-evidence' then (" +
+      "exists(select 1 from public.suppliers su where su.id=$3::uuid and su.company_id=$2::uuid and (" +
+        "exists(select 1 from public.memberships m where m.user_id=$1::uuid and m.company_id=$2::uuid and m.active=true and m.role::text in ('owner','admin','staff')) " +
+        "or exists(select 1 from public.memberships m where m.user_id=$1::uuid and m.company_id=$2::uuid and m.active=true and m.role::text='supplier' and m.supplier_id=su.id)" +
+      "))" +
+    ") " +
     "when $4='operational-evidence' then (" +
       "exists(select 1 from public.operational_tasks t where t.id=$3::uuid and t.company_id=$2::uuid and (" +
         "exists(select 1 from public.memberships m where m.user_id=$1::uuid and m.company_id=$2::uuid and m.active=true and m.role::text in ('owner','admin','staff')) " +
@@ -3414,7 +3407,7 @@ app.put('/api/storage/:bucket',async c=>{
  const path=normalizePrivatePath(c.req.query('path')??'');if(!path)return c.json({message:'مسیر فایل معتبر نیست.'},422);
  const companyId=path.split('/')[0],role=await memberRoleForCompany(c,user.id,companyId);
  if(!role)return c.json({message:'برای این مجموعه دسترسی فعال نداری.'},403);
- const moduleKey = bucket === 'delivery-evidence' ? 'shipments' : bucket === 'contract-documents' ? 'suppliers' : 'operational-tasks';
+ const moduleKey = bucket === 'delivery-evidence' ? 'shipments' : bucket === 'contract-documents' ? 'suppliers' : bucket === 'capacity-evidence' ? 'capacity' : 'operational-tasks';
  if(!(await userHasModulePermission(c,user.id,companyId,moduleKey,'can_create')))return c.json({message:'برای بارگذاری مدرک در این ماژول مجوز ایجاد نداری.'},403);
  if(!(await canAccessPrivateFile(c,user.id,bucket,path,'write')))return c.json({message:'نقش فعلی اجازه بارگذاری این مدرک در این مسیر را ندارد.'},403);
  const contentType=(c.req.header('content-type')??'application/octet-stream').split(';')[0].trim().toLowerCase();
@@ -3436,7 +3429,7 @@ app.get('/api/storage/:bucket',async c=>{
  const bucket=c.req.param('bucket');if(!PRIVATE_BUCKET_RULES[bucket])return c.json({message:'مخزن فایل مجاز نیست.'},404);
  const path=normalizePrivatePath(c.req.query('path')??'');if(!path)return c.json({message:'مسیر فایل معتبر نیست.'},422);
  const companyId=path.split('/')[0];
- const moduleKey = bucket === 'delivery-evidence' ? 'shipments' : bucket === 'contract-documents' ? 'suppliers' : 'operational-tasks';
+ const moduleKey = bucket === 'delivery-evidence' ? 'shipments' : bucket === 'contract-documents' ? 'suppliers' : bucket === 'capacity-evidence' ? 'capacity' : 'operational-tasks';
  if(!(await userHasModulePermission(c,user.id,companyId,moduleKey,'can_read')))return c.json({message:'فایل پیدا نشد یا دسترسی به آن مجاز نیست.'},404);
  if(!(await canAccessPrivateFile(c,user.id,bucket,path,'read')))return c.json({message:'فایل پیدا نشد یا دسترسی به آن مجاز نیست.'},404);
  const meta=await runForUser(c,user.id,'select content_type from public.medar_files where bucket_id=$1 and name=$2 limit 1',[bucket,path]);
@@ -3461,7 +3454,7 @@ app.post('/api/storage/:bucket/remove',async c=>{
   const names:string[]=[];
   for(const candidate of candidatesNames){
    const companyId=candidate.split('/')[0];
-   const moduleKey = bucket === 'delivery-evidence' ? 'shipments' : bucket === 'contract-documents' ? 'suppliers' : 'operational-tasks';
+   const moduleKey = bucket === 'delivery-evidence' ? 'shipments' : bucket === 'contract-documents' ? 'suppliers' : bucket === 'capacity-evidence' ? 'capacity' : 'operational-tasks';
    if(await userHasModulePermission(c,user.id,companyId,moduleKey,'can_delete') && await canAccessPrivateFile(c,user.id,bucket,candidate,'delete'))names.push(candidate);
   }
   if(!names.length)return c.json({data:[],error:null});
