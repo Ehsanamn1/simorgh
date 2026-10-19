@@ -11,11 +11,11 @@ test('the app opens a username-and-password sign-in without an email field', asy
   }));
   await page.goto('/simorgh/', { waitUntil: 'domcontentloaded' });
 
-  await expect(page).toHaveTitle(/مدار \| مدیریت یکپارچه مزرعه و عملیات/);
+  await expect(page).toHaveTitle(/صحرا \| مدیریت یکپارچه مزرعه و عملیات/);
   await expect(page).toHaveURL(/\/simorgh\/app\/command$/);
   await expect(page.locator('#app-boot-screen')).toHaveCount(0);
   await expect(page.locator('.simorgh-signin-layer')).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'ورود به مدار' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'ورود به صحرا' })).toBeVisible();
   await expect(page.getByLabel('نام کاربری')).toBeVisible();
   await expect(page.getByLabel('گذرواژه', { exact: true })).toBeVisible();
   const signInThemeToggle = page.getByRole('button', { name: 'تغییر حالت نمایش' });
@@ -50,13 +50,13 @@ test('public signup and invitation-code access are disabled; owners provision ac
   });
 
   await page.goto('/simorgh/', { waitUntil: 'domcontentloaded' });
-  await expect(page.getByRole('heading', { name: 'ورود به مدار' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'ورود به صحرا' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'ساخت حساب و فضای کاری' })).toHaveCount(0);
   await expect(page.getByText(/ثبت‌نام عمومی غیرفعال است/)).toBeVisible();
 
   await page.goto('/simorgh/app/command#signup', { waitUntil: 'domcontentloaded' });
   await expect(page.locator('.simorgh-signin-layer')).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'ورود به مدار' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'ورود به صحرا' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'ساخت حساب و فضای کاری' })).toHaveCount(0);
   await expect(page.getByText(/ثبت‌نام عمومی غیرفعال است/)).toBeVisible();
   expect(signupRequests).toBe(0);
