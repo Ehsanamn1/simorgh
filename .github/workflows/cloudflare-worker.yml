@@ -44,7 +44,7 @@ jobs:
         shell: bash
         run: |
           psql "$MEDAR_DATABASE_URL" -v ON_ERROR_STOP=1 -c "create table if not exists public.medar_schema_migrations (version text primary key, checksum text not null, applied_at timestamptz not null default now())"
-          for migration in worker/migrations/0007_existing_medar_schema_compat.sql worker/migrations/0008_operational_task_actions.sql worker/migrations/0009_inventory_movement_concurrency_lock.sql worker/migrations/0010_purchase_order_lifecycle.sql worker/migrations/0011_username_password_only.sql worker/migrations/0012_client_presence.sql worker/migrations/0013_ai_assistant_and_contacts.sql worker/migrations/0014_contact_intelligence.sql worker/migrations/0015_ai_action_approval_ledger.sql worker/migrations/0016_membership_module_permissions.sql worker/migrations/0017_delivery_video_evidence.sql worker/migrations/0018_bank_reconciliation_ledger.sql worker/migrations/0019_daily_briefing_notifications.sql worker/migrations/0020_operational_event_exception_ledger.sql worker/migrations/0021_medar_connect_messaging.sql worker/migrations/0022_web_push_delivery_queue.sql worker/migrations/0023_operational_event_hooks.sql worker/migrations/0024_connect_task_notifications.sql worker/migrations/0025_supplier_location_details.sql worker/migrations/0026_task_status_notifications.sql worker/migrations/0027_capacity_evidence_review.sql; do
+          for migration in worker/migrations/0007_existing_medar_schema_compat.sql worker/migrations/0008_operational_task_actions.sql worker/migrations/0009_inventory_movement_concurrency_lock.sql worker/migrations/0010_purchase_order_lifecycle.sql worker/migrations/0011_username_password_only.sql worker/migrations/0012_client_presence.sql worker/migrations/0013_ai_assistant_and_contacts.sql worker/migrations/0014_contact_intelligence.sql worker/migrations/0015_ai_action_approval_ledger.sql worker/migrations/0016_membership_module_permissions.sql worker/migrations/0017_delivery_video_evidence.sql worker/migrations/0018_bank_reconciliation_ledger.sql worker/migrations/0019_daily_briefing_notifications.sql worker/migrations/0020_operational_event_exception_ledger.sql worker/migrations/0021_medar_connect_messaging.sql worker/migrations/0022_web_push_delivery_queue.sql worker/migrations/0023_operational_event_hooks.sql worker/migrations/0024_connect_task_notifications.sql worker/migrations/0025_supplier_location_details.sql worker/migrations/0026_task_status_notifications.sql worker/migrations/0027_capacity_evidence_review.sql worker/migrations/0028_capacity_evidence_storage_bucket.sql; do
             version="$(basename "$migration")"
             checksum="$(sha256sum "$migration" | awk '{print $1}')"
             applied="$(psql "$MEDAR_DATABASE_URL" -v ON_ERROR_STOP=1 -Atqc "select checksum from public.medar_schema_migrations where version = '$version'")"
@@ -88,6 +88,8 @@ jobs:
               to_regprocedure('public.medar_notify_task_status_change()') is not null and
               exists (select 1 from public.medar_schema_migrations where version='0025_supplier_location_details.sql') and
               exists (select 1 from public.medar_schema_migrations where version='0027_capacity_evidence_review.sql') and
+              exists (select 1 from public.medar_schema_migrations where version='0028_capacity_evidence_storage_bucket.sql') and
+              exists (select 1 from pg_constraint where conrelid='public.medar_files'::regclass and conname='medar_files_bucket_id_check' and pg_get_constraintdef(oid) like '%capacity-evidence%') and
               (select count(*) from information_schema.columns where table_schema='public' and table_name='capacity_commitments' and column_name in ('evidence_path','evidence_name','evidence_mime_type','evidence_uploaded_at','evidence_review_status','evidence_reviewed_by','evidence_reviewed_at','evidence_review_note')) = 8 and
               (select count(*) from information_schema.columns where table_schema='public' and table_name='suppliers' and column_name in ('province','address','latitude','longitude')) = 4 and
               to_regprocedure('public.medar_enqueue_notification_push()') is not null and
@@ -136,8 +138,16 @@ jobs:
             echo "Neon schema is missing a required table, versioned migration, or Worker RPC. Refusing deployment."
             exit 1
           fi
-      - name: Keep private file storage disabled until R2 is enabled for this account
-        run: echo "Cloudflare R2 is not enabled for this account; FILE_STORE stays unbound and private-file routes remain unavailable."
+      - name: Ensure private evidence bucket exists in Cloudflare R2
+        working-directory: worker
+        shell: bash
+        run: |
+          set -euo pipefail
+          if npx wrangler@4 r2 bucket list | grep -Fq "medar-private-files"; then
+            echo "Private R2 bucket medar-private-files already exists."
+          else
+            npx wrangler@4 r2 bucket create medar-private-files
+          fi
       # Keep medar-api as the public showcase. The operational app is a separate Worker
       # so enabling its sign-in UI never changes the read-only public demo.
       - name: Build safe bootstrap bundle for the operational Worker
@@ -447,8 +457,8 @@ jobs:
           grep -Rqs --include='*.css' 'demo-workspace' dist/assets
           grep -Rqs --include='*.css' 'demo-preview-notice' dist/assets
           echo "Worker frontend includes the interactive, read-only demo and responsive showcase styles."
-      - name: Keep private file storage disabled until explicitly requested
-        run: echo "R2 setup is intentionally out of scope; file routes remain unavailable without FILE_STORE."
+      - name: Confirm private file storage is bound while public-demo routes remain gated
+        run: grep -Fq 'binding = "FILE_STORE"' worker/wrangler.toml
       - name: Configure Neon database secret
         working-directory: worker
         shell: bash
