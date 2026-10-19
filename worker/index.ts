@@ -504,7 +504,7 @@ app.post('/api/profile/complete', async (c) => {
     "), new_supplier as (" +
       "insert into public.suppliers(company_id,name,phone,active) select m.company_id,case when exists(select 1 from public.suppliers existing where existing.company_id=m.company_id and lower(existing.name)=lower($2)) then left($2,120)||' ('||left(u.id::text,8)||')' else $2 end,$3,true from public.memberships m join updated_user u on u.id=m.user_id where m.active=true and m.role::text='supplier' and m.supplier_id is null returning id,company_id" +
     "), link_supplier as (" +
-      "update public.memberships m set supplier_id=s.id from new_supplier s where m.company_id=s.company_id and m.role::text='supplier' and m.active=true and m.supplier_id is null returning m.id" +
+      "update public.memberships m set supplier_id=s.id from new_supplier s where m.user_id=$1::uuid and m.company_id=s.company_id and m.role::text='supplier' and m.active=true and m.supplier_id is null returning m.id" +
     ") select * from updated_user",
     [user.id, fullName, phone],
   );
