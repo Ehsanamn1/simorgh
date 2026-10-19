@@ -39,7 +39,7 @@ test('the app opens a username-and-password sign-in without an email field', asy
   expect(errors).toEqual([]);
 });
 
-test('public signup is disabled and access remains invitation-only', async ({ page }) => {
+test('public signup and invitation-code access are disabled; owners provision accounts', async ({ page }) => {
   let signupRequests = 0;
   await page.route('**/api/auth/me', route => route.fulfill({
     status: 200, contentType: 'application/json', body: JSON.stringify({ user: null, memberships: [] }),
