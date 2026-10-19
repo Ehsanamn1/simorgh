@@ -111,3 +111,37 @@ test('mobile demo has four bottom navigation items, all key modules, and working
   expect(sizes.body).toBeLessThanOrEqual(sizes.viewport);
   expect(errors).toEqual([]);
 });
+
+
+test('Sahra identity and responsive layout stay consistent across reference viewports', async ({ page }) => {
+  await page.route('**/api/health', route => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({ ok: true, database: true, service: 'medar-api' }),
+  }));
+  await page.route('**/api/auth/me', route => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({ user: null, memberships: [] }),
+  }));
+  await page.goto('/simorgh/demo', { waitUntil: 'domcontentloaded' });
+  await expect(page.locator('.demo-workspace .sahra-lockup')).toBeVisible();
+  await expect(page.locator('.demo-workspace .brand-words b')).toContainText('صحرا');
+  await expect(page).toHaveTitle(/صحرا \| راهبران زنجیره ارزش/);
+
+  for (const viewport of [
+    { width: 320, height: 720 },
+    { width: 393, height: 852 },
+    { width: 768, height: 1024 },
+    { width: 1024, height: 768 },
+    { width: 1440, height: 900 },
+  ]) {
+    await page.setViewportSize(viewport);
+    await expect(page.locator('.demo-workspace')).toBeVisible();
+    const dimensions = await page.evaluate(() => ({
+      viewport: document.documentElement.clientWidth,
+      document: document.documentElement.scrollWidth,
+      body: document.body.scrollWidth,
+    }));
+    expect(dimensions.document, `document overflow at ${viewport.width}px`).toBeLessThanOrEqual(dimensions.viewport);
+    expect(dimensions.body, `body overflow at ${viewport.width}px`).toBeLessThanOrEqual(dimensions.viewport);
+  }
+});
