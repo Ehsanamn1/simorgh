@@ -1761,3 +1761,17 @@ html[data-theme="dark"] .bank-primary-button { color:#202a38; }
 .notification-read-list .notification-item{opacity:.82}
 .notification-notice{animation:guideChapterIn .25s ease both}
 @media(prefers-reduced-motion:reduce){.guide-manual-chapter,.notification-exit,.notification-notice{animation:none!important}}
+
+/* Contextual help opens automatically without blocking day-to-day controls. */
+.guide-backdrop{display:block;position:fixed;inset:auto auto 18px 18px;z-index:1000;width:min(390px,calc(100vw - 36px));padding:0;background:transparent;backdrop-filter:none;pointer-events:none}
+html[data-theme="dark"] .guide-backdrop{background:transparent}
+.guide-dialog{pointer-events:auto;width:100%;max-height:min(62dvh,650px);padding:17px;border-radius:18px;box-shadow:0 16px 55px rgb(11 28 17 / 25%);animation:guideFloatIn .22s ease both}
+.guide-heading-copy h2{font-size:18px}
+.guide-trust-note{margin-top:12px;padding:10px}
+.guide-section-title{margin-top:13px}
+.guide-manual-chapter{padding:9px 10px;margin:6px 0}
+.guide-footer{gap:8px;align-items:flex-start}
+.guide-footer>span{max-width:65%;font-size:9px;line-height:1.7}
+@keyframes guideFloatIn{from{opacity:0;transform:translateY(8px) scale(.99)}to{opacity:1;transform:translateY(0) scale(1)}}
+@media(max-width:560px){.guide-backdrop{left:8px;bottom:76px;width:min(350px,calc(100vw - 16px))}.guide-dialog{max-height:48dvh;padding:13px}.guide-heading-copy h2{font-size:16px}.guide-global-manual{display:none}.guide-role-links{gap:5px}}
+@media(prefers-reduced-motion:reduce){.guide-dialog{animation:none}}
