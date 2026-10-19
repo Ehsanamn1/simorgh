@@ -11,6 +11,7 @@ import {
   DUMMY_PASSWORD_HASH,
   FAILED_LOGIN_UPSERT_SQL,
   normalizeUsername,
+  MEMBER_ACCOUNT_INSERT_SQL,
   parseClientHeartbeat,
   resolveApiModeAccess,
   aggregateModulePermissionRows,
@@ -91,6 +92,15 @@ describe('production and partner-finance status workflows', () => {
     expect(isSaleCollectionWithinInvoice(100, 60, 41)).toBe(false);
     expect(isSaleCollectionWithinInvoice(100, -1, 20)).toBe(false);
     expect(isSaleCollectionWithinInvoice(0, 0, 1)).toBe(false);
+  });
+});
+
+describe('dedicated member account creation SQL', () => {
+  it('writes both the canonical username and the required normalized username column', () => {
+    expect(MEMBER_ACCOUNT_INSERT_SQL).toMatch(/insert into public\\.medar_users\\(username,username_normalized,display_name,password_hash,requested_role,account_status\\)/);
+    expect(MEMBER_ACCOUNT_INSERT_SQL).toContain("values($1,$1,$2,$3,$4,'active')");
+    expect(MEMBER_ACCOUNT_INSERT_SQL).toContain('insert into public.memberships');
+    expect(MEMBER_ACCOUNT_INSERT_SQL).toContain('created_by');
   });
 });
 
