@@ -2764,7 +2764,7 @@ app.post('/api/data/:table',async c=>{
       const supplierId=typeof row.supplier_id==='string'?row.supplier_id:'';
       const productId=typeof row.product_id==='string'?row.product_id:'';
       const evidencePath=typeof row.evidence_path==='string'?row.evidence_path:'';
-      if(!/^[0-9a-f-]{36}$/i.test(supplierId)||!/^([0-9a-f-]{36})\\/([0-9a-f-]{36})\\/capacity-[^/]+$/i.test(evidencePath)||!evidencePath.startsWith(companyId+'/'+supplierId+'/capacity-')||!row.evidence_name||!['application/pdf','image/jpeg','image/png','image/webp'].includes(String(row.evidence_mime_type??'')))return c.json({message:'برای ظرفیت، تأمین‌کننده و مدرک معتبر الزامی است.'},422);
+      if(!/^[0-9a-f-]{36}$/i.test(supplierId)||!evidencePath.startsWith(companyId+'/'+supplierId+'/capacity-')||!row.evidence_name||!['application/pdf','image/jpeg','image/png','image/webp'].includes(String(row.evidence_mime_type??'')))return c.json({message:'برای ظرفیت، تأمین‌کننده و مدرک معتبر الزامی است.'},422);
       const valid=await runForUser(c,user.id,"select 1 from public.suppliers s join public.products p on p.company_id=s.company_id where s.id=$1::uuid and s.company_id=$2::uuid and s.active=true and p.id=$3::uuid and p.active=true limit 1",[supplierId,companyId,productId]);
       if(!valid.length)return c.json({message:'تأمین‌کننده یا محصول ظرفیت به این مجموعه تعلق ندارد یا غیرفعال است.'},422);
       if(!Number.isFinite(Number(row.declared_qty))||Number(row.declared_qty)<=0||!row.period_start||!row.period_end||String(row.period_end)<String(row.period_start))return c.json({message:'مقدار و بازه ظرفیت معتبر نیست.'},422);
