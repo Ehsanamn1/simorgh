@@ -3438,7 +3438,10 @@ app.put('/api/storage/:bucket',async c=>{
   if(!metadata.length){if(c.env.FILE_STORE)await c.env.FILE_STORE.delete(key);return c.json({message:'قواعد دسترسی بارگذاری این مدرک را مجاز نمی‌دانند.'},403);}
   return c.json({data:{path,bucket,size:bytes.byteLength,contentType,storage:c.env.FILE_STORE?'r2-private':'database-private'},error:null},201);
  }catch{
-  if(c.env.FILE_STORE)try{await c.env.FILE_STORE.delete(key);}catch{}
+  if(c.env.FILE_STORE){
+   try{await c.env.FILE_STORE.delete(key);}
+   catch{return c.json({message:'ذخیره فایل ناموفق بود و پاک‌سازی فایل موقت هم انجام نشد.'},500);}
+  }
   return c.json({message:'ذخیره فایل یا ثبت مشخصات آن ناموفق بود.'},400);
  }
 });
