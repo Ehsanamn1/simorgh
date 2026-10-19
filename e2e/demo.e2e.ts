@@ -41,7 +41,7 @@ test('public demo is navigable, searchable and clearly read-only', async ({ page
   await page.getByRole('button', { name: 'تغییر حالت نمایش' }).click();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   await expect.poll(() => page.evaluate(() => localStorage.getItem('simorgh-theme'))).toBe('dark');
-  const operationalEntry = page.getByRole('link', { name: 'ورود به فضای عملیاتی مدار' });
+  const operationalEntry = page.getByRole('link', { name: 'ورود به فضای عملیاتی صحرا' });
   await expect(operationalEntry).toBeVisible();
   await expect(operationalEntry).toHaveAttribute('href', 'https://medar-ops.dengxiao445.workers.dev/app/command');
 
@@ -81,7 +81,7 @@ test('mobile demo has four bottom navigation items, all key modules, and working
   await expect(bottomNav.locator('button')).toHaveCount(4);
   await expect(page.locator('.demo-quick-access')).toBeVisible();
   await expect(page.locator('.demo-quick-action')).toHaveCount(4);
-  await expect(page.getByRole('link', { name: 'ورود به فضای عملیاتی مدار' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'ورود به فضای عملیاتی صحرا' })).toBeVisible();
 
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
   const lightMobileDimensions = await page.evaluate(() => ({ viewport: innerWidth, document: document.documentElement.scrollWidth, body: document.body.scrollWidth }));
