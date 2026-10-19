@@ -1506,6 +1506,10 @@ function SupplierCapacityPage({membership,search}:{membership:Membership;search:
 }
 function SupplierSettlementPage({membership,search}:{membership:Membership;search:string}) {const {rows,loading,error,refresh}=useDbRows('settlements',membership,{order:'created_at'});const shown=rows.filter(r=>(!membership.supplier_id||r.supplier_id===membership.supplier_id)&&(!search||`${r.invoice_ref??''} ${r.status}`.toLowerCase().includes(search.toLowerCase())));return <><PageHeading eyebrow="SUPPLIER / SETTLEMENT" title="تسویه‌های من" description="مبالغ و وضعیت تسویه را بر اساس رکوردهای داخلی ببین؛ وضعیت «پرداخت‌شده» باید پس از تطبیق واقعی ثبت شود." action={<Button variant="soft" onClick={()=>void refresh()}>تازه‌سازی</Button>}/>{error&&<InlineError error={error} retry={()=>void refresh()}/>}<section className="panel entity-panel">{loading?<div className="panel-loading"><span className="spinner small"/></div>:shown.length?<DataTable rows={shown} columns={[{key:'invoice_ref',label:'مرجع سند'},{key:'amount',label:'مبلغ',render:r=>moneyFa(String(r.amount))},{key:'due_date',label:'سررسید'},{key:'status',label:'وضعیت',render:r=><Badge value={r.status}/>},{key:'note',label:'یادداشت'}]}/>:<EmptyState title="تسویه‌ای برای نمایش وجود ندارد" description="سوابق تسویه پس از ثبت توسط تیم مالی مجموعه اینجا قرار می‌گیرند." icon={CreditCard}/>}</section></>}
 
+// Legacy screens stay in source for now, but the supply-chain release intentionally does not route to them.
+// Keep their imports/components referenced until their data migrations and old clients are retired.
+void [ContactImporter, ContactsHub, OperationalExceptionInbox, ProductsPage, OrdersPage, PurchaseOrdersPage, GoalsPage, FinancePage, CustomerCatalog, CustomerOrders, CustomerAccount];
+
 function WorkspaceGate() {
   const { user, loading, membershipsLoading } = useAuth();
   const [resolvedUserId, setResolvedUserId] = useState<string | null>(null);
