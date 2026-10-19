@@ -888,7 +888,7 @@ test('closing contextual help persists across navigation until explicitly reopen
   await expect(page).not.toHaveURL(/\/simorgh\/app\/members$/);
   await expect(guide).toHaveCount(0);
 
-  const helpButton = page.getByRole('button', { name: 'راهنمای مدار' });
+  const helpButton = page.getByRole('button', { name: 'راهنمای صحرا' });
   if (await helpButton.isVisible()) {
     await helpButton.click();
     await expect(guide).toBeVisible();
