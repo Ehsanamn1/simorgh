@@ -449,8 +449,8 @@ test('manager bottom navigation stays manager-specific on mobile and tablet', as
   await expect(page.locator('.topbar-home-link')).toHaveCount(1);
   await expect(page.getByRole('button', { name: 'خروج از حساب' })).toHaveCount(0);
   const mobileNav = page.locator('.mobile-workspace-nav');
+  if (viewportWidth <= 720) await expect(page.locator('.topbar-home-link')).toBeHidden();
   if (viewportWidth <= 860) {
-    await expect(page.locator('.topbar-home-link')).toBeHidden();
     await expect(mobileNav).toBeVisible();
     for (const label of ['نمای کلی', 'مرکز ارتباطات', 'ارسال‌ها']) {
       await expect(mobileNav.getByRole('link', { name: label, exact: true })).toBeVisible();
