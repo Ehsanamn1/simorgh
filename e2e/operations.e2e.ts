@@ -208,7 +208,7 @@ test('generic farm types and daily rejected quantities are validated before writ
   await installIsolatedSession(page, 'owner');
 
   await page.goto('/simorgh/app/products', { waitUntil: 'domcontentloaded' });
-  await expect(page).toHaveURL(/\/simorgh\/app\/command$/);
+  await expect(page).toHaveURL(/\/simorgh\/app\/home$/);
   await expect(page.getByRole('heading', { name: 'کاتالوگ و مشخصات محصول' })).toHaveCount(0);
 
   await page.goto('/simorgh/app/farm-sites', { waitUntil: 'domcontentloaded' });
@@ -775,7 +775,7 @@ test('Medar Connect creates a restricted conversation and sends an idempotent op
 test('exception inbox is disabled in the simplified supply-chain release', async ({ page }) => {
   await installIsolatedSession(page, 'owner');
   await page.goto('/simorgh/app/exceptions', { waitUntil: 'domcontentloaded' });
-  await expect(page).toHaveURL(/\/simorgh\/app\/command$/);
+  await expect(page).toHaveURL(/\/simorgh\/app\/home$/);
   await expect(page.getByRole('heading', { name: 'صندوق مسائل و استثناها' })).toHaveCount(0);
 });
 
