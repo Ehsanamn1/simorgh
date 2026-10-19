@@ -1861,3 +1861,112 @@ html[data-theme="dark"] .guide-backdrop{background:transparent}
 .guide-dialog{pointer-events:none}
 .guide-dialog .guide-close,.guide-dialog .guide-manual-toggle,.guide-dialog .guide-step-expand,.guide-dialog .guide-footer button{pointer-events:auto}
 .guide-dialog.show-global-manual,.guide-dialog.show-full-section-guide{pointer-events:auto}
+
+
+/* Final responsive help layout: small, dismissible, bottom-left and click-through. */
+.guide-backdrop {
+  position: fixed !important;
+  left: 12px !important;
+  right: auto !important;
+  top: auto !important;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 14px) !important;
+  width: min(218px, calc(100vw - 24px)) !important;
+  height: auto !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  z-index: 1200 !important;
+  pointer-events: none !important;
+  background: transparent !important;
+  backdrop-filter: none !important;
+}
+.guide-dialog {
+  position: relative !important;
+  inset: auto !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  max-height: 18dvh !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+  padding: 8px !important;
+  border-radius: 12px !important;
+  pointer-events: none !important;
+  box-shadow: 0 8px 26px rgb(11 28 17 / 16%), 0 0 0 1px color-mix(in srgb, var(--obs-border) 80%, transparent) !important;
+}
+.guide-dialog:not(.show-global-manual) .guide-trust-note,
+.guide-dialog:not(.show-global-manual) .guide-section-title,
+.guide-dialog:not(.show-global-manual) .guide-mobile-tip,
+.guide-dialog:not(.show-global-manual) .guide-role-links,
+.guide-dialog:not(.show-global-manual) .guide-footer,
+.guide-dialog:not(.show-global-manual) .guide-global-manual,
+.guide-dialog:not(.show-global-manual) .guide-heading-copy > .eyebrow,
+.guide-dialog:not(.show-global-manual) .guide-heading-copy > p:not(.guide-section-name) {
+  display: none !important;
+}
+.guide-heading { gap: 6px !important; align-items: center !important; }
+.guide-book-icon { width: 26px !important; height: 26px !important; border-radius: 8px !important; }
+.guide-book-icon svg { width: 14px !important; height: 14px !important; }
+.guide-heading-copy { min-width: 0 !important; flex: 1 !important; }
+.guide-heading-copy h2 { margin: 0 !important; font-size: 11px !important; line-height: 1.45 !important; }
+.guide-section-name { margin: 1px 0 0 !important; font-size: 9px !important; line-height: 1.4 !important; }
+.guide-close, .guide-manual-toggle {
+  min-width: 25px !important; min-height: 25px !important;
+  padding: 4px !important; border-radius: 7px !important;
+  pointer-events: auto !important;
+}
+.guide-manual-toggle { gap: 3px !important; font-size: 8px !important; }
+.guide-manual-toggle svg { width: 12px !important; height: 12px !important; }
+.guide-close svg { width: 14px !important; height: 14px !important; }
+.guide-steps { display: grid !important; gap: 3px !important; margin: 5px 0 0 !important; padding: 0 !important; }
+.guide-steps li { display: flex !important; align-items: flex-start !important; gap: 5px !important; padding: 3px 0 !important; border: 0 !important; background: transparent !important; font-size: 8px !important; line-height: 1.5 !important; }
+.guide-steps li:nth-child(n+3) { display: none !important; }
+.guide-step-number { width: 15px !important; height: 15px !important; flex: 0 0 15px !important; font-size: 8px !important; }
+.guide-step-check { display: none !important; }
+.guide-dialog .guide-close, .guide-dialog .guide-manual-toggle, .guide-dialog .guide-footer button { pointer-events: auto !important; }
+.guide-dialog.show-global-manual {
+  position: relative !important;
+  width: min(520px, calc(100vw - 24px)) !important;
+  max-height: 72dvh !important;
+  overflow: auto !important;
+  padding: 12px !important;
+  pointer-events: auto !important;
+}
+.guide-dialog.show-global-manual .guide-trust-note,
+.guide-dialog.show-global-manual .guide-section-title,
+.guide-dialog.show-global-manual .guide-mobile-tip,
+.guide-dialog.show-global-manual .guide-role-links,
+.guide-dialog.show-global-manual .guide-footer,
+.guide-dialog.show-global-manual .guide-global-manual,
+.guide-dialog.show-global-manual .guide-heading-copy > .eyebrow,
+.guide-dialog.show-global-manual .guide-heading-copy > p:not(.guide-section-name) { display: block !important; }
+.guide-dialog.show-global-manual .guide-heading { display: flex !important; }
+.guide-dialog.show-global-manual .guide-global-manual { display: block !important; }
+@media (min-width: 901px) {
+  .nav-groups { gap: 4px !important; }
+  .nav-group > summary { min-height: 35px !important; padding-block: 6px !important; }
+  .nav-group > .side-nav { padding-top: 2px !important; }
+  .side-nav { gap: 1px !important; }
+  .side-nav a { min-height: 33px !important; padding-block: 6px !important; }
+}
+@media (max-width: 900px) {
+  .guide-backdrop {
+    left: 8px !important;
+    right: auto !important;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 76px) !important;
+    width: min(205px, calc(100vw - 16px)) !important;
+  }
+  .guide-dialog { max-height: 17dvh !important; padding: 7px !important; border-radius: 11px !important; }
+  .guide-book-icon { width: 23px !important; height: 23px !important; }
+  .guide-heading-copy h2 { font-size: 10px !important; }
+  .guide-section-name { font-size: 8px !important; }
+  .guide-steps { margin-top: 3px !important; }
+  .guide-steps li { font-size: 7.5px !important; }
+  .guide-dialog.show-global-manual {
+    position: relative !important;
+    width: min(390px, calc(100vw - 16px)) !important;
+    max-height: 70dvh !important;
+    padding: 10px !important;
+    overflow: auto !important;
+    pointer-events: auto !important;
+  }
+}
+@media (prefers-reduced-motion: reduce) { .guide-dialog { animation: none !important; } }
