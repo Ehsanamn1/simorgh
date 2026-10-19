@@ -705,7 +705,7 @@ export function OperationsWorkspacePage({kind,membership,search}:{kind:Operation
           {(evidenceType==='photo'||evidenceType==='document')&&<label className="ops-field full"><span>فایل</span><input type="file" accept={evidenceType==='photo'?'image/*':'.pdf,.jpg,.jpeg,.png'} required onChange={e=>setEvidenceFile(e.target.files?.[0]??null)}/></label>}
           {evidenceType==='measurement'&&<><label className="ops-field"><span>مقدار</span><input type="number" step="0.001" required value={measurement} onChange={e=>setMeasurement(e.target.value)}/></label><label className="ops-field"><span>واحد</span><input required value={unit} onChange={e=>setUnit(e.target.value)}/></label></>}
           <label className="ops-field full"><span>یادداشت</span><textarea rows={3} required={evidenceType==='note'} value={evidenceNote} onChange={e=>setEvidenceNote(e.target.value)}/></label>
-          <div className="ops-form-foot"><span>صحراک اجباری باید قبل از ارسال وظیفه ثبت شوند.</span><button className="button-primary" type="submit" disabled={busy}>{busy?'در حال بارگذاری…':'ذخیره مدرک'}</button></div>
+          <div className="ops-form-foot"><span>مدارک اجباری باید قبل از ارسال وظیفه ثبت شوند.</span><button className="button-primary" type="submit" disabled={busy}>{busy?'در حال بارگذاری…':'ذخیره مدرک'}</button></div>
         </form>
       </div>
     </div>}
