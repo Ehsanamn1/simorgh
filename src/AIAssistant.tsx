@@ -254,7 +254,7 @@ export function AIAssistant({ companyId, role, userName }: AIAssistantProps) {
           partialResults: false,
           popup: false,
           addPunctuation: true,
-          contextualStrings: ['مدار', 'تأمین‌کننده', 'سفارش', 'تسویه', 'موجودی', 'ارسال', 'راننده', 'مزرعه', 'تولید'],
+          contextualStrings: ['صحرا', 'تأمین‌کننده', 'سفارش', 'تسویه', 'موجودی', 'ارسال', 'راننده', 'مزرعه', 'تولید'],
         });
         const transcript = result.matches?.[0]?.trim() || '';
         setListening(false);
@@ -453,7 +453,7 @@ export function AIAssistant({ companyId, role, userName }: AIAssistantProps) {
                   status: result.action.status,
                   taskTitle: result.action.arguments?.title || title,
                   requiresHumanApproval: true,
-                  message: 'Only an inert proposal was saved. No operational task has been created. The user must review and explicitly approve it in Medar Agent Center.',
+                  message: 'Only an inert proposal was saved. No operational task has been created. The user must review and explicitly approve it in Sahra Agent Center.',
                 };
                 setNotice('پیشنهاد وظیفه آماده شد؛ هنوز وظیفه‌ای ایجاد نشده است. برای اجرا، پیشنهاد را در مرکز ایجنت‌ها بررسی و تأیید کن.');
               } catch (caught) {
@@ -495,7 +495,7 @@ export function AIAssistant({ companyId, role, userName }: AIAssistantProps) {
       });
       if (!response.ok) {
         const payload = await response.json().catch(() => null) as { message?: string } | null;
-        throw new Error(payload?.message || 'سرویس مدار نتوانست نشست صوتی را آغاز کند.');
+        throw new Error(payload?.message || 'سرویس صحرا نتوانست نشست صوتی را آغاز کند.');
       }
       const answerSdp = await response.text();
       if (!answerSdp.startsWith('v=0')) throw new Error('پاسخ اتصال صوتی معتبر نبود.');
@@ -705,21 +705,21 @@ export function AIAssistant({ companyId, role, userName }: AIAssistantProps) {
   return <>
     <button type="button" className="ai-assistant-launcher" aria-label="بازکردن دستیار هوش مصنوعی" onClick={openPanel}>
       <span className="ai-launcher-orb"><AudioLines size={21}/></span>
-      <span className="ai-launcher-label"><b>دستیار مدار</b><small>تحلیل و راهنمایی</small></span>
+      <span className="ai-launcher-label"><b>دستیار صحرا</b><small>تحلیل و راهنمایی</small></span>
     </button>
     {open && <div className="ai-assistant-layer" dir="rtl">
       <section className="ai-assistant-window" role="dialog" aria-modal="true" aria-labelledby="ai-assistant-title">
         <header className="ai-assistant-header">
           <span className="ai-assistant-mark"><Sparkles size={22}/></span>
           <div className="ai-assistant-title">
-            <b id="ai-assistant-title">دستیار مدار</b>
+            <b id="ai-assistant-title">دستیار صحرا</b>
             <small><span className="ai-presence-dot"/> {activeProvider ? providerMeta[activeProvider].label : 'آماده‌ی راهنمایی'} · {roleTitles[role]}</small>
           </div>
           {isAdmin && <button type="button" className="ai-icon-button" onClick={() => { setSettingsOpen(value => !value); setError(''); setNotice(''); if (!configs.length) void loadProviders(); }} aria-label="تنظیمات اتصال هوش مصنوعی" title="تنظیمات پرووایدر"><Settings2 size={18}/></button>}
           <button type="button" className="ai-icon-button" onClick={() => { setOpen(false); setSettingsOpen(false); stopVoiceConversation(); recognitionRef.current?.stop(); }} aria-label="بستن دستیار"><X size={19}/></button>
         </header>
         {settingsOpen && isAdmin ? <div className="ai-settings-panel">
-          <div className="ai-settings-title"><div><b>اتصال مدل‌های هوش مصنوعی</b><small>کلید فقط به API امن مدار فرستاده می‌شود و در پاسخ به مرورگر برنمی‌گردد.</small></div><ShieldCheck size={20}/></div>
+          <div className="ai-settings-title"><div><b>اتصال مدل‌های هوش مصنوعی</b><small>کلید فقط به API امن صحرا فرستاده می‌شود و در پاسخ به مرورگر برنمی‌گردد.</small></div><ShieldCheck size={20}/></div>
           {loadingConfigs ? <div className="ai-loading"><LoaderCircle size={18}/> در حال خواندن تنظیمات</div> : <>
             <div className="ai-provider-grid">{(Object.keys(providerMeta) as ProviderId[]).map(provider => {
               const meta = providerMeta[provider];
@@ -757,7 +757,7 @@ export function AIAssistant({ companyId, role, userName }: AIAssistantProps) {
               {configuredConfigs.length===0&&<small className="ai-setup-hint">برای پاسخ واقعی، مالک یا مدیر باید یک پرووایدر را در تنظیمات وصل کند.</small>}
             </div> : messages.map((message,index)=><article className={'ai-message '+message.role} key={index}>
               <div className="ai-message-avatar">{message.role==='assistant'?<Sparkles size={15}/>:<span>{(userName||'شما').slice(0,1)}</span>}</div>
-              <div className="ai-message-body"><div className="ai-message-role">{message.role==='assistant'?'دستیار مدار':'شما'}</div><p>{message.content}</p>{message.attachmentName&&<small className="ai-message-attachment"><FileText size={13}/>{message.attachmentName}</small>}
+              <div className="ai-message-body"><div className="ai-message-role">{message.role==='assistant'?'دستیار صحرا':'شما'}</div><p>{message.content}</p>{message.attachmentName&&<small className="ai-message-attachment"><FileText size={13}/>{message.attachmentName}</small>}
                 {message.role==='assistant'&&<button className="ai-speak-button" type="button" onClick={()=>speak(message.content)}>{speaking?<VolumeX size={14}/>:<Volume2 size={14}/>} {speaking?'توقف پخش':'خواندن پاسخ با صدا'}</button>}
               </div>
             </article>)}
@@ -768,7 +768,7 @@ export function AIAssistant({ companyId, role, userName }: AIAssistantProps) {
           {notice&&<div className="ai-feedback notice" role="status">{notice}</div>}
           <form className="ai-composer" onSubmit={event=>void sendMessage(event)}>
             {attached&&<div className="ai-attachment-chip"><FileText size={15}/><span>{attached.name}</span><button type="button" onClick={()=>setAttached(null)} aria-label="حذف فایل"><X size={14}/></button></div>}
-            <textarea ref={inputRef} value={draft} onChange={event=>setDraft(event.target.value)} placeholder="از مدار سؤال بپرس…" rows={2} maxLength={6000} onKeyDown={event=>{if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();void sendMessage();}}} aria-label="پیام به دستیار"/>
+            <textarea ref={inputRef} value={draft} onChange={event=>setDraft(event.target.value)} placeholder="از صحرا سؤال بپرس…" rows={2} maxLength={6000} onKeyDown={event=>{if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();void sendMessage();}}} aria-label="پیام به دستیار"/>
             <div className="ai-composer-actions">
               <div className="ai-composer-tools">
                 <button type="button" onClick={()=>fileRef.current?.click()} title="پیوست فایل" aria-label="پیوست فایل"><Plus size={18}/></button>
@@ -779,7 +779,7 @@ export function AIAssistant({ companyId, role, userName }: AIAssistantProps) {
               <small>{realtimeConnecting?'در حال اتصال مکالمه realtime…':realtimeConnected?'مکالمه realtime فعال':voiceMode?'مکالمه صوتی فعال':listening?'در حال شنیدن…':activeProvider?providerMeta[activeProvider].label:'پرووایدر تنظیم نشده'}</small>
               <button className="ai-send-button" type="submit" title={sending ? "در حال ارسال پیام" : "ارسال پیام به دستیار"} disabled={sending||(!draft.trim()&&!attached)} aria-label="ارسال پیام">{sending?<LoaderCircle size={17} className="ai-spin"/>:<Send size={17}/>}</button>
             </div>
-            <p className="ai-compose-disclaimer">پاسخ‌ها باید با رکوردهای مدار بررسی شوند. دستیار بدون تأیید کاربر عملیات مالی یا تغییر داده اجرا نمی‌کند.</p>
+            <p className="ai-compose-disclaimer">پاسخ‌ها باید با رکوردهای صحرا بررسی شوند. دستیار بدون تأیید کاربر عملیات مالی یا تغییر داده اجرا نمی‌کند.</p>
           </form>
         </>}
       </section>
