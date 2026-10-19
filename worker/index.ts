@@ -2108,7 +2108,7 @@ app.post('/api/workspace/members/create', async (c) => {
   const role = typeof body.role === 'string' ? body.role : '';
   const customerId = typeof body.customerId === 'string' && body.customerId ? body.customerId : null;
   const supplierId = typeof body.supplierId === 'string' && body.supplierId ? body.supplierId : null;
-  const allowedRoles = ['admin', 'staff', 'supplier', 'driver', 'customer'];
+  const allowedRoles = ['admin', 'staff', 'supplier', 'driver'];
   if (!COMPANY_ID_RE.test(companyId) || !username || !allowedRoles.includes(role)) {
     return c.json({ message: 'شناسه مجموعه، نام کاربری یا نقش معتبر نیست.' }, 422);
   }
