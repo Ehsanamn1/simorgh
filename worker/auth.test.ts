@@ -104,6 +104,40 @@ describe('dedicated member account creation SQL', () => {
   });
 });
 
+describe('bounded synthetic workload simulation', () => {
+  it('processes 1,000 unique user identities and 100 agent permission checks without cross-membership leakage', async () => {
+    const usernames = Array.from({ length: 1000 }, (_, index) => `sim_user_${String(index).padStart(4, '0')}`);
+    const normalized = await Promise.all(usernames.map(async username => normalizeUsername(username)));
+    expect(normalized.every((username): username is string => Boolean(username))).toBe(true);
+    expect(new Set(normalized).size).toBe(1000);
+
+    const agentChecks = await Promise.all(Array.from({ length: 100 }, async (_, index) => {
+      const membershipId = `sim-membership-${index}`;
+      const member = {
+        membership_id: membershipId,
+        company_id: `sim-company-${index % 10}`,
+        role: 'staff',
+        customer_id: null,
+        supplier_id: null,
+      };
+      const canRead = index % 2 === 0;
+      const policy = new Map([[membershipId, {
+        membership_id: membershipId,
+        module_key: 'agents',
+        inherit_role_defaults: false,
+        can_read: canRead,
+        can_create: canRead,
+        can_update: false,
+        can_delete: false,
+        can_approve: false,
+      }]]);
+      return scopeHasModulePermission(member, policy, 'can_read');
+    }));
+    expect(agentChecks.filter(Boolean)).toHaveLength(50);
+    expect(agentChecks.every((allowed, index) => allowed === (index % 2 === 0))).toBe(true);
+  });
+});
+
 describe('Worker API deployment mode isolation', () => {
   it('keeps an unconfigured or public-demo Worker read-only by default', () => {
     for (const mode of [undefined, 'public-demo', 'unknown']) {
