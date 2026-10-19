@@ -2760,6 +2760,16 @@ app.post('/api/data/:table',async c=>{
     const row=applyInsertActorFields(table,original,columns,user.id);
     if(INTERNAL_ROLES.has(membership.role)){
      if(RPC_ONLY_TABLES.has(table))return c.json({message:'این رکورد باید از عملیات معتبر سمت سرور ثبت شود.'},403);
+     if(table==='capacity_commitments'){
+      const supplierId=typeof row.supplier_id==='string'?row.supplier_id:'';
+      const productId=typeof row.product_id==='string'?row.product_id:'';
+      const evidencePath=typeof row.evidence_path==='string'?row.evidence_path:'';
+      if(!/^[0-9a-f-]{36}$/i.test(supplierId)||!/^([0-9a-f-]{36})\\/([0-9a-f-]{36})\\/capacity-[^/]+$/i.test(evidencePath)||!evidencePath.startsWith(companyId+'/'+supplierId+'/capacity-')||!row.evidence_name||!['application/pdf','image/jpeg','image/png','image/webp'].includes(String(row.evidence_mime_type??'')))return c.json({message:'برای ظرفیت، تأمین‌کننده و مدرک معتبر الزامی است.'},422);
+      const valid=await runForUser(c,user.id,"select 1 from public.suppliers s join public.products p on p.company_id=s.company_id where s.id=$1::uuid and s.company_id=$2::uuid and s.active=true and p.id=$3::uuid and p.active=true limit 1",[supplierId,companyId,productId]);
+      if(!valid.length)return c.json({message:'تأمین‌کننده یا محصول ظرفیت به این مجموعه تعلق ندارد یا غیرفعال است.'},422);
+      if(!Number.isFinite(Number(row.declared_qty))||Number(row.declared_qty)<=0||!row.period_start||!row.period_end||String(row.period_end)<String(row.period_start))return c.json({message:'مقدار و بازه ظرفیت معتبر نیست.'},422);
+      row.status='declared';row.confirmed_qty=null;row.committed_qty=null;row.evidence_review_status='pending_review';row.evidence_reviewed_by=null;row.evidence_reviewed_at=null;row.evidence_review_note=null;row.created_by=user.id;
+     }
      if(table==='orders'){row.status='draft';row.created_by=user.id;}
      if(table==='shipments')row.stage='planned';
      if(table==='operational_tasks')row.status='pending';
@@ -2818,6 +2828,16 @@ app.post('/api/data/:table',async c=>{
      }
      sanitized.push(row);continue;
     }
+    if(membership.role==='supplier'&&membership.supplier_id&&table==='capacity_commitments'){
+     const supplierId=String(original.supplier_id??'');
+     const productId=String(original.product_id??'');
+     const evidencePath=String(original.evidence_path??'');
+     if(supplierId!==membership.supplier_id||!evidencePath.startsWith(companyId+'/'+membership.supplier_id+'/capacity-')||!original.evidence_name||!['application/pdf','image/jpeg','image/png','image/webp'].includes(String(original.evidence_mime_type??'')))return c.json({message:'فقط ظرفیت خودت را همراه مدرک معتبر می‌توانی ثبت کنی.'},403);
+     if(!Number.isFinite(Number(original.declared_qty))||Number(original.declared_qty)<=0||!original.period_start||!original.period_end||String(original.period_end)<String(original.period_start))return c.json({message:'مقدار و بازه ظرفیت معتبر نیست.'},422);
+     const valid=await runForUser(c,user.id,"select 1 from public.products where id=$1::uuid and company_id=$2::uuid and active=true limit 1",[productId,companyId]);
+     if(!valid.length)return c.json({message:'محصول انتخاب‌شده برای این مجموعه معتبر نیست.'},422);
+     row.supplier_id=membership.supplier_id;row.status='declared';row.confirmed_qty=null;row.committed_qty=null;row.evidence_review_status='pending_review';row.evidence_reviewed_by=null;row.evidence_reviewed_at=null;row.evidence_review_note=null;row.created_by=user.id;sanitized.push(row);continue;
+    }
     if(membership.role==='supplier'&&membership.supplier_id&&table==='task_evidence'){
      const sql=sqlFor(c),taskId=String(original.task_id??'');
      const assigned=await sql.query("select id from public.operational_tasks where id=$1::uuid and company_id=$2::uuid and assignee_supplier_id=$3::uuid limit 1",[taskId,companyId,membership.supplier_id]);
@@ -2840,6 +2860,21 @@ app.post('/api/data/:table',async c=>{
   const values = action === 'update' && body.values && typeof body.values === 'object' && !Array.isArray(body.values)
     ? body.values as Record<string, unknown>
     : null;
+  if(table==='capacity_commitments'&&action==='update'){
+    const companyFilter=writeFilters.find(filter=>filter.column==='company_id'&&filter.op==='eq');
+    const companyId=typeof companyFilter?.value==='string'?companyFilter.value:'';
+    const membership=companyId?companyRole(scopes,companyId):null;
+    if(!membership)return c.json({message:'برای بررسی یا تغییر ظرفیت باید شرکت را مشخص کنی.'},422);
+    if(membership.role==='supplier'){
+      const protectedCapacityFields=['status','confirmed_qty','committed_qty','evidence_review_status','evidence_reviewed_by','evidence_reviewed_at','evidence_review_note'];
+      if(protectedCapacityFields.some(field=>Object.prototype.hasOwnProperty.call(values??{},field)))return c.json({message:'تأمین‌کننده نمی‌تواند ظرفیت یا مدرک خودش را تأیید کند.'},403);
+      if(values&&(['evidence_path','evidence_name','evidence_mime_type','evidence_uploaded_at'].some(field=>Object.prototype.hasOwnProperty.call(values,field)))){
+        const path=String(values.evidence_path??'');
+        if(!path.startsWith(companyId+'/'+String(membership.supplier_id??'')+'/capacity-'))return c.json({message:'مسیر مدرک باید به تأمین‌کننده فعلی تعلق داشته باشد.'},403);
+        values.evidence_review_status='pending_review';values.evidence_reviewed_by=null;values.evidence_reviewed_at=null;values.evidence_review_note=null;values.status='declared';values.confirmed_qty=null;values.committed_qty=null;
+      }
+    }
+  }
   const transitionField: Record<string, string> = {
     orders: 'status', shipments: 'stage', invoices: 'status', settlements: 'status',
     production_batches: 'status', partner_financial_entries: 'status',
