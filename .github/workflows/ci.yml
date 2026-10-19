@@ -49,7 +49,7 @@ jobs:
             worker/migrations/0009_inventory_movement_concurrency_lock.sql \
             worker/migrations/0010_purchase_order_lifecycle.sql   \
             worker/migrations/0011_username_password_only.sql \
-            worker/migrations/0012_client_presence.sql worker/migrations/0013_ai_assistant_and_contacts.sql worker/migrations/0014_contact_intelligence.sql worker/migrations/0015_ai_action_approval_ledger.sql worker/migrations/0016_membership_module_permissions.sql worker/migrations/0017_delivery_video_evidence.sql worker/migrations/0018_bank_reconciliation_ledger.sql worker/migrations/0019_daily_briefing_notifications.sql worker/migrations/0020_operational_event_exception_ledger.sql worker/migrations/0021_medar_connect_messaging.sql worker/migrations/0022_web_push_delivery_queue.sql worker/migrations/0023_operational_event_hooks.sql worker/migrations/0024_connect_task_notifications.sql worker/migrations/0025_supplier_location_details.sql worker/migrations/0026_task_status_notifications.sql worker/migrations/0027_capacity_evidence_review.sql worker/migrations/0028_capacity_evidence_storage_bucket.sql worker/migrations/0029_medar_private_file_database_fallback.sql; do
+            worker/migrations/0012_client_presence.sql worker/migrations/0013_ai_assistant_and_contacts.sql worker/migrations/0014_contact_intelligence.sql worker/migrations/0015_ai_action_approval_ledger.sql worker/migrations/0016_membership_module_permissions.sql worker/migrations/0017_delivery_video_evidence.sql worker/migrations/0018_bank_reconciliation_ledger.sql worker/migrations/0019_daily_briefing_notifications.sql worker/migrations/0020_operational_event_exception_ledger.sql worker/migrations/0021_medar_connect_messaging.sql worker/migrations/0022_web_push_delivery_queue.sql worker/migrations/0023_operational_event_hooks.sql worker/migrations/0024_connect_task_notifications.sql worker/migrations/0025_supplier_location_details.sql worker/migrations/0026_task_status_notifications.sql worker/migrations/0027_capacity_evidence_review.sql worker/migrations/0028_capacity_evidence_storage_bucket.sql worker/migrations/0029_medar_private_file_database_fallback.sql worker/migrations/0030_member_account_role_constraints.sql; do
             echo "Applying $migration"
             psql -h 127.0.0.1 -U postgres -d medar_test -v ON_ERROR_STOP=1 -1 -f "$migration"
             version="$(basename "$migration")"
@@ -91,6 +91,8 @@ jobs:
               exists (select 1 from public.medar_schema_migrations where version='0027_capacity_evidence_review.sql') and
               exists (select 1 from public.medar_schema_migrations where version='0028_capacity_evidence_storage_bucket.sql') and
               exists (select 1 from public.medar_schema_migrations where version='0029_medar_private_file_database_fallback.sql') and
+              exists (select 1 from public.medar_schema_migrations where version='0030_member_account_role_constraints.sql') and
+              exists (select 1 from pg_constraint where conrelid='public.medar_users'::regclass and conname='medar_users_requested_role_check' and pg_get_constraintdef(oid) like '%admin%') and
               exists (select 1 from information_schema.columns where table_schema='public' and table_name='medar_files' and column_name='content_base64') and
               exists (select 1 from pg_constraint where conrelid='public.medar_files'::regclass and conname='medar_files_bucket_id_check' and pg_get_constraintdef(oid) like '%capacity-evidence%') and
               to_regprocedure('public.medar_notify_task_status_change()') is not null and
@@ -602,6 +604,23 @@ jobs:
           ROLLBACK;
           SQL
           echo "Role matrix, blocked-task and failed-shipment exception automation, partner settlement calculation/authorization/approval/payment caps, bank-import idempotency, and ledger constraints passed."
+      - name: Smoke-test dedicated member account identity schema
+        env:
+          PGPASSWORD: medar_test_password
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql -h 127.0.0.1 -U postgres -d medar_test -v ON_ERROR_STOP=1 <<'SQL'
+          BEGIN;
+          INSERT INTO public.medar_users (
+            username, username_normalized, display_name, password_hash, requested_role, account_status
+          ) VALUES (
+            'ci_admin_account_smoke', 'ci_admin_account_smoke', 'CI Admin Account',
+            'ci-placeholder-hash', 'admin', 'active'
+          );
+          ROLLBACK;
+          SQL
+          echo "Dedicated member identity fields and owner-provisioned admin role accepted by the isolated PostgreSQL schema."
       - name: Verify PostgreSQL backup and restore on a disposable CI database
         env:
           PGPASSWORD: medar_test_password
@@ -626,8 +645,8 @@ jobs:
           restored_marker="$(psql -h 127.0.0.1 -U postgres -d "$restore_db" -v ON_ERROR_STOP=1 -Atqc "SELECT marker FROM public.ci_backup_probe WHERE id=1")"
           restored_migrations="$(psql -h 127.0.0.1 -U postgres -d "$restore_db" -v ON_ERROR_STOP=1 -Atqc "SELECT count(*) FROM public.medar_schema_migrations")"
           test "$restored_marker" = "medar-backup-restore-roundtrip"
-          test "$restored_migrations" = "29"
-          echo "PostgreSQL custom-format backup restored successfully with all 29 migration records and the fixture marker."
+          test "$restored_migrations" = "30"
+          echo "PostgreSQL custom-format backup restored successfully with all 30 migration records and the fixture marker."
       - name: Summarize all dependency advisories
         shell: bash
         run: |

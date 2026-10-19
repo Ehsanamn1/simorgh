@@ -11,6 +11,7 @@ import {
   DUMMY_PASSWORD_HASH,
   FAILED_LOGIN_UPSERT_SQL,
   normalizeUsername,
+  MEMBER_ACCOUNT_INSERT_SQL,
   parseClientHeartbeat,
   resolveApiModeAccess,
   aggregateModulePermissionRows,
@@ -91,6 +92,49 @@ describe('production and partner-finance status workflows', () => {
     expect(isSaleCollectionWithinInvoice(100, 60, 41)).toBe(false);
     expect(isSaleCollectionWithinInvoice(100, -1, 20)).toBe(false);
     expect(isSaleCollectionWithinInvoice(0, 0, 1)).toBe(false);
+  });
+});
+
+describe('dedicated member account creation SQL', () => {
+  it('writes both the canonical username and the required normalized username column', () => {
+    expect(MEMBER_ACCOUNT_INSERT_SQL).toContain('insert into public.medar_users(username,username_normalized,display_name,password_hash,requested_role,account_status)');
+    expect(MEMBER_ACCOUNT_INSERT_SQL).toContain("values($1,$1,$2,$3,$4,'active')");
+    expect(MEMBER_ACCOUNT_INSERT_SQL).toContain('insert into public.memberships');
+    expect(MEMBER_ACCOUNT_INSERT_SQL).toContain('created_by');
+  });
+});
+
+describe('bounded synthetic workload simulation', () => {
+  it('processes 1,000 unique user identities and 100 agent permission checks without cross-membership leakage', async () => {
+    const usernames = Array.from({ length: 1000 }, (_, index) => `sim_user_${String(index).padStart(4, '0')}`);
+    const normalized = await Promise.all(usernames.map(async username => normalizeUsername(username)));
+    expect(normalized.every((username): username is string => Boolean(username))).toBe(true);
+    expect(new Set(normalized).size).toBe(1000);
+
+    const agentChecks = await Promise.all(Array.from({ length: 100 }, async (_, index) => {
+      const membershipId = `sim-membership-${index}`;
+      const member = {
+        membership_id: membershipId,
+        company_id: `sim-company-${index % 10}`,
+        role: 'staff',
+        customer_id: null,
+        supplier_id: null,
+      };
+      const canRead = index % 2 === 0;
+      const policy = new Map([[membershipId, {
+        membership_id: membershipId,
+        module_key: 'agents',
+        inherit_role_defaults: false,
+        can_read: canRead,
+        can_create: canRead,
+        can_update: false,
+        can_delete: false,
+        can_approve: false,
+      }]]);
+      return scopeHasModulePermission(member, policy, 'can_read');
+    }));
+    expect(agentChecks.filter(Boolean)).toHaveLength(50);
+    expect(agentChecks.every((allowed, index) => allowed === (index % 2 === 0))).toBe(true);
   });
 });
 

@@ -64,3 +64,6 @@ The clean-database CI chain and guarded Cloudflare deployment migration list mus
 25. `0025_supplier_location_details.sql` — adds optional province/address fields and nullable coordinates to supplier records. Full Google Maps/OpenStreetMap links can supply a real pin without manual latitude/longitude entry.
 
 26. `0026_task_status_notifications.sql` — notifies assigned managers and active owners/admins when a task is submitted, approved, rejected, blocked or cancelled. Notifications are delivered through the existing in-app and opted-in Push pipeline.
+
+
+30. `0030_member_account_role_constraints.sql` — permits the `admin` requested role used by owner-provisioned administrator accounts. The Worker insert explicitly writes both `username` and `username_normalized`, required by the identity schema.

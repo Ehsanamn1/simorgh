@@ -315,6 +315,26 @@ test('owner can create a supplier login and copy the one-time credentials', asyn
   expect(submitted?.role).toBe('supplier');
 });
 
+test('contextual help stays compact at the bottom-left and can be dismissed', async ({ page }) => {
+  await installIsolatedSession(page, 'owner');
+  await page.goto('/simorgh/app/members', { waitUntil: 'domcontentloaded' });
+  const guide = page.locator('.guide-backdrop');
+  await expect(guide).toBeVisible();
+  const bounds = await guide.boundingBox();
+  const viewport = page.viewportSize();
+  expect(bounds).not.toBeNull();
+  expect(viewport).not.toBeNull();
+  expect(bounds!.x).toBeLessThanOrEqual(16);
+  expect(bounds!.width).toBeLessThanOrEqual(230);
+  expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(viewport!.height);
+  await guide.getByRole('button', { name: 'راهنمای کامل' }).click();
+  const expandedStepCount = await guide.locator('.guide-steps li:visible').count();
+  expect(expandedStepCount).toBeGreaterThan(2);
+  await guide.getByRole('button', { name: 'کمتر' }).click();
+  await guide.getByRole('button', { name: 'بستن راهنما' }).click();
+  await expect(guide).toHaveCount(0);
+});
+
 test('owner access panel uses direct account creation without invitation codes', async ({ page }) => {
   await installIsolatedSession(page, 'owner');
   await page.route('**/api/workspace/members?*', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ members: [] }) }));

@@ -2076,6 +2076,20 @@ app.get('/api/workspace/members', async (c) => {
   return c.json({ members });
 });
 
+export const MEMBER_ACCOUNT_INSERT_SQL =
+  "with new_user as (" +
+    "insert into public.medar_users(username,username_normalized,display_name,password_hash,requested_role,account_status) " +
+    "values($1,$1,$2,$3,$4,'active') returning id,username,username_normalized,display_name" +
+  "), new_profile as (" +
+    "insert into public.profiles(id,full_name,phone) select id,display_name,null from new_user " +
+    "on conflict(id) do update set full_name=excluded.full_name returning id" +
+  "), new_membership as (" +
+    "insert into public.memberships(company_id,user_id,role,active,created_by,customer_id,supplier_id) " +
+    "select $5::uuid,u.id,$4::public.app_role,true,$6::uuid,$7::uuid,$8::uuid from new_user u " +
+    "returning id,company_id,role" +
+  ") select u.id,u.username_normalized as username,u.display_name as full_name," +
+  "m.id as membership_id,m.company_id,m.role from new_user u cross join new_membership m";
+
 app.post('/api/workspace/members/create', async (c) => {
   const user = await requireUser(c);
   if (user instanceof Response) return user;
@@ -2129,18 +2143,7 @@ app.post('/api/workspace/members/create', async (c) => {
   try {
     const passwordHash = await hashPassword(password);
     const rows = await sql.query(
-      "with new_user as (" +
-        "insert into public.medar_users(username,display_name,password_hash,requested_role,account_status) " +
-        "values($1,$2,$3,$4,'active') returning id,username,username_normalized,display_name" +
-      "), new_profile as (" +
-        "insert into public.profiles(id,full_name,phone) select id,display_name,null from new_user " +
-        "on conflict(id) do update set full_name=excluded.full_name returning id" +
-      "), new_membership as (" +
-        "insert into public.memberships(company_id,user_id,role,active,created_by,customer_id,supplier_id) " +
-        "select $5::uuid,u.id,$4::public.app_role,true,$6::uuid,$7::uuid,$8::uuid from new_user u " +
-        "returning id,company_id,role" +
-      ") select u.id,u.username_normalized as username,u.display_name as full_name," +
-      "m.id as membership_id,m.company_id,m.role from new_user u cross join new_membership m",
+      MEMBER_ACCOUNT_INSERT_SQL,
       [username, fullName, passwordHash, role, companyId, user.id, customerId, supplierId],
     );
     const created = rows[0] as { id: string; username: string; full_name: string; membership_id: string; company_id: string; role: string } | undefined;
