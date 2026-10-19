@@ -1,21 +1,16 @@
 import type { SVGProps } from 'react';
 
-function MedarMark(props: SVGProps<SVGSVGElement>) {
-  return <svg viewBox="0 0 100 100" fill="none" aria-hidden="true" focusable="false" {...props}>
-    <path d="M18 66C11 47 20 25 40 18C58 11 78 21 82 40C86 58 74 75 56 81" stroke="currentColor" strokeOpacity=".34" strokeWidth="7" strokeLinecap="round"/>
-    <path d="M27 67C21 52 29 36 44 31C57 27 70 36 71 49C72 61 62 70 51 71" stroke="currentColor" strokeOpacity=".65" strokeWidth="7" strokeLinecap="round"/>
-    <path d="M23 76 48 51 75 25" stroke="currentColor" strokeWidth="7" strokeLinecap="round" strokeLinejoin="round"/>
-    <path d="M48 51 72 62" stroke="var(--obs-accent, #82BDB1)" strokeWidth="6" strokeLinecap="round"/>
-    <circle cx="23" cy="76" r="6" fill="var(--obs-accent, #82BDB1)"/>
-    <circle cx="48" cy="51" r="6" fill="currentColor"/>
-    <circle cx="75" cy="25" r="6" fill="var(--obs-accent, #82BDB1)"/>
-    <circle cx="72" cy="62" r="5" fill="var(--obs-accent, #82BDB1)"/>
+function SahraMark(props: SVGProps<SVGSVGElement>) {
+  return <svg viewBox="0 0 100 100" fill="none" role="img" aria-label="نشان صحرا" focusable="false" {...props}>
+    <path d="M43 12 15 40 43 68 57 54 43 40 34 49 43 58 48 53 44 49 43 50" stroke="#F3ECE6" strokeWidth="6.5" strokeLinejoin="miter" strokeLinecap="square"/>
+    <path d="M57 12 85 40 57 68 43 54 57 40 66 49 57 58 52 53 56 49 57 50" stroke="#B58A68" strokeWidth="6.5" strokeLinejoin="miter" strokeLinecap="square"/>
+    <path d="M43 68 57 82 71 68 57 54" stroke="#F3ECE6" strokeWidth="6.5" strokeLinejoin="miter" strokeLinecap="square"/>
   </svg>;
 }
 
 export function MedarLogo({ compact = false, className = '' }: { compact?: boolean; className?: string }) {
-  return <div className={`brand-lockup medar-lockup ${compact ? 'compact' : ''} ${className}`}>
-    <span className="brand-symbol"><MedarMark/></span>
-    {!compact && <span className="brand-words"><b>مدار</b><small>مدیریت مزرعه و عملیات</small></span>}
+  return <div className={`brand-lockup sahra-lockup ${compact ? 'compact' : ''} ${className}`}>
+    <span className="brand-symbol"><SahraMark/></span>
+    {!compact && <span className="brand-words"><b>صحرا</b><small>SAHRA VALUE CHAIN LEADERS</small></span>}
   </div>;
 }
