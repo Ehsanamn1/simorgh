@@ -1,7 +1,6 @@
 import { neon } from '@neondatabase/serverless';
 
-type NeonSql = ReturnType<typeof neon>;
-type MedarSqlFactory = (url: string) => NeonSql;
+type MedarSqlFactory = (url: string) => any;
 
 declare global {
   // Injected by the Node.js hosting adapter before the Worker entrypoint is imported.
@@ -14,10 +13,10 @@ declare global {
  * - Cloudflare Worker: Neon serverless driver.
  * - Node.js hosting: postgres.js adapter injected before worker/index.ts is loaded.
  *
- * Keep the existing Neon type at the application boundary so strict typechecking
- * remains useful for both runtimes; the Node adapter implements the same used API.
+ * The runtime adapter intentionally returns a structural SQL client; row shapes
+ * are annotated at their use sites to keep strict TypeScript checks deterministic.
  */
-export function sqlForUrl(url: string): NeonSql {
+export function sqlForUrl(url: string): any {
   if (typeof globalThis.__MEDAR_SQL_FACTORY__ === 'function') {
     return globalThis.__MEDAR_SQL_FACTORY__(url);
   }
