@@ -1468,7 +1468,7 @@ input, select, textarea { accent-color: #45784e; }
 .medar-help-steps { padding-inline-start: 0 !important; }
 .nav-caption { padding: 13px 10px 6px !important; }
 .side-nav { gap: 3px !important; padding-bottom: 7px !important; }
-.side-nav a { height: 34px !important; min-height: 34px !important; padding-block: 0 !important; }
+.side-nav a { height: 30px !important; min-height: 30px !important; padding-block: 0 !important; }
 @media (max-width: 640px) {
   .medar-help-backdrop {
     left: 10px !important;
