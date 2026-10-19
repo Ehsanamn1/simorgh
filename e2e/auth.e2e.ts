@@ -11,7 +11,7 @@ test('the app opens a username-and-password sign-in without an email field', asy
   }));
   await page.goto('/simorgh/', { waitUntil: 'domcontentloaded' });
 
-  await expect(page).toHaveTitle(/صحرا \| مدیریت یکپارچه مزرعه و عملیات/);
+  await expect(page).toHaveTitle(/صحرا \| راهبران زنجیره ارزش/);
   await expect(page).toHaveURL(/\/simorgh\/app\/command$/);
   await expect(page.locator('#app-boot-screen')).toHaveCount(0);
   await expect(page.locator('.simorgh-signin-layer')).toBeVisible();
