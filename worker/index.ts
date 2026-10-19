@@ -404,7 +404,7 @@ async function recordFailedLogin(c: Ctx, keys: string[]): Promise<void> {
 
 export const CREATE_OWNER_WORKSPACE_SQL = `
 with new_user as (
-  insert into public.medar_users(username,display_name,password_hash,requested_role,account_status)
+  insert into public.medar_users(username,username_normalized,display_name,password_hash,requested_role,account_status)
   values($1,$1,$2,'owner','active')
   returning id,username,username_normalized,display_name
 ), new_profile as (
