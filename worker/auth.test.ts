@@ -101,6 +101,9 @@ describe('dedicated member account creation SQL', () => {
     expect(MEMBER_ACCOUNT_INSERT_SQL).toContain("values($1,$1,$2,$3,$4,'active')");
     expect(MEMBER_ACCOUNT_INSERT_SQL).toContain('insert into public.memberships');
     expect(MEMBER_ACCOUNT_INSERT_SQL).toContain('created_by');
+    expect(MEMBER_ACCOUNT_INSERT_SQL).toContain('new_audit as');
+    expect(MEMBER_ACCOUNT_INSERT_SQL).toContain('cross join new_audit');
+    expect(MEMBER_ACCOUNT_INSERT_SQL).not.toContain("await sql.query(");
   });
 });
 
