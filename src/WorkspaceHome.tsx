@@ -66,7 +66,7 @@ export function WorkspaceHome({ membership, userName }: { membership: Membership
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const role = membership.role;
-  const links = roleQuickLinks[role].slice(0, 6);
+  const links = roleQuickLinks[role].slice(0, 4);
 
   const load = useCallback(async () => {
     setLoading(true);
