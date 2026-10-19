@@ -12,7 +12,6 @@ import './design-system.css';
 import './premium-polish.css';
 import './calm-experience.css';
 import './settings-experience.css';
-import './sahra-brand.css';
 
 if (import.meta.env.PROD && !Capacitor.isNativePlatform() && 'serviceWorker' in navigator) {
   window.addEventListener('load', () => {

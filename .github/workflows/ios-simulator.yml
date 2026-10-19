@@ -52,12 +52,12 @@ jobs:
         run: |
           test -f dist/index.html
           grep -Rqs --include='*.js' 'simorgh-signin-layer' dist/assets
-          grep -Rqs --include='*.js' 'ورود به صحرا' dist/assets
+          grep -Rqs --include='*.js' 'ورود به مدار' dist/assets
           grep -Rqs --include='*.js' 'ثبت‌نام عمومی غیرفعال است' dist/assets
           grep -Rqs --include='*.js' -F "$MEDAR_OPS_API_BASE_URL" dist/assets
           grep -Rqs --include='*.js' -F "$MEDAR_APP_VERSION" dist/assets
           grep -Rqs --include='*.css' 'simorgh-signin-layer' dist/assets
-          echo "iOS bundle includes the guarded app and the same authenticated Sahra API used by web."
+          echo "iOS bundle includes the guarded app and the same authenticated Medar API used by web."
 
 
       - name: Generate iOS project

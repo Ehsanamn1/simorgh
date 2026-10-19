@@ -152,7 +152,7 @@ export default function ProductExperience() {
       setPassword('');
       navigate(protectedDestination, { replace: true });
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'ارتباط با سرویس صحرا برقرار نشد. دوباره تلاش کن.');
+      setError(caught instanceof Error ? caught.message : 'ارتباط با سرویس مدار برقرار نشد. دوباره تلاش کن.');
     } finally {
       setBusy(false);
     }
@@ -174,10 +174,10 @@ export default function ProductExperience() {
         <div className="access-request-form"><button className="obsidian-primary wide" type="button" onClick={() => void refreshSession()} disabled={loading}>بررسی دوباره دسترسی <ArrowLeft size={16}/></button></div>
       </section>, waitingScreen)}
     {signInOpen && !user && (
-      <section className="simorgh-signin-layer" role="dialog" aria-modal="true" aria-labelledby="simorgh-signin-title" aria-label="ورود امن صحرا">
+      <section className="simorgh-signin-layer" role="dialog" aria-modal="true" aria-labelledby="simorgh-signin-title" aria-label="ورود امن مدار">
         <div className="simorgh-signin-brand">
-          <div className="simorgh-signin-brand-top"><span className="simorgh-signin-mark"><ShieldCheck size={26}/></span><span><strong>صحرا</strong><small>راهبران زنجیره ارزش</small></span></div>
-          <div className="simorgh-signin-story"><span className="signin-overline">صحرا / فضای کاری امن</span><h1>یک شبکه.<br/><em>کنترل دقیق.</em></h1><p>مدیریت تأمین‌کنندگان، تولید، انبار، لجستیک و امور مالی؛ در یک فضای کاری امن و قابل پیگیری.</p><div className="signin-assurance"><ShieldCheck size={17}/><span>حساب‌های داخلی و مدیریتی را مالک یا مدیر مجاز مستقیماً می‌سازد.</span></div></div>
+          <div className="simorgh-signin-brand-top"><span className="simorgh-signin-mark"><ShieldCheck size={26}/></span><span><strong>مدار</strong><small>مدیریت یکپارچه عملیات</small></span></div>
+          <div className="simorgh-signin-story"><span className="signin-overline">مدار / فضای کاری امن</span><h1>یک شبکه.<br/><em>کنترل دقیق.</em></h1><p>مدیریت مزرعه، منابع، سفارش، کیفیت، حمل و حساب‌ها؛ در یک فضای کاری امن و قابل پیگیری.</p><div className="signin-assurance"><ShieldCheck size={17}/><span>حساب‌های داخلی و مدیریتی را مالک یا مدیر مجاز مستقیماً می‌سازد.</span></div></div>
           <div className="signin-brand-foot"><span>عملیات و منابع</span><span>ورود امن</span></div>
         </div>
         <div className="simorgh-signin-form-area">
@@ -188,7 +188,7 @@ export default function ProductExperience() {
               <button type="button" className="signin-theme-toggle" onClick={() => setTheme(current => current === 'dark' ? 'light' : 'dark')} aria-pressed={theme === 'light'} aria-label="تغییر حالت نمایش" title={theme === 'dark' ? 'فعال‌کردن حالت روشن' : 'فعال‌کردن حالت تاریک'}>{theme === 'dark' ? <Sun size={17}/> : <Moon size={17}/>}</button>
             </div>
             <span className="signin-overline">ورود امن</span>
-            <h2 id="simorgh-signin-title">ورود به صحرا</h2>
+            <h2 id="simorgh-signin-title">ورود به مدار</h2>
             <p>برای ورود فقط نام کاربری و رمز عبور لازم است.</p>
             {sessionError && <div className="auth-feedback error session-connection-error" role="status">
               <span>{sessionError}</span>
@@ -206,7 +206,7 @@ export default function ProductExperience() {
              </form>
              <p className="auth-recovery-note">ثبت‌نام عمومی غیرفعال است؛ برای دریافت دسترسی با مالک یا مدیر مجموعه هماهنگ کن تا حساب اختصاصی با نام کاربری و رمز عبور بسازد.</p>
              
-             <div className="signin-form-foot"><span><Check size={13}/> کنترل دسترسی سمت سرور</span><span>صحرا · فضای امن</span></div>
+             <div className="signin-form-foot"><span><Check size={13}/> کنترل دسترسی سمت سرور</span><span>مدار · فضای امن</span></div>
           </div>
         </div>
       </section>

@@ -11,11 +11,11 @@ test('the default route is a secure Persian entry, not a clickable dashboard pre
   page.on('pageerror', error => errors.push(error.message));
   await page.goto('/simorgh/', { waitUntil: 'domcontentloaded' });
 
-  await expect(page).toHaveTitle(/صحرا \| راهبران زنجیره ارزش|صحرا \| راهبران زنجیره ارزش/);
+  await expect(page).toHaveTitle(/مدار \| مدیریت یکپارچه مزرعه و عملیات/);
   await expect(page).toHaveURL(/\/simorgh\/app\/command$/);
   await expect(page.locator('.simorgh-signin-layer')).toBeVisible();
   await expect(page.locator('.ops-live-app, .ops-live-bottom-nav, .app-frame')).toHaveCount(0);
-  await expect(page.getByRole('heading', { name: 'ورود به صحرا' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'ورود به مدار' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'ساخت حساب و فضای کاری' })).toHaveCount(0);
   await expect(page.getByText(/ثبت‌نام عمومی غیرفعال است/)).toBeVisible();
   await expect(page.locator('.portal-preview')).toHaveCount(0);
@@ -36,7 +36,7 @@ test('secure entry remains usable on desktop and mobile with no horizontal overf
   await page.goto('/simorgh/app/command', { waitUntil: 'domcontentloaded' });
   await expect(page.locator('.simorgh-signin-layer')).toBeVisible();
   await expect(page.locator('.ops-live-app, .ops-live-bottom-nav, .app-frame')).toHaveCount(0);
-  await expect(page.getByRole('heading', { name: 'ورود به صحرا' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'ورود به مدار' })).toBeVisible();
   await expect(page.getByLabel('نام کاربری')).toBeVisible();
   await expect(page.locator('#simorgh-signin-email')).toHaveCount(0);
   await expect(page.locator('#simorgh-signin-password')).toBeVisible();
@@ -60,7 +60,7 @@ test('secure entry stays within the viewport at narrow and tablet breakpoints', 
   for (const width of [320, 360, 375, 414, 640, 768, 1024, 1365]) {
     await page.setViewportSize({ width, height: 900 });
     await expect(page.locator('.simorgh-signin-layer')).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'ورود به صحرا' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'ورود به مدار' })).toBeVisible();
     const dimensions = await page.evaluate(() => ({
       viewport: document.documentElement.clientWidth,
       document: document.documentElement.scrollWidth,

@@ -136,7 +136,7 @@ export function AgentControlCenter({ membership }: AgentControlCenterProps) {
 
   async function execute(action: AgentAction) {
     const actionTitle = action.arguments.title || 'وظیفهٔ پیشنهادی';
-    if (!window.confirm('آیا تأیید می‌کنی وظیفهٔ «' + actionTitle + '» در داده‌های واقعی صحرا ایجاد شود؟')) return;
+    if (!window.confirm('آیا تأیید می‌کنی وظیفهٔ «' + actionTitle + '» در داده‌های واقعی مدار ایجاد شود؟')) return;
     setActingOn(action.id);
     setError('');
     setNotice('');
@@ -148,7 +148,7 @@ export function AgentControlCenter({ membership }: AgentControlCenterProps) {
       setActions(current => current.map(item => item.id === action.id
         ? { ...item, status: 'executed', result: result.result ?? item.result, executedAt: new Date().toISOString() }
         : item));
-      setNotice('وظیفه پس از تأیید در صحرا ایجاد شد.');
+      setNotice('وظیفه پس از تأیید در مدار ایجاد شد.');
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'اجرای پیشنهاد ناموفق بود.');
     } finally {
@@ -182,7 +182,7 @@ export function AgentControlCenter({ membership }: AgentControlCenterProps) {
     <header className="agent-center-hero">
       <span className="agent-center-mark"><Bot size={25}/></span>
       <div className="agent-center-hero-copy">
-        <p className="eyebrow">هوش عملیاتی صحرا</p>
+        <p className="eyebrow">هوش عملیاتی مدار</p>
         <h1>مرکز ایجنت‌ها و اقدامات</h1>
         <p>پیشنهادهای قابل بررسی را ثبت کن، جزئیات و مسئول را بازبینی کن و فقط پس از تأیید صریح آن‌ها را به وظیفهٔ واقعی تبدیل کن.</p>
       </div>
@@ -240,7 +240,7 @@ export function AgentControlCenter({ membership }: AgentControlCenterProps) {
             const actionPriority = action.arguments?.priority && priorityOptions.includes(action.arguments.priority) ? action.arguments.priority : 'normal';
             return <article className={'agent-action-item status-' + action.status} key={action.id}>
               <div className="agent-action-top">
-                <div><b>{titleText}</b><small>{action.requestedByName ? 'ثبت‌کننده: ' + action.requestedByName : 'ثبت‌شده در صحرا'} · {formatDate(action.createdAt)}</small></div>
+                <div><b>{titleText}</b><small>{action.requestedByName ? 'ثبت‌کننده: ' + action.requestedByName : 'ثبت‌شده در مدار'} · {formatDate(action.createdAt)}</small></div>
                 <span className={'agent-status status-' + action.status}>{statusLabels[action.status]}</span>
               </div>
               {action.arguments?.instructions && <p>{action.arguments.instructions}</p>}

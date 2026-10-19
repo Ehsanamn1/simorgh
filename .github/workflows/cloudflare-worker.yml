@@ -1,4 +1,4 @@
-name: Deploy Sahra to Cloudflare Workers
+name: Deploy Medar to Cloudflare Workers
 on:
   workflow_dispatch:
   push:
@@ -8,7 +8,6 @@ permissions:
   contents: read
 jobs:
   deploy:
-    timeout-minutes: 30
     runs-on: ubuntu-latest
     env:
       MEDAR_DATABASE_URL: ${{ secrets.MEDAR_DATABASE_URL }}
@@ -410,7 +409,7 @@ jobs:
               }));
               throw new Error(label + ': sign-in UI did not render. Diagnostic snapshot printed above. ' + String(caught));
             }
-            await page.getByRole('heading', { name: 'ورود به صحرا' }).waitFor({ state: 'visible' });
+            await page.getByRole('heading', { name: 'ورود به مدار' }).waitFor({ state: 'visible' });
             if (await page.locator('.app-frame').count()) throw new Error(label + ': private workspace appeared before login.');
             await page.getByLabel('نام کاربری').waitFor({ state: 'visible' });
             await page.getByLabel('گذرواژه', { exact: true }).waitFor({ state: 'visible' });
@@ -474,7 +473,7 @@ jobs:
           grep -Rqs --include='*.js' 'عملیات، در یک نگاه.' dist/assets
           grep -Rqs --include='*.css' 'demo-workspace' dist/assets
           grep -Rqs --include='*.css' 'demo-preview-notice' dist/assets
-          echo "Compatibility bundle verified; public browser traffic is redirected to operational Sahra."
+          echo "Compatibility bundle verified; public browser traffic is redirected to operational Medar."
       - name: Confirm public-demo API remains read-only and private file routes stay authenticated
         run: grep -Fq "app.put('/api/storage/:bucket'" worker/index.ts
       - name: Configure Neon database secret
@@ -484,7 +483,7 @@ jobs:
       - name: Deploy Worker
         working-directory: worker
         run: set -o pipefail; npx wrangler@4 deploy --name medar-api --var MEDAR_MODE:public-demo 2>&1 | tee /tmp/medar-deploy.log
-      - name: Smoke-test API and verify the public hostname redirects to operational Sahra
+      - name: Smoke-test API and verify the public hostname redirects to operational Medar
         shell: bash
         run: |
           worker_url="$(grep -Eo 'https://medar-api\.[a-z0-9-]+\.workers\.dev' /tmp/medar-deploy.log 2>/dev/null | tail -n1 || true)"
@@ -493,7 +492,7 @@ jobs:
           printf '%s' "$response" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const x=JSON.parse(s);if(x.status!=='ok' && x.ok!==true && x.healthy!==true){console.error('Unexpected health response:',s);process.exit(1)}console.log('Live Worker API health OK:',s)})"
           status="$(curl --silent --show-error --output /dev/null --dump-header "$RUNNER_TEMP/medar-public-entry-headers.txt" --write-out '%{http_code}' "$worker_url/")"
           if [[ "$status" != "302" ]]; then echo "Public hostname must redirect to the operational app (expected 302, got $status)."; cat "$RUNNER_TEMP/medar-public-entry-headers.txt"; exit 1; fi
-          grep -Fqi 'location: https://medar-ops.dengxiao445.workers.dev/' "$RUNNER_TEMP/medar-public-entry-headers.txt" || { echo "Public hostname did not redirect to the operational Sahra URL."; cat "$RUNNER_TEMP/medar-public-entry-headers.txt"; exit 1; }
+          grep -Fqi 'location: https://medar-ops.dengxiao445.workers.dev/' "$RUNNER_TEMP/medar-public-entry-headers.txt" || { echo "Public hostname did not redirect to the operational Medar URL."; cat "$RUNNER_TEMP/medar-public-entry-headers.txt"; exit 1; }
           echo "Public hostname redirects users to the operational application; API health remains available."
       - name: Verify public entry opens the real operational app in Chromium
         shell: bash
@@ -526,7 +525,7 @@ jobs:
             if (mobile.document > mobile.viewport || mobile.body > mobile.viewport) throw new Error('Operational mobile page overflows horizontally: ' + JSON.stringify(mobile));
             if (await page.locator('.demo-workspace, .demo-preview-notice').count()) throw new Error('Mobile public entry rendered demo UI.');
             if (errors.length) throw new Error('Mobile browser runtime errors: ' + errors.join(' | '));
-            console.log('Public entry redirects to operational Sahra; desktop/mobile sign-in loads without demo UI or horizontal overflow.');
+            console.log('Public entry redirects to operational Medar; desktop/mobile sign-in loads without demo UI or horizontal overflow.');
           } finally {
             await browser.close();
           }
