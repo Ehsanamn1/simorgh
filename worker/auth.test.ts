@@ -103,8 +103,12 @@ describe('dedicated member account creation SQL', () => {
   });
 
   it('writes both the canonical username and the required normalized username column', () => {
-    expect(MEMBER_ACCOUNT_INSERT_SQL).toContain('insert into public.medar_users(username,username_normalized,display_name,password_hash,requested_role,account_status)');
-    expect(MEMBER_ACCOUNT_INSERT_SQL).toContain("values($1,$1,$2,$3,$4,'active')");
+    expect(MEMBER_ACCOUNT_INSERT_SQL).toContain('insert into public.medar_users(username,username_normalized,phone_e164,display_name,password_hash,requested_role,account_status)');
+    expect(MEMBER_ACCOUNT_INSERT_SQL).toContain("values($1,$1,null,$2,$3,$4,'active') returning id,username,username_normalized,display_name");
+    expect(MEMBER_ACCOUNT_INSERT_SQL).toContain('insert into public.medar_users(username,username_normalized,phone_e164,display_name,password_hash,requested_role,account_status)');
+    expect(MEMBER_ACCOUNT_INSERT_SQL).toContain("values($1,$1,null,$2,$3,$4,'active') returning id,username,username_normalized,display_name");
+    expect(MEMBER_ACCOUNT_INSERT_SQL).toContain('insert into public.profiles(id,full_name,phone)');
+    expect(MEMBER_ACCOUNT_INSERT_SQL).toContain('select id,display_name,null from new_user');
     expect(MEMBER_ACCOUNT_INSERT_SQL).toContain('insert into public.memberships');
     expect(MEMBER_ACCOUNT_INSERT_SQL).toContain('created_by');
     expect(MEMBER_ACCOUNT_INSERT_SQL).toContain('insert into public.medar_audit_log');

@@ -67,3 +67,8 @@ The clean-database CI chain and guarded Cloudflare deployment migration list mus
 
 
 30. `0030_member_account_role_constraints.sql` — permits the `admin` requested role used by owner-provisioned administrator accounts. The Worker insert explicitly writes both `username` and `username_normalized`, required by the identity schema.
+
+
+31. `0031_member_provisioning_schema_guard.sql` — reasserts nullable phone metadata and the admin role constraint for account provisioning, repairing schema drift where a prior migration ledger was ahead of the actual schema.
+
+
