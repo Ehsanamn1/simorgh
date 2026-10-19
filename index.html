@@ -3,20 +3,20 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#F4F7F2" />
+    <meta name="theme-color" content="#1B2A3A" />
     <script>
       try {
         var savedTheme = localStorage.getItem('simorgh-theme') === 'dark' ? 'dark' : 'light';
         document.documentElement.dataset.theme = savedTheme;
         document.documentElement.style.colorScheme = savedTheme;
-        document.querySelector('meta[name="theme-color"]').content = savedTheme === 'light' ? '#F4F7F2' : '#171A20';
+        document.querySelector('meta[name="theme-color"]').content = savedTheme === 'light' ? '#F3ECE6' : '#1B2A3A';
       } catch (e) { document.documentElement.dataset.theme = 'light'; document.documentElement.style.colorScheme = 'light'; }
     </script>
     <meta name="color-scheme" content="light dark" />
-    <meta name="description" content="مدار — سامانه‌ی یکپارچه‌ی مدیریت مزرعه، سفارش، عملیات، مالی و ارسال." />
-    <title>مدار | مدیریت یکپارچه مزرعه و عملیات</title>
+    <meta name="description" content="صحرا — راهبران زنجیره ارزش؛ سامانه یکپارچه مدیریت تأمین، تولید، انبار، لجستیک و امور مالی." />
+    <title>صحرا | راهبران زنجیره ارزش</title>
     <link rel="manifest" href="%BASE_URL%manifest.webmanifest" />
-    <link rel="icon" type="image/svg+xml" href="%BASE_URL%medar-icon.svg" />
+    <link rel="icon" type="image/svg+xml" href="%BASE_URL%sahra-icon.svg" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -57,8 +57,8 @@
   <body>
     <div id="app-boot-screen" role="status" aria-live="polite">
       <div class="boot-card">
-        <div class="boot-mark" aria-hidden="true"><img src="%BASE_URL%medar-icon.svg" alt="" width="54" height="54" /></div>
-        <div class="boot-brand">مدار<span class="boot-brand-sub">مدیریت یکپارچه عملیات</span></div>
+        <div class="boot-mark" aria-hidden="true"><img src="%BASE_URL%sahra-icon.svg" alt="" width="54" height="54" /></div>
+        <div class="boot-brand">صحرا<span class="boot-brand-sub">SAHRA VALUE CHAIN LEADERS</span></div>
         <div class="boot-spinner" aria-hidden="true"></div>
         <div class="boot-wait">در حال راه‌اندازی محیط عملیاتی…</div>
         <div class="boot-failure" role="alert">
