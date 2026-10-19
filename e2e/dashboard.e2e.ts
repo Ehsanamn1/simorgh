@@ -11,7 +11,7 @@ test('the default route is a secure Persian entry, not a clickable dashboard pre
   page.on('pageerror', error => errors.push(error.message));
   await page.goto('/simorgh/', { waitUntil: 'domcontentloaded' });
 
-  await expect(page).toHaveTitle(/مدار \| مدیریت یکپارچه مزرعه و عملیات/);
+  await expect(page).toHaveTitle(/صحرا \| مدیریت یکپارچه مزرعه و عملیات/);
   await expect(page).toHaveURL(/\/simorgh\/app\/command$/);
   await expect(page.locator('.simorgh-signin-layer')).toBeVisible();
   await expect(page.locator('.ops-live-app, .ops-live-bottom-nav, .app-frame')).toHaveCount(0);
