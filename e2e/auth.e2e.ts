@@ -29,7 +29,7 @@ test('the app opens a username-and-password sign-in without an email field', asy
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
   await expect(page.locator('#simorgh-signin-email')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'ساخت حساب و فضای کاری' })).toHaveCount(0);
-  await expect(page.getByText(/ثبت‌نام عمومی غیرفعال است/)).toBeVisible();
+  await expect(page.getByText(/ثبت‌نام عمومی و ورود با کد دعوت غیرفعال است/)).toBeVisible();
   await expect(page.locator('.portal')).toHaveCount(0);
   await expect(page.locator('.sim-preview-palette')).toHaveCount(0);
 
@@ -46,19 +46,19 @@ test('public signup and invitation-code access are disabled; owners provision ac
   }));
   await page.route('**/api/auth/signup', async route => {
     signupRequests += 1;
-    await route.fulfill({ status: 403, contentType: 'application/json', body: JSON.stringify({ message: 'ثبت‌نام عمومی غیرفعال است.' }) });
+    await route.fulfill({ status: 403, contentType: 'application/json', body: JSON.stringify({ message: 'ثبت‌نام عمومی و ورود با کد دعوت غیرفعال است.' }) });
   });
 
   await page.goto('/simorgh/', { waitUntil: 'domcontentloaded' });
   await expect(page.getByRole('heading', { name: 'ورود به مدار' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'ساخت حساب و فضای کاری' })).toHaveCount(0);
-  await expect(page.getByText(/ثبت‌نام عمومی غیرفعال است/)).toBeVisible();
+  await expect(page.getByText(/ثبت‌نام عمومی و ورود با کد دعوت غیرفعال است/)).toBeVisible();
 
   await page.goto('/simorgh/app/command#signup', { waitUntil: 'domcontentloaded' });
   await expect(page.locator('.simorgh-signin-layer')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'ورود به مدار' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'ساخت حساب و فضای کاری' })).toHaveCount(0);
-  await expect(page.getByText(/ثبت‌نام عمومی غیرفعال است/)).toBeVisible();
+  await expect(page.getByText(/ثبت‌نام عمومی و ورود با کد دعوت غیرفعال است/)).toBeVisible();
   expect(signupRequests).toBe(0);
 });
 
