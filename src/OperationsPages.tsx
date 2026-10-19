@@ -457,10 +457,17 @@ export function OperationsWorkspacePage({kind,membership,search}:{kind:Operation
     const note=window.prompt('یادداشت تکمیل کار (اختیاری):')??'';
     return action(()=>dataApi?dataApi.rpc('submit_operational_task',{_task:String(row.id),_completion_note:note}):Promise.resolve({error:{message:'API مدار تنظیم نشده است.'}}),'وظیفه برای بازبینی ارسال شد.');
   };
-  const reviewTask=(row:Row,decision:'approved'|'rejected')=>{
+  const reviewTask=async(row:Row,decision:'approved'|'rejected')=>{
     const note=window.prompt(decision==='approved'?'یادداشت تأیید (اختیاری):':'علت رد و اقدام اصلاحی:')??'';
     if(decision==='rejected'&&!note.trim()){setError('برای رد وظیفه باید دلیل ثبت شود.');return;}
-    void action(()=>dataApi?dataApi.rpc('review_operational_task',{_task:String(row.id),_decision:decision,_review_note:note}):Promise.resolve({error:{message:'API مدار تنظیم نشده است.'}}),decision==='approved'?'وظیفه تأیید شد.':'وظیفه رد شد و نیازمند اصلاح است.');
+    if(!dataApi)return;
+    setBusy(true);setError('');setNotice('');
+    const result=await dataApi.rpc('review_operational_task',{_task:String(row.id),_decision:decision,_review_note:note});
+    setBusy(false);
+    if(result.error){setError(result.error.message);return;}
+    setNotice(decision==='approved'?'وظیفه تأیید و تکمیل شد.':'وظیفه رد شد و نیازمند اصلاح است.');
+    if(decision==='approved')window.dispatchEvent(new CustomEvent('medar:task-completed',{detail:{title:String(row.title??'وظیفه عملیاتی')}}));
+    await load();
   };
   const approveTemplate=(row:Row)=>void action(()=>updateRow('task_templates',row.id,{status:'approved'}),'دستورالعمل تأیید و قفل نسخه شد.');
   const startBatch=(row:Row)=>void action(()=>updateRow('production_batches',row.id,{status:'active'}),row.status==='planned'?'بچ تولید آغاز شد.':'ادامهٔ تولید ثبت شد.');
