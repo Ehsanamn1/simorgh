@@ -3319,7 +3319,8 @@ app.post('/api/access-requests',async c=>{
 const PRIVATE_BUCKET_RULES:Record<string,{maxBytes:number;contentTypes:Set<string>}>={
  'delivery-evidence':{maxBytes:50*1024*1024,contentTypes:new Set(['image/jpeg','image/png','image/webp','video/mp4','video/webm','video/quicktime','application/pdf'])},
  'operational-evidence':{maxBytes:50*1024*1024,contentTypes:new Set(['image/jpeg','image/png','image/webp','video/mp4','video/webm','video/quicktime','application/pdf'])},
- 'contract-documents':{maxBytes:20*1024*1024,contentTypes:new Set(['application/pdf','image/jpeg','image/png'])}
+ 'contract-documents':{maxBytes:20*1024*1024,contentTypes:new Set(['application/pdf','image/jpeg','image/png'])},
+ 'capacity-evidence':{maxBytes:10*1024*1024,contentTypes:new Set(['application/pdf','image/jpeg','image/png','image/webp'])}
 };
 function normalizePrivatePath(value:string):string|null{
  const parts=value.split('/');
@@ -3354,6 +3355,12 @@ async function canAccessPrivateFile(c: Ctx, userId: string, bucket: string, path
         : "") +
       ")" +
     ") " +
+    "when $4='capacity-evidence' then (" +
+      "exists(select 1 from public.suppliers su where su.id=$3::uuid and su.company_id=$2::uuid and (" +
+        "exists(select 1 from public.memberships m where m.user_id=$1::uuid and m.company_id=$2::uuid and m.active=true and m.role::text in ('owner','admin','staff')) " +
+        "or exists(select 1 from public.memberships m where m.user_id=$1::uuid and m.company_id=$2::uuid and m.active=true and m.role::text='supplier' and m.supplier_id=su.id)" +
+      "))" +
+    ") " +
     "when $4='operational-evidence' then (" +
       "exists(select 1 from public.operational_tasks t where t.id=$3::uuid and t.company_id=$2::uuid and (" +
         "exists(select 1 from public.memberships m where m.user_id=$1::uuid and m.company_id=$2::uuid and m.active=true and m.role::text in ('owner','admin','staff')) " +
@@ -3382,7 +3389,7 @@ app.put('/api/storage/:bucket',async c=>{
  const path=normalizePrivatePath(c.req.query('path')??'');if(!path)return c.json({message:'مسیر فایل معتبر نیست.'},422);
  const companyId=path.split('/')[0],role=await memberRoleForCompany(c,user.id,companyId);
  if(!role)return c.json({message:'برای این مجموعه دسترسی فعال نداری.'},403);
- const moduleKey = bucket === 'delivery-evidence' ? 'shipments' : bucket === 'contract-documents' ? 'suppliers' : 'operational-tasks';
+ const moduleKey = bucket === 'delivery-evidence' ? 'shipments' : bucket === 'contract-documents' ? 'suppliers' : bucket === 'capacity-evidence' ? 'capacity' : 'operational-tasks';
  if(!(await userHasModulePermission(c,user.id,companyId,moduleKey,'can_create')))return c.json({message:'برای بارگذاری مدرک در این ماژول مجوز ایجاد نداری.'},403);
  if(!(await canAccessPrivateFile(c,user.id,bucket,path,'write')))return c.json({message:'نقش فعلی اجازه بارگذاری این مدرک در این مسیر را ندارد.'},403);
  const contentType=(c.req.header('content-type')??'application/octet-stream').split(';')[0].trim().toLowerCase();
