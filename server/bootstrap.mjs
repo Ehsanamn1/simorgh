@@ -14,12 +14,15 @@ globalThis.__MEDAR_SQL_FACTORY__ = (url) => {
     });
     clients.set(url, client);
   }
-  return {
-    query: async (query, params = []) => {
-      const rows = await client.unsafe(query, params);
-      return Array.from(rows);
-    },
+
+  // The existing Worker uses both Neon-style tagged templates and sql.query().
+  // postgres.js supports tagged templates natively; bridge the query() form explicitly.
+  const sql = (strings, ...values) => client(strings, ...values);
+  sql.query = async (query, params = []) => {
+    const rows = await client.unsafe(query, params);
+    return Array.from(rows);
   };
+  return sql;
 };
 
 export const env = {
