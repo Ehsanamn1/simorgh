@@ -1833,7 +1833,7 @@ html[data-theme="dark"] .guide-backdrop{background:transparent}
 
 /* Keep the contextual guide available without blocking the operational workspace. */
 .guide-backdrop{display:block;padding:0;background:transparent!important;backdrop-filter:none!important;pointer-events:none}
-.guide-dialog{position:fixed;inset-block-start:14px;inset-inline-end:14px;width:min(410px,calc(100vw - 28px));max-height:min(54dvh,560px);padding:16px;border-radius:18px;pointer-events:auto;box-shadow:0 18px 55px rgb(11 28 17 / 20%),0 0 0 1px color-mix(in srgb,var(--obs-border) 80%,transparent);animation:guideChapterIn .22s ease both}
+.guide-dialog{position:fixed;inset-block-start:auto;inset-block-end:14px;inset-inline-end:14px;width:min(360px,calc(100vw - 28px));max-height:min(32dvh,420px);padding:14px;border-radius:18px;pointer-events:auto;box-shadow:0 18px 55px rgb(11 28 17 / 20%),0 0 0 1px color-mix(in srgb,var(--obs-border) 80%,transparent);animation:guideChapterIn .22s ease both}
 .guide-heading{gap:9px}
 .guide-book-icon,.guide-tip-icon{width:38px;height:38px;border-radius:12px}
 .guide-heading-copy h2{font-size:18px}
