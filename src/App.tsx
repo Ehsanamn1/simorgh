@@ -1379,7 +1379,7 @@ function MembersPage({membership,search}:{membership:Membership;search:string}) 
     supplierId:accountRole==='supplier'?accountSupplierId:null,
    });
    setResetSecret('@'+accountUsername.trim().toLowerCase()+' : '+accountPassword);
-   setNotice('حساب ساخته شد. اطلاعات ورود را کپی کن و حضوری یا از مسیر امن به صاحب حساب بده.');
+   setNotice('حساب ساخته شد. اطلاعات ورود را امن تحویل بده؛ کاربر در اولین ورود نام، نام خانوادگی و تلفن خود را تکمیل می‌کند.');
    setAccountOpen(false);setAccountPassword('');
    await load();
   }catch(caught){
@@ -1444,15 +1444,14 @@ function MembersPage({membership,search}:{membership:Membership;search:string}) 
  const visible=rows.filter(r=>(memberFilter==='all'||String(r.role)===memberFilter)&&(!search||[r.username,r.full_name,r.phone,r.role,r.supplier_name].some(v=>String(v??'').toLowerCase().includes(search.toLowerCase()))));
  const options:AppRole[]=membership.role==='owner'?['admin','staff','supplier','driver']:['staff','supplier','driver'];
  return <>
-  <PageHeading eyebrow="ACCESS / MEMBERSHIPS" title="دسترسی کاربران" description="حساب تأمین‌کننده، راننده یا همکار را خودت بساز؛ ثبت‌نام عمومی بسته است و دعوت‌ها یک‌بارمصرف‌اند." action={<><Button variant="soft" onClick={()=>{setOpen(true);setInviteCode('');setError('');setNotice('');}}><Plus size={15}/> کد دعوت</Button><Button onClick={()=>{setAccountOpen(true);setError('');setNotice('');setAccountName('');setAccountUsername('');setAccountPassword('');setAccountRole('supplier');setAccountCustomerId('');setAccountSupplierId('');}}><Plus size={15}/> ساخت حساب</Button></>}/>
+  <PageHeading eyebrow="ACCESS / MEMBERSHIPS" title="دسترسی کاربران" description="حساب اختصاصی را با نام کاربری، رمز اولیه و نقش مشخص بساز؛ کاربر پس از اولین ورود مشخصات فردی‌اش را تکمیل می‌کند." action={<Button onClick={()=>{setAccountOpen(true);setError('');setNotice('');setAccountName('');setAccountUsername('');setAccountPassword('');setAccountRole('supplier');setAccountCustomerId('');setAccountSupplierId('');}}><Plus size={15}/> ساخت حساب جدید</Button>}/>
   {error&&<InlineError error={error} retry={()=>void load()}/>}
   {notice&&<div className="form-success notice-wide"><CheckCircle2 size={17}/>{notice}</div>}
   <div className="member-role-filters" role="group" aria-label="تفکیک کاربران بر اساس نقش">
    {([{key:'all',label:'همه کاربران'},{key:'supplier',label:'تأمین‌کنندگان'},{key:'driver',label:'رانندگان'},{key:'staff',label:'کارشناسان'},{key:'admin',label:'مدیران'}] as const).map(filter=><button key={filter.key} type="button" className={memberFilter===filter.key?'active':''} aria-pressed={memberFilter===filter.key} onClick={()=>setMemberFilter(filter.key)}>{filter.label}<small>{numberFa(rows.filter(row=>filter.key==='all'||String(row.role)===filter.key).length)}</small></button>)}
   </div>
   {resetSecret&&<section className="panel invite-code-panel"><div className="panel-heading"><div><span className="section-number">LOGIN DETAILS</span><div><h3>اطلاعات ورود</h3><p>این اطلاعات را کپی کن و فقط به صاحب حساب تحویل بده.</p></div></div><Button variant="soft" onClick={()=>void navigator.clipboard?.writeText(resetSecret)}>کپی اطلاعات</Button></div><code className="invite-code-value" dir="ltr">{resetSecret}</code></section>}
-  {inviteCode&&<section className="panel invite-code-panel"><div className="panel-heading"><div><span className="section-number">INVITE</span><div><h3>لینک دعوت یک‌بارمصرف</h3><p>این لینک فرم ساخت حساب را با نقش تعیین‌شده باز می‌کند.</p></div></div><Button variant="soft" onClick={()=>void navigator.clipboard?.writeText(inviteLink)}>کپی لینک</Button></div><code className="invite-code-value" dir="ltr">{inviteLink}</code><div className="invite-link-code"><small>کد پشتیبان دعوت</small><code dir="ltr">{inviteCode}</code><Button variant="ghost" onClick={()=>void navigator.clipboard?.writeText(inviteCode)}>کپی کد</Button></div><small>پس از استفادهٔ موفق، دعوت یک‌بارمصرف مصرف می‌شود؛ لینک تا ۷ روز معتبر است.</small></section>}
-  <div className="rule-banner"><ShieldCheck size={18}/><p><b>کنترل دسترسی سمت سرور</b><span>ورود عمومی بسته است؛ حساب‌ها را مالک یا مدیر مجاز می‌سازد یا کاربر با دعوت معتبر و یک‌بارمصرف عضو می‌شود. فقط مالک می‌تواند نقش مدیر بسازد.</span></p></div>
+  <div className="rule-banner"><ShieldCheck size={18}/><p><b>کنترل دسترسی سمت سرور</b><span>ثبت‌نام عمومی و کد دعوت غیرفعال است. مالک یا مدیر مجاز حساب را می‌سازد؛ فقط مالک می‌تواند نقش مدیر بسازد. کاربر پس از ورود مشخصات فردی را تکمیل می‌کند و نمی‌تواند نقش خود را تغییر دهد.</span></p></div>
   <section className="panel entity-panel members-list-panel"><div className="entity-toolbar"><div><b>{numberFa(visible.length)} عضویت</b><small>فهرست واقعی عضویت‌های مجموعه</small></div><Button variant="soft" onClick={()=>void load()}>تازه‌سازی</Button></div>
    {loading?<div className="panel-loading"><span className="spinner small"/></div>:visible.length?<DataTable rows={visible} columns={[
     {key:'username',label:'نام کاربری',render:r=><div><b dir="ltr">@{String(r.username??'')}</b><small className="cell-subtitle">{String(r.full_name??'بدون نام')}</small></div>},
@@ -1467,7 +1466,7 @@ function MembersPage({membership,search}:{membership:Membership;search:string}) 
     {r.role!=='admin'&&<Button variant="soft" disabled={busy||permissionsLoading} onClick={()=>void editPermissions(r)}>مجوزها</Button>}
     <Button variant="soft" disabled={busy||(r.role==='admin'&&membership.role!=='owner')} onClick={()=>void resetMemberPassword(r)}>بازنشانی رمز</Button>
     <Button variant="danger" disabled={busy} onClick={()=>void deactivate(r)}>غیرفعال‌سازی</Button>
-   </div>:<span className="muted-text">—</span>}/>:<EmptyState title="هنوز عضوی در فهرست نیست" description="پس از ساخت حساب توسط مالک یا پذیرش دعوت معتبر، اعضای واقعی مجموعه در اینجا نمایش داده می‌شوند." icon={Users}/>}
+   </div>:<span className="muted-text">—</span>}/>:<EmptyState title="هنوز عضوی در فهرست نیست" description="حساب نخستین همکار را با دکمهٔ «ساخت حساب جدید» بساز؛ افراد فقط با نام کاربری و رمز عبور وارد می‌شوند." icon={Users}/>}
   </section>
   {permissionsMember&&<Modal title="مجوزهای ماژولی عضو" subtitle={`دسترسی‌های ${String(permissionsMember.full_name??permissionsMember.username??'عضو')} را محدود کن. این تنظیمات مجوزهای پیش‌فرض نقش را گسترش نمی‌دهند.`} onClose={()=>{if(!permissionsSaving)setPermissionsMember(null);}}>
    {permissionsLoading?<div className="panel-loading"><span className="spinner small"/></div>:<div className="module-permissions-dialog" dir="rtl">
@@ -1487,15 +1486,15 @@ function MembersPage({membership,search}:{membership:Membership;search:string}) 
     </div>
    </div>}
   </Modal>}
-  {accountOpen&&<Modal title="ساخت حساب کاربری" subtitle="حساب فوراً ساخته می‌شود؛ نام کاربری و رمز اولیه را به خود فرد تحویل بده." onClose={()=>{if(!busy)setAccountOpen(false);}}><form className="record-form" onSubmit={e=>{e.preventDefault();void createAccount();}}>
-   <label className="full-span">نام و نام خانوادگی<input required maxLength={100} value={accountName} onChange={e=>setAccountName(e.target.value)} autoComplete="off"/></label>
+  {accountOpen&&<Modal title="ساخت حساب اختصاصی" subtitle="حساب فوراً با نقش تعیین‌شده ساخته می‌شود؛ نام کاربری و رمز اولیه را از مسیر امن به فرد بده." onClose={()=>{if(!busy)setAccountOpen(false);}}><form className="record-form" onSubmit={e=>{e.preventDefault();void createAccount();}}>
+   <label className="full-span">نام و نام خانوادگی (اختیاری)<input maxLength={100} value={accountName} onChange={e=>setAccountName(e.target.value)} autoComplete="off"/><small>در صورت خالی‌ماندن، کاربر هنگام اولین ورود نام و نام خانوادگی خود را ثبت می‌کند.</small></label>
    <label>نام کاربری<input required minLength={3} maxLength={32} pattern="[A-Za-z0-9._-]+" value={accountUsername} onChange={e=>setAccountUsername(e.target.value.toLowerCase())} dir="ltr" autoComplete="off"/><small>۳ تا ۳۲ نویسه؛ بدون فاصله</small></label>
    <label>رمز عبور اولیه<input required minLength={12} maxLength={128} type="password" value={accountPassword} onChange={e=>setAccountPassword(e.target.value)} dir="ltr" autoComplete="new-password"/><small>حداقل ۱۲ نویسه؛ پس از ورود قابل تغییر است</small></label>
    <label className="full-span">نقش کاربر<select value={accountRole} onChange={e=>{setAccountRole(e.target.value as AppRole);setAccountCustomerId('');setAccountSupplierId('');}}>{options.map(r=><option value={r} key={r}>{roleLabel[r]}</option>)}</select></label>
    {accountRole==='customer'&&<label className="full-span">حساب مشتری<select required value={accountCustomerId} onChange={e=>setAccountCustomerId(e.target.value)}><option value="">انتخاب مشتری همین مجموعه…</option>{customers.map(row=><option key={String(row.id)} value={String(row.id)}>{String(row.name)}</option>)}</select></label>}
    {accountRole==='supplier'&&<label className="full-span">حساب تأمین‌کننده<select required value={accountSupplierId} onChange={e=>setAccountSupplierId(e.target.value)}><option value="">انتخاب تأمین‌کننده همین مجموعه…</option>{suppliers.map(row=><option key={String(row.id)} value={String(row.id)}>{String(row.name)}</option>)}</select></label>}
    {error&&<div className="form-error full-span">{error}</div>}
-   <div className="modal-actions"><Button variant="soft" onClick={()=>setAccountOpen(false)} disabled={busy}>انصراف</Button><Button type="submit" disabled={busy||accountName.trim().length<1||accountUsername.trim().length<3||accountPassword.length<12||(accountRole==='customer'&&!accountCustomerId)||(accountRole==='supplier'&&!accountSupplierId)}>{busy?'در حال ساخت حساب…':'ساخت حساب و نمایش اطلاعات ورود'}</Button></div>
+   <div className="modal-actions"><Button variant="soft" onClick={()=>setAccountOpen(false)} disabled={busy}>انصراف</Button><Button type="submit" disabled={busy||accountUsername.trim().length<3||accountPassword.length<12||(accountRole==='customer'&&!accountCustomerId)}>{busy?'در حال ساخت حساب…':'ساخت حساب و نمایش اطلاعات ورود'}</Button></div>
   </form></Modal>}
   {open&&<Modal title="ساخت کد دعوت" subtitle="این کد اجازه ثبت‌نام و اتصال به همین مجموعه را با نقش تعیین‌شده می‌دهد؛ کد نقش مالک تولید نمی‌کند." onClose={()=>setOpen(false)}><form className="record-form" onSubmit={e=>{e.preventDefault();void createInvite();}}>
    <label className="full-span">نقش دسترسی<select value={inviteRole} onChange={e=>{setInviteRole(e.target.value as AppRole);setInviteCustomerId('');setInviteSupplierId('');}}>{options.map(r=><option value={r} key={r}>{roleLabel[r]}</option>)}</select></label>
