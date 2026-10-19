@@ -1856,3 +1856,8 @@ html[data-theme="dark"] .guide-backdrop{background:transparent}
   .guide-dialog .guide-close,.guide-dialog .guide-manual-toggle,.guide-dialog .guide-step-expand,.guide-dialog .guide-footer button{pointer-events:auto}
   .guide-dialog.show-global-manual,.guide-dialog.show-full-section-guide{position:fixed;left:8px;right:auto;top:auto;bottom:76px;width:min(390px,calc(100vw - 16px));max-height:72dvh;padding:12px;pointer-events:auto;overflow:auto}
 }
+
+/* Desktop help also stays click-through so page-header actions remain usable. */
+.guide-dialog{pointer-events:none}
+.guide-dialog .guide-close,.guide-dialog .guide-manual-toggle,.guide-dialog .guide-step-expand,.guide-dialog .guide-footer button{pointer-events:auto}
+.guide-dialog.show-global-manual,.guide-dialog.show-full-section-guide{pointer-events:auto}
