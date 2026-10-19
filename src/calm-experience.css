@@ -2256,7 +2256,7 @@ html[data-theme="dark"] .guide-backdrop{background:transparent}
   bottom: calc(env(safe-area-inset-bottom, 0px) + 16px) !important;
   right: auto !important;
   top: auto !important;
-  width: 236px !important;
+  width: 224px !important;
   max-width: calc(100vw - 24px) !important;
 }
 .medar-help-dialog {
@@ -2286,7 +2286,7 @@ html[data-theme="dark"] .guide-backdrop{background:transparent}
   overflow-y: auto !important;
 }
 @media (min-width: 901px) {
-  .medar-help-backdrop { width: 252px !important; }
+  .medar-help-backdrop { width: 224px !important; }
   .medar-help-dialog .medar-help-heading { grid-template-columns: 25px minmax(0,1fr) auto auto 23px !important; }
 }
 @media (max-width: 900px) {
