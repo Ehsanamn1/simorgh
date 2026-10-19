@@ -583,7 +583,7 @@ app.get('/api/admin/system/clients', async (c) => {
      limit 100`,
     [companyId],
   );
-  const onlineCount = clients.filter(row => Boolean((row as { online?: boolean }).online)).length;
+  const onlineCount = clients.filter((row: { online?: boolean }) => Boolean(row.online)).length;
   return c.json({ companyId, clients, summary: { knownClients: clients.length, onlineClients: onlineCount, staleAfterSeconds: 180 } });
 });
 
@@ -2292,7 +2292,7 @@ async function runForUser(c: Ctx,userId: string,statement: string,parameters: un
 async function listTableColumns(c: Ctx,table: string): Promise<Set<string>> {
  const sql=sqlFor(c);
  const rows=await sql.query("select column_name from information_schema.columns where table_schema='public' and table_name=$1",[table]);
- return new Set(rows.map(row=>String((row as {column_name:string}).column_name)));
+ return new Set(rows.map((row: { column_name: string }) => String(row.column_name)));
 }
 const RELATIONS:Record<string,Record<string,{target:string;local:string;foreign:string;many?:boolean}>>={
  orders:{customers:{target:'customers',local:'customer_id',foreign:'id'},order_items:{target:'order_items',local:'id',foreign:'order_id',many:true}},
