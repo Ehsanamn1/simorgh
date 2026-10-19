@@ -1,10 +1,6 @@
 import { neon } from '@neondatabase/serverless';
 
-export type MedarSqlClient = {
-  query(query: string, params?: unknown[]): Promise<Record<string, unknown>[]>;
-};
-
-type MedarSqlFactory = (url: string) => MedarSqlClient;
+type MedarSqlFactory = (url: string) => ReturnType<typeof neon>;
 
 declare global {
   // Injected by the Node.js hosting adapter before the Worker entrypoint is imported.
@@ -15,13 +11,11 @@ declare global {
 /**
  * Shared SQL boundary:
  * - Cloudflare Worker: Neon serverless driver.
- * - Node.js shared hosting: postgres.js adapter injected before worker/index.ts is loaded.
- *
- * Keeping the selection at this boundary avoids leaking host-specific database code into routes.
+ * - Node.js hosting: postgres.js adapter injected before worker/index.ts is loaded.
  */
-export function sqlForUrl(url: string): MedarSqlClient {
+export function sqlForUrl(url: string): ReturnType<typeof neon> {
   if (typeof globalThis.__MEDAR_SQL_FACTORY__ === 'function') {
     return globalThis.__MEDAR_SQL_FACTORY__(url);
   }
-  return neon(url) as unknown as MedarSqlClient;
+  return neon(url);
 }
