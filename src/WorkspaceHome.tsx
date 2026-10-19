@@ -49,7 +49,7 @@ const roleQuickLinks: Record<AppRole, QuickLink[]> = {
     { key: 'settings', title: 'پروفایل و تنظیمات', detail: 'اطلاعات حساب و رمز عبور', icon: ShieldCheck },
   ],
   driver: [
-    { key: 'driver-work', title: 'محموله‌های من', detail: 'تحویل، وضعیت و مدارک', icon: Truck },
+    { key: 'driver-work', title: 'محموله‌های من', detail: 'تحویل، وضعیت و صحراک', icon: Truck },
     { key: 'operational-tasks', title: 'وظایف من', detail: 'کارهای واگذارشده و موعدها', icon: ClipboardCheck },
     { key: 'connect', title: 'مرکز ارتباطات', detail: 'پیام‌های مدیر عملیات', icon: MessageCircle },
     { key: 'settings', title: 'پروفایل و تنظیمات', detail: 'اطلاعات حساب و رمز عبور', icon: ShieldCheck },
@@ -166,7 +166,7 @@ export function WorkspaceHome({ membership, userName }: { membership: Membership
         }));
       } else {
         nextMetrics = [{ label: 'دسترسی عملیاتی', value: 0, detail: 'نقش سفارش‌دهنده در نسخه فعلی غیرفعال است', icon: ShieldCheck, to: '/app/settings' }];
-        nextItems.push({ id: 'customer-disabled', title: 'دسترسی سفارش‌گیری غیرفعال است', detail: 'مدار برای مدیریت زنجیره تأمین، تأمین‌کنندگان و رانندگان استفاده می‌شود. برای تغییر نقش با مالک مجموعه هماهنگ کن.', to: '/app/settings', tone: 'info' });
+        nextItems.push({ id: 'customer-disabled', title: 'دسترسی سفارش‌گیری غیرفعال است', detail: 'صحرا برای مدیریت زنجیره تأمین، تأمین‌کنندگان و رانندگان استفاده می‌شود. برای تغییر نقش با مالک مجموعه هماهنگ کن.', to: '/app/settings', tone: 'info' });
       }
       const urgency: Record<NonNullable<BriefingItem['tone']>, number> = { critical: 0, warning: 1, info: 2 };
       nextItems.sort((a, b) => urgency[a.tone ?? 'info'] - urgency[b.tone ?? 'info']);
@@ -189,13 +189,13 @@ export function WorkspaceHome({ membership, userName }: { membership: Membership
     staff: { title: 'کارهای امروز شما', description: 'وظایف باز و مواردی که برای تکمیل عملیات نیاز به اقدام دارند.' },
     supplier: { title: 'برنامه‌ی امروز تأمین‌کننده', description: 'کارهای واگذارشده و ظرفیت‌هایی که هنوز نیازمند پیگیری‌اند.' },
     driver: { title: 'برنامه‌ی امروز راننده', description: 'محموله‌های فعال و کارهای ثبت‌شده برای شما.' },
-    customer: { title: 'دسترسی محدود', description: 'نقش سفارش‌دهنده در نسخه فعلی فعال نیست؛ مدار روی مدیریت زنجیره تأمین متمرکز است.' },
+    customer: { title: 'دسترسی محدود', description: 'نقش سفارش‌دهنده در نسخه فعلی فعال نیست؛ صحرا روی مدیریت زنجیره تأمین متمرکز است.' },
   };
   const heading = roleHeading[role];
 
   return <div className="workspace-home" dir="rtl">
     <section className="workspace-home-hero">
-      <div className="workspace-home-identity"><span className="workspace-home-mark"><LayoutDashboard size={22}/></span><div><span className="workspace-home-eyebrow">فضای کاری اختصاصی شما</span><h1>سلام {userName || 'همکار مدار'}</h1><p>{heading.title} · <b>{roleLabel[role]}</b></p></div></div>
+      <div className="workspace-home-identity"><span className="workspace-home-mark"><LayoutDashboard size={22}/></span><div><span className="workspace-home-eyebrow">فضای کاری اختصاصی شما</span><h1>سلام {userName || 'همکار صحرا'}</h1><p>{heading.title} · <b>{roleLabel[role]}</b></p></div></div>
       <p className="workspace-home-description">{heading.description}</p>
       <div className="workspace-home-meta"><span><ShieldCheck size={15}/> دسترسی بر پایه‌ی نقش تأییدشده</span><span><CalendarClock size={15}/> خلاصه‌ی به‌روزشونده از رکوردهای سیستم</span></div>
       <button type="button" className="workspace-home-guide-button" onClick={() => setGuideOpen(true)}><BookOpen size={16}/> راهنمای قدم‌به‌قدم شروع کار</button>
