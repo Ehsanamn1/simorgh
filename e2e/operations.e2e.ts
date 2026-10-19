@@ -60,12 +60,12 @@ test('manager workspace retains operations and captures a real rendered control-
   await expect(page.getByRole('heading', { name: /سلام مالک آزمایشی مدار/ })).toBeVisible();
   await expect(page.locator('.workspace-home-hero')).toContainText('کنترل امروز کسب‌وکار');
   await expect(page.getByRole('heading', { name: 'بخش‌های پرکاربرد شما' })).toBeVisible();
-  await expect(page.locator('.workspace-home-link')).toHaveCount(6);
+  await expect(page.locator('.workspace-home-link')).toHaveCount(4);
   await expect(page.locator('.workspace-home-link').filter({ hasText: 'شبکه تأمین‌کنندگان' })).toBeVisible();
   await expect(page.locator('.workspace-home-link').filter({ hasText: 'دسترسی کاربران' })).toBeVisible();
   await expect(page.locator('.workspace-home-link').filter({ hasText: 'مرکز ارتباطات' })).toBeVisible();
   await expect(page.locator('.workspace-home-link').filter({ hasText: 'حمل‌ونقل و رانندگان' })).toBeVisible();
-  await expect(page.locator('.workspace-home-link').filter({ hasText: 'وظایف و مأموریت‌ها' })).toBeVisible();
+  await expect(page.locator('.nav-groups').getByRole('link', { name: /وظایف/ })).toBeVisible();
   await expect(page.locator('.workspace-home-section').filter({ hasText: 'موارد مهم و اقدام بعدی' })).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath('manager-role-home-viewport.png') });
   await page.screenshot({ path: testInfo.outputPath('manager-role-home.png'), fullPage: true });
@@ -462,11 +462,11 @@ test('supplier workspace keeps manager-only routes out of the allowed menu', asy
   }
   await expect(page.getByRole('heading', { name: /سلام تأمین‌کننده آزمایشی مدار/ })).toBeVisible();
   await expect(page.locator('.workspace-home-hero')).toContainText('برنامه‌ی امروز تأمین‌کننده');
-  await expect(page.locator('.workspace-home-link')).toHaveCount(6);
+  await expect(page.locator('.workspace-home-link')).toHaveCount(4);
   expect(await page.locator('.workspace-home-action').count()).toBeLessThanOrEqual(5);
   await page.screenshot({ path: testInfo.outputPath('supplier-role-home-viewport.png') });
   await page.screenshot({ path: testInfo.outputPath('supplier-role-home.png'), fullPage: true });
-  const operationsGroup = page.locator('.nav-group').filter({ has: page.locator('summary', { hasText: /^زنجیره تأمین/ }) });
+  const operationsGroup = page.locator('.nav-group').filter({ has: page.locator('summary', { hasText: /^عملیات روزانه/ }) });
   await operationsGroup.locator('summary').click();
   await expect(operationsGroup.getByRole('link', { name: /کارهای واگذارشده/ })).toBeVisible();
   await expect(page.getByRole('link', { name: /دستورالعمل‌های کاری/ })).toHaveCount(0);
@@ -847,7 +847,7 @@ test('settings centralizes password, real connection health, and light/dark pref
   await expect(page.getByText('پاسخ‌گو')).toBeVisible();
   await expect(page.getByRole('button', { name: 'خروج از حساب' })).toBeVisible();
   await expect(page.getByText('دستگاه‌های شناخته‌شده')).toBeVisible();
-  await expect(page.locator('.nav-tools-box')).toContainText('بخش‌های اصلی');
+  await expect(page.locator('.nav-tools-box')).toContainText('منوی اصلی');
   await expect(page.locator('.sidebar-status')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'تغییر گذرواژه' })).toHaveCount(0);
 
