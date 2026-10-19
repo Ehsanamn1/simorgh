@@ -867,3 +867,22 @@ test('settings centralizes password, real connection health, and light/dark pref
   await expect(page.locator('.sidebar-settings-link, .profile-row')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'خروج از حساب' })).toHaveCount(0);
 });
+
+test('closing contextual help persists across navigation until explicitly reopened', async ({ page }) => {
+  await installIsolatedSession(page, 'owner');
+  await page.goto('/simorgh/app/members', { waitUntil: 'domcontentloaded' });
+
+  const guide = page.locator('.medar-help-backdrop');
+  await expect(guide).toBeVisible();
+  await guide.getByRole('button', { name: 'بستن راهنما' }).click();
+  await expect(guide).toHaveCount(0);
+
+  await page.locator('.topbar-home-link').click();
+  await expect(page).toHaveURL(/\/simorgh\/app\/home$/);
+  await expect(guide).toHaveCount(0);
+
+  await page.getByRole('button', { name: 'راهنمای مدار' }).click();
+  await expect(guide).toBeVisible();
+  await guide.getByRole('button', { name: 'بستن راهنما' }).click();
+  await expect(guide).toHaveCount(0);
+});
