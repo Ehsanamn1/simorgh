@@ -57,14 +57,12 @@ const globalSections = [
 export function HelpGuide({ role, section, onClose }: HelpGuideProps) {
   const steps = sectionSteps(section, role);
   useEffect(() => {
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
     const handleKeyDown = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose(); };
     window.addEventListener('keydown', handleKeyDown);
     return () => { document.body.style.overflow = previousOverflow; window.removeEventListener('keydown', handleKeyDown); };
   }, [onClose]);
   return <div className="guide-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}>
-    <section className="guide-dialog" role="dialog" aria-modal="true" aria-labelledby="medar-guide-title" dir="rtl">
+    <section className="guide-dialog" role="dialog" aria-modal="false" aria-labelledby="medar-guide-title" dir="rtl">
       <header className="guide-heading">
         <span className="guide-book-icon"><BookOpen size={23}/></span>
         <div className="guide-heading-copy"><span className="eyebrow">راهنمای تعاملی مدار</span><h2 id="medar-guide-title">{section ? 'راهنمای بخش «'+(sectionNames[section] ?? 'فعلی')+'»' : 'راهنمای جامع مدیریت مدار'}</h2><p>مخصوص نقش «{roleNames[role ?? ''] ?? 'کاربر'}» · فارسی و راست‌چین</p></div>
