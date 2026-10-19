@@ -72,4 +72,3 @@ The clean-database CI chain and guarded Cloudflare deployment migration list mus
 31. `0031_member_provisioning_schema_guard.sql` — reasserts nullable phone metadata and the admin role constraint for account provisioning, repairing schema drift where a prior migration ledger was ahead of the actual schema.
 
 
-31. `0031_member_provisioning_schema_guard.sql` — reasserts nullable phone metadata and the admin role constraint for account provisioning, repairing schema drift where a prior migration ledger was ahead of the actual schema.
