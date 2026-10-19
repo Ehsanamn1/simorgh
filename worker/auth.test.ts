@@ -207,6 +207,7 @@ describe('server-side username normalization', () => {
       'requested_role',
       'account_status',
     ]);
+    expect(CREATE_OWNER_WORKSPACE_SQL).toContain("values($1,$1,$2,$3,'owner','active')");
     expect(CREATE_OWNER_WORKSPACE_SQL).toContain('returning id,username,username_normalized,display_name');
   });
 
