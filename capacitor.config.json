@@ -1,15 +1,15 @@
 {
   "appId": "com.simorgh.networkoperations",
-  "appName": "Simorgh",
+  "appName": "Sahra",
   "webDir": "dist",
-  "backgroundColor": "#0B1012",
+  "backgroundColor": "#1B2A3A",
   "server": {
     "androidScheme": "https"
   },
   "plugins": {
     "SplashScreen": {
       "launchShowDuration": 0,
-      "backgroundColor": "#0B1012",
+      "backgroundColor": "#1B2A3A",
       "showSpinner": false
     }
   }
