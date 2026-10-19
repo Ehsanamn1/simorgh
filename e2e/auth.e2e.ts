@@ -104,7 +104,8 @@ test('Sahra mobile sign-in follows the reference palette and fits a 393x852 view
   await page.goto('/simorgh/', { waitUntil: 'domcontentloaded' });
   await expect(page.locator('.simorgh-signin-layer')).toBeVisible();
   await expect(page.locator('.simorgh-signin-form-card')).toBeVisible();
-  await expect(page.locator('.simorgh-signin-form-card .brand-words b')).toContainText('صحرا');
+  await expect(page.locator('.simorgh-signin-form-card .brand-symbol')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'ورود به صحرا' })).toBeVisible();
   const palette = await page.evaluate(() => ({
     formArea: getComputedStyle(document.querySelector('.simorgh-signin-form-area')!).backgroundColor,
     button: getComputedStyle(document.querySelector('.signin-submit')!).backgroundColor,
