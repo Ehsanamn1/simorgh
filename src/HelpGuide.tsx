@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { ArrowLeft, BookOpen, CheckCircle2, ClipboardCheck, Factory, MapPin, Package, ShieldCheck, Smartphone, Truck, Users, Warehouse, X } from 'lucide-react';
 import type { AppRole } from './lib/types';
 
