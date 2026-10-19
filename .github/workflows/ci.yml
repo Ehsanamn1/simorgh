@@ -621,6 +621,51 @@ jobs:
           ROLLBACK;
           SQL
           echo "Dedicated member identity fields and owner-provisioned admin role accepted by the isolated PostgreSQL schema."
+      - name: Exercise the exact dedicated-member SQL against PostgreSQL
+        env:
+          PGPASSWORD: medar_test_password
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import { readFile, writeFile } from 'node:fs/promises';
+          const source = await readFile('worker/index.ts', 'utf8');
+          const match = source.match(/export const MEMBER_ACCOUNT_INSERT_SQL =([\\s\\S]*?);\\n\\napp\\.post/);
+          if (!match) throw new Error('Could not extract MEMBER_ACCOUNT_INSERT_SQL from worker/index.ts');
+          const statement = Function('return (' + match[1] + ')')();
+          if (!statement.includes('new_audit as') || !statement.includes('cross join new_audit')) {
+            throw new Error('Member insert must atomically write its audit record');
+          }
+          const sql = `BEGIN;
+          INSERT INTO public.companies(id,name) VALUES ('00000000-0000-4000-8000-000000000981','CI member account SQL company');
+          INSERT INTO public.medar_users(id,username,username_normalized,display_name,password_hash,requested_role,account_status)
+            VALUES ('00000000-0000-4000-8000-000000000982','ci.member.owner','ci.member.owner','CI Member Owner','not-a-login-hash','owner','active');
+          INSERT INTO public.memberships(company_id,user_id,role,active,created_by)
+            VALUES ('00000000-0000-4000-8000-000000000981','00000000-0000-4000-8000-000000000982','owner',true,'00000000-0000-4000-8000-000000000982');
+          PREPARE medar_member_create(text,text,text,text,uuid,uuid,uuid,uuid) AS ${statement};
+          EXECUTE medar_member_create('ci_member_sql_981','CI Member SQL Smoke','not-a-login-hash','staff','00000000-0000-4000-8000-000000000981','00000000-0000-4000-8000-000000000982',NULL,NULL);
+          DO $verify_member_account$
+          BEGIN
+            IF NOT EXISTS (SELECT 1 FROM public.medar_users WHERE username_normalized='ci_member_sql_981' AND requested_role='staff' AND account_status='active') THEN
+              RAISE EXCEPTION 'Member user row was not created';
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM public.profiles WHERE id=(SELECT id FROM public.medar_users WHERE username_normalized='ci_member_sql_981')) THEN
+              RAISE EXCEPTION 'Member profile row was not created';
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM public.memberships WHERE user_id=(SELECT id FROM public.medar_users WHERE username_normalized='ci_member_sql_981') AND company_id='00000000-0000-4000-8000-000000000981' AND role='staff' AND active) THEN
+              RAISE EXCEPTION 'Member membership row was not created';
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM public.medar_audit_log WHERE action='membership.account_created' AND metadata->>'username'='ci_member_sql_981') THEN
+              RAISE EXCEPTION 'Member account audit record was not created atomically';
+            END IF;
+          END $verify_member_account$;
+          ROLLBACK;
+          DEALLOCATE medar_member_create;
+          `;
+          await writeFile(process.env.RUNNER_TEMP + '/medar-member-account-sql.sql', sql);
+          NODE
+          psql -h 127.0.0.1 -U postgres -d medar_test -v ON_ERROR_STOP=1 -f "$RUNNER_TEMP/medar-member-account-sql.sql"
+          echo "The exact production member SQL created the user, profile, membership and audit record together; the fixture transaction was rolled back."
       - name: Verify PostgreSQL backup and restore on a disposable CI database
         env:
           PGPASSWORD: medar_test_password
