@@ -519,3 +519,42 @@ html[data-theme="dark"] .medar-help-mobile-tip, html[data-theme="dark"] .medar-h
 html[data-theme="dark"] .signin-theme-toggle, html[data-theme="dark"] .signin-close {
   background: #223448 !important; border-color: #3A4B5C !important; color: #F3ECE6 !important;
 }
+
+
+/* Auth surface and boot fallback: override legacy high-specificity green/teal rules. */
+html[data-theme="light"] .simorgh-signin-form-area { background: var(--sahra-cream) !important; }
+html[data-theme="light"] .simorgh-signin-form-card {
+  background: linear-gradient(145deg, #FFFCF9, #F3ECE6 92%) !important;
+  border-color: var(--sahra-border) !important;
+}
+html[data-theme="light"] .simorgh-signin-form-card .brand-words b { color: var(--sahra-navy) !important; }
+html[data-theme="light"] .simorgh-signin-form-card .brand-words small { color: var(--sahra-copper) !important; }
+html[data-theme="light"] .signin-submit,
+html[data-theme="light"] .simorgh-signin-layer .button-primary,
+html[data-theme="light"] .simorgh-signin-layer button[type="submit"] {
+  background: var(--sahra-copper) !important;
+  border-color: var(--sahra-copper) !important;
+  color: #FFFFFF !important;
+}
+html[data-theme="light"] .signin-submit:hover,
+html[data-theme="light"] .simorgh-signin-layer button[type="submit"]:hover {
+  background: #785B43 !important;
+  border-color: #785B43 !important;
+}
+html[data-theme="light"], html[data-theme="light"] body {
+  background: var(--sahra-cream) !important;
+  color: var(--sahra-ink);
+}
+html[data-theme="dark"] .simorgh-signin-form-area { background: #142130 !important; }
+html[data-theme="dark"] .simorgh-signin-form-card {
+  background: linear-gradient(145deg, #1B2A3A, #142130 92%) !important;
+  border-color: #3A4B5C !important;
+}
+html[data-theme="dark"] .simorgh-signin-form-card .brand-words b { color: #F3ECE6 !important; }
+html[data-theme="dark"] .signin-submit,
+html[data-theme="dark"] .simorgh-signin-layer .button-primary,
+html[data-theme="dark"] .simorgh-signin-layer button[type="submit"] {
+  background: #B58A68 !important;
+  border-color: #B58A68 !important;
+  color: #142130 !important;
+}
