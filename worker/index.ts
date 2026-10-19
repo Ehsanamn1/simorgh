@@ -2080,8 +2080,8 @@ export const MEMBER_ACCOUNT_ALLOWED_ROLES = ['admin', 'staff', 'supplier', 'driv
 
 export const MEMBER_ACCOUNT_INSERT_SQL =
   "with new_user as (" +
-    "insert into public.medar_users(username,username_normalized,display_name,password_hash,requested_role,account_status) " +
-    "values($1,$1,$2,$3,$4,'active') returning id,username,username_normalized,display_name" +
+    "insert into public.medar_users(username,username_normalized,phone_e164,display_name,password_hash,requested_role,account_status) " +
+    "values($1,$1,null,$2,$3,$4,'active') returning id,username,username_normalized,display_name" +
   "), new_profile as (" +
     "insert into public.profiles(id,full_name,phone) select id,display_name,null from new_user " +
     "on conflict(id) do update set full_name=excluded.full_name returning id" +
@@ -2157,11 +2157,19 @@ app.post('/api/workspace/members/create', async (c) => {
     if (!created) return c.json({ message: 'حساب ساخته نشد؛ اطلاعات را بررسی و دوباره تلاش کن.' }, 500);
     return c.json({ member: created }, 201);
   } catch (error) {
-    const databaseError = error as { code?: string };
+    const databaseError = error as { code?: string; constraint?: string; column?: string; table?: string };
+    console.error('Member account provisioning failed', {
+      code: databaseError.code ?? 'unknown',
+      constraint: databaseError.constraint ?? null,
+      column: databaseError.column ?? null,
+      table: databaseError.table ?? null,
+    });
     if (databaseError.code === '23505') return c.json({ message: 'این نام کاربری قبلاً ثبت شده است.' }, 409);
     if (databaseError.code === '23514') return c.json({ message: 'یکی از فیلدها با محدودیت‌های حساب سازگار نیست؛ نام و نقش را بررسی کن.' }, 422);
     if (databaseError.code === '23503') return c.json({ message: 'حساب یا مجموعهٔ مرتبط معتبر نیست؛ فهرست را تازه‌سازی کن و دوباره تلاش کن.' }, 422);
-    console.error('Member account provisioning failed', { code: databaseError.code ?? 'unknown' });
+    if (databaseError.code === '23502' || databaseError.code === '42703' || databaseError.code === '42P01') {
+      return c.json({ message: 'ساخت حساب به‌دلیل ناهماهنگی ساختار پایگاه داده انجام نشد. مهاجرت‌های مدار باید دوباره بررسی و اعمال شوند؛ هیچ حساب ناقصی ساخته نشده است.' }, 500);
+    }
     return c.json({ message: 'ساخت حساب کامل نشد؛ هیچ حساب ناقصی ثبت نشده است. چند لحظه بعد دوباره تلاش کن.' }, 500);
   }
 });
