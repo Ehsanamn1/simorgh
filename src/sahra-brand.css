@@ -434,3 +434,50 @@ html[data-theme="dark"] .signin-no-signup b { color: #F3ECE6 !important; }
   .simorgh-signin-form-area { padding: 18px 14px max(24px, env(safe-area-inset-bottom)) !important; }
   .simorgh-signin-form-card { border-radius: 20px !important; padding: 22px !important; }
 }
+
+
+/* Dense operational tables, forms, and confirmation dialogs. */
+.ops-page { background: transparent !important; border: 0 !important; box-shadow: none !important; }
+.ops-page-heading h1 { color: var(--sahra-navy) !important; }
+.ops-page-heading p, .ops-muted { color: #686D70 !important; }
+.ops-eyebrow { color: var(--sahra-copper) !important; }
+.ops-table-frame { background: #FFFCF9 !important; border-color: var(--sahra-border) !important; box-shadow: var(--obs-shadow) !important; }
+.ops-table-top { background: #F8F2EC !important; border-bottom-color: var(--sahra-border) !important; }
+.ops-table-top b { color: var(--sahra-navy) !important; }
+.ops-table-top>div span { background: #F0E3D7 !important; color: var(--sahra-copper) !important; }
+.ops-table-scroll { max-width: 100%; overflow-x: auto; overscroll-behavior-inline: contain; }
+.ops-table { color: var(--sahra-ink) !important; }
+.ops-table th { background: #F0E9E2 !important; color: #5D6267 !important; border-color: var(--sahra-border) !important; }
+.ops-table td { background: #FFFCF9 !important; color: var(--sahra-ink) !important; border-color: #E7DFD7 !important; }
+.ops-table td b { color: var(--sahra-navy) !important; }
+.ops-table tbody tr:hover td { background: #F8F0E8 !important; }
+.ops-alert, .ops-cash-warning { background: #F6EADB !important; border-color: #E5CBAA !important; color: #78572F !important; }
+.ops-refresh { background: #FFFCF9 !important; border-color: var(--sahra-border) !important; color: var(--sahra-navy) !important; }
+.ops-empty { background: #F8F2EC !important; border-color: var(--sahra-border) !important; color: #686D70 !important; }
+.ops-empty-icon { background: #F0E3D7 !important; color: var(--sahra-copper) !important; }
+.ops-modal-backdrop { background: rgb(20 33 48 / 66%) !important; }
+.ops-modal { background: #FFFCF9 !important; border-color: var(--sahra-border) !important; color: var(--sahra-ink) !important; box-shadow: 0 24px 74px rgb(27 42 58 / 22%) !important; }
+.ops-modal>header { border-bottom-color: var(--sahra-border) !important; }
+.ops-modal h2, .ops-modal h3 { color: var(--sahra-navy) !important; }
+.ops-form label, .ops-field label { color: #5F666D !important; }
+.ops-form input, .ops-form select, .ops-form textarea,
+.ops-field input, .ops-field select, .ops-field textarea {
+  background: #FFFFFF !important; border-color: var(--sahra-border) !important; color: var(--sahra-ink) !important;
+}
+.ops-form input:focus, .ops-form select:focus, .ops-form textarea:focus,
+.ops-field input:focus, .ops-field select:focus, .ops-field textarea:focus {
+  border-color: var(--sahra-copper) !important; box-shadow: 0 0 0 3px rgb(143 111 82 / 13%) !important;
+}
+.ops-form-foot { border-top-color: var(--sahra-border) !important; color: #686D70 !important; }
+html[data-theme="dark"] .ops-page-heading h1 { color: #F3ECE6 !important; }
+html[data-theme="dark"] .ops-table-frame, html[data-theme="dark"] .ops-table td,
+html[data-theme="dark"] .ops-modal { background: #1B2A3A !important; border-color: #3A4B5C !important; color: #F3ECE6 !important; }
+html[data-theme="dark"] .ops-table-top, html[data-theme="dark"] .ops-table th { background: #223448 !important; border-color: #3A4B5C !important; color: #D3D7DA !important; }
+html[data-theme="dark"] .ops-table td { border-color: #3A4B5C !important; color: #E5E1DC !important; }
+html[data-theme="dark"] .ops-table tbody tr:hover td { background: #2B3C4E !important; }
+html[data-theme="dark"] .ops-modal h2, html[data-theme="dark"] .ops-modal h3 { color: #F3ECE6 !important; }
+html[data-theme="dark"] .ops-form input, html[data-theme="dark"] .ops-form select,
+html[data-theme="dark"] .ops-form textarea, html[data-theme="dark"] .ops-field input,
+html[data-theme="dark"] .ops-field select, html[data-theme="dark"] .ops-field textarea {
+  background: #142130 !important; border-color: #3A4B5C !important; color: #F3ECE6 !important;
+}
