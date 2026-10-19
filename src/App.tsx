@@ -161,7 +161,7 @@ function AppShell() {
       setProfileProvince(''); setProfileCity(''); setProfileAddress('');
     }
   }, [user?.id, user?.full_name, user?.phone, user?.username, memberships.length, membership?.id, membership?.role, membership?.supplier_id]);
-  useEffect(() => { if (user && memberships.length && !profileOpen) setGuideOpen(true); }, [location.pathname, user, memberships.length, profileOpen]);
+  useEffect(() => { if (user && memberships.length && !profileOpen) setGuideOpen(true); }, [user?.id, memberships.length, profileOpen]);
   const saveInitialProfile = async () => {
     setProfileBusy(true); setProfileError('');
     try {
