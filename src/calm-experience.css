@@ -2311,3 +2311,41 @@ html[data-theme="dark"] .guide-backdrop{background:transparent}
     max-height: min(68dvh, 620px) !important;
   }
 }
+
+
+/* Final responsive header layout: title row plus two equal-width help actions. */
+.medar-help-dialog .medar-help-heading {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  align-items: center !important;
+  gap: 4px !important;
+}
+.medar-help-dialog .medar-help-book-icon { order: 0 !important; }
+.medar-help-dialog .medar-help-heading-copy {
+  order: 1 !important;
+  flex: 1 1 calc(100% - 58px) !important;
+  min-width: 0 !important;
+}
+.medar-help-dialog .medar-help-close {
+  order: 2 !important;
+  margin-inline-start: auto !important;
+}
+.medar-help-dialog .medar-help-step-expand,
+.medar-help-dialog .medar-help-manual-toggle {
+  order: 3 !important;
+  flex: 1 1 calc(50% - 4px) !important;
+  min-width: 0 !important;
+  max-width: calc(50% - 2px) !important;
+  min-height: 24px !important;
+  margin-top: 3px !important;
+  white-space: nowrap !important;
+}
+.medar-help-dialog .medar-help-step-expand { order: 3 !important; }
+.medar-help-dialog .medar-help-manual-toggle { order: 4 !important; display: inline-flex !important; }
+.medar-help-dialog.show-global-manual .medar-help-heading-copy { flex-basis: calc(100% - 58px) !important; }
+@media (max-width: 900px) {
+  .medar-help-backdrop { width: min(205px, calc(100vw - 16px)) !important; }
+  .medar-help-dialog .medar-help-heading-copy h2 { font-size: 9px !important; }
+  .medar-help-dialog .medar-help-step-expand,
+  .medar-help-dialog .medar-help-manual-toggle { font-size: 8px !important; padding-inline: 3px !important; }
+}
