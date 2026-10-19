@@ -493,7 +493,7 @@ test('manager bottom navigation stays manager-specific on mobile and tablet', as
   await expect(page.locator('.tower-stats')).not.toContainText('مشتریان');
   await expect(page.locator('.topbar-home-link')).toHaveCount(1);
   await expect(page.getByRole('button', { name: 'خروج از حساب' })).toHaveCount(0);
-  const mobileNav = page.locator('.mobile-workspace-nav');
+  const mobileNav = page.locator('.mobile-workspace-nav:visible');
   if (viewportWidth <= 720) await expect(page.locator('.topbar-home-link')).toBeHidden();
   if (viewportWidth <= 860) {
     await expect(mobileNav).toBeVisible();
@@ -515,7 +515,7 @@ test('mobile navigation is role-specific and only mirrors permitted real routes'
   await page.goto('/simorgh/app/operational-tasks', { waitUntil: 'domcontentloaded' });
   await expect(page.getByRole('heading', { name: 'وظایف عملیاتی' })).toBeVisible();
 
-  const mobileNav = page.locator('.mobile-workspace-nav');
+  const mobileNav = page.locator('.mobile-workspace-nav:visible');
   if (viewportWidth <= 860) {
     await expect(mobileNav).toBeVisible();
     await expect(mobileNav.getByRole('link', { name: 'وظایف' })).toBeVisible();
@@ -557,7 +557,7 @@ test('driver lands in assigned shipments and does not get customer or manager na
   await expect(page.locator('#driver-shipments')).toBeVisible();
   await expect(page.locator('.role-ops, .role-ops-metrics, .role-ops-shortcuts')).toHaveCount(0);
   if (viewportWidth <= 860) {
-    const nav = page.locator('.mobile-workspace-nav');
+    const nav = page.locator('.mobile-workspace-nav:visible');
     await expect(nav).toBeVisible();
     for (const label of ['محموله‌ها', 'نقشه', 'مدرک']) {
       await expect(nav.getByRole('link', { name: label, exact: true })).toBeVisible();
@@ -567,7 +567,7 @@ test('driver lands in assigned shipments and does not get customer or manager na
     await expect(nav.getByRole('link', { name: 'خرید', exact: true })).toHaveCount(0);
     await expect(nav.getByRole('link', { name: 'وظایف', exact: true })).toHaveCount(0);
   } else {
-    await expect(page.locator('.mobile-workspace-nav')).toBeHidden();
+    await expect(page.locator('.mobile-workspace-nav:visible')).toBeHidden();
   }
   const dimensions = await page.evaluate(() => ({ viewport: innerWidth, document: document.documentElement.scrollWidth, body: document.body.scrollWidth }));
   expect(dimensions.document).toBeLessThanOrEqual(dimensions.viewport);
@@ -879,7 +879,7 @@ test('closing contextual help persists across navigation until explicitly reopen
   await expect(guide).toHaveCount(0);
 
   if (viewportWidth <= 860) {
-    const mobileHome = page.locator('.mobile-workspace-nav a').first();
+    const mobileHome = page.locator('.mobile-workspace-nav:visible a').first();
     await expect(mobileHome).toBeVisible();
     await mobileHome.click();
   } else {
