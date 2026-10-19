@@ -161,15 +161,14 @@ function AppShell() {
       setProfileProvince(''); setProfileCity(''); setProfileAddress('');
     }
   }, [user?.id, user?.full_name, user?.phone, user?.username, memberships.length, membership?.id, membership?.role, membership?.supplier_id]);
-  const guideRouteRef = useRef('');
+  const guideOpenedForUserRef = useRef<string | null>(null);
   useEffect(() => {
     if (!user || !memberships.length || profileOpen) return;
-    const route = location.pathname;
-    if (route !== guideRouteRef.current) {
-      guideRouteRef.current = route;
+    if (guideOpenedForUserRef.current !== user.id) {
+      guideOpenedForUserRef.current = user.id;
       setGuideOpen(true);
     }
-  }, [location.pathname, user?.id, memberships.length, profileOpen]);
+  }, [user?.id, memberships.length, profileOpen]);
   const saveInitialProfile = async () => {
     setProfileBusy(true); setProfileError('');
     try {

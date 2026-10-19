@@ -1424,3 +1424,76 @@ input, select, textarea { accent-color: #45784e; }
 .password-change-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:3px}
 .password-change-actions button{min-width:120px}
 .password-change-card .modal-heading p{max-width:360px;line-height:1.8}
+
+/* Actual HelpGuide component selectors (medar-help-*). Keep backdrop non-blocking. */
+.medar-help-backdrop {
+  position: fixed !important;
+  inset: auto auto max(12px, env(safe-area-inset-bottom)) 12px !important;
+  z-index: 90 !important;
+  display: block !important;
+  width: min(370px, calc(100vw - 24px)) !important;
+  height: auto !important;
+  max-height: min(72dvh, 640px) !important;
+  overflow: visible !important;
+  padding: 0 !important;
+  background: transparent !important;
+  pointer-events: none !important;
+  align-items: initial !important;
+  justify-content: initial !important;
+}
+.medar-help-dialog {
+  pointer-events: auto !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  max-height: min(72dvh, 640px) !important;
+  margin: 0 !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  overscroll-behavior: contain;
+  border-radius: 14px !important;
+  box-shadow: 0 12px 42px rgba(10, 35, 24, .24) !important;
+}
+.medar-help-heading {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 2 !important;
+  gap: 8px !important;
+}
+.medar-help-heading-copy { min-width: 0 !important; }
+.medar-help-heading-copy h2 { font-size: 14px !important; line-height: 1.45 !important; }
+.medar-help-heading-copy p { font-size: 10px !important; line-height: 1.6 !important; }
+.medar-help-step-expand, .medar-help-manual-toggle, .medar-help-close { flex: 0 0 auto !important; }
+.medar-help-global-manual { max-width: 100% !important; overflow-wrap: anywhere !important; }
+.medar-help-steps { padding-inline-start: 0 !important; }
+.nav-groups { gap: 2px !important; row-gap: 2px !important; }
+.nav-group { margin: 0 !important; padding: 0 !important; }
+.nav-group > summary { min-height: 30px !important; padding-block: 4px !important; }
+.nav-groups { gap: 2px !important; row-gap: 2px !important; }
+.nav-group { margin: 0 !important; padding: 0 !important; }
+.nav-group > summary { min-height: 30px !important; padding-block: 4px !important; }
+.nav-caption { padding: 13px 10px 6px !important; }
+.side-nav { gap: 3px !important; padding-bottom: 7px !important; }
+.side-nav a { height: 30px !important; min-height: 30px !important; padding-block: 0 !important; }
+@media (max-width: 640px) {
+  .medar-help-backdrop {
+    left: 10px !important;
+    right: auto !important;
+    bottom: max(10px, env(safe-area-inset-bottom)) !important;
+    width: min(340px, calc(100vw - 20px)) !important;
+    max-height: min(64dvh, 520px) !important;
+  }
+  .medar-help-dialog {
+    max-height: min(64dvh, 520px) !important;
+    border-radius: 12px !important;
+  }
+  .medar-help-heading { gap: 6px !important; padding: 10px !important; }
+  .medar-help-book-icon { width: 30px !important; height: 30px !important; flex: 0 0 30px !important; }
+  .medar-help-book-icon svg { width: 17px !important; height: 17px !important; }
+  .medar-help-heading-copy h2 { font-size: 12px !important; }
+  .medar-help-heading-copy .eyebrow { font-size: 8px !important; }
+  .medar-help-heading-copy p { font-size: 9px !important; }
+  .medar-help-step-expand, .medar-help-manual-toggle { font-size: 9px !important; padding: 5px 6px !important; white-space: nowrap !important; }
+  .medar-help-close { width: 28px !important; height: 28px !important; }
+  .medar-help-trust-note, .medar-help-mobile-tip, .medar-help-role-links, .medar-help-footer { margin-top: 8px !important; }
+  .medar-help-steps li { gap: 7px !important; padding: 8px !important; font-size: 10px !important; }
+}
