@@ -386,13 +386,7 @@ async function recordFailedLogin(c: Ctx, keys: string[]): Promise<void> {
   await sql.query("delete from public.medar_rate_limits where updated_at<now()-interval '1 day'");
 }
 
-async function recordSignupFailure(c: Ctx, key: string): Promise<void> {
-  try {
-    await recordFailedLogin(c, [key]);
-  } catch {
-    // A rate-limit storage failure must not mask the primary signup response.
-  }
-}
+
 
 export const CREATE_OWNER_WORKSPACE_SQL = `
 with new_user as (
