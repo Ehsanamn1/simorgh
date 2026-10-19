@@ -390,7 +390,7 @@ async function recordFailedLogin(c: Ctx, keys: string[]): Promise<void> {
 
 export const CREATE_OWNER_WORKSPACE_SQL = `
 with new_user as (
-  insert into public.medar_users(username,display_name,password_hash,requested_role,account_status)
+  insert into public.medar_users(username,username_normalized,display_name,password_hash,requested_role,account_status)
   values($1,$1,$2,'owner','active')
   returning id,username,username_normalized,display_name
 ), new_profile as (
@@ -2075,7 +2075,7 @@ app.post('/api/workspace/members/create', async (c) => {
   const role = typeof body.role === 'string' ? body.role : '';
   const customerId = typeof body.customerId === 'string' && body.customerId ? body.customerId : null;
   const supplierId = typeof body.supplierId === 'string' && body.supplierId ? body.supplierId : null;
-  const allowedRoles = ['admin', 'staff', 'supplier', 'driver'];
+  const allowedRoles = ['admin', 'staff', 'supplier', 'driver', 'customer'];
   if (!COMPANY_ID_RE.test(companyId) || !username || !allowedRoles.includes(role)) {
     return c.json({ message: 'شناسه مجموعه، نام کاربری یا نقش معتبر نیست.' }, 422);
   }
@@ -2117,7 +2117,7 @@ app.post('/api/workspace/members/create', async (c) => {
     const rows = await sql.query(
       "with new_user as (" +
         "insert into public.medar_users(username,display_name,password_hash,requested_role,account_status) " +
-        "values($1,$2,$3,$4,'active') returning id,username,username_normalized,display_name" +
+        "values($1,$1,$2,$3,$4,'active') returning id,username,username_normalized,display_name" +
       "), new_profile as (" +
         "insert into public.profiles(id,full_name,phone) select id,display_name,null from new_user " +
         "on conflict(id) do update set full_name=excluded.full_name returning id" +
