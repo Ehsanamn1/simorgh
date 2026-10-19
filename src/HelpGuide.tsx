@@ -72,7 +72,7 @@ export function HelpGuide({ role, section, onClose }: HelpGuideProps) {
     <section className={"guide-dialog"+(showManual?" show-global-manual":showAllSteps?" show-full-section-guide":"")} role="dialog" aria-modal="false" aria-labelledby="medar-guide-title" dir="rtl">
       <header className="guide-heading">
         <span className="guide-book-icon"><BookOpen size={23}/></span>
-        <div className="guide-heading-copy"><span className="eyebrow">راهنمای تعاملی مدار</span><h2 id="medar-guide-title">{section ? 'راهنمای بخش «'+(sectionNames[section] ?? 'فعلی')+'»' : 'راهنمای جامع مدیریت مدار'}</h2><p>مخصوص نقش «{roleNames[role ?? ''] ?? 'کاربر'}» · فارسی و راست‌چین</p></div>
+        <div className="guide-heading-copy"><span className="eyebrow">راهنمای تعاملی مدار</span><h2 id="medar-guide-title">{showManual ? 'راهنمای جامع مدیریت مدار' : 'راهنمای این بخش'}</h2><p className="guide-section-name">{sectionNames[section] ?? 'راهنمای جامع مدیریت مدار'}</p><p>مخصوص نقش «{roleNames[role ?? ''] ?? 'کاربر'}» · فارسی و راست‌چین</p></div>
         <button type="button" className="guide-manual-toggle" onClick={()=>setShowManual(value=>!value)}><BookOpen size={14}/>{showManual?"راهنمای بخش":"راهنمای کلی"}</button><button type="button" className="guide-close" onClick={onClose} aria-label="بستن راهنما"><X size={18}/></button>
       </header>
       <div className="guide-trust-note"><ShieldCheck size={19}/><p><b>قاعدهٔ اصلی</b><span>مدار ابزار ثبت و پیگیری عملیات واقعی است. هیچ ظرفیت، تحویل، موقعیت یا تأییدی را بدون داده و مدرک واقعی قطعی فرض نکن.</span></p></div>
