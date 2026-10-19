@@ -484,7 +484,7 @@ html[data-theme="dark"] .ops-field select, html[data-theme="dark"] .ops-field te
 
 
 /* Help/manual overlay and profile/connection utilities. */
-.medar-help-backdrop { background: rgb(20 33 48 / 66%) !important; backdrop-filter: blur(8px); }
+.medar-help-backdrop { background: transparent !important; backdrop-filter: none !important; }
 .medar-help-dialog {
   background: #FFFCF9 !important; border-color: var(--sahra-border) !important;
   color: var(--sahra-ink) !important; box-shadow: 0 24px 74px rgb(27 42 58 / 24%) !important;
