@@ -348,7 +348,7 @@ test('contextual help expands on mobile without escaping the viewport and can cl
   expect(compact!.y + compact!.height).toBeLessThan(844 - 60);
   await guide.getByRole('button', { name: 'راهنمای کامل' }).click();
   await expect(guide.locator('.medar-help-steps li:visible')).toHaveCount(5);
-  const expanded = await guide.boundingBox();
+  const expanded = await guide.locator('.medar-help-dialog').boundingBox();
   expect(expanded).not.toBeNull();
   expect(expanded!.x).toBeGreaterThanOrEqual(0);
   expect(expanded!.x + expanded!.width).toBeLessThanOrEqual(390);
