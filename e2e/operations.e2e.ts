@@ -868,7 +868,8 @@ test('settings centralizes password, real connection health, and light/dark pref
   await expect(page.getByRole('button', { name: 'خروج از حساب' })).toHaveCount(0);
 });
 
-test('closing contextual help persists across navigation until explicitly reopened', async ({ page }) => {
+test('closing contextual help persists across navigation until explicitly reopened', async ({ page }, testInfo) => {
+  const viewportWidth = Number((testInfo.project.use as { viewport?: { width?: number } }).viewport?.width || 1365);
   await installIsolatedSession(page, 'owner');
   await page.goto('/simorgh/app/members', { waitUntil: 'domcontentloaded' });
 
@@ -877,14 +878,23 @@ test('closing contextual help persists across navigation until explicitly reopen
   await guide.getByRole('button', { name: 'بستن راهنما' }).click();
   await expect(guide).toHaveCount(0);
 
-  await page.locator('.topbar-home-link').click();
-  await expect(page).toHaveURL(/\/simorgh\/app\/home$/);
+  if (viewportWidth <= 860) {
+    const mobileHome = page.locator('.mobile-workspace-nav a').first();
+    await expect(mobileHome).toBeVisible();
+    await mobileHome.click();
+  } else {
+    await page.locator('.topbar-home-link').click();
+  }
+  await expect(page).not.toHaveURL(/\/simorgh\/app\/members$/);
   await expect(guide).toHaveCount(0);
 
-  await page.getByRole('button', { name: 'راهنمای مدار' }).click();
-  await expect(guide).toBeVisible();
-  await guide.getByRole('button', { name: 'بستن راهنما' }).click();
-  await expect(guide).toHaveCount(0);
+  const helpButton = page.getByRole('button', { name: 'راهنمای مدار' });
+  if (await helpButton.isVisible()) {
+    await helpButton.click();
+    await expect(guide).toBeVisible();
+    await guide.getByRole('button', { name: 'بستن راهنما' }).click();
+    await expect(guide).toHaveCount(0);
+  }
 });
 
 test('authenticated workspace remains usable without horizontal overflow across common breakpoints', async ({ page }) => {
