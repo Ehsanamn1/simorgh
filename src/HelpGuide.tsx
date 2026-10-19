@@ -63,7 +63,7 @@ export function HelpGuide({ role, section, onClose }: HelpGuideProps) {
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose(); };
     window.addEventListener('keydown', handleKeyDown);
-    return () => { document.body.style.overflow = previousOverflow; window.removeEventListener('keydown', handleKeyDown); };
+    return () => { window.removeEventListener('keydown', handleKeyDown); };
   }, [onClose]);
   return <div className="guide-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}>
     <section className="guide-dialog" role="dialog" aria-modal="false" aria-labelledby="medar-guide-title" dir="rtl">
