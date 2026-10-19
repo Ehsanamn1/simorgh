@@ -49,7 +49,7 @@ const roleQuickLinks: Record<AppRole, QuickLink[]> = {
     { key: 'settings', title: 'پروفایل و تنظیمات', detail: 'اطلاعات حساب و رمز عبور', icon: ShieldCheck },
   ],
   driver: [
-    { key: 'driver-work', title: 'محموله‌های من', detail: 'تحویل، وضعیت و صحراک', icon: Truck },
+    { key: 'driver-work', title: 'محموله‌های من', detail: 'تحویل، وضعیت و مدارک', icon: Truck },
     { key: 'operational-tasks', title: 'وظایف من', detail: 'کارهای واگذارشده و موعدها', icon: ClipboardCheck },
     { key: 'connect', title: 'مرکز ارتباطات', detail: 'پیام‌های مدیر عملیات', icon: MessageCircle },
     { key: 'settings', title: 'پروفایل و تنظیمات', detail: 'اطلاعات حساب و رمز عبور', icon: ShieldCheck },
