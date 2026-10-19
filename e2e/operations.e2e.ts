@@ -266,51 +266,13 @@ test('generic farm types and daily rejected quantities are validated before writ
   await expect(page.locator('.ops-modal')).toBeVisible();
 });
 
-test('an existing account must join a workspace using an invitation code', async ({ page }) => {
+test('accounts without a workspace cannot self-join; the owner provisions access', async ({ page }) => {
   await installIsolatedSession(page, 'unprovisioned');
-  const inviteeUserId = '00000000-0000-4000-8000-000000000011';
-  let joined = false;
-  const user = {
-    id: inviteeUserId,
-    username: 'unprovisioned_test',
-    phone: '+989120000011',
-    full_name: 'کاربر بدون عضویت مدار',
-  };
-  const joinedMembership = {
-    id: '00000000-0000-4000-8000-000000000077',
-    company_id: companyId,
-    user_id: inviteeUserId,
-    role: 'staff',
-    customer_id: null,
-    supplier_id: null,
-    active: true,
-    company: { name: 'شرکت دعوت آزمایشی' },
-  };
-  await page.route('**/api/auth/me', route => route.fulfill({
-    status: 200,
-    contentType: 'application/json',
-    body: JSON.stringify({ user, memberships: joined ? [joinedMembership] : [] }),
-  }));
-  await page.route('**/api/workspace/join', async route => {
-    const payload = route.request().postDataJSON() as Record<string, unknown>;
-    expect(payload.inviteCode).toBe('a'.repeat(64));
-    joined = true;
-    await route.fulfill({
-      status: 201,
-      contentType: 'application/json',
-      body: JSON.stringify({ membership: joinedMembership, memberships: [joinedMembership] }),
-    });
-  });
-
   await page.goto('/simorgh/app/command', { waitUntil: 'domcontentloaded' });
-  await expect(page.locator('.access-request-card')).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'پیوستن به مجموعه' })).toBeVisible();
-  await expect(page.getByLabel('کد دعوت')).toBeVisible();
-  await page.getByLabel('کد دعوت').fill('a'.repeat(64));
-  await page.getByRole('button', { name: 'پیوستن به مجموعه' }).click();
-  await expect(page.locator('.app-frame')).toBeVisible();
-  expect(joined).toBe(true);
-  await expect(page.locator('.workspace-switch')).toContainText('شرکت دعوت آزمایشی');
+  await expect(page.locator('.waiting-screen')).toBeVisible();
+  await expect(page.getByText(/برای دریافت دسترسی/)).toBeVisible();
+  await expect(page.getByLabel('کد دعوت')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /پیوستن به مجموعه/ })).toHaveCount(0);
 });
 
 test('owner can create a supplier login and copy the one-time credentials', async ({ page }) => {
