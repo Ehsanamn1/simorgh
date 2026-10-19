@@ -604,6 +604,23 @@ jobs:
           ROLLBACK;
           SQL
           echo "Role matrix, blocked-task and failed-shipment exception automation, partner settlement calculation/authorization/approval/payment caps, bank-import idempotency, and ledger constraints passed."
+      - name: Smoke-test dedicated member account identity schema
+        env:
+          PGPASSWORD: medar_test_password
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql -h 127.0.0.1 -U postgres -d medar_test -v ON_ERROR_STOP=1 <<'SQL'
+          BEGIN;
+          INSERT INTO public.medar_users (
+            username, username_normalized, display_name, password_hash, requested_role, account_status
+          ) VALUES (
+            'ci_admin_account_smoke', 'ci_admin_account_smoke', 'CI Admin Account',
+            'ci-placeholder-hash', 'admin', 'active'
+          );
+          ROLLBACK;
+          SQL
+          echo "Dedicated member identity fields and owner-provisioned admin role accepted by the isolated PostgreSQL schema."
       - name: Verify PostgreSQL backup and restore on a disposable CI database
         env:
           PGPASSWORD: medar_test_password
