@@ -3,10 +3,6 @@ import { expect, test, type Page } from '@playwright/test';
 const companyId = '00000000-0000-4000-8000-000000000022';
 
 async function installIsolatedSession(page: Page, role: 'owner' | 'supplier' | 'driver' | 'customer' | 'unprovisioned') {
-  await page.addLocatorHandler(page.locator('.guide-dialog'), async guide => {
-    const close = guide.getByRole('button', { name: 'بستن راهنما' });
-    if (await close.isVisible().catch(() => false)) await close.click({ force: true });
-  });
   const userId = '00000000-0000-4000-8000-000000000011';
   const companyId = '00000000-0000-4000-8000-000000000022';
   const supplierId = '00000000-0000-4000-8000-000000000033';
