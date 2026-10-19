@@ -191,6 +191,7 @@ export function OperationsWorkspacePage({kind,membership,search}:{kind:Operation
   const [batchRejected,setBatchRejected]=useState('0');
   const [batchCompletion,setBatchCompletion]=useState<Row|null>(null);
   const [batchLotId,setBatchLotId]=useState('');
+  const [taskView,setTaskView]=useState<'active'|'completed'>('active');
 
   const load=async()=>{
     if(!dataApi){setError('اتصال API مدار در این build تنظیم نشده است.');setLoading(false);return;}
@@ -322,9 +323,12 @@ export function OperationsWorkspacePage({kind,membership,search}:{kind:Operation
 
   const filtered=useMemo(()=>{
     const q=search.trim().toLocaleLowerCase();
-    if(!q)return rows;
-    return rows.filter(r=>Object.values(r).some(v=>String(v??'').toLocaleLowerCase().includes(q)));
-  },[rows,search]);
+    const scoped=kind==='operational-tasks'
+      ? rows.filter(row=>taskView==='completed'?['approved','completed'].includes(String(row.status)):!['approved','completed'].includes(String(row.status)))
+      : rows;
+    if(!q)return scoped;
+    return scoped.filter(r=>Object.values(r).some(v=>String(v??'').toLocaleLowerCase().includes(q)));
+  },[rows,search,kind,taskView]);
 
   const assignDraft=(key:string,value:unknown)=>setDraft(old=>({...old,[key]:value}));
   const closeForm=()=>{setOpenForm(false);setDraft({});};
@@ -645,6 +649,7 @@ export function OperationsWorkspacePage({kind,membership,search}:{kind:Operation
     {kind==='partnership-agreements'&&<div className="ops-cash-warning"><FileCheck2 size={18}/><div><b>قرارداد نسخه‌دار</b><p>فعال‌سازی اولیه نیازمند سند امضا در فضای خصوصی است. شروط قرارداد فعال را تغییر ندهید؛ برای اصلاح، نسخه جدید ثبت کنید.</p></div></div>}
     {error&&<div className="ops-alert error"><AlertTriangle size={17}/><span>{error}</span><button onClick={()=>setError('')} aria-label="بستن خطا"><X size={14}/></button></div>}
     {notice&&<div className="ops-alert success"><CheckCircle2 size={17}/><span>{notice}</span><button onClick={()=>setNotice('')} aria-label="بستن پیام"><X size={14}/></button></div>}
+    {kind==='operational-tasks'&&<div className="ops-task-view-switch" role="group" aria-label="فیلتر وضعیت وظایف"><button type="button" className={taskView==='active'?'active':''} aria-pressed={taskView==='active'} onClick={()=>setTaskView('active')}>کارهای فعال <span>{numberFa(rows.filter(row=>!['approved','completed'].includes(String(row.status))).length)}</span></button><button type="button" className={taskView==='completed'?'active':''} aria-pressed={taskView==='completed'} onClick={()=>setTaskView('completed')}>تکمیل‌شده‌ها <span>{numberFa(rows.filter(row=>['approved','completed'].includes(String(row.status))).length)}</span></button></div>}
     <div className="ops-table-frame">
       <div className="ops-table-top"><div><b>{cfg.title}</b><span>{numberFa(filtered.length)} رکورد</span></div><small>فقط داده‌های مجاز و واقعی نمایش داده می‌شوند.</small></div>
       {loading?<div className="ops-loading"><span className="spinner small"/>در حال دریافت اطلاعات…</div>
