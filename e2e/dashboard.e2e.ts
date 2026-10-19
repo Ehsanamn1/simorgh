@@ -51,3 +51,24 @@ test('secure entry remains usable on desktop and mobile with no horizontal overf
   }
   expect(errors).toEqual([]);
 });
+
+test('secure entry stays within the viewport at narrow and tablet breakpoints', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await page.goto('/simorgh/app/command', { waitUntil: 'domcontentloaded' });
+
+  for (const width of [320, 360, 375, 414, 640, 768, 1024, 1365]) {
+    await page.setViewportSize({ width, height: 900 });
+    await expect(page.locator('.simorgh-signin-layer')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'ورود به مدار' })).toBeVisible();
+    const dimensions = await page.evaluate(() => ({
+      viewport: document.documentElement.clientWidth,
+      document: document.documentElement.scrollWidth,
+      body: document.body.scrollWidth,
+    }));
+    expect(dimensions.document, `document overflow at ${width}px`).toBeLessThanOrEqual(dimensions.viewport);
+    expect(dimensions.body, `body overflow at ${width}px`).toBeLessThanOrEqual(dimensions.viewport);
+  }
+
+  expect(errors).toEqual([]);
+});
