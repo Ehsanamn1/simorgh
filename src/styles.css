@@ -1468,9 +1468,6 @@ input, select, textarea { accent-color: #45784e; }
 .nav-groups { gap: 2px !important; row-gap: 2px !important; }
 .nav-group { margin: 0 !important; padding: 0 !important; }
 .nav-group > summary { min-height: 30px !important; padding-block: 4px !important; }
-.nav-groups { gap: 2px !important; row-gap: 2px !important; }
-.nav-group { margin: 0 !important; padding: 0 !important; }
-.nav-group > summary { min-height: 30px !important; padding-block: 4px !important; }
 .nav-caption { padding: 13px 10px 6px !important; }
 .side-nav { gap: 3px !important; padding-bottom: 7px !important; }
 .side-nav a { height: 30px !important; min-height: 30px !important; padding-block: 0 !important; }
