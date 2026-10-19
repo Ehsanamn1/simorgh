@@ -358,3 +358,79 @@ html[data-theme="dark"] .demo-quick-action>b, html[data-theme="dark"] .demo-quic
 html[data-theme="dark"] .demo-table th { background: #223448 !important; color: #D3D7DA !important; }
 html[data-theme="dark"] .demo-table td { background: #1B2A3A !important; color: #E5E1DC !important; border-color: #3A4B5C !important; }
 html[data-theme="dark"] .demo-preview-notice { background: #2B3C4E !important; border-color: #536678 !important; color: #F3ECE6 !important; }
+
+
+/* Welcome/login: mirror the reference's calm cream form surface and navy brand field. */
+.simorgh-signin-layer { background: var(--sahra-cream) !important; color: var(--sahra-ink) !important; }
+.simorgh-signin-brand {
+  background: radial-gradient(ellipse at 12% 80%, rgb(181 138 104 / 15%), transparent 38%), linear-gradient(155deg, #24374A, #142130 76%) !important;
+  color: #F3ECE6 !important;
+}
+.simorgh-signin-mark, .signin-form-icon {
+  background: #2B3C4E !important;
+  border-color: #8F6F52 !important;
+  color: #D1B49B !important;
+}
+.simorgh-signin-brand-top strong, .simorgh-signin-story h1 { color: #F3ECE6 !important; }
+.simorgh-signin-brand-top small, .simorgh-signin-story p, .signin-brand-foot { color: #D0D5D9 !important; }
+.signin-overline { color: #D1B49B !important; }
+.simorgh-signin-form-area { background: var(--sahra-cream) !important; }
+.simorgh-signin-form-card {
+  background: #FFFCF9 !important;
+  border-color: var(--sahra-border) !important;
+  box-shadow: 0 18px 48px rgb(27 42 58 / 12%) !important;
+}
+.simorgh-signin-form-card h2 { color: var(--sahra-navy) !important; }
+.simorgh-signin-form-card>p, .simorgh-signin-form>label, .access-request-form>label { color: #686D70 !important; }
+.simorgh-signin-form-card .signin-form-logo .brand-symbol {
+  background: var(--sahra-navy) !important;
+  border-color: var(--sahra-copper) !important;
+  color: var(--sahra-cream) !important;
+}
+.simorgh-signin-form-card .brand-words b { color: var(--sahra-navy) !important; }
+.simorgh-signin-form-card .brand-words small { color: var(--sahra-copper) !important; }
+.auth-mode-tabs { background: #F0E9E2 !important; border-color: var(--sahra-border) !important; }
+.auth-mode-tabs button { color: #686D70 !important; }
+.auth-mode-tabs button.active { background: #FFFFFF !important; border-color: #D9C0AA !important; color: var(--sahra-navy) !important; }
+.auth-input, .simorgh-signin-form input, .simorgh-signin-form select,
+.access-request-form input, .access-request-form select {
+  background: #FFFFFF !important;
+  color: var(--sahra-ink) !important;
+  border-color: var(--sahra-border) !important;
+}
+.auth-input:focus, .simorgh-signin-form input:focus, .simorgh-signin-form select:focus,
+.access-request-form input:focus, .access-request-form select:focus {
+  border-color: var(--sahra-copper) !important;
+  box-shadow: 0 0 0 3px rgb(143 111 82 / 13%) !important;
+}
+.signin-submit { background: var(--sahra-copper) !important; border-color: var(--sahra-copper) !important; color: #FFFFFF !important; }
+.signin-submit:hover:not(:disabled) { background: #785B43 !important; border-color: #785B43 !important; }
+.signin-spinner { border-color: rgb(255 255 255 / 35%) !important; border-top-color: #FFFFFF !important; }
+.auth-text-action { color: var(--sahra-copper) !important; }
+.auth-feedback.error { color: #9D4841 !important; background: #F7E6E3 !important; border-color: #E2BDB8 !important; }
+.auth-feedback.success { color: #356A52 !important; background: #E4F0E9 !important; border-color: #BDD8C7 !important; }
+.signin-no-signup { color: #686D70 !important; border-color: var(--sahra-border) !important; }
+.signin-no-signup b { color: var(--sahra-navy) !important; }
+html[data-theme="dark"] .simorgh-signin-layer { background: #142130 !important; color: #F3ECE6 !important; }
+html[data-theme="dark"] .simorgh-signin-form-area { background: #142130 !important; }
+html[data-theme="dark"] .simorgh-signin-form-card { background: #1B2A3A !important; border-color: #3A4B5C !important; }
+html[data-theme="dark"] .simorgh-signin-form-card h2 { color: #F3ECE6 !important; }
+html[data-theme="dark"] .simorgh-signin-form-card>p,
+html[data-theme="dark"] .simorgh-signin-form>label,
+html[data-theme="dark"] .access-request-form>label,
+html[data-theme="dark"] .signin-no-signup { color: #C1C4C6 !important; }
+html[data-theme="dark"] .auth-mode-tabs { background: #142130 !important; border-color: #3A4B5C !important; }
+html[data-theme="dark"] .auth-mode-tabs button.active { background: #35495D !important; border-color: #536678 !important; color: #F3ECE6 !important; }
+html[data-theme="dark"] .auth-input, html[data-theme="dark"] .simorgh-signin-form input,
+html[data-theme="dark"] .simorgh-signin-form select, html[data-theme="dark"] .access-request-form input,
+html[data-theme="dark"] .access-request-form select { background: #142130 !important; color: #F3ECE6 !important; border-color: #3A4B5C !important; }
+html[data-theme="dark"] .simorgh-signin-form-card .brand-words b { color: #F3ECE6 !important; }
+html[data-theme="dark"] .signin-no-signup b { color: #F3ECE6 !important; }
+@media (max-width: 860px) {
+  .simorgh-signin-layer { grid-template-columns: minmax(0,1fr) !important; }
+  .simorgh-signin-brand { min-height: 180px !important; padding: 20px 22px !important; }
+  .simorgh-signin-story { padding-block: 22px !important; margin-block: 0 !important; }
+  .simorgh-signin-story h1 { font-size: clamp(28px, 8vw, 42px) !important; margin-block: 8px !important; }
+  .simorgh-signin-form-area { padding: 18px 14px max(24px, env(safe-area-inset-bottom)) !important; }
+  .simorgh-signin-form-card { border-radius: 20px !important; padding: 22px !important; }
+}
