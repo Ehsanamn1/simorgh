@@ -142,14 +142,23 @@ function AppShell() {
   const role = membership?.role;
   useEffect(() => { if (membership && membershipId !== membership.id) setMembershipId(membership.id); }, [membership?.id, membershipId]);
   useEffect(() => {
-    if (!user || !memberships.length) return;
+    if (!user || !memberships.length) {
+      setProfileOpen(false);
+      setProfileFirstName(''); setProfileLastName(''); setProfilePhone('');
+      setProfileProvince(''); setProfileCity(''); setProfileAddress('');
+      return;
+    }
     const name = user.full_name.trim();
     const incomplete = !user.phone.trim() || !name || name.toLocaleLowerCase('en') === user.username.toLocaleLowerCase('en') || (membership?.role === 'supplier' && !membership.supplier_id);
     if (incomplete) {
       setProfileFirstName(name && name !== user.username ? name.split(/\s+/)[0] : '');
       setProfileLastName(name && name !== user.username ? name.split(/\s+/).slice(1).join(' ') : '');
       setProfilePhone(user.phone || '');
+      setProfileProvince(''); setProfileCity(''); setProfileAddress('');
       setProfileOpen(true);
+    } else {
+      setProfileOpen(false);
+      setProfileProvince(''); setProfileCity(''); setProfileAddress('');
     }
   }, [user?.id, user?.full_name, user?.phone, user?.username, memberships.length, membership?.id, membership?.role, membership?.supplier_id]);
   useEffect(() => { if (user && memberships.length && !profileOpen) setGuideOpen(true); }, [location.pathname, user, memberships.length, profileOpen]);
