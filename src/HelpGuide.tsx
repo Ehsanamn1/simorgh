@@ -15,7 +15,7 @@ const sectionNames: Record<string, string> = {
   'operational-tasks': 'وظایف و مأموریت‌ها', shipments: 'حمل‌ونقل',
   'driver-work': 'محموله‌های من', 'daily-production': 'ثبت روزانه تولید',
   'farm-sites': 'موقعیت‌های کاری', settings: 'تنظیمات', quality: 'کنترل کیفیت',
-  inventory: 'موجودی', audit: 'تاریخچه تغییرات',
+  inventory: 'موجودی', audit: 'تاریخچه تغییرات', 'flock-cycles': 'چرخه‌های کشت و پرورش', 'production-batches': 'بچ‌های تولید', 'task-templates': 'دستورالعمل‌های کاری', incidents: 'رخدادها و مغایرت‌ها', 'supplier-settlements': 'تسویه‌های من', 'partner-settlements': 'تسویه‌های مشارکت',
 };
 function sectionSteps(section?: string, role?: AppRole): string[] {
   const common: Record<string, string[]> = {
