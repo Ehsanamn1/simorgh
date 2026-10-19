@@ -60,7 +60,7 @@ test('manager workspace retains operations and captures a real rendered control-
   await expect(page.getByRole('heading', { name: /سلام مالک آزمایشی مدار/ })).toBeVisible();
   await expect(page.locator('.workspace-home-hero')).toContainText('کنترل امروز کسب‌وکار');
   await expect(page.getByRole('heading', { name: 'بخش‌های پرکاربرد شما' })).toBeVisible();
-  await expect(page.locator('.workspace-home-link')).toHaveCount(5);
+  await expect(page.locator('.workspace-home-link')).toHaveCount(6);
   await expect(page.locator('.workspace-home-link').filter({ hasText: 'شبکه تأمین‌کنندگان' })).toBeVisible();
   await expect(page.locator('.workspace-home-link').filter({ hasText: 'دسترسی کاربران' })).toBeVisible();
   await expect(page.locator('.workspace-home-link').filter({ hasText: 'مرکز ارتباطات' })).toBeVisible();
@@ -346,33 +346,20 @@ test('owner can create a supplier login and copy the one-time credentials', asyn
   await page.getByLabel('نام و نام خانوادگی').fill('تأمین‌کننده محلی');
   await page.getByLabel('نام کاربری').fill('supplier_local');
   await page.getByLabel('رمز عبور اولیه').fill('Local-Supplier-2026!');
-  await page.getByLabel('حساب تأمین‌کننده').selectOption(supplierId);
+  await page.getByLabel('پرونده تأمین‌کننده (اختیاری)').selectOption(supplierId);
   await page.getByRole('button', { name: 'ساخت حساب و نمایش اطلاعات ورود' }).click();
   await expect(page.locator('.invite-code-panel')).toContainText('@supplier_local : Local-Supplier-2026!');
   await expect(page.getByRole('button', { name: 'کپی اطلاعات' })).toBeVisible();
   expect(submitted?.role).toBe('supplier');
 });
 
-test('owner can generate a shareable invitation link for a new supplier or driver', async ({ page }) => {
+test('owner access panel uses direct account creation without invitation codes', async ({ page }) => {
   await installIsolatedSession(page, 'owner');
-  const code = 'a'.repeat(64);
-  await page.route('**/api/workspace/members?*', route => route.fulfill({
-    status: 200, contentType: 'application/json', body: JSON.stringify({ members: [] }),
-  }));
-  await page.route('**/api/workspace/invites', async route => {
-    expect(route.request().method()).toBe('POST');
-    expect(route.request().postDataJSON()).toMatchObject({ companyId, role: 'staff', customerId: null, supplierId: null });
-    await route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ inviteCode: code, inviteId: '00000000-0000-4000-8000-000000000079', expiresAt: '2026-10-26T00:00:00.000Z' }) });
-  });
+  await page.route('**/api/workspace/members?*', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ members: [] }) }));
   await page.goto('/simorgh/app/members', { waitUntil: 'domcontentloaded' });
-  await page.getByRole('button', { name: 'کد دعوت' }).click();
-  await page.getByRole('button', { name: 'ساخت کد دعوت' }).click();
-  const link = page.locator('.invite-code-panel .invite-code-value');
-  await expect(link).toContainText('/simorgh/app/home?invite=' + code + '#signup');
-  await expect(page.getByRole('button', { name: 'کپی لینک' })).toBeVisible();
-  const inviteUrl = (await link.innerText()).trim();
-  expect(inviteUrl).toMatch(/^https?:\/\//);
-  expect(inviteUrl).toContain('/simorgh/app/home?invite=' + code + '#signup');
+  await expect(page.getByRole('button', { name: /ساخت حساب جدید/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'کد دعوت' })).toHaveCount(0);
+  await expect(page.locator('.invite-code-panel')).toHaveCount(0);
 });
 
 test('supplier directory remains readable from cache when offline', async ({ page }) => {
@@ -417,7 +404,7 @@ test('supplier workspace keeps manager-only routes out of the allowed menu', asy
   }
   await expect(page.getByRole('heading', { name: /سلام تأمین‌کننده آزمایشی مدار/ })).toBeVisible();
   await expect(page.locator('.workspace-home-hero')).toContainText('برنامه‌ی امروز تأمین‌کننده');
-  await expect(page.locator('.workspace-home-link')).toHaveCount(5);
+  await expect(page.locator('.workspace-home-link')).toHaveCount(6);
   expect(await page.locator('.workspace-home-action').count()).toBeLessThanOrEqual(5);
   await page.screenshot({ path: testInfo.outputPath('supplier-role-home-viewport.png') });
   await page.screenshot({ path: testInfo.outputPath('supplier-role-home.png'), fullPage: true });
