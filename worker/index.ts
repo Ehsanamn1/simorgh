@@ -3340,6 +3340,19 @@ const PRIVATE_BUCKET_RULES:Record<string,{maxBytes:number;contentTypes:Set<strin
  'contract-documents':{maxBytes:20*1024*1024,contentTypes:new Set(['application/pdf','image/jpeg','image/png'])},
  'capacity-evidence':{maxBytes:10*1024*1024,contentTypes:new Set(['application/pdf','image/jpeg','image/png','image/webp'])}
 };
+export function encodePrivateBytes(bytes: Uint8Array): string {
+  let binary = '';
+  for (let offset = 0; offset < bytes.length; offset += 0x4000) {
+    binary += String.fromCharCode(...bytes.subarray(offset, Math.min(offset + 0x4000, bytes.length)));
+  }
+  return btoa(binary);
+}
+export function decodePrivateBytes(encoded: string): Uint8Array {
+  const binary = atob(encoded);
+  const bytes = new Uint8Array(binary.length);
+  for (let offset = 0; offset < binary.length; offset += 1) bytes[offset] = binary.charCodeAt(offset);
+  return bytes;
+}
 function normalizePrivatePath(value:string):string|null{
  const parts=value.split('/');
  if(parts.length<3||parts.length>8||parts.some(p=>!p||p==='.'||p==='..'||p.includes('\\')||p.includes('\0')))return null;
@@ -3402,7 +3415,6 @@ async function canAccessPrivateFile(c: Ctx, userId: string, bucket: string, path
 
 app.put('/api/storage/:bucket',async c=>{
  const user=await requireUser(c);if(user instanceof Response)return user;
- if(!c.env.FILE_STORE)return c.json({message:'فضای فایل خصوصی Cloudflare R2 هنوز پیکربندی نشده است.'},503);
  const bucket=c.req.param('bucket'),rules=PRIVATE_BUCKET_RULES[bucket];if(!rules)return c.json({message:'مخزن فایل مجاز نیست.'},404);
  const path=normalizePrivatePath(c.req.query('path')??'');if(!path)return c.json({message:'مسیر فایل معتبر نیست.'},422);
  const companyId=path.split('/')[0],role=await memberRoleForCompany(c,user.id,companyId);
@@ -3412,36 +3424,56 @@ app.put('/api/storage/:bucket',async c=>{
  if(!(await canAccessPrivateFile(c,user.id,bucket,path,'write')))return c.json({message:'نقش فعلی اجازه بارگذاری این مدرک در این مسیر را ندارد.'},403);
  const contentType=(c.req.header('content-type')??'application/octet-stream').split(';')[0].trim().toLowerCase();
  if(!rules.contentTypes.has(contentType))return c.json({message:'نوع فایل پشتیبانی نمی‌شود.'},415);
- const len=Number(c.req.header('content-length')??0);if(len>rules.maxBytes)return c.json({message:'حجم فایل از محدودیت مخزن بیشتر است.'},413);
- const bytes=await c.req.arrayBuffer();if(bytes.byteLength>rules.maxBytes)return c.json({message:'حجم فایل از محدودیت مخزن بیشتر است.'},413);
+ const effectiveMaxBytes=c.env.FILE_STORE?rules.maxBytes:Math.min(rules.maxBytes,10*1024*1024);
+ const sizeError=c.env.FILE_STORE?'حجم فایل از محدودیت مخزن بیشتر است.':'بدون R2، سقف ذخیره‌سازی خصوصی دیتابیس ۱۰ مگابایت برای هر فایل است.';
+ const len=Number(c.req.header('content-length')??0);if(len>effectiveMaxBytes)return c.json({message:sizeError},413);
+ const bytes=await c.req.arrayBuffer();if(bytes.byteLength>effectiveMaxBytes)return c.json({message:sizeError},413);
  const existing=await runForUser(c,user.id,'select id from public.medar_files where bucket_id=$1 and name=$2 limit 1',[bucket,path]);
  if(existing.length&&c.req.header('x-upsert')!=='true')return c.json({message:'فایلی با این مسیر قبلاً وجود دارد.'},409);
+ const key=bucket+'/'+path;
+ const contentBase64=c.env.FILE_STORE?null:encodePrivateBytes(new Uint8Array(bytes));
  try{
-  await c.env.FILE_STORE.put(bucket+'/'+path,bytes,{httpMetadata:{contentType}});
-  const metadata=await runForUser(c,user.id,'insert into public.medar_files(bucket_id,name,company_id,content_type,size_bytes,uploaded_by) values($1,$2,$3::uuid,$4,$5,$6::uuid) on conflict(bucket_id,name) do update set content_type=excluded.content_type,size_bytes=excluded.size_bytes,uploaded_by=excluded.uploaded_by returning id',[bucket,path,companyId,contentType,bytes.byteLength,user.id]);
-  if(!metadata.length){await c.env.FILE_STORE.delete(bucket+'/'+path);return c.json({message:'قواعد دسترسی بارگذاری این مدرک را مجاز نمی‌دانند.'},403);}
-  return c.json({data:{path,bucket,size:bytes.byteLength,contentType},error:null},201);
- }catch{return c.json({message:'ذخیره فایل یا ثبت مشخصات آن ناموفق بود.'},400);}
+  if(c.env.FILE_STORE)await c.env.FILE_STORE.put(key,bytes,{httpMetadata:{contentType}});
+  const metadata=await runForUser(c,user.id,'insert into public.medar_files(bucket_id,name,company_id,content_type,size_bytes,uploaded_by,content_base64) values($1,$2,$3::uuid,$4,$5,$6::uuid,$7) on conflict(bucket_id,name) do update set content_type=excluded.content_type,size_bytes=excluded.size_bytes,uploaded_by=excluded.uploaded_by,content_base64=excluded.content_base64 returning id',[bucket,path,companyId,contentType,bytes.byteLength,user.id,contentBase64]);
+  if(!metadata.length){if(c.env.FILE_STORE)await c.env.FILE_STORE.delete(key);return c.json({message:'قواعد دسترسی بارگذاری این مدرک را مجاز نمی‌دانند.'},403);}
+  return c.json({data:{path,bucket,size:bytes.byteLength,contentType,storage:c.env.FILE_STORE?'r2-private':'database-private'},error:null},201);
+ }catch{
+  if(c.env.FILE_STORE){
+   try{await c.env.FILE_STORE.delete(key);}
+   catch{return c.json({message:'ذخیره فایل ناموفق بود و پاک‌سازی فایل موقت هم انجام نشد.'},500);}
+  }
+  return c.json({message:'ذخیره فایل یا ثبت مشخصات آن ناموفق بود.'},400);
+ }
 });
 app.get('/api/storage/:bucket',async c=>{
  const user=await requireUser(c);if(user instanceof Response)return user;
- if(!c.env.FILE_STORE)return c.json({message:'فضای فایل خصوصی Cloudflare R2 هنوز پیکربندی نشده است.'},503);
  const bucket=c.req.param('bucket');if(!PRIVATE_BUCKET_RULES[bucket])return c.json({message:'مخزن فایل مجاز نیست.'},404);
  const path=normalizePrivatePath(c.req.query('path')??'');if(!path)return c.json({message:'مسیر فایل معتبر نیست.'},422);
  const companyId=path.split('/')[0];
  const moduleKey = bucket === 'delivery-evidence' ? 'shipments' : bucket === 'contract-documents' ? 'suppliers' : bucket === 'capacity-evidence' ? 'capacity' : 'operational-tasks';
  if(!(await userHasModulePermission(c,user.id,companyId,moduleKey,'can_read')))return c.json({message:'فایل پیدا نشد یا دسترسی به آن مجاز نیست.'},404);
  if(!(await canAccessPrivateFile(c,user.id,bucket,path,'read')))return c.json({message:'فایل پیدا نشد یا دسترسی به آن مجاز نیست.'},404);
- const meta=await runForUser(c,user.id,'select content_type from public.medar_files where bucket_id=$1 and name=$2 limit 1',[bucket,path]);
+ const meta=await runForUser(c,user.id,'select content_type,content_base64 from public.medar_files where bucket_id=$1 and name=$2 limit 1',[bucket,path]);
  if(!meta.length)return c.json({message:'فایل پیدا نشد یا دسترسی به آن مجاز نیست.'},404);
- const object=await c.env.FILE_STORE.get(bucket+'/'+path);if(!object)return c.json({message:'فایل در فضای ذخیره‌سازی پیدا نشد.'},404);
- const headers=new Headers();object.writeHttpMetadata(headers);headers.set('Content-Type',String(meta[0].content_type??object.httpMetadata?.contentType??'application/octet-stream'));
+ const row=meta[0] as {content_type?:string;content_base64?:string|null};
+ const headers=new Headers();headers.set('Content-Type',String(row.content_type??'application/octet-stream'));
  headers.set('Cache-Control','private, no-store');headers.set('X-Content-Type-Options','nosniff');headers.set('Content-Security-Policy',"default-src 'none'; sandbox");
- return new Response(object.body,{status:200,headers});
+ if(c.env.FILE_STORE){
+  const object=await c.env.FILE_STORE.get(bucket+'/'+path);
+  if(object){object.writeHttpMetadata(headers);headers.set('Content-Type',String(row.content_type??object.httpMetadata?.contentType??'application/octet-stream'));return new Response(object.body,{status:200,headers});}
+ }
+ if(typeof row.content_base64==='string'&&row.content_base64.length){
+  try{
+   const decoded=decodePrivateBytes(row.content_base64);
+   const body=new ArrayBuffer(decoded.byteLength);
+   new Uint8Array(body).set(decoded);
+   return new Response(body,{status:200,headers});
+  }catch{return c.json({message:'محتوای فایل خصوصی قابل بازیابی نیست.'},500);}
+ }
+ return c.json({message:'فایل در فضای ذخیره‌سازی پیدا نشد.'},404);
 });
 app.post('/api/storage/:bucket/remove',async c=>{
  const user=await requireUser(c);if(user instanceof Response)return user;
- if(!c.env.FILE_STORE)return c.json({message:'فضای فایل خصوصی Cloudflare R2 هنوز پیکربندی نشده است.'},503);
  const bucket=c.req.param('bucket');if(!PRIVATE_BUCKET_RULES[bucket])return c.json({message:'مخزن فایل مجاز نیست.'},404);
  const body=await c.req.json<{paths?:unknown}>().catch(()=>null);
  if(!Array.isArray(body?.paths)||body.paths.length<1||body.paths.length>50)return c.json({message:'فهرست فایل‌ها معتبر نیست.'},422);
@@ -3458,14 +3490,12 @@ app.post('/api/storage/:bucket/remove',async c=>{
    if(await userHasModulePermission(c,user.id,companyId,moduleKey,'can_delete') && await canAccessPrivateFile(c,user.id,bucket,candidate,'delete'))names.push(candidate);
   }
   if(!names.length)return c.json({data:[],error:null});
-  await c.env.FILE_STORE.delete(names.map(name=>bucket+'/'+name));
+  if(c.env.FILE_STORE)await c.env.FILE_STORE.delete(names.map(name=>bucket+'/'+name));
   const deleteParams:unknown[]=[bucket],deleteMarks=names.map(name=>{deleteParams.push(name);return '$'+deleteParams.length;});
   await runForUser(c,user.id,'delete from public.medar_files where bucket_id=$1 and name in ('+deleteMarks.join(',')+') returning id',deleteParams);
   return c.json({data:names.map(name=>({name})),error:null});
  }catch{return c.json({message:'حذف فایل یا مشخصات آن ناموفق بود.'},400);}
 });
-
-
 
 
 const OPERATIONAL_EVENT_SOURCES: Record<string, string> = {

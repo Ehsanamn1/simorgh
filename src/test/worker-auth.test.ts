@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildMembershipScopeSql, canTransitionMedarStatus, normalizeUsername, resolveRpcArguments, sanitizeExternalRows } from '../../worker/index';
+import { buildMembershipScopeSql, canTransitionMedarStatus, decodePrivateBytes, encodePrivateBytes, normalizeUsername, resolveRpcArguments, sanitizeExternalRows } from '../../worker/index';
 
 describe('Worker username/password input validation', () => {
   it('canonicalizes usernames and rejects malformed or ambiguous values', () => {
@@ -154,5 +154,19 @@ describe('Medar operational state transitions', () => {
     expect(canTransitionMedarStatus('settlements', 'approved', 'paid')).toBe(true);
     expect(canTransitionMedarStatus('settlements', 'pending', 'paid')).toBe(false);
     expect(canTransitionMedarStatus('settlements', 'paid', 'disputed')).toBe(false);
+  });
+});
+
+
+describe('Private evidence byte encoding', () => {
+  it('round-trips binary bytes including null and high-byte values', () => {
+    const original = Uint8Array.from([0, 1, 2, 10, 127, 128, 200, 254, 255]);
+    expect(Array.from(decodePrivateBytes(encodePrivateBytes(original)))).toEqual(Array.from(original));
+  });
+
+  it('round-trips data across the base64 encoder chunk boundary', () => {
+    const original = new Uint8Array(32771);
+    for (let index = 0; index < original.length; index += 1) original[index] = (index * 37) % 256;
+    expect(Array.from(decodePrivateBytes(encodePrivateBytes(original)))).toEqual(Array.from(original));
   });
 });
