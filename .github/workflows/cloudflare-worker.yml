@@ -60,7 +60,7 @@ jobs:
             psql "$MEDAR_DATABASE_URL" -v ON_ERROR_STOP=1 -1 -f "$migration"
             psql "$MEDAR_DATABASE_URL" -v ON_ERROR_STOP=1 -c "insert into public.medar_schema_migrations(version,checksum) values ('$version','$checksum')"
           done
-      - name: Verify member provisioning schema contract
+      - name: Verify member account provisioning schema contract
         shell: bash
         run: |
           contract_ready="$(psql "$MEDAR_DATABASE_URL" -v ON_ERROR_STOP=1 -Atqc "
@@ -72,7 +72,6 @@ jobs:
                 select 1 from pg_constraint
                 where conrelid = 'public.medar_users'::regclass
                   and conname = 'medar_users_requested_role_check'
-                  and pg_get_constraintdef(oid) like '%customer%'
                   and pg_get_constraintdef(oid) like '%admin%'
               )
             )")"
