@@ -481,3 +481,41 @@ html[data-theme="dark"] .ops-form textarea, html[data-theme="dark"] .ops-field i
 html[data-theme="dark"] .ops-field select, html[data-theme="dark"] .ops-field textarea {
   background: #142130 !important; border-color: #3A4B5C !important; color: #F3ECE6 !important;
 }
+
+
+/* Help/manual overlay and profile/connection utilities. */
+.medar-help-backdrop { background: rgb(20 33 48 / 66%) !important; backdrop-filter: blur(8px); }
+.medar-help-dialog {
+  background: #FFFCF9 !important; border-color: var(--sahra-border) !important;
+  color: var(--sahra-ink) !important; box-shadow: 0 24px 74px rgb(27 42 58 / 24%) !important;
+}
+.medar-help-heading { border-bottom-color: var(--sahra-border) !important; }
+.medar-help-book-icon, .medar-help-tip-icon {
+  background: #F0E3D7 !important; border-color: #D9C0AA !important; color: var(--sahra-copper) !important;
+}
+.medar-help-heading h2, .medar-help-manual-chapter h3 { color: var(--sahra-navy) !important; }
+.medar-help-heading p, .medar-help-trust-note, .medar-help-step-expand,
+.medar-help-mobile-tip, .medar-help-footer { color: #686D70 !important; }
+.medar-help-section-title { color: var(--sahra-navy) !important; border-bottom-color: var(--sahra-border) !important; }
+.medar-help-steps li, .medar-help-manual-chapter, .medar-help-mobile-tip,
+.medar-help-trust-note { background: #F8F2EC !important; border-color: var(--sahra-border) !important; }
+.medar-help-step-number { background: #F0E3D7 !important; color: var(--sahra-copper) !important; }
+.medar-help-step-check { color: var(--sahra-success) !important; }
+.medar-help-role-links span { background: #F0E3D7 !important; border-color: #D9C0AA !important; color: var(--sahra-navy) !important; }
+.signin-theme-toggle, .signin-close {
+  background: #F0E9E2 !important; border-color: var(--sahra-border) !important; color: var(--sahra-navy) !important;
+}
+html[data-theme="dark"] .medar-help-dialog { background: #1B2A3A !important; border-color: #3A4B5C !important; color: #F3ECE6 !important; }
+html[data-theme="dark"] .medar-help-heading { border-bottom-color: #3A4B5C !important; }
+html[data-theme="dark"] .medar-help-heading h2, html[data-theme="dark"] .medar-help-section-title,
+html[data-theme="dark"] .medar-help-manual-chapter h3 { color: #F3ECE6 !important; }
+html[data-theme="dark"] .medar-help-heading p, html[data-theme="dark"] .medar-help-trust-note,
+html[data-theme="dark"] .medar-help-step-expand, html[data-theme="dark"] .medar-help-mobile-tip,
+html[data-theme="dark"] .medar-help-footer { color: #C1C4C6 !important; }
+html[data-theme="dark"] .medar-help-steps li, html[data-theme="dark"] .medar-help-manual-chapter,
+html[data-theme="dark"] .medar-help-mobile-tip, html[data-theme="dark"] .medar-help-trust-note {
+  background: #223448 !important; border-color: #3A4B5C !important;
+}
+html[data-theme="dark"] .signin-theme-toggle, html[data-theme="dark"] .signin-close {
+  background: #223448 !important; border-color: #3A4B5C !important; color: #F3ECE6 !important;
+}
