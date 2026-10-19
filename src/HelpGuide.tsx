@@ -127,10 +127,10 @@ export function HelpGuide({ role, section, onClose }: HelpGuideProps) {
     return () => { window.removeEventListener('keydown', handleKeyDown); };
   }, [onClose]);
   return createPortal(<div className="medar-help-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}>
-    <section className={"medar-help-dialog"+(showManual?" show-global-manual":showFullSection?" show-full-section-guide":"")} role="dialog" aria-modal="false" aria-labelledby="medar-medar-help-title" dir="rtl">
+    <section className={"medar-help-dialog"+(showManual?" show-global-manual":showFullSection?" show-full-section-guide":"")} role="dialog" aria-modal="false" aria-labelledby="medar-help-title" dir="rtl">
       <header className="medar-help-heading">
         <span className="medar-help-book-icon"><BookOpen size={23}/></span>
-        <div className="medar-help-heading-copy"><span className="eyebrow">راهنمای تعاملی مدار</span><h2 id="medar-medar-help-title">{showManual ? 'راهنمای جامع مدیریت مدار' : 'راهنمای این بخش'}</h2><p className="medar-help-section-name">{(section ? sectionNames[section] : undefined) ?? 'راهنمای جامع مدیریت مدار'}</p><p>مخصوص نقش «{roleNames[role ?? ''] ?? 'کاربر'}» · فارسی و راست‌چین</p></div>
+        <div className="medar-help-heading-copy"><span className="eyebrow">راهنمای تعاملی مدار</span><h2 id="medar-help-title">{showManual ? 'راهنمای جامع مدیریت مدار' : 'راهنمای این بخش'}</h2><p className="medar-help-section-name">{(section ? sectionNames[section] : undefined) ?? 'راهنمای جامع مدیریت مدار'}</p><p>مخصوص نقش «{roleNames[role ?? ''] ?? 'کاربر'}» · فارسی و راست‌چین</p></div>
         <button type="button" className="medar-help-step-expand" onClick={()=>{setShowManual(false);setShowFullSection(value=>!value);}} aria-expanded={showFullSection}>{showFullSection?"کمتر":"راهنمای کامل"}</button><button type="button" className="medar-help-manual-toggle" onClick={()=>{setShowFullSection(false);setShowManual(value=>!value);}}><BookOpen size={14}/>{showManual?"راهنمای بخش":"راهنمای کلی"}</button><button type="button" className="medar-help-close" onClick={onClose} aria-label="بستن راهنما"><X size={18}/></button>
       </header>
       <div className="medar-help-trust-note"><ShieldCheck size={19}/><p><b>قاعدهٔ اصلی</b><span>مدار ابزار ثبت و پیگیری عملیات واقعی است. هیچ ظرفیت، تحویل، موقعیت یا تأییدی را بدون داده و مدرک واقعی قطعی فرض نکن.</span></p></div>
