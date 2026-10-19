@@ -2087,8 +2087,13 @@ export const MEMBER_ACCOUNT_INSERT_SQL =
     "insert into public.memberships(company_id,user_id,role,active,created_by,customer_id,supplier_id) " +
     "select $5::uuid,u.id,$4::public.app_role,true,$6::uuid,$7::uuid,$8::uuid from new_user u " +
     "returning id,company_id,role" +
+  "), new_audit as (" +
+    "insert into public.medar_audit_log(actor_user_id,action,entity_type,entity_id,metadata) " +
+    "select $6::uuid,'membership.account_created','membership',m.id::text," +
+      "jsonb_build_object('company_id',$5::text,'role',$4::text,'username',$1::text) " +
+    "from new_membership m cross join new_user u returning id" +
   ") select u.id,u.username_normalized as username,u.display_name as full_name," +
-  "m.id as membership_id,m.company_id,m.role from new_user u cross join new_membership m";
+  "m.id as membership_id,m.company_id,m.role from new_user u cross join new_membership m cross join new_audit a";
 
 app.post('/api/workspace/members/create', async (c) => {
   const user = await requireUser(c);
@@ -2148,15 +2153,14 @@ app.post('/api/workspace/members/create', async (c) => {
     );
     const created = rows[0] as { id: string; username: string; full_name: string; membership_id: string; company_id: string; role: string } | undefined;
     if (!created) return c.json({ message: 'حساب ساخته نشد؛ اطلاعات را بررسی و دوباره تلاش کن.' }, 500);
-    await sql.query(
-      "insert into public.medar_audit_log(actor_user_id,action,entity_type,entity_id,metadata) values($1::uuid,'membership.account_created','membership',$2::text,jsonb_build_object('company_id',$3::text,'role',$4::text,'username',$5::text))",
-      [user.id, created.membership_id, companyId, role, username],
-    );
     return c.json({ member: created }, 201);
   } catch (error) {
     const databaseError = error as { code?: string };
     if (databaseError.code === '23505') return c.json({ message: 'این نام کاربری قبلاً ثبت شده است.' }, 409);
-    throw error;
+    if (databaseError.code === '23514') return c.json({ message: 'یکی از فیلدها با محدودیت‌های حساب سازگار نیست؛ نام و نقش را بررسی کن.' }, 422);
+    if (databaseError.code === '23503') return c.json({ message: 'حساب یا مجموعهٔ مرتبط معتبر نیست؛ فهرست را تازه‌سازی کن و دوباره تلاش کن.' }, 422);
+    console.error('Member account provisioning failed', { code: databaseError.code ?? 'unknown' });
+    return c.json({ message: 'ساخت حساب کامل نشد؛ هیچ حساب ناقصی ثبت نشده است. چند لحظه بعد دوباره تلاش کن.' }, 500);
   }
 });
 
