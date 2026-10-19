@@ -440,7 +440,7 @@ jobs:
         run: npm run build
         env:
           VITE_ENABLE_AUTH_UI: 'false'
-      - name: Verify the Worker bundle includes the interactive demo and showcase styles
+      - name: Verify the compatibility bundle contains demo assets but is not the public entry point
         shell: bash
         run: |
           test -f dist/index.html
@@ -452,7 +452,7 @@ jobs:
           grep -Rqs --include='*.js' 'عملیات، در یک نگاه.' dist/assets
           grep -Rqs --include='*.css' 'demo-workspace' dist/assets
           grep -Rqs --include='*.css' 'demo-preview-notice' dist/assets
-          echo "Worker frontend includes the interactive, read-only demo and responsive showcase styles."
+          echo "Compatibility bundle verified; public browser traffic is redirected to operational Medar."
       - name: Confirm public-demo API remains read-only and private file routes stay authenticated
         run: grep -Fq "app.put('/api/storage/:bucket'" worker/index.ts
       - name: Configure Neon database secret
@@ -462,96 +462,18 @@ jobs:
       - name: Deploy Worker
         working-directory: worker
         run: set -o pipefail; npx wrangler@4 deploy --name medar-api --var MEDAR_MODE:public-demo 2>&1 | tee /tmp/medar-deploy.log
-      - name: Smoke-test the live Worker
+      - name: Smoke-test API and verify the public hostname redirects to operational Medar
         shell: bash
         run: |
           worker_url="$(grep -Eo 'https://medar-api\.[a-z0-9-]+\.workers\.dev' /tmp/medar-deploy.log 2>/dev/null | tail -n1 || true)"
-          if [[ -z "$worker_url" ]]; then
-            echo "Could not resolve the deployed workers.dev URL from Wrangler output."
-            exit 1
-          fi
+          test -n "$worker_url"
           response="$(curl --fail --silent --show-error --retry 10 --retry-all-errors --retry-delay 3 "$worker_url/api/health")"
-          printf '%s' "$response" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const x=JSON.parse(s);if(x.status!=='ok' && x.ok!==true && x.healthy!==true){console.error('Unexpected health response:',s);process.exit(1)}console.log('Live Worker health OK:',s)})"
-          name="$(curl --fail --silent --show-error --retry 5 --retry-all-errors --retry-delay 2 "$worker_url/")"
-          printf '%s' "$name" | grep -q 'id="root"' || { echo "The live Worker root is missing the frontend root element."; exit 1; }
-          asset_results="$(WORKER_URL="$worker_url" node --input-type=module <<'NODE'
-          const base = process.env.WORKER_URL;
-          // Build the expected manifest before requesting the deployed HTML.
-          // Cloudflare's edge can briefly serve an older index.html just after a new
-          // Worker version is published; retry with cache-busting rather than fail on
-          // the first stale HTML response.
-          const assetNames = await (await import('node:fs/promises')).readdir('dist/assets');
-          const jsPaths = assetNames.filter(name => name.endsWith('.js')).map(name => '/assets/' + name);
-          const cssPaths = assetNames.filter(name => name.endsWith('.css')).map(name => '/assets/' + name);
-          if (!jsPaths.length || !cssPaths.length) throw new Error('The local production build contains no JS/CSS assets.');
-          let html = '';
-          let linkedJsPaths = [];
-          let linkedCssPaths = [];
-          let lastHtmlPrefix = '';
-          let manifestMatches = false;
-          for (let attempt = 0; attempt < 20; attempt++) {
-            const htmlResponse = await fetch(base + '/?__medar_release_check=' + Date.now() + '-' + attempt, {
-              cache: 'no-store',
-              headers: { 'cache-control': 'no-cache, no-store, max-age=0', pragma: 'no-cache' },
-            });
-            if (!htmlResponse.ok) throw new Error('Root HTML failed: ' + htmlResponse.status);
-            html = await htmlResponse.text();
-            lastHtmlPrefix = html.slice(0, 900);
-            linkedJsPaths = [...new Set([...html.matchAll(/(?:src|href)="([^"]+\.js)"/g)].map(match => new URL(match[1], base + '/').pathname))];
-            linkedCssPaths = [...new Set([...html.matchAll(/href="([^"]+\.css)"/g)].map(match => new URL(match[1], base + '/').pathname))];
-            manifestMatches = linkedJsPaths.length > 0 && linkedCssPaths.length > 0 &&
-              [...linkedJsPaths, ...linkedCssPaths].every(path => assetNames.includes(path.split('/').pop()));
-            if (manifestMatches) break;
-            if (attempt < 19) await new Promise(resolve => setTimeout(resolve, 2000));
-          }
-          if (!manifestMatches) {
-            throw new Error('Published root HTML still references assets outside the current build after cache-busted retries. JS=' +
-              JSON.stringify(linkedJsPaths) + '; CSS=' + JSON.stringify(linkedCssPaths) + '; localAssets=' +
-              JSON.stringify(assetNames) + '; html=' + lastHtmlPrefix);
-          }
-          const resolve = path => new URL(path, base + '/').toString();
-          const fetchTexts = async (paths, expectedType) => Promise.all(paths.map(async path => {
-            const url = resolve(path);
-            let lastFailure = 'no response';
-            // Worker versions and their asset manifests can converge at different edges just after publish.
-            // Revalidate each hashed asset independently; do not treat a SPA HTML fallback as JavaScript.
-            for (let attempt = 0; attempt < 20; attempt++) {
-              try {
-                const requestUrl = url + (url.includes('?') ? '&' : '?') + '__medar_asset_check=' + Date.now() + '-' + attempt;
-                const response = await fetch(requestUrl, {
-                  cache: 'no-store',
-                  headers: { 'cache-control': 'no-cache, no-store, max-age=0', pragma: 'no-cache' },
-                });
-                const body = await response.text();
-                const contentType = response.headers.get('content-type') || '';
-                if (response.ok && contentType.toLowerCase().includes(expectedType)) {
-                  if (attempt > 0) console.log('Asset became available after retry:', path, 'attempts=' + (attempt + 1));
-                  return { path, url: response.url, contentType, body };
-                }
-                lastFailure = 'HTTP ' + response.status + ', ' + contentType + '; response prefix=' + body.slice(0,120).replace(/\s+/g,' ');
-              } catch (error) {
-                lastFailure = String(error);
-              }
-              if (attempt < 19) await new Promise(resolve => setTimeout(resolve, 2000));
-            }
-            throw new Error('Frontend asset did not become available after cache-busted retries: ' + path + '; ' + lastFailure);
-          }));
-          const [jsAssets, cssAssets] = await Promise.all([fetchTexts(jsPaths, 'javascript'), fetchTexts(cssPaths, 'text/css')]);
-          const js = jsAssets.map(asset => asset.body).join('\n');
-          const css = cssAssets.map(asset => asset.body).join('\n');
-          console.log('Live JS assets:', JSON.stringify(jsAssets.map(a => ({path:a.path,url:a.url,type:a.contentType,bytes:a.body.length}))));
-          console.log('Live CSS assets:', JSON.stringify(cssAssets.map(a => ({path:a.path,url:a.url,type:a.contentType,bytes:a.body.length,hasDemoWorkspace:a.body.includes('demo-workspace'),hasPreviewBanner:a.body.includes('demo-preview-notice'),hasOpsLink:a.body.includes('demo-ops-link')}))));
-          for (const token of ['demo-workspace', 'دموی قابل ارائه', 'عملیات، در یک نگاه.']) if (!js.includes(token)) throw new Error('Live JS bundles missing public demo token: ' + token + '; assets=' + JSON.stringify(jsAssets.map(a => ({path:a.path,type:a.contentType,bytes:a.body.length}))));
-          for (const token of ['demo-workspace', 'demo-preview-notice', 'demo-ops-link']) if (!css.includes(token)) throw new Error('Live CSS bundles missing public demo styles: ' + token + '; assets=' + JSON.stringify(cssAssets.map(a => ({path:a.path,url:a.url,type:a.contentType,bytes:a.body.length,hasDemoWorkspace:a.body.includes('demo-workspace'),hasPreviewBanner:a.body.includes('demo-preview-notice'),hasOpsLink:a.body.includes('demo-ops-link'),prefix:a.body.slice(0,120)}))));
-          for (const route of ['/demo', '/app/command']) {
-            const appRoute = await fetch(base + route);
-            if (!appRoute.ok || !(await appRoute.text()).includes('id="root"')) throw new Error('SPA deep-link fallback failed for ' + route);
-          }
-          console.log('Live public demo assets and SPA routes are reachable.');
-          NODE
-          )" || { echo "Live frontend smoke test failed."; exit 1; }
-          echo "$asset_results"
-      - name: Verify the live public demo, real health status, navigation, and responsive layout
+          printf '%s' "$response" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const x=JSON.parse(s);if(x.status!=='ok' && x.ok!==true && x.healthy!==true){console.error('Unexpected health response:',s);process.exit(1)}console.log('Live Worker API health OK:',s)})"
+          status="$(curl --silent --show-error --output /dev/null --dump-header "$RUNNER_TEMP/medar-public-entry-headers.txt" --write-out '%{http_code}' "$worker_url/")"
+          if [[ "$status" != "302" ]]; then echo "Public hostname must redirect to the operational app (expected 302, got $status)."; cat "$RUNNER_TEMP/medar-public-entry-headers.txt"; exit 1; fi
+          grep -Fqi 'location: https://medar-ops.dengxiao445.workers.dev/' "$RUNNER_TEMP/medar-public-entry-headers.txt" || { echo "Public hostname did not redirect to the operational Medar URL."; cat "$RUNNER_TEMP/medar-public-entry-headers.txt"; exit 1; }
+          echo "Public hostname redirects users to the operational application; API health remains available."
+      - name: Verify public entry opens the real operational app in Chromium
         shell: bash
         run: |
           worker_url="$(grep -Eo 'https://medar-api\.[a-z0-9-]+\.workers\.dev' /tmp/medar-deploy.log 2>/dev/null | tail -n1 || true)"
@@ -565,46 +487,28 @@ jobs:
             const page = await browser.newPage({ viewport: { width: 1365, height: 900 } });
             page.on('pageerror', error => errors.push(error.message));
             const response = await page.goto(base + '/', { waitUntil: 'networkidle', timeout: 60000 });
-            if (!response?.ok()) throw new Error('Public demo root failed to load.');
-            await page.locator('#app-boot-screen').waitFor({ state: 'detached', timeout: 20000 });
-            await page.locator('.demo-workspace').waitFor({ state: 'visible', timeout: 20000 });
-            await page.getByRole('heading', { name: 'عملیات، در یک نگاه.' }).waitFor({ state: 'visible' });
-            await page.locator('.demo-preview-notice').waitFor({ state: 'visible' });
-            if (await page.locator('.simorgh-signin-layer').count()) throw new Error('Sign-in UI must be hidden in the public demo.');
-            if (await page.locator('.app-frame, .setup-screen').count()) throw new Error('Protected workspace or setup screen rendered instead of the demo.');
-            await page.getByText('سرویس اصلی آنلاین', { exact: true }).waitFor({ state: 'visible', timeout: 20000 });
+            if (!response?.ok()) throw new Error('Public entry did not reach the operational app.');
+            if (!page.url().startsWith('https://medar-ops.dengxiao445.workers.dev/')) throw new Error('Public entry did not redirect to medar-ops: ' + page.url());
+            await page.locator('.simorgh-signin-layer').waitFor({ state: 'visible', timeout: 20000 });
+            if (await page.locator('.demo-workspace, .demo-preview-notice').count()) throw new Error('A demo workspace/banner is visible instead of the operational sign-in screen.');
             const desktop = await page.evaluate(() => ({ viewport: innerWidth, document: document.documentElement.scrollWidth, body: document.body.scrollWidth }));
-            if (desktop.document > desktop.viewport || desktop.body > desktop.viewport) throw new Error('Desktop horizontal overflow: ' + JSON.stringify(desktop));
-
-            await page.locator('.demo-sidebar .demo-nav-item').filter({ hasText: /^سفارش‌ها$/ }).click();
-            await page.locator('.demo-breadcrumb b').filter({ hasText: 'سفارش‌ها' }).waitFor({ state: 'visible' });
-            if (errors.length) throw new Error('Desktop browser runtime error: ' + errors.join(' | '));
-
+            if (desktop.document > desktop.viewport || desktop.body > desktop.viewport) throw new Error('Operational desktop page overflows horizontally: ' + JSON.stringify(desktop));
             const deepLink = await page.goto(base + '/app/command', { waitUntil: 'networkidle', timeout: 60000 });
-            if (!deepLink?.ok()) throw new Error('App deep link did not return the application shell.');
-            await page.locator('.demo-workspace').waitFor({ state: 'visible', timeout: 20000 });
-            if (await page.locator('.simorgh-signin-layer').count()) throw new Error('The app deep link rendered sign-in UI.');
-
+            if (!deepLink?.ok() || !page.url().startsWith('https://medar-ops.dengxiao445.workers.dev/app/command')) throw new Error('Operational deep link did not redirect correctly: ' + page.url());
+            await page.locator('.simorgh-signin-layer').waitFor({ state: 'visible', timeout: 20000 });
+            if (errors.length) throw new Error('Browser runtime errors: ' + errors.join(' | '));
             await page.setViewportSize({ width: 390, height: 844 });
             await page.goto(base + '/', { waitUntil: 'networkidle', timeout: 60000 });
-            await page.locator('#app-boot-screen').waitFor({ state: 'detached', timeout: 20000 });
-            await page.locator('.demo-workspace').waitFor({ state: 'visible', timeout: 20000 });
-            await page.locator('.demo-preview-notice').waitFor({ state: 'visible' });
-            if (await page.locator('.simorgh-signin-layer').count()) throw new Error('The mobile demo unexpectedly rendered sign-in UI.');
-            const mobileNav = page.locator('.demo-mobile-bottom-nav');
-            await mobileNav.waitFor({ state: 'visible', timeout: 10000 });
-            if (await mobileNav.locator('button').count() !== 4) throw new Error('The mobile bottom navigation is incomplete.');
-            await mobileNav.getByRole('button', { name: /سفارش‌ها/ }).click();
-            await page.locator('.demo-breadcrumb b').filter({ hasText: 'سفارش‌ها' }).waitFor({ state: 'visible' });
+            await page.locator('.simorgh-signin-layer').waitFor({ state: 'visible', timeout: 20000 });
             const mobile = await page.evaluate(() => ({ viewport: innerWidth, document: document.documentElement.scrollWidth, body: document.body.scrollWidth }));
-            if (mobile.document > mobile.viewport || mobile.body > mobile.viewport) throw new Error('Mobile horizontal overflow: ' + JSON.stringify(mobile));
-            if (errors.length) throw new Error('Live browser runtime error: ' + errors.join(' | '));
-            console.log('Live Worker demo passed desktop/mobile, navigation, health, and no-login checks.');
+            if (mobile.document > mobile.viewport || mobile.body > mobile.viewport) throw new Error('Operational mobile page overflows horizontally: ' + JSON.stringify(mobile));
+            if (await page.locator('.demo-workspace, .demo-preview-notice').count()) throw new Error('Mobile public entry rendered demo UI.');
+            if (errors.length) throw new Error('Mobile browser runtime errors: ' + errors.join(' | '));
+            console.log('Public entry redirects to operational Medar; desktop/mobile sign-in loads without demo UI or horizontal overflow.');
           } finally {
             await browser.close();
           }
           NODE
-
       - name: Verify unauthenticated Worker API access controls
         shell: bash
         run: |
