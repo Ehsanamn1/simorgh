@@ -156,7 +156,7 @@ function AppShell() {
   const saveInitialProfile = async () => {
     setProfileBusy(true); setProfileError('');
     try {
-      await api.post('/api/profile/complete', { firstName: profileFirstName, lastName: profileLastName, phone: profilePhone, province: profileProvince, city: profileCity, address: profileAddress });
+      await api.post('/api/profile/complete', { companyId: membership?.company_id, firstName: profileFirstName, lastName: profileLastName, phone: profilePhone, province: profileProvince, city: profileCity, address: profileAddress });
       setProfileOpen(false);
       await refreshSession();
     } catch (caught) {
