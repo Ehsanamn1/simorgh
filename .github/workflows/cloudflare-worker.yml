@@ -282,6 +282,11 @@ jobs:
           membership_status="$(curl --silent --show-error --output "$RUNNER_TEMP/medar-memberships.json" --write-out '%{http_code}' "$worker_url/api/workspace/memberships")"
           if [[ "$membership_status" != "401" ]]; then echo "Unauthenticated workspace memberships must return 401 (received $membership_status)."; cat "$RUNNER_TEMP/medar-memberships.json"; exit 1; fi
           echo "Public signup blocked; invalid login and unauthenticated workspace access rejected."
+          invite_status="$(curl --silent --show-error --output "$RUNNER_TEMP/medar-invite-signup.json" --write-out '%{http_code}' --header 'Content-Type: application/json' --data '{"inviteCode":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","username":"test_user","password":"Temporary-Not-Real-123!"}' "$worker_url/api/auth/signup-with-invite")"
+          if [[ "$invite_status" != "410" ]]; then echo "Invitation-based signup must be disabled (expected 410, received $invite_status)."; cat "$RUNNER_TEMP/medar-invite-signup.json"; exit 1; fi
+          profile_status="$(curl --silent --show-error --output "$RUNNER_TEMP/medar-profile-unauth.json" --write-out '%{http_code}' --header 'Content-Type: application/json' --data '{"firstName":"Test","lastName":"User","phone":"+989120000000"}' "$worker_url/api/profile/complete")"
+          if [[ "$profile_status" != "401" ]]; then echo "Profile completion must require authentication (expected 401, received $profile_status)."; cat "$RUNNER_TEMP/medar-profile-unauth.json"; exit 1; fi
+          echo "Invite signup disabled and profile completion protected by authentication."
       - name: Smoke-test the live operational Worker and protected route
         shell: bash
         run: |
