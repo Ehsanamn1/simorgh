@@ -2879,9 +2879,10 @@ app.post('/api/data/:table',async c=>{
     const companyId=typeof companyFilter?.value==='string'?companyFilter.value:'';
     const membership=companyId?companyRole(scopes,companyId):null;
     if(!membership)return c.json({message:'برای بررسی یا تغییر ظرفیت باید شرکت را مشخص کنی.'},422);
+    const reviewFields=['status','confirmed_qty','committed_qty','evidence_review_status','evidence_reviewed_by','evidence_reviewed_at','evidence_review_note'];
+    if(!['owner','admin'].includes(membership.role)&&reviewFields.some(field=>Object.prototype.hasOwnProperty.call(values??{},field)))return c.json({message:'تأیید یا رد ظرفیت و مدرک فقط در اختیار مالک یا مدیر مجموعه است.'},403);
     if(membership.role==='supplier'){
-      const protectedCapacityFields=['status','confirmed_qty','committed_qty','evidence_review_status','evidence_reviewed_by','evidence_reviewed_at','evidence_review_note'];
-      if(protectedCapacityFields.some(field=>Object.prototype.hasOwnProperty.call(values??{},field)))return c.json({message:'تأمین‌کننده نمی‌تواند ظرفیت یا مدرک خودش را تأیید کند.'},403);
+      if(reviewFields.some(field=>Object.prototype.hasOwnProperty.call(values??{},field)))return c.json({message:'تأمین‌کننده نمی‌تواند ظرفیت یا مدرک خودش را تأیید کند.'},403);
       if(values&&(['evidence_path','evidence_name','evidence_mime_type','evidence_uploaded_at'].some(field=>Object.prototype.hasOwnProperty.call(values,field)))){
         const path=String(values.evidence_path??'');
         if(!path.startsWith(companyId+'/'+String(membership.supplier_id??'')+'/capacity-'))return c.json({message:'مسیر مدرک باید به تأمین‌کننده فعلی تعلق داشته باشد.'},403);
