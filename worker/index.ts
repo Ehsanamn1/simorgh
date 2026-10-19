@@ -2879,15 +2879,17 @@ app.post('/api/data/:table',async c=>{
     const companyId=typeof companyFilter?.value==='string'?companyFilter.value:'';
     const membership=companyId?companyRole(scopes,companyId):null;
     if(!membership)return c.json({message:'برای بررسی یا تغییر ظرفیت باید شرکت را مشخص کنی.'},422);
-    const reviewFields=['status','confirmed_qty','committed_qty','evidence_review_status','evidence_reviewed_by','evidence_reviewed_at','evidence_review_note'];
-    if(!['owner','admin'].includes(membership.role)&&reviewFields.some(field=>Object.prototype.hasOwnProperty.call(values??{},field)))return c.json({message:'تأیید یا رد ظرفیت و مدرک فقط در اختیار مالک یا مدیر مجموعه است.'},403);
     if(membership.role==='supplier'){
+      const reviewFields=['status','confirmed_qty','committed_qty','evidence_review_status','evidence_reviewed_by','evidence_reviewed_at','evidence_review_note'];
       if(reviewFields.some(field=>Object.prototype.hasOwnProperty.call(values??{},field)))return c.json({message:'تأمین‌کننده نمی‌تواند ظرفیت یا مدرک خودش را تأیید کند.'},403);
-      if(values&&(['evidence_path','evidence_name','evidence_mime_type','evidence_uploaded_at'].some(field=>Object.prototype.hasOwnProperty.call(values,field)))){
-        const path=String(values.evidence_path??'');
-        if(!path.startsWith(companyId+'/'+String(membership.supplier_id??'')+'/capacity-'))return c.json({message:'مسیر مدرک باید به تأمین‌کننده فعلی تعلق داشته باشد.'},403);
-        values.evidence_review_status='pending_review';values.evidence_reviewed_by=null;values.evidence_reviewed_at=null;values.evidence_review_note=null;values.status='declared';values.confirmed_qty=null;values.committed_qty=null;
-      }
+      const allowedSupplierEvidenceFields=['evidence_path','evidence_name','evidence_mime_type','evidence_uploaded_at'];
+      if(Object.keys(values??{}).some(field=>!allowedSupplierEvidenceFields.includes(field)))return c.json({message:'تأمین‌کننده فقط می‌تواند مدرک ردشده را اصلاح و دوباره ارسال کند.'},403);
+      if(!values?.evidence_path||!values?.evidence_name||!values?.evidence_mime_type||!values?.evidence_uploaded_at)return c.json({message:'برای ارسال دوباره، فایل و مشخصات کامل مدرک الزامی است.'},422);
+      const path=String(values.evidence_path);
+      if(!path.startsWith(companyId+'/'+String(membership.supplier_id??'')+'/capacity-'))return c.json({message:'مسیر مدرک باید به تأمین‌کننده فعلی تعلق داشته باشد.'},403);
+      values.evidence_review_status='pending_review';values.evidence_reviewed_by=null;values.evidence_reviewed_at=null;values.evidence_review_note=null;values.status='declared';values.confirmed_qty=null;values.committed_qty=null;
+    } else if(!['owner','admin'].includes(membership.role)){
+      return c.json({message:'فقط مالک یا مدیر مجاز است ظرفیت و نتیجه بررسی مدرک را تغییر دهد.'},403);
     }
   }
   const transitionField: Record<string, string> = {
