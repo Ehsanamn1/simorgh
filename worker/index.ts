@@ -1,4 +1,4 @@
-import { neon } from '@neondatabase/serverless';
+import { sqlForUrl as neon } from './database';
 import { Hono, type Context } from 'hono';
 
 type PrivateFileStore = {
