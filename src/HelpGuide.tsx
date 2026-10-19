@@ -59,6 +59,7 @@ const globalSections = [
   ['۹. کنترل روزانه مالک', 'هر روز ظرفیت تأییدشده، موارد منتظر بررسی، تسک‌های سررسیدشده، محموله‌های در جریان و اعلان‌های امنیتی را مرور کنید. تصمیم‌ها را بر اساس داده و مدرک تازه بگیرید.'],
 ];
 export function HelpGuide({ role, section, onClose }: HelpGuideProps) {
+  const [showManual, setShowManual] = useState(false);
   const steps = sectionSteps(section, role);
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose(); };
@@ -66,11 +67,11 @@ export function HelpGuide({ role, section, onClose }: HelpGuideProps) {
     return () => { window.removeEventListener('keydown', handleKeyDown); };
   }, [onClose]);
   return <div className="guide-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}>
-    <section className="guide-dialog" role="dialog" aria-modal="false" aria-labelledby="medar-guide-title" dir="rtl">
+    <section className={"guide-dialog"+(showManual?" show-global-manual":"")} role="dialog" aria-modal="false" aria-labelledby="medar-guide-title" dir="rtl">
       <header className="guide-heading">
         <span className="guide-book-icon"><BookOpen size={23}/></span>
         <div className="guide-heading-copy"><span className="eyebrow">راهنمای تعاملی مدار</span><h2 id="medar-guide-title">{section ? 'راهنمای بخش «'+(sectionNames[section] ?? 'فعلی')+'»' : 'راهنمای جامع مدیریت مدار'}</h2><p>مخصوص نقش «{roleNames[role ?? ''] ?? 'کاربر'}» · فارسی و راست‌چین</p></div>
-        <button type="button" className="guide-close" onClick={onClose} aria-label="بستن راهنما"><X size={18}/></button>
+        <button type="button" className="guide-manual-toggle" onClick={()=>setShowManual(value=>!value)}><BookOpen size={14}/>{showManual?"راهنمای بخش":"راهنمای کلی"}</button><button type="button" className="guide-close" onClick={onClose} aria-label="بستن راهنما"><X size={18}/></button>
       </header>
       <div className="guide-trust-note"><ShieldCheck size={19}/><p><b>قاعدهٔ اصلی</b><span>مدار ابزار ثبت و پیگیری عملیات واقعی است. هیچ ظرفیت، تحویل، موقعیت یا تأییدی را بدون داده و مدرک واقعی قطعی فرض نکن.</span></p></div>
       <div className="guide-section-title"><span>قدم‌های این بخش</span><small>{steps.length.toLocaleString('fa-IR')} مرحله</small></div>
