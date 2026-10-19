@@ -56,7 +56,6 @@ const roleQuickLinks: Record<AppRole, QuickLink[]> = {
   ],
   customer: [
     { key: 'settings', title: 'تنظیمات حساب', detail: 'تنظیمات دسترسی و ظاهر', icon: ShieldCheck },
-    { key: 'connect', title: 'مرکز ارتباطات', detail: 'پیام‌های مجاز مجموعه', icon: MessageCircle },
   ],
 };
 
