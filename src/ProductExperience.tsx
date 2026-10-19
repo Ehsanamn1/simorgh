@@ -176,8 +176,8 @@ export default function ProductExperience() {
     {signInOpen && !user && (
       <section className="simorgh-signin-layer" role="dialog" aria-modal="true" aria-labelledby="simorgh-signin-title" aria-label="ورود امن صحرا">
         <div className="simorgh-signin-brand">
-          <div className="simorgh-signin-brand-top"><span className="simorgh-signin-mark"><ShieldCheck size={26}/></span><span><strong>صحرا</strong><small>مدیریت یکپارچه عملیات</small></span></div>
-          <div className="simorgh-signin-story"><span className="signin-overline">صحرا / فضای کاری امن</span><h1>یک شبکه.<br/><em>کنترل دقیق.</em></h1><p>مدیریت مزرعه، منابع، سفارش، کیفیت، حمل و حساب‌ها؛ در یک فضای کاری امن و قابل پیگیری.</p><div className="signin-assurance"><ShieldCheck size={17}/><span>حساب‌های داخلی و مدیریتی را مالک یا مدیر مجاز مستقیماً می‌سازد.</span></div></div>
+          <div className="simorgh-signin-brand-top"><span className="simorgh-signin-mark"><ShieldCheck size={26}/></span><span><strong>صحرا</strong><small>راهبران زنجیره ارزش</small></span></div>
+          <div className="simorgh-signin-story"><span className="signin-overline">صحرا / فضای کاری امن</span><h1>یک شبکه.<br/><em>کنترل دقیق.</em></h1><p>مدیریت تأمین‌کنندگان، تولید، انبار، لجستیک و امور مالی؛ در یک فضای کاری امن و قابل پیگیری.</p><div className="signin-assurance"><ShieldCheck size={17}/><span>حساب‌های داخلی و مدیریتی را مالک یا مدیر مجاز مستقیماً می‌سازد.</span></div></div>
           <div className="signin-brand-foot"><span>عملیات و منابع</span><span>ورود امن</span></div>
         </div>
         <div className="simorgh-signin-form-area">
