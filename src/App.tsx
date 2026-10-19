@@ -144,14 +144,14 @@ function AppShell() {
   useEffect(() => {
     if (!user || !memberships.length) return;
     const name = user.full_name.trim();
-    const incomplete = !user.phone.trim() || !name || name.toLocaleLowerCase('en') === user.username.toLocaleLowerCase('en');
+    const incomplete = !user.phone.trim() || !name || name.toLocaleLowerCase('en') === user.username.toLocaleLowerCase('en') || (membership?.role === 'supplier' && !membership.supplier_id);
     if (incomplete) {
       setProfileFirstName(name && name !== user.username ? name.split(/\s+/)[0] : '');
       setProfileLastName(name && name !== user.username ? name.split(/\s+/).slice(1).join(' ') : '');
       setProfilePhone(user.phone || '');
       setProfileOpen(true);
     }
-  }, [user?.id, user?.full_name, user?.phone, user?.username, memberships.length]);
+  }, [user?.id, user?.full_name, user?.phone, user?.username, memberships.length, membership?.id, membership?.role, membership?.supplier_id]);
   useEffect(() => { if (user && memberships.length && !profileOpen) setGuideOpen(true); }, [location.pathname, user, memberships.length, profileOpen]);
   const saveInitialProfile = async () => {
     setProfileBusy(true); setProfileError('');
