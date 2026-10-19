@@ -2225,3 +2225,26 @@ html[data-theme="dark"] .guide-backdrop{background:transparent}
 .medar-help-dialog:not(.show-full-section-guide):not(.show-global-manual) .medar-help-mobile-tip,
 .medar-help-dialog:not(.show-full-section-guide):not(.show-global-manual) .medar-help-role-links,
 .medar-help-dialog:not(.show-full-section-guide):not(.show-global-manual) .medar-help-footer { display: none !important; }
+
+
+/* Expanded help is viewport-anchored, not positioned relative to the compact launcher. */
+.medar-help-dialog.show-full-section-guide,
+.medar-help-dialog.show-global-manual {
+  position: fixed !important;
+  inset: auto auto calc(env(safe-area-inset-bottom, 0px) + 16px) 12px !important;
+  z-index: 5001 !important;
+}
+.medar-help-dialog.show-full-section-guide .medar-help-heading,
+.medar-help-dialog.show-global-manual .medar-help-heading {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 2 !important;
+  padding-bottom: 8px !important;
+  background: var(--obs-surface, #fff) !important;
+}
+@media (max-width: 900px) {
+  .medar-help-dialog.show-full-section-guide,
+  .medar-help-dialog.show-global-manual {
+    inset: auto auto calc(env(safe-area-inset-bottom, 0px) + 78px) 8px !important;
+  }
+}
