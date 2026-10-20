@@ -1,8 +1,16 @@
 name: Deploy Medar to Cloudflare Workers
 on:
-  # Manual-only while Medar is hosted as a static GitHub Pages showcase.
-  # The existing Worker/database deployment is retained for a future migration.
+  # Production deployment: Cloudflare Worker API + frontend assets backed by Neon.
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'worker/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'vite.config.ts'
+      - '.github/workflows/cloudflare-worker.yml'
 permissions:
   contents: read
 jobs:
