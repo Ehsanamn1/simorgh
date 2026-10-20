@@ -211,12 +211,18 @@ export default function DemoWorkspace() {
   const [activePage, setActivePage] = useState('command');
   const [search, setSearch] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [health, setHealth] = useState<'checking' | 'online' | 'offline'>('checking');
+  const staticOnly = import.meta.env.VITE_DISABLE_API_UI === 'true';
+  const [health, setHealth] = useState<'checking' | 'online' | 'offline'>(staticOnly ? 'offline' : 'checking');
   const [lastChecked, setLastChecked] = useState<Date | null>(null);
   const page = navItems.find((item) => item.key === activePage) ?? navItems[0];
   const PageIcon = page.icon;
 
   const checkHealth = useCallback(async () => {
+    if (import.meta.env.VITE_DISABLE_API_UI === 'true') {
+      setHealth('offline');
+      setLastChecked(new Date());
+      return;
+    }
     setHealth('checking');
     try {
       const result = await api.get<HealthResponse>('/api/health');
@@ -268,7 +274,7 @@ export default function DemoWorkspace() {
           })}
         </nav>
         <div className="demo-sidebar-foot">
-          <div className="demo-side-health"><span className={`demo-health-dot ${health}`}/><div><b>{health === 'online' ? 'سرویس اصلی آنلاین' : health === 'checking' ? 'در حال بررسی اتصال' : 'سرویس بررسی نشد'}</b><small>{health === 'online' ? 'Worker و پایگاه‌داده پاسخ می‌دهند' : health === 'checking' ? 'بررسی واقعی API' : 'نمایش نمونه مستقل از API'}</small></div></div>
+          <div className="demo-side-health"><span className={`demo-health-dot ${health}`}/><div><b>{staticOnly ? 'نسخه نمایشی مستقل' : health === 'online' ? 'سرویس اصلی آنلاین' : health === 'checking' ? 'در حال بررسی اتصال' : 'سرویس بررسی نشد'}</b><small>{staticOnly ? 'داده‌ها نمونه‌اند و به سرور متصل نیستند' : health === 'online' ? 'Worker و پایگاه‌داده پاسخ می‌دهند' : health === 'checking' ? 'بررسی واقعی API' : 'نمایش نمونه مستقل از API'}</small></div></div>
           <div className="demo-profile"><span className="demo-profile-avatar">م</span><span><b>دموی معرفی مدار</b><small>دسترسی فقط‌خواندنی</small></span><ShieldCheck size={17}/></div>
         </div>
       </aside>
