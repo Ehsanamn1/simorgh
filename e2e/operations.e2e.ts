@@ -319,6 +319,8 @@ test('contextual help stays compact at the bottom-left and can be dismissed', as
   await installIsolatedSession(page, 'owner');
   await page.goto('/simorgh/app/members', { waitUntil: 'domcontentloaded' });
   const guide = page.locator('.medar-help-backdrop');
+  await expect(guide).toHaveCount(0);
+  await page.getByRole('button', { name: 'راهنمای این بخش' }).click();
   await expect(guide).toBeVisible();
   const bounds = await guide.boundingBox();
   const viewport = page.viewportSize();
@@ -340,6 +342,8 @@ test('contextual help expands on mobile without escaping the viewport and can cl
   await installIsolatedSession(page, 'owner');
   await page.goto('/simorgh/app/members', { waitUntil: 'domcontentloaded' });
   const guide = page.locator('.medar-help-backdrop');
+  await expect(guide).toHaveCount(0);
+  await page.getByRole('button', { name: 'راهنمای این بخش' }).click();
   await expect(guide).toBeVisible();
   const compact = await guide.boundingBox();
   expect(compact).not.toBeNull();
@@ -874,6 +878,8 @@ test('closing contextual help persists across navigation until explicitly reopen
   await page.goto('/simorgh/app/members', { waitUntil: 'domcontentloaded' });
 
   const guide = page.locator('.medar-help-backdrop');
+  await expect(guide).toHaveCount(0);
+  await page.getByRole('button', { name: 'راهنمای این بخش' }).click();
   await expect(guide).toBeVisible();
   await guide.getByRole('button', { name: 'بستن راهنما' }).click();
   await expect(guide).toHaveCount(0);
