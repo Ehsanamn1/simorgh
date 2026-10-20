@@ -1583,3 +1583,32 @@ input, select, textarea { accent-color: #45784e; }
   .app-main { padding-bottom: calc(82px + env(safe-area-inset-bottom)); }
 }
 @media (prefers-reduced-motion: reduce) { .mobile-workspace-nav a, .mobile-workspace-nav button { transition: none; } }
+
+
+/* Final cascade correction: older compact-nav rules used !important and masked the refreshed styles. */
+@media (min-width: 861px) {
+  .nav-groups { gap: 5px !important; }
+  .nav-group { border: 1px solid rgba(205,233,130,.10) !important; border-radius: 10px !important; overflow: hidden !important; }
+  .nav-group > summary { min-height: 39px !important; padding: 8px 10px !important; }
+  .nav-group .side-nav { gap: 3px !important; padding: 2px 6px 7px !important; }
+  .nav-group .side-nav a { min-height: 38px !important; height: auto !important; padding: 8px 10px !important; }
+}
+@media (max-width: 860px) {
+  .mobile-workspace-nav[aria-label="ناوبری سریع موبایل"] {
+    position: fixed !important; inset-inline: 12px !important; bottom: calc(10px + env(safe-area-inset-bottom, 0px)) !important;
+    width: auto !important; min-height: 60px !important; display: flex !important; padding: 7px !important;
+    border: 1px solid rgba(255,255,255,.78) !important; border-radius: 22px !important;
+    background: rgba(250,252,249,.92) !important; box-shadow: 0 12px 34px rgba(25,55,43,.18), inset 0 1px rgba(255,255,255,.9) !important;
+    backdrop-filter: blur(20px) saturate(1.25) !important; -webkit-backdrop-filter: blur(20px) saturate(1.25) !important;
+  }
+  .mobile-workspace-nav[aria-label="ناوبری سریع موبایل"] a,
+  .mobile-workspace-nav[aria-label="ناوبری سریع موبایل"] button { min-height: 44px !important; border-radius: 15px !important; }
+  .mobile-workspace-nav[aria-label="ناوبری سریع موبایل"] a[aria-current="page"],
+  .mobile-workspace-nav[aria-label="ناوبری سریع موبایل"] a.active { color: #167c65 !important; background: rgba(34,151,119,.13) !important; }
+  .app-main { padding-bottom: calc(90px + env(safe-area-inset-bottom, 0px)) !important; }
+  .floating-help-trigger { bottom: calc(82px + env(safe-area-inset-bottom, 0px)) !important; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nav-group, .nav-group > summary, .nav-group .side-nav, .floating-help-trigger,
+  .mobile-workspace-nav a, .mobile-workspace-nav button { animation: none !important; transition: none !important; }
+}
