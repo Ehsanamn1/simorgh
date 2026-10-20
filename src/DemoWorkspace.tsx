@@ -220,7 +220,7 @@ export default function DemoWorkspace() {
   useEffect(() => { void checkHealth(); }, [checkHealth]);
 
   const visibleRows = useMemo(() => {
-    const rows = activePage === 'command' ? orderRows : (rowsByPage[activePage] ?? []);
+    const rows = activePage === 'command' ? taskRows : (rowsByPage[activePage] ?? []);
     const query = search.trim().toLocaleLowerCase('fa-IR');
     if (!query) return rows;
     return rows.filter((row) => `${row.id} ${row.primary} ${row.secondary} ${row.value} ${row.status}`.toLocaleLowerCase('fa-IR').includes(query));
@@ -280,7 +280,7 @@ export default function DemoWorkspace() {
         <div className="demo-content">
           <section className="demo-preview-notice" role="status">
             <span className="demo-preview-notice-icon"><ShieldCheck size={18}/></span>
-            <div><b>محیط نمایشی — داده‌های این صفحه نمونه هستند</b><p>این نسخه برای معرفی محصول است؛ ثبت سفارش، پرداخت، حذف و هرگونه تغییر در اطلاعات عملیاتی عمداً غیرفعال است.</p></div>
+            <div><b>محیط نمایشی — داده‌های این صفحه نمونه هستند</b><p>این نسخه برای معرفی محصول است؛ ورود واقعی، ذخیره‌سازی عملیاتی و تغییر اطلاعات عمداً غیرفعال است.</p></div>
             <a className="demo-ops-link" href="https://medar-ops.dengxiao445.workers.dev/app/command" aria-label="ورود به فضای عملیاتی مدار"><ShieldCheck size={15}/><span>ورود عملیاتی</span><ArrowLeft size={13}/></a>
             <span className="demo-preview-chip">READ ONLY</span>
           </section>
@@ -306,7 +306,7 @@ export default function DemoWorkspace() {
                   <span className="demo-quick-count">۴ دسترسی سریع</span>
                 </div>
                 <div className="demo-quick-grid">
-                  <button type="button" className="demo-quick-action" onClick={() => selectPage('operational-tasks')}><span><FileText size={18}/></span><b>تأمین‌کنندگان</b><small>همکاران و وضعیت همکاری</small><ArrowLeft size={14}/></button>
+                  <button type="button" className="demo-quick-action" onClick={() => selectPage('suppliers')}><span><FileText size={18}/></span><b>تأمین‌کنندگان</b><small>همکاران و وضعیت همکاری</small><ArrowLeft size={14}/></button>
                   <button type="button" className="demo-quick-action" onClick={() => selectPage('capacity')}><span><Factory size={18}/></span><b>ظرفیت تأمین</b><small>ظرفیت اعلام‌شده و تأییدشده</small><ArrowLeft size={14}/></button>
                   <button type="button" className="demo-quick-action" onClick={() => selectPage('shipments')}><span><Truck size={18}/></span><b>حمل‌ونقل</b><small>راننده و وضعیت تحویل</small><ArrowLeft size={14}/></button>
                   <button type="button" className="demo-quick-action" onClick={() => selectPage('finance')}><span><CreditCard size={18}/></span><b>مانده و تسویه</b><small>کارکرد و بدهی ثبت‌شده</small><ArrowLeft size={14}/></button>
@@ -326,17 +326,17 @@ export default function DemoWorkspace() {
                   <div className="demo-focus-list">
                     <div className="demo-focus-item"><span className="demo-focus-symbol danger"><CircleAlert size={17}/></span><span><b>موجودی ملزومات بهداشتی</b><small>رسیدن به حد سفارش · انبار مرکزی</small></span><span className="demo-focus-priority danger">بالا</span></div>
                     <div className="demo-focus-item"><span className="demo-focus-symbol gold"><Clock3 size={17}/></span><span><b>تطبیق فاکتور تأمین‌کننده</b><small>نیازمند تأیید سند · مالی</small></span><span className="demo-focus-priority gold">متوسط</span></div>
-                    <div className="demo-focus-item"><span className="demo-focus-symbol blue"><Truck size={17}/></span><span><b>برنامه تحویل سفارش MD-2408</b><small>هماهنگی با مقصد و زمان بارگیری</small></span><span className="demo-focus-priority blue">پیگیری</span></div>
+                    <div className="demo-focus-item"><span className="demo-focus-symbol blue"><Truck size={17}/></span><span><b>برنامه تحویل محموله SHP-077</b><small>هماهنگی با مقصد و زمان بارگیری</small></span><span className="demo-focus-priority blue">پیگیری</span></div>
                   </div>
                   <div className="demo-focus-foot"><Sparkles size={15}/><span>در نسخه عملیاتی، فهرست براساس وضعیت واقعی داده‌ها محاسبه می‌شود.</span></div>
                 </section>
               </div>
               <section className="demo-panel demo-orders-panel">
                 <div className="demo-panel-heading"><div><span className="demo-panel-mark"><FileText size={17}/></span><div><h2>کارهای نیازمند پیگیری</h2><p>نمونه‌ای از وظایف عملیاتی امروز</p></div></div><button className="demo-text-button" onClick={() => selectPage('operational-tasks')}>مشاهده همه <ArrowLeft size={15}/></button></div>
-                <DemoTable rows={visibleRows} empty={search ? 'با این عبارت در داده‌های نمونه نتیجه‌ای پیدا نشد.' : 'سفارشی برای نمایش وجود ندارد.'}/>
+                <DemoTable rows={visibleRows} empty={search ? 'با این عبارت در داده‌های نمونه نتیجه‌ای پیدا نشد.' : 'کاری برای نمایش وجود ندارد.'}/>
               </section>
               <div className="demo-bottom-grid">
-                <section className="demo-mini-panel"><span className="demo-mini-icon"><Factory size={19}/></span><div><small>شبکه تأمین</small><b>۴ همکار نمونه</b><span>وضعیت همکاری و ظرفیت اعلام‌شده</span></div><button onClick={() => selectPage('farm-sites')} aria-label="مشاهده ظرفیت تأمین"><ArrowLeft size={17}/></button></section>
+                <section className="demo-mini-panel"><span className="demo-mini-icon"><Factory size={19}/></span><div><small>شبکه تأمین</small><b>۴ همکار نمونه</b><span>وضعیت همکاری و ظرفیت اعلام‌شده</span></div><button onClick={() => selectPage('capacity')} aria-label="مشاهده ظرفیت تأمین"><ArrowLeft size={17}/></button></section>
                 <section className="demo-mini-panel"><span className="demo-mini-icon blue"><Truck size={19}/></span><div><small>ارسال و تحویل</small><b>۲ محموله در جریان</b><span>وضعیت، مقصد و زمان تحویل</span></div><button onClick={() => selectPage('shipments')} aria-label="مشاهده محموله‌ها"><ArrowLeft size={17}/></button></section>
                 <section className="demo-mini-panel"><span className="demo-mini-icon gold"><CreditCard size={19}/></span><div><small>مانده و تسویه</small><b>۳ ثبت نمونه</b><span>کار انجام‌شده و مانده حساب</span></div><button onClick={() => selectPage('finance')} aria-label="مشاهده امور مالی"><ArrowLeft size={17}/></button></section>
               </div>
@@ -364,9 +364,9 @@ export default function DemoWorkspace() {
       </main>
       <nav className="demo-mobile-bottom-nav" aria-label="ناوبری اصلی موبایل">
         <button type="button" className={activePage === 'command' ? 'is-active' : ''} onClick={() => selectPage('command')} aria-current={activePage === 'command' ? 'page' : undefined}><LayoutDashboard size={20}/><span>نمای کلی</span></button>
-        <button type="button" className={activePage === 'orders' ? 'is-active' : ''} onClick={() => selectPage('orders')} aria-current={activePage === 'orders' ? 'page' : undefined}><FileText size={20}/><span>سفارش‌ها</span></button>
-        <button type="button" className={['farm-sites', 'flock-cycles', 'production-batches', 'daily-production', 'inventory', 'capacity', 'quality', 'shipments', 'task-templates', 'operational-tasks', 'incidents'].includes(activePage) ? 'is-active' : ''} onClick={() => selectPage('operational-tasks')} aria-current={['farm-sites', 'flock-cycles', 'production-batches', 'daily-production', 'inventory', 'capacity', 'quality', 'shipments', 'task-templates', 'operational-tasks', 'incidents'].includes(activePage) ? 'page' : undefined}><Factory size={20}/><span>عملیات</span></button>
-        <button type="button" className={!['command', 'orders', 'farm-sites', 'flock-cycles', 'production-batches', 'daily-production', 'inventory', 'capacity', 'quality', 'shipments', 'task-templates', 'operational-tasks', 'incidents'].includes(activePage) ? 'is-active' : ''} onClick={() => setSidebarOpen(true)} aria-label="بازکردن فهرست ماژول‌ها"><Menu size={20}/><span>ماژول‌ها</span></button>
+        <button type="button" className={activePage === 'suppliers' ? 'is-active' : ''} onClick={() => selectPage('suppliers')} aria-current={activePage === 'suppliers' ? 'page' : undefined}><Factory size={20}/><span>تأمین</span></button>
+        <button type="button" className={['inventory', 'capacity', 'shipments', 'operational-tasks', 'incidents', 'supplier-work', 'driver-work'].includes(activePage) ? 'is-active' : ''} onClick={() => selectPage('operational-tasks')} aria-current={['farm-sites', 'flock-cycles', 'production-batches', 'daily-production', 'inventory', 'capacity', 'quality', 'shipments', 'task-templates', 'operational-tasks', 'incidents'].includes(activePage) ? 'page' : undefined}><Factory size={20}/><span>عملیات</span></button>
+        <button type="button" className={!['command', 'suppliers', 'inventory', 'capacity', 'shipments', 'operational-tasks', 'incidents', 'supplier-work', 'driver-work'].includes(activePage) ? 'is-active' : ''} onClick={() => setSidebarOpen(true)} aria-label="بازکردن فهرست ماژول‌ها"><Menu size={20}/><span>ماژول‌ها</span></button>
       </nav>
     </div>
   );
