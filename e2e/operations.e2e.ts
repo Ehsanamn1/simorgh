@@ -60,12 +60,12 @@ test('manager workspace retains operations and captures a real rendered control-
   await expect(page.getByRole('heading', { name: /سلام مالک آزمایشی مدار/ })).toBeVisible();
   await expect(page.locator('.workspace-home-hero')).toContainText('کنترل امروز کسب‌وکار');
   await expect(page.getByRole('heading', { name: 'بخش‌های پرکاربرد شما' })).toBeVisible();
-  await expect(page.locator('.workspace-home-link')).toHaveCount(6);
+  await expect(page.locator('.workspace-home-link')).toHaveCount(4);
   await expect(page.locator('.workspace-home-link').filter({ hasText: 'شبکه تأمین‌کنندگان' })).toBeVisible();
   await expect(page.locator('.workspace-home-link').filter({ hasText: 'دسترسی کاربران' })).toBeVisible();
   await expect(page.locator('.workspace-home-link').filter({ hasText: 'مرکز ارتباطات' })).toBeVisible();
   await expect(page.locator('.workspace-home-link').filter({ hasText: 'حمل‌ونقل و رانندگان' })).toBeVisible();
-  await expect(page.locator('.workspace-home-link').filter({ hasText: 'وظایف و مأموریت‌ها' })).toBeVisible();
+  await expect(page.locator('.nav-groups').getByRole('link', { name: /وظایف/ })).toBeVisible();
   await expect(page.locator('.workspace-home-section').filter({ hasText: 'موارد مهم و اقدام بعدی' })).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath('manager-role-home-viewport.png') });
   await page.screenshot({ path: testInfo.outputPath('manager-role-home.png'), fullPage: true });
@@ -462,11 +462,11 @@ test('supplier workspace keeps manager-only routes out of the allowed menu', asy
   }
   await expect(page.getByRole('heading', { name: /سلام تأمین‌کننده آزمایشی مدار/ })).toBeVisible();
   await expect(page.locator('.workspace-home-hero')).toContainText('برنامه‌ی امروز تأمین‌کننده');
-  await expect(page.locator('.workspace-home-link')).toHaveCount(6);
+  await expect(page.locator('.workspace-home-link')).toHaveCount(4);
   expect(await page.locator('.workspace-home-action').count()).toBeLessThanOrEqual(5);
   await page.screenshot({ path: testInfo.outputPath('supplier-role-home-viewport.png') });
   await page.screenshot({ path: testInfo.outputPath('supplier-role-home.png'), fullPage: true });
-  const operationsGroup = page.locator('.nav-group').filter({ has: page.locator('summary', { hasText: /^زنجیره تأمین/ }) });
+  const operationsGroup = page.locator('.nav-group').filter({ has: page.locator('summary', { hasText: /^عملیات روزانه/ }) });
   await operationsGroup.locator('summary').click();
   await expect(operationsGroup.getByRole('link', { name: /کارهای واگذارشده/ })).toBeVisible();
   await expect(page.getByRole('link', { name: /دستورالعمل‌های کاری/ })).toHaveCount(0);
@@ -493,7 +493,7 @@ test('manager bottom navigation stays manager-specific on mobile and tablet', as
   await expect(page.locator('.tower-stats')).not.toContainText('مشتریان');
   await expect(page.locator('.topbar-home-link')).toHaveCount(1);
   await expect(page.getByRole('button', { name: 'خروج از حساب' })).toHaveCount(0);
-  const mobileNav = page.locator('.mobile-workspace-nav');
+  const mobileNav = page.locator('.mobile-workspace-nav:visible');
   if (viewportWidth <= 720) await expect(page.locator('.topbar-home-link')).toBeHidden();
   if (viewportWidth <= 860) {
     await expect(mobileNav).toBeVisible();
@@ -515,7 +515,7 @@ test('mobile navigation is role-specific and only mirrors permitted real routes'
   await page.goto('/simorgh/app/operational-tasks', { waitUntil: 'domcontentloaded' });
   await expect(page.getByRole('heading', { name: 'وظایف عملیاتی' })).toBeVisible();
 
-  const mobileNav = page.locator('.mobile-workspace-nav');
+  const mobileNav = page.locator('.mobile-workspace-nav:visible');
   if (viewportWidth <= 860) {
     await expect(mobileNav).toBeVisible();
     await expect(mobileNav.getByRole('link', { name: 'وظایف' })).toBeVisible();
@@ -557,7 +557,7 @@ test('driver lands in assigned shipments and does not get customer or manager na
   await expect(page.locator('#driver-shipments')).toBeVisible();
   await expect(page.locator('.role-ops, .role-ops-metrics, .role-ops-shortcuts')).toHaveCount(0);
   if (viewportWidth <= 860) {
-    const nav = page.locator('.mobile-workspace-nav');
+    const nav = page.locator('.mobile-workspace-nav:visible');
     await expect(nav).toBeVisible();
     for (const label of ['محموله‌ها', 'نقشه', 'مدرک']) {
       await expect(nav.getByRole('link', { name: label, exact: true })).toBeVisible();
@@ -567,7 +567,7 @@ test('driver lands in assigned shipments and does not get customer or manager na
     await expect(nav.getByRole('link', { name: 'خرید', exact: true })).toHaveCount(0);
     await expect(nav.getByRole('link', { name: 'وظایف', exact: true })).toHaveCount(0);
   } else {
-    await expect(page.locator('.mobile-workspace-nav')).toBeHidden();
+    await expect(page.locator('.mobile-workspace-nav:visible')).toBeHidden();
   }
   const dimensions = await page.evaluate(() => ({ viewport: innerWidth, document: document.documentElement.scrollWidth, body: document.body.scrollWidth }));
   expect(dimensions.document).toBeLessThanOrEqual(dimensions.viewport);
@@ -847,7 +847,7 @@ test('settings centralizes password, real connection health, and light/dark pref
   await expect(page.getByText('پاسخ‌گو')).toBeVisible();
   await expect(page.getByRole('button', { name: 'خروج از حساب' })).toBeVisible();
   await expect(page.getByText('دستگاه‌های شناخته‌شده')).toBeVisible();
-  await expect(page.locator('.nav-tools-box')).toContainText('بخش‌های اصلی');
+  await expect(page.locator('.nav-tools-box')).toContainText('منوی اصلی');
   await expect(page.locator('.sidebar-status')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'تغییر گذرواژه' })).toHaveCount(0);
 
@@ -879,7 +879,7 @@ test('closing contextual help persists across navigation until explicitly reopen
   await expect(guide).toHaveCount(0);
 
   if (viewportWidth <= 860) {
-    const mobileHome = page.locator('.mobile-workspace-nav a').first();
+    const mobileHome = page.locator('.mobile-workspace-nav:visible a').first();
     await expect(mobileHome).toBeVisible();
     await mobileHome.click();
   } else {
