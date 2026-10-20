@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  Activity, ArrowLeft, ArrowUpLeft, Boxes, Building2, CalendarDays,
+  Activity, ArrowLeft, ArrowUpLeft, Building2, CalendarDays,
   ChevronLeft, CircleAlert, ClipboardCheck, Clock3, CreditCard, Factory,
-  FileText, Gauge, LayoutDashboard, ListChecks, MapPin, Menu, Package, RefreshCw,
-  Search, ShieldCheck, Sparkles, Sun, Moon, Target, Truck, Users, Warehouse, X,
+  FileText, Gauge, LayoutDashboard, ListChecks, Menu, RefreshCw,
+  Search, ShieldCheck, Sparkles, Sun, Moon, Truck, Users, Warehouse, X,
   type LucideIcon,
 } from 'lucide-react';
 import { api } from './lib/apiClient';
