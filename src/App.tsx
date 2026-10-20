@@ -1377,18 +1377,28 @@ const [resetSecret,setResetSecret]=useState('');
  };
  useEffect(()=>{void load();},[membership.company_id]);
  const createAccount=async()=>{
+  const normalizedUsername=accountUsername.normalize('NFKC').trim().toLocaleLowerCase('en-US');
+  if(normalizedUsername.length<3||normalizedUsername.length>32||!/^[\p{L}\p{N}._-]+$/u.test(normalizedUsername)||/^[._-]|[._-]$/.test(normalizedUsername)){
+   setError('نام کاربری باید ۳ تا ۳۲ نویسه باشد؛ از حروف، عدد، نقطه، خط تیره یا زیرخط استفاده کن و ابتدا/انتهای آن نشانه نگذار.');
+   return;
+  }
+  if(accountPassword.length<12||accountPassword.length>128){
+   setError('رمز عبور باید بین ۱۲ تا ۱۲۸ نویسه باشد.');
+   return;
+  }
   setBusy(true);setError('');setNotice('');setResetSecret('');
   try{
-   await api.post<{member:Row}>('/api/workspace/members/create',{
+   const result=await api.post<{member:Row}>('/api/workspace/members/create',{
     companyId:membership.company_id,
-    fullName:accountName,
-    username:accountUsername,
+    fullName:accountName.normalize('NFKC').trim(),
+    username:normalizedUsername,
     password:accountPassword,
     role:accountRole,
     customerId:accountRole==='customer'?accountCustomerId:null,
     supplierId:accountRole==='supplier'?accountSupplierId:null,
    });
-   setResetSecret('@'+accountUsername.trim().toLowerCase()+' : '+accountPassword);
+   const createdUsername=String(result.member?.username??normalizedUsername);
+   setResetSecret('@'+createdUsername+' : '+accountPassword);
    setNotice('حساب ساخته شد. اطلاعات ورود را امن تحویل بده؛ کاربر در اولین ورود نام، نام خانوادگی و تلفن خود را تکمیل می‌کند.');
    setAccountOpen(false);setAccountPassword('');
    await load();
@@ -1498,7 +1508,7 @@ const [resetSecret,setResetSecret]=useState('');
   </Modal>}
   {accountOpen&&<Modal title="ساخت حساب اختصاصی" subtitle="حساب فوراً با نقش تعیین‌شده ساخته می‌شود؛ نام کاربری و رمز اولیه را از مسیر امن به فرد بده." onClose={()=>{if(!busy)setAccountOpen(false);}}><form className="record-form" onSubmit={e=>{e.preventDefault();void createAccount();}}>
    <label className="full-span">نام و نام خانوادگی (اختیاری)<input maxLength={100} value={accountName} onChange={e=>setAccountName(e.target.value)} autoComplete="off"/><small>در صورت خالی‌ماندن، کاربر هنگام اولین ورود نام و نام خانوادگی خود را ثبت می‌کند.</small></label>
-   <label>نام کاربری<input required minLength={3} maxLength={32} pattern="[A-Za-z0-9._\x2d]+" value={accountUsername} onChange={e=>setAccountUsername(e.target.value.toLowerCase())} dir="ltr" autoComplete="off"/><small>۳ تا ۳۲ نویسه؛ بدون فاصله</small></label>
+   <label>نام کاربری<input required minLength={3} maxLength={32} pattern="[\\p{L}\\p{N}._-]+" value={accountUsername} onChange={e=>setAccountUsername(e.target.value.toLowerCase())} dir="ltr" autoComplete="off"/><small>۳ تا ۳۲ نویسه؛ بدون فاصله</small></label>
    <label>رمز عبور اولیه<input required minLength={12} maxLength={128} type="password" value={accountPassword} onChange={e=>setAccountPassword(e.target.value)} dir="ltr" autoComplete="new-password"/><small>حداقل ۱۲ نویسه؛ پس از ورود قابل تغییر است</small></label>
    <label className="full-span">نقش کاربر<select value={accountRole} onChange={e=>{setAccountRole(e.target.value as AppRole);setAccountCustomerId('');setAccountSupplierId('');}}>{options.map(r=><option value={r} key={r}>{roleLabel[r]}</option>)}</select></label>
    {accountRole==='customer'&&<label className="full-span">حساب مشتری<select required value={accountCustomerId} onChange={e=>setAccountCustomerId(e.target.value)}><option value="">انتخاب مشتری همین مجموعه…</option>{customers.map(row=><option key={String(row.id)} value={String(row.id)}>{String(row.name)}</option>)}</select></label>}
