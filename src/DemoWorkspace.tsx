@@ -31,37 +31,20 @@ type DemoNav = {
 };
 
 const navItems: DemoNav[] = [
-  { key: 'command', label: 'مرکز فرمان', description: 'تصویر کلی از وضعیت عملیات، سفارش‌ها و فعالیت‌های روز جاری.', group: 'مدیریت', icon: LayoutDashboard },
-  { key: 'orders', label: 'سفارش‌ها', description: 'پیگیری وضعیت سفارش از ثبت تا آماده‌سازی، ارسال و تحویل.', group: 'مدیریت', icon: FileText },
-  { key: 'goals', label: 'اهداف و برنامه', description: 'هدف‌های دوره‌ای و میزان پیشرفت تیم در برابر برنامه.', group: 'مدیریت', icon: Target },
-  { key: 'customers', label: 'مشتریان', description: 'حساب‌های سازمانی و اطلاعات تماس مشتریان.', group: 'فروش و تأمین', icon: Users },
-  { key: 'suppliers', label: 'تأمین‌کنندگان', description: 'نمای یکپارچه از شرکا، ظرفیت و وضعیت همکاری تأمین‌کنندگان.', group: 'فروش و تأمین', icon: Factory },
-  { key: 'products', label: 'کاتالوگ و قیمت', description: 'محصولات فعال، واحدها و قیمت‌های قابل ارائه.', group: 'فروش و تأمین', icon: Package },
-  { key: 'purchase-orders', label: 'سفارش خرید و رسید', description: 'سفارش خرید، تأیید و ورود کالا به انبار.', group: 'فروش و تأمین', icon: FileText },
-  { key: 'catalog', label: 'خرید سازمانی', description: 'مشاهده کاتالوگ برای ثبت درخواست خرید سازمانی.', group: 'خرید سازمانی', icon: Boxes },
-  { key: 'farm-sites', label: 'سایت‌های مزرعه', description: 'نمای عملیاتی سایت‌ها، چرخه‌های پرورش و تولید روزانه.', group: 'تولید', icon: MapPin },
-  { key: 'flock-cycles', label: 'چرخه‌های کشت و پرورش', description: 'چرخه‌های فعال، برنامه و وضعیت پرورش.', group: 'تولید', icon: Factory },
-  { key: 'production-batches', label: 'بچ‌های تولید', description: 'ردیابی بچ‌های تولید و وضعیت هر مرحله.', group: 'تولید', icon: Boxes },
-  { key: 'daily-production', label: 'ثبت روزانه تولید', description: 'ثبت گزارش روزانه و بررسی روند تولید.', group: 'تولید', icon: Activity },
-  { key: 'inventory', label: 'موجودی و خرید', description: 'کنترل موجودی قابل استفاده، آستانه سفارش و ورود کالا.', group: 'عملیات', icon: Warehouse },
-  { key: 'capacity', label: 'برنامه ظرفیت', description: 'ظرفیت‌های اعلام‌شده، تأییدشده و تعهدشده.', group: 'عملیات', icon: Warehouse },
-  { key: 'quality', label: 'کیفیت و محموله', description: 'کنترل چک‌لیست‌ها، نتایج بازرسی و موارد نیازمند بررسی.', group: 'عملیات', icon: ClipboardCheck },
-  { key: 'shipments', label: 'ارسال و تحویل', description: 'پیگیری وضعیت محموله‌ها، زمان تحویل و رخدادهای مسیر.', group: 'عملیات', icon: Truck },
-  { key: 'task-templates', label: 'دستورالعمل‌های کاری', description: 'الگوها و چک‌لیست‌های اجرای کار.', group: 'وظایف و رخدادها', icon: ListChecks },
-  { key: 'operational-tasks', label: 'وظایف عملیاتی', description: 'کارهای واگذارشده، موعدها و بررسی انجام کار.', group: 'وظایف و رخدادها', icon: ClipboardCheck },
-  { key: 'incidents', label: 'رخدادها و مغایرت‌ها', description: 'ثبت و پیگیری مشکلات عملیاتی و موارد مغایر.', group: 'وظایف و رخدادها', icon: CircleAlert },
-  { key: 'finance', label: 'مالی و تسویه', description: 'نمای فاکتورها، سررسیدها و وضعیت تطبیق داخلی حساب‌ها.', group: 'مشارکت و مالی', icon: CreditCard },
-  { key: 'partnership-agreements', label: 'قراردادهای مشارکت', description: 'مشاهده چارچوب‌ها و وضعیت قراردادهای مشارکت.', group: 'مشارکت و مالی', icon: FileText },
-  { key: 'partner-finance', label: 'دفتر مالی شریک', description: 'تراکنش‌ها و مانده‌های ثبت‌شده برای شرکا.', group: 'مشارکت و مالی', icon: CreditCard },
-  { key: 'partner-settlements', label: 'دوره‌های تسویه', description: 'دوره‌های محاسبه و تطبیق تسویه.', group: 'مشارکت و مالی', icon: ClipboardCheck },
-  { key: 'members', label: 'اعضا و دسترسی', description: 'نمای نقش‌های سازمانی و اصول دسترسی مبتنی بر عضویت.', group: 'کنترل', icon: Users },
-  { key: 'audit', label: 'تاریخچه تغییرات', description: 'ثبت رخدادهای کلیدی برای قابلیت پیگیری و پاسخ‌گویی.', group: 'کنترل', icon: Activity },
-  { key: 'my-orders', label: 'سفارش‌های من', description: 'وضعیت سفارش‌های ثبت‌شده برای حساب سازمانی.', group: 'خرید سازمانی', icon: FileText },
-  { key: 'my-account', label: 'حساب سازمانی', description: 'مشخصات مجموعه خریدار و حساب جاری.', group: 'خرید سازمانی', icon: Building2 },
-  { key: 'supplier-work', label: 'کارهای واگذارشده', description: 'فهرست کارهای اجرایی واگذارشده به تأمین‌کننده.', group: 'تأمین', icon: ClipboardCheck },
-  { key: 'supplier-capacity', label: 'ظرفیت من', description: 'اعلام و پیگیری ظرفیت قابل ارائه.', group: 'تأمین', icon: Warehouse },
-  { key: 'supplier-settlement', label: 'تسویه‌های من', description: 'اسناد و وضعیت تسویه‌های تأمین‌کننده.', group: 'تأمین', icon: CreditCard },
-  { key: 'driver-work', label: 'محموله‌های من', description: 'محموله‌های تخصیص‌یافته به راننده.', group: 'ارسال', icon: Truck },
+  { key: 'command', label: 'نمای کلی', description: 'وضعیت امروز، کارهای نیازمند پیگیری و خلاصه عملیات مدار.', group: 'نمای کلی', icon: LayoutDashboard },
+  { key: 'suppliers', label: 'تأمین‌کنندگان', description: 'وضعیت همکاری، ظرفیت و اطلاعات تأمین‌کنندگان.', group: 'شبکه تأمین', icon: Factory },
+  { key: 'capacity', label: 'ظرفیت تأمین', description: 'ظرفیت‌های اعلام‌شده، تأییدشده و تعهدشده.', group: 'شبکه تأمین', icon: Warehouse },
+  { key: 'supplier-work', label: 'کارهای تأمین‌کننده', description: 'کارهای واگذارشده و وضعیت انجام آن‌ها.', group: 'شبکه تأمین', icon: ClipboardCheck },
+  { key: 'shipments', label: 'حمل‌ونقل', description: 'محموله‌ها، رانندگان و وضعیت تحویل.', group: 'حمل‌ونقل', icon: Truck },
+  { key: 'driver-work', label: 'کارهای راننده', description: 'محموله‌های تخصیص‌یافته و وضعیت تحویل.', group: 'حمل‌ونقل', icon: Truck },
+  { key: 'inventory', label: 'موجودی', description: 'موجودی‌های مهم و موارد نیازمند تأمین مجدد.', group: 'عملیات', icon: Warehouse },
+  { key: 'operational-tasks', label: 'وظایف روزانه', description: 'کارهای واگذارشده، موعدها و وضعیت انجام.', group: 'عملیات', icon: ListChecks },
+  { key: 'incidents', label: 'رخدادها و مغایرت‌ها', description: 'مسائل عملیاتی که نیازمند بررسی یا پیگیری‌اند.', group: 'عملیات', icon: CircleAlert },
+  { key: 'finance', label: 'مانده و تسویه', description: 'ثبت ساده مبالغ پرداخت‌شده، کار انجام‌شده و مانده حساب.', group: 'مدیریت', icon: CreditCard },
+  { key: 'members', label: 'اعضا و دسترسی', description: 'مدیریت اعضا و نقش‌های دسترسی.', group: 'مدیریت', icon: Users },
+  { key: 'audit', label: 'تاریخچه تغییرات', description: 'سوابق مهم برای پیگیری تغییرات.', group: 'مدیریت', icon: Activity },
+  { key: 'supplier-capacity', label: 'ظرفیت من', description: 'اعلام و پیگیری ظرفیت قابل ارائه.', group: 'پنل همکار', icon: Warehouse },
+  { key: 'supplier-settlement', label: 'مانده حساب من', description: 'نمای ساده مانده و تسویه‌های ثبت‌شده.', group: 'پنل همکار', icon: CreditCard },
 ];
 
 const orderRows: DemoRow[] = [
@@ -192,11 +175,11 @@ const rowsByPage: Record<string, DemoRow[]> = {
     { id: 'DRV-021', primary: 'محموله MD-2404', secondary: 'مبدأ: ساری · مقصد: گرگان', value: '۳٬۰۰۰ عدد', status: 'تحویل‌شده', tone: 'good', date: 'زمان نمونه' },
   ],
 };
-const groupOrder = ['مدیریت', 'فروش و تأمین', 'تولید', 'عملیات', 'وظایف و رخدادها', 'مشارکت و مالی', 'کنترل', 'خرید سازمانی', 'تأمین', 'ارسال'];
+const groupOrder = ['نمای کلی', 'شبکه تأمین', 'حمل‌ونقل', 'عملیات', 'مدیریت', 'پنل همکار'];
 
 const statCards = [
-  { label: 'سفارش‌های باز', value: '۱۲', detail: '۳ مورد نیازمند پیگیری', icon: FileText, tone: 'teal' },
-  { label: 'تولید ثبت‌شده امروز', value: '۴٬۸۲۰', detail: 'کیلوگرم · در ۳ سایت', icon: Factory, tone: 'blue' },
+  { label: 'تأمین‌کنندگان فعال', value: '۱۲', detail: '۳ مورد نیازمند پیگیری', icon: Factory, tone: 'teal' },
+  { label: 'ظرفیت تأییدشده', value: '۴٬۸۲۰', detail: 'واحد ظرفیت · داده نمونه', icon: Warehouse, tone: 'blue' },
   { label: 'تحویل به‌موقع', value: '۹۴٪', detail: 'هدف دوره: ۹۵٪', icon: Truck, tone: 'gold' },
   { label: 'موارد نیازمند بررسی', value: '۰۳', detail: 'کیفیت، موجودی و تسویه', icon: CircleAlert, tone: 'rose' },
 ];
@@ -305,8 +288,8 @@ export default function DemoWorkspace() {
           {activePage === 'command' ? (
             <>
               <div className="demo-page-heading">
-                <div><span className="demo-eyebrow"><span/>MEDAR / OPERATIONS OVERVIEW</span><h1>عملیات، در یک نگاه.</h1><p>نمایی یکپارچه از سفارش، تولید، موجودی و تحویل؛ بدون جابه‌جایی بین فایل‌ها و پیام‌ها.</p></div>
-                <button className="demo-secondary-button" onClick={() => selectPage('orders')}>رفتن به سفارش‌ها <ArrowLeft size={16}/></button>
+                <div><span className="demo-eyebrow"><span/>MEDAR / OPERATIONS OVERVIEW</span><h1>عملیات، در یک نگاه.</h1><p>نمایی ساده از تأمین‌کنندگان، رانندگان، ظرفیت، کارهای روزانه و مانده حساب‌ها.</p></div>
+                <button className="demo-secondary-button" onClick={() => selectPage('suppliers')}>مشاهده تأمین‌کنندگان <ArrowLeft size={16}/></button>
               </div>
               <section className="demo-stats-grid" aria-label="شاخص‌های نمونه">
                 {statCards.map((stat) => { const Icon = stat.icon; return <article className="demo-stat-card" key={stat.label}>
@@ -320,13 +303,13 @@ export default function DemoWorkspace() {
                 <div className="demo-quick-heading">
                   <span className="demo-quick-heading-mark"><Sparkles size={17}/></span>
                   <div><b>دسترسی سریع</b><small>میانبرهای اصلی عملیات مدار</small></div>
-                  <span className="demo-quick-count">۴ میانبر</span>
+                  <span className="demo-quick-count">۴ دسترسی سریع</span>
                 </div>
                 <div className="demo-quick-grid">
-                  <button type="button" className="demo-quick-action" onClick={() => selectPage('orders')}><span><FileText size={18}/></span><b>سفارش‌ها</b><small>ثبت و پیگیری</small><ArrowLeft size={14}/></button>
-                  <button type="button" className="demo-quick-action" onClick={() => selectPage('farm-sites')}><span><Factory size={18}/></span><b>تولید و مزرعه</b><small>سایت‌ها و برنامه تولید</small><ArrowLeft size={14}/></button>
-                  <button type="button" className="demo-quick-action" onClick={() => selectPage('shipments')}><span><Truck size={18}/></span><b>ارسال و تحویل</b><small>محموله‌ها و مقصد</small><ArrowLeft size={14}/></button>
-                  <button type="button" className="demo-quick-action" onClick={() => selectPage('finance')}><span><CreditCard size={18}/></span><b>مالی و تسویه</b><small>فاکتورها و تطبیق</small><ArrowLeft size={14}/></button>
+                  <button type="button" className="demo-quick-action" onClick={() => selectPage('operational-tasks')}><span><FileText size={18}/></span><b>تأمین‌کنندگان</b><small>همکاران و وضعیت همکاری</small><ArrowLeft size={14}/></button>
+                  <button type="button" className="demo-quick-action" onClick={() => selectPage('capacity')}><span><Factory size={18}/></span><b>ظرفیت تأمین</b><small>ظرفیت اعلام‌شده و تأییدشده</small><ArrowLeft size={14}/></button>
+                  <button type="button" className="demo-quick-action" onClick={() => selectPage('shipments')}><span><Truck size={18}/></span><b>حمل‌ونقل</b><small>راننده و وضعیت تحویل</small><ArrowLeft size={14}/></button>
+                  <button type="button" className="demo-quick-action" onClick={() => selectPage('finance')}><span><CreditCard size={18}/></span><b>مانده و تسویه</b><small>کارکرد و بدهی ثبت‌شده</small><ArrowLeft size={14}/></button>
                 </div>
               </section>
               <div className="demo-dashboard-grid">
@@ -349,13 +332,13 @@ export default function DemoWorkspace() {
                 </section>
               </div>
               <section className="demo-panel demo-orders-panel">
-                <div className="demo-panel-heading"><div><span className="demo-panel-mark"><FileText size={17}/></span><div><h2>آخرین سفارش‌ها</h2><p>نمونه گردش سفارش از ثبت تا ارسال</p></div></div><button className="demo-text-button" onClick={() => selectPage('orders')}>مشاهده همه <ArrowLeft size={15}/></button></div>
+                <div className="demo-panel-heading"><div><span className="demo-panel-mark"><FileText size={17}/></span><div><h2>کارهای نیازمند پیگیری</h2><p>نمونه‌ای از وظایف عملیاتی امروز</p></div></div><button className="demo-text-button" onClick={() => selectPage('operational-tasks')}>مشاهده همه <ArrowLeft size={15}/></button></div>
                 <DemoTable rows={visibleRows} empty={search ? 'با این عبارت در داده‌های نمونه نتیجه‌ای پیدا نشد.' : 'سفارشی برای نمایش وجود ندارد.'}/>
               </section>
               <div className="demo-bottom-grid">
-                <section className="demo-mini-panel"><span className="demo-mini-icon"><Factory size={19}/></span><div><small>تولید و سایت‌ها</small><b>۳ سایت نمایشی</b><span>ثبت برنامه، چرخه و تولید روزانه</span></div><button onClick={() => selectPage('farm-sites')} aria-label="مشاهده سایت‌های مزرعه"><ArrowLeft size={17}/></button></section>
+                <section className="demo-mini-panel"><span className="demo-mini-icon"><Factory size={19}/></span><div><small>شبکه تأمین</small><b>۴ همکار نمونه</b><span>وضعیت همکاری و ظرفیت اعلام‌شده</span></div><button onClick={() => selectPage('farm-sites')} aria-label="مشاهده ظرفیت تأمین"><ArrowLeft size={17}/></button></section>
                 <section className="demo-mini-panel"><span className="demo-mini-icon blue"><Truck size={19}/></span><div><small>ارسال و تحویل</small><b>۲ محموله در جریان</b><span>وضعیت، مقصد و زمان تحویل</span></div><button onClick={() => selectPage('shipments')} aria-label="مشاهده محموله‌ها"><ArrowLeft size={17}/></button></section>
-                <section className="demo-mini-panel"><span className="demo-mini-icon gold"><CreditCard size={19}/></span><div><small>مالی و تسویه</small><b>۳ سند نمونه</b><span>سررسید و تطبیق داخلی</span></div><button onClick={() => selectPage('finance')} aria-label="مشاهده امور مالی"><ArrowLeft size={17}/></button></section>
+                <section className="demo-mini-panel"><span className="demo-mini-icon gold"><CreditCard size={19}/></span><div><small>مانده و تسویه</small><b>۳ ثبت نمونه</b><span>کار انجام‌شده و مانده حساب</span></div><button onClick={() => selectPage('finance')} aria-label="مشاهده امور مالی"><ArrowLeft size={17}/></button></section>
               </div>
             </>
           ) : (
