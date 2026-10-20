@@ -1519,3 +1519,14 @@ input, select, textarea { accent-color: #45784e; }
 }
 @media(min-width:861px){.mobile-workspace-nav{display:none!important}}
 @media(max-width:720px){.topbar-home-link{display:none!important}}
+/* Keep one actionable bottom navigation: the role-aware quick nav replaces the legacy workspace nav. */
+.mobile-workspace-nav[aria-label="ناوبری اصلی فضای کاری"]{display:none!important}
+@media(max-width:860px){
+  :root[data-theme="dark"] .mobile-workspace-nav[aria-label="ناوبری سریع موبایل"]{
+    background:rgba(23,26,32,.97);border-top-color:#343a43;box-shadow:0 -8px 26px #0005;
+  }
+  :root[data-theme="dark"] .mobile-workspace-nav[aria-label="ناوبری سریع موبایل"] a,
+  :root[data-theme="dark"] .mobile-workspace-nav[aria-label="ناوبری سریع موبایل"] button{color:#a6b2a8}
+  :root[data-theme="dark"] .mobile-workspace-nav[aria-label="ناوبری سریع موبایل"] a[aria-current="page"]{color:#c2e5c7;background:#263b2d}
+}
+
