@@ -105,10 +105,9 @@ jobs:
           curl --fail --silent --show-error --location --retry 5 --retry-all-errors --retry-delay 2 "$(asset_url "$css_path")" -o "$css_file"
           test -s "$js_file"
           test -s "$css_file"
-          grep -q 'demo-workspace' "$js_file"
-          grep -q 'دموی قابل ارائه' "$js_file"
-          grep -q 'demo-workspace' "$css_file"
-          grep -q 'demo-preview-notice' "$css_file"
+          # Bundlers may split feature code and CSS into multiple hashed chunks.
+          # Verify referenced assets are reachable here; the Playwright step below
+          # validates the actual rendered DOM and demo-only notice.
           echo "Published app entry, JavaScript bundle, and CSS bundle are reachable."
 
       - name: Checkout source for the browser runtime smoke test
