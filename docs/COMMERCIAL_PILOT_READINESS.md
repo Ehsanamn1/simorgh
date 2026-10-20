@@ -1,6 +1,6 @@
 # Medar Commercial Pilot Readiness
 
-This is an evidence gate, not a claim that the product is commercially ready. Mark items complete only with a linked test run, deployment result, or reproducible evidence.
+This tracker is an evidence gate, not a claim that the product is commercially ready. Mark items complete only with a linked test run, deployment result, or reproducible evidence.
 
 ## Current decision
 
@@ -25,6 +25,16 @@ The repository README documents unfinished private file storage (file endpoints 
 - [ ] Verify the help panel stays dismissed after being closed and across route changes.
 - [ ] Ensure every visible action works; clearly label or hide incomplete capabilities rather than faking success.
 - [ ] Run desktop/mobile browser checks, including RTL, keyboard focus, and horizontal overflow.
+
+### Current blocker — PR #103
+
+Latest observed head: `56025a6c668ddeb3255cd1b1c67e07f43a45cd18`.
+
+- Worker CI: passed (run [39328987960](https://github.com/Ehsanamn1/simorgh/actions/runs/39328987960)).
+- Android debug build: passed (run [39328987978](https://github.com/Ehsanamn1/simorgh/actions/runs/39328987978)).
+- iOS simulator build: passed (run [39328988027](https://github.com/Ehsanamn1/simorgh/actions/runs/39328988027)).
+- Simorgh CI: **failed** (run [39328987985](https://github.com/Ehsanamn1/simorgh/actions/runs/39328987985)). Typecheck, lint, unit tests and database/migration checks passed, but the browser suite failed: 12 failures, 150 passed, 6 skipped. Several failures report Playwright strict-mode violations because `.mobile-workspace-nav:visible` resolves to two visible elements; the help-navigation test also times out.
+- Do not merge or deploy PR #103 until the duplicate visible navigation is understood, the underlying UI/test issue is corrected, and the full browser suite passes. Check the new mobile bar in both light and dark themes.
 
 ## Stage 3 — Authentication and tenant isolation
 
