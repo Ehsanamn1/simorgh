@@ -1,8 +1,7 @@
 name: Deploy Simorgh to GitHub Pages
 on:
+  # Optional showcase only. Production Medar runs on Cloudflare Workers with Neon.
   workflow_dispatch:
-  push:
-    branches: [main]
 permissions:
   contents: read
 
