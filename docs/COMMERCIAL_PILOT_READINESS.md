@@ -28,13 +28,12 @@ The repository README documents unfinished private file storage (file endpoints 
 
 ### Current blocker — PR #103
 
-Latest observed head: `56025a6c668ddeb3255cd1b1c67e07f43a45cd18`.
+Latest available head at this tracker update: `b7ecbb297965f35e6695b11492c93236a6392cb0`.
 
-- Worker CI: passed (run [39328987960](https://github.com/Ehsanamn1/simorgh/actions/runs/39328987960)).
-- Android debug build: passed (run [39328987978](https://github.com/Ehsanamn1/simorgh/actions/runs/39328987978)).
-- iOS simulator build: passed (run [39328988027](https://github.com/Ehsanamn1/simorgh/actions/runs/39328988027)).
-- Simorgh CI: **failed** (run [39328987985](https://github.com/Ehsanamn1/simorgh/actions/runs/39328987985)). Typecheck, lint, unit tests and database/migration checks passed, but the browser suite failed: 12 failures, 150 passed, 6 skipped. Several failures report Playwright strict-mode violations because `.mobile-workspace-nav:visible` resolves to two visible elements; the help-navigation test also times out.
-- Do not merge or deploy PR #103 until the duplicate visible navigation is understood, the underlying UI/test issue is corrected, and the full browser suite passes. Check the new mobile bar in both light and dark themes.
+- Earlier failing run: Simorgh CI [39328987985](https://github.com/Ehsanamn1/simorgh/actions/runs/39328987985) failed with 12 browser failures (150 passed, 6 skipped); strict-mode failures confirmed two visible bottom navigation bars, and some clicks were intercepted by the legacy bar.
+- Fix committed: `src/styles.css` now hides the legacy `ناوبری اصلی فضای کاری` bar while preserving the role-aware `ناوبری سریع موبایل` bar, and supplies dark-theme colors for the retained bar.
+- New verification runs for commit `b7ecbb297965f35e6695b11492c93236a6392cb0`: Worker CI [39401983130](https://github.com/Ehsanamn1/simorgh/actions/runs/39401983130) **passed**. Simorgh CI [39401983138](https://github.com/Ehsanamn1/simorgh/actions/runs/39401983138), Android [39401983208](https://github.com/Ehsanamn1/simorgh/actions/runs/39401983208), and iOS simulator [39401983119](https://github.com/Ehsanamn1/simorgh/actions/runs/39401983119) were still running at the time of this update.
+- Do not merge or deploy PR #103 until the new browser suite passes and the platform workflows finish successfully. This CSS fix does not establish that all other commercial-readiness gates are complete.
 
 ## Stage 3 — Authentication and tenant isolation
 
