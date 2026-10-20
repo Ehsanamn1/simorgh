@@ -6,7 +6,7 @@ This tracker is an evidence gate, not a claim that the product is commercially r
 
 **NOT YET APPROVED for broad commercial use.** A supervised pilot may begin only after release, authentication/tenant isolation, and critical workflow gates pass.
 
-The repository README documents unfinished private file storage (file endpoints previously return HTTP 503 without R2), incomplete offline write synchronization/conflict handling, and unverified end-to-end commercial workflows. Legacy operational data migration is not assumed complete.
+The code includes a private database-backed file fallback when R2 is not bound (maximum 10 MB per file), but live upload/retrieval/authorization/deletion has not yet been verified for the intended production deployment. Offline write synchronization/conflict handling is incomplete, and end-to-end commercial workflows remain unverified. Legacy operational data migration is not assumed complete.
 
 ## Stage 1 — Release integrity
 
@@ -59,7 +59,7 @@ For every workflow, capture persisted database evidence and a repeatable test, n
 
 ## Stage 5 — Limitations and data migration
 
-- [ ] Decide whether private file/evidence storage is required for the pilot. If required, configure a supported backend and prove upload, private retrieval, access control, and deletion.
+- [ ] Decide whether private file/evidence storage is required for the pilot. If required, verify the database fallback (10 MB/file) or configure R2, then prove upload, authorized and unauthorized retrieval, deletion, and backup/recovery.
 - [ ] Do not promise offline writes until queueing, retries, idempotency, conflict handling, and recovery are implemented and tested.
 - [ ] Before migrating legacy operational data, create and restore-test a backup, map schemas, compare counts/relationships, run a controlled dry run, document rollback, and obtain explicit approval.
 - [ ] Verify AI only when a provider is configured; keep keys server-side and prevent unapproved financial/irreversible actions.
