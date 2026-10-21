@@ -372,6 +372,44 @@ test('owner can create a supplier login and copy the one-time credentials', asyn
   expect(submitted?.role).toBe('supplier');
 });
 
+test('owner can provision a supplier without a pre-existing supplier record', async ({ page }) => {
+  await installIsolatedSession(page, 'owner');
+  await page.route('**/api/workspace/members?*', route => route.fulfill({
+    status: 200, contentType: 'application/json', body: JSON.stringify({ members: [] }),
+  }));
+  await page.route('**/api/data/**', route => route.fulfill({
+    status: 200, contentType: 'application/json', body: JSON.stringify({ data: [], count: 0, error: null }),
+  }));
+  let submitted: Record<string, unknown> | null = null;
+  await page.route('**/api/workspace/members/create', async route => {
+    submitted = route.request().postDataJSON() as Record<string, unknown>;
+    expect(submitted).toMatchObject({
+      companyId, username: 'new_supplier_without_record', role: 'supplier',
+      supplierId: null, customerId: null,
+    });
+    await route.fulfill({
+      status: 201, contentType: 'application/json',
+      body: JSON.stringify({ member: {
+        id: '00000000-0000-4000-8000-000000000081',
+        username: 'new_supplier_without_record',
+        full_name: 'new_supplier_without_record',
+        membership_id: '00000000-0000-4000-8000-000000000082',
+        company_id: companyId, role: 'supplier',
+        supplier_id: '00000000-0000-4000-8000-000000000083',
+      } }),
+    });
+  });
+  await page.goto('/simorgh/app/members', { waitUntil: 'domcontentloaded' });
+  await page.getByRole('button', { name: /ساخت حساب جدید/ }).click();
+  await page.getByLabel('نام کاربری').fill('new_supplier_without_record');
+  await page.getByLabel('رمز عبور اولیه').fill('Safe-New-Supplier-Password-2026!');
+  await page.getByLabel('نقش کاربر').selectOption('supplier');
+  await expect(page.getByLabel('پرونده تأمین‌کننده (اختیاری)')).toHaveValue('');
+  await page.getByRole('button', { name: 'ساخت حساب و نمایش اطلاعات ورود' }).click();
+  await expect(page.getByText(/حساب ساخته شد/)).toBeVisible();
+  expect(submitted).not.toBeNull();
+});
+
 test('contextual help stays compact at the bottom-left and can be dismissed', async ({ page }) => {
   await installIsolatedSession(page, 'owner');
   await page.goto('/simorgh/app/members', { waitUntil: 'domcontentloaded' });
