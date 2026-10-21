@@ -750,3 +750,73 @@ html[data-theme="light"] .network-status { background:var(--obs-surface); }
   .app-sidebar .nav-tools-box .nav-group > .side-nav { gap: 1px !important; padding-block: 1px !important; }
   .app-sidebar .nav-tools-box .nav-group > .side-nav a { min-height: 30px !important; padding-block: 4px !important; line-height: 1.25 !important; }
 }
+
+
+/* Final responsive shell contract: compact mobile navigation and a usable contextual help
+   popover. Keep these overrides last because legacy visual layers define duplicate selectors. */
+.floating-help-trigger {
+  left: max(16px, env(safe-area-inset-left, 0px)) !important;
+  right: auto !important;
+  bottom: 16px !important;
+  z-index: 5100 !important;
+}
+.medar-help-backdrop {
+  position: fixed !important;
+  top: auto !important;
+  right: auto !important;
+  bottom: 72px !important;
+  left: max(16px, env(safe-area-inset-left, 0px)) !important;
+  width: min(360px, calc(100vw - 32px)) !important;
+  max-width: calc(100vw - 32px) !important;
+  max-height: min(68dvh, 560px) !important;
+  overflow: visible !important;
+  z-index: 5000 !important;
+  pointer-events: none !important;
+}
+.medar-help-backdrop .medar-help-dialog {
+  width: 100% !important;
+  max-height: min(68dvh, 560px) !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  overscroll-behavior: contain !important;
+  pointer-events: auto !important;
+}
+@media (max-width: 860px) {
+  .app-sidebar .nav-tools-box .nav-groups {
+    gap: 2px !important;
+    row-gap: 2px !important;
+    justify-content: flex-start !important;
+  }
+  .app-sidebar .nav-tools-box .nav-group {
+    flex: 0 0 auto !important;
+    margin: 0 !important;
+  }
+  .app-sidebar .nav-tools-box .nav-group > summary {
+    min-height: 34px !important;
+    padding-block: 5px !important;
+    line-height: 1.3 !important;
+  }
+  .app-sidebar .nav-tools-box .nav-group > .side-nav {
+    gap: 2px !important;
+    padding-block: 2px !important;
+  }
+  .app-sidebar .nav-tools-box .nav-group > .side-nav a {
+    min-height: 36px !important;
+    padding-block: 6px !important;
+    line-height: 1.35 !important;
+  }
+  .floating-help-trigger {
+    left: max(12px, env(safe-area-inset-left, 0px)) !important;
+    bottom: calc(88px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+  .medar-help-backdrop {
+    left: max(12px, env(safe-area-inset-left, 0px)) !important;
+    bottom: calc(142px + env(safe-area-inset-bottom, 0px)) !important;
+    width: min(340px, calc(100vw - 24px)) !important;
+    max-width: calc(100vw - 24px) !important;
+    max-height: min(58dvh, 520px) !important;
+  }
+  .medar-help-backdrop .medar-help-dialog {
+    max-height: min(58dvh, 520px) !important;
+  }
+}
