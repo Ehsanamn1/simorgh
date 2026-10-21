@@ -235,7 +235,7 @@ async function sendWebPush(subscription: { endpoint: string; p256dh_key: string;
   return { ok: response.status >= 200 && response.status < 300, gone: response.status === 404 || response.status === 410, status: response.status };
 }
 
-async function hashPassword(password: string): Promise<string> {
+export async function hashPassword(password: string): Promise<string> {
   const salt = crypto.getRandomValues(new Uint8Array(16));
   const key = await crypto.subtle.importKey('raw', encoder.encode(password), 'PBKDF2', false, ['deriveBits']);
   const derived = await crypto.subtle.deriveBits(
