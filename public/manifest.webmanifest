@@ -4,7 +4,7 @@
   "description": "سامانه‌ی یکپارچه‌ی مدیریت مزرعه، عملیات، سفارش، کیفیت، ارسال و امور مالی",
   "lang": "fa",
   "dir": "rtl",
-  "start_url": "./",
+  "start_url": "./app/home",
   "scope": "./",
   "display": "standalone",
   "display_override": [
