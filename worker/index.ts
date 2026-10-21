@@ -2461,7 +2461,7 @@ export function isExternalRoleTransitionAllowed(role: string, table: string): bo
 
 // Customer memberships are retained for legacy reads, but customer-authored
 // orders and order items are not supported by the operational API.
-export function isCustomerCommerceInsertAllowed(role: string, table: string): boolean {
+export function isCustomerOrderInsertAllowed(role: string, table: string): boolean {
  return !(role === 'customer' && (table === 'orders' || table === 'order_items'));
 }
 export function buildMembershipScopeSql(table:string,columns:Set<string>,memberships:MembershipScope[],userId:string,params:unknown[],startAt=1):string {
@@ -2843,7 +2843,7 @@ app.post('/api/data/:table',async c=>{
     const membership=companyRole(scopes,companyId);
     if(!membership)return c.json({message:'این شرکت به حساب فعلی تعلق ندارد.'},403);
     if(!hasPermission(membership,'can_create'))return c.json({message:'برای ایجاد رکورد در این ماژول مجوز نداری.'},403);
-    if (!isCustomerCommerceInsertAllowed(membership.role, table)) {
+    if (!isCustomerOrderInsertAllowed(membership.role, table)) {
       return c.json({ message: 'سفارش‌گذاری مشتری در محیط عملیاتی مدار غیرفعال است.' }, 403);
     }
     const row=applyInsertActorFields(table,original,columns,user.id);
