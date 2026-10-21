@@ -821,5 +821,6 @@ jobs:
         with:
           name: medar-raz-sahra-operational-web
           path: dist/
+          include-hidden-files: true
           if-no-files-found: error
           retention-days: 30
