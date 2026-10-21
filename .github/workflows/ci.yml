@@ -29,18 +29,20 @@ jobs:
         with:
           node-version: 22
       - run: npm install
-      - name: Validate Worker runtime modes are explicitly scoped per deployment
+      - name: Validate Worker deployments use distinct runtime configs
         shell: bash
         run: |
           set -euo pipefail
-          if grep -Eq '^[[:space:]]*MEDAR_MODE[[:space:]]*=' worker/wrangler.toml; then
-            echo "A shared static MEDAR_MODE can accidentally deploy the operational Worker in public-demo mode."
-            exit 1
-          fi
-          grep -Fq -- '--name medar-ops --var MEDAR_DEPLOYMENT_MODE:public-demo' .github/workflows/cloudflare-worker.yml
-          grep -Fq -- 'args=(--name medar-ops --var MEDAR_DEPLOYMENT_MODE:operational)' .github/workflows/cloudflare-worker.yml
-          grep -Fq -- '--name medar-api --var MEDAR_MODE:public-demo' .github/workflows/cloudflare-worker.yml
-          echo "Explicit deployment mode checks passed; no shared wrangler var can override operational mode."
+          grep -Fq 'name = "medar-ops"' worker/wrangler-medar-ops.toml
+          grep -Fq 'MEDAR_MODE = "operational"' worker/wrangler-medar-ops.toml
+          grep -Fq 'name = "medar-ops"' worker/wrangler-medar-ops-bootstrap.toml
+          grep -Fq 'MEDAR_MODE = "public-demo"' worker/wrangler-medar-ops-bootstrap.toml
+          grep -Fq 'name = "medar-api"' worker/wrangler.toml
+          grep -Fq 'MEDAR_MODE = "public-demo"' worker/wrangler.toml
+          grep -Fq -- 'deploy --config wrangler-medar-ops-bootstrap.toml' .github/workflows/cloudflare-worker.yml
+          grep -Fq -- 'args=(--config wrangler-medar-ops.toml)' .github/workflows/cloudflare-worker.yml
+          grep -Fq -- 'deploy --config wrangler.toml' .github/workflows/cloudflare-worker.yml
+          echo "Runtime mode isolation checks passed."
       - name: Validate the complete migration chain on a clean PostgreSQL 16 database
         env:
           PGPASSWORD: medar_test_password
