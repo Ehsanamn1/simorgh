@@ -1470,7 +1470,7 @@ const [resetSecret,setResetSecret]=useState('');
    const createdUsername=String(result.member?.username??normalizedUsername);
    setResetSecret('@'+createdUsername+' : '+accountPassword);
    setNotice('حساب ساخته شد. اطلاعات ورود را امن تحویل بده؛ کاربر در اولین ورود نام، نام خانوادگی و تلفن خود را تکمیل می‌کند.');
-   setAccountOpen(false);setAccountPassword('');
+   setAccountOpen(false);setAccountName('');setAccountUsername('');setAccountPassword('');setAccountCustomerId('');setAccountSupplierId('');setAccountRole('supplier');
    await load();
   }catch(caught){
    setError(caught instanceof Error?caught.message:'ساخت حساب کاربری ناموفق بود.');
