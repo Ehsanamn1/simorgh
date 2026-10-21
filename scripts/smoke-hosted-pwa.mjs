@@ -6,6 +6,7 @@ import { resolve } from 'node:path';
 const port = Number(process.env.MEDAR_PWA_SMOKE_PORT || 4179);
 if (!Number.isInteger(port) || port < 1024 || port > 65535) throw new Error('MEDAR_PWA_SMOKE_PORT must be a valid non-privileged port.');
 const origin = 'http://127.0.0.1:' + port;
+const apiOrigin = new URL(process.env.MEDAR_WEB_API_BASE_URL || 'https://medar-ops.dengxiao445.workers.dev').origin;
 const viteCli = resolve('node_modules/vite/bin/vite.js');
 const server = spawn(process.execPath, [viteCli, 'preview', '--host', '127.0.0.1', '--port', String(port), '--strictPort'], {
   stdio: 'ignore',
@@ -35,7 +36,7 @@ try {
   page.on('pageerror', error => pageErrors.push(error.message));
 
   // Keep the test independent of production identities and production data.
-  await page.route('https://medar-ops.dengxiao445.workers.dev/api/**', async route => {
+  await page.route(apiOrigin + '/api/**', async route => {
     const pathname = new URL(route.request().url()).pathname;
     let payload = { ok: true };
     if (pathname === '/api/auth/me') payload = { user: null, memberships: [] };
