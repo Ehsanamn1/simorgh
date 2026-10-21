@@ -1168,6 +1168,9 @@ test('mobile navigation spacing and contextual help remain usable', async ({ pag
 
 test('Medar provisions only operational roles and hides customer commerce routes', async ({ page }) => {
   await installIsolatedSession(page, 'owner');
+  await page.route(/\\/api\\/workspace\\/members(?:\\?.*)?$/, route =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ members: [] }) })
+  );
   await page.goto('/simorgh/app/members', { waitUntil: 'domcontentloaded' });
   await page.getByRole('button', { name: /ساخت حساب جدید/ }).click();
   const roleSelect = page.getByLabel('نقش کاربر');
