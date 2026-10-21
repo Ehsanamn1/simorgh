@@ -502,6 +502,25 @@ test('owner access panel uses direct account creation without invitation codes',
   await expect(page.locator('.invite-code-panel')).toHaveCount(0);
 });
 
+test('installed PWA opens the private workspace and updates route-aware offline shell cache', async ({ page }) => {
+  const manifestResponse = await page.request.get('/simorgh/manifest.webmanifest');
+  expect(manifestResponse.ok()).toBe(true);
+  const manifest = await manifestResponse.json() as { start_url?: string; scope?: string; display?: string; lang?: string; dir?: string };
+  expect(manifest.start_url).toBe('./app/home');
+  expect(manifest.scope).toBe('./');
+  expect(manifest.display).toBe('standalone');
+  expect(manifest.lang).toBe('fa');
+  expect(manifest.dir).toBe('rtl');
+
+  const workerResponse = await page.request.get('/simorgh/sw.js');
+  expect(workerResponse.ok()).toBe(true);
+  const workerSource = await workerResponse.text();
+  expect(workerSource).toContain("medar-shell-v5");
+  expect(workerSource).toContain('cache.put(navigationKey, response.clone())');
+  expect(workerSource).toContain('cache.match(navigationKey)');
+  expect(workerSource).toContain("if (!isLocal(url) || isSensitiveAPI(url)) return");
+});
+
 test('desktop sidebar groups and module links use compact spacing', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 1000 });
   await installIsolatedSession(page, 'owner');
