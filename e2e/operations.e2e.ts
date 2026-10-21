@@ -1273,7 +1273,7 @@ test('owner creates a supplier account through the member UI and receives verifi
     companyId, fullName: '', username: 'new_supplier', password,
     role: 'supplier', supplierId: null,
   });
-  expect(createdMember?.membership_id).toBe(membershipId);
-  expect(createdMember?.supplier_id).toBe(supplierId);
+  expect((createdMember as Record<string, unknown> | null)?.membership_id).toBe(membershipId);
+  expect((createdMember as Record<string, unknown> | null)?.supplier_id).toBe(supplierId);
   expect(errors).toEqual([]);
 });
