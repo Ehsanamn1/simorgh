@@ -504,3 +504,21 @@ html[data-theme="light"] .network-status { background:var(--obs-surface); }
   .workspace-home-link { min-height: 60px !important; }
   .workspace-home-section { padding: 12px !important; }
 }
+
+
+/* Keep the most-used actions above secondary inbox history on the operational home. */
+.workspace-home {
+  display: flex !important;
+  flex-direction: column !important;
+}
+.workspace-home-hero { order: 0 !important; }
+.workspace-home > .workspace-home-section:not(.workspace-home-today):not(.in-app-notifications) { order: 1 !important; }
+.workspace-home > .workspace-home-today { order: 2 !important; }
+.workspace-home > .in-app-notifications { order: 3 !important; }
+.in-app-notifications { gap: 8px !important; }
+.in-app-notifications .workspace-home-section-heading > div > p { display: none !important; }
+.in-app-notifications .workspace-home-section-heading { margin-bottom: 7px !important; }
+.in-app-notifications .notification-item { padding: 8px 9px !important; gap: 8px !important; }
+.in-app-notifications .notification-item-icon { width: 30px !important; height: 30px !important; }
+.in-app-notifications .notification-archive { margin-top: 5px !important; }
+.in-app-notifications .notification-archive-toggle { padding: 8px 10px !important; }
