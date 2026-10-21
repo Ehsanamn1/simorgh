@@ -634,7 +634,7 @@ jobs:
           node --input-type=module <<'NODE'
           import { readFile, writeFile } from 'node:fs/promises';
           const source = await readFile('worker/index.ts', 'utf8');
-          const match = source.match(/export const MEMBER_ACCOUNT_INSERT_SQL =([\s\S]*?);\n\napp\.post/);
+          const match = source.match(/export const MEMBER_ACCOUNT_INSERT_SQL =([\s\S]*?);\s*\n\s*export const MEMBER_ACCOUNT_INSERT_GENERATED_SQL/);
           if (!match) throw new Error('Could not extract MEMBER_ACCOUNT_INSERT_SQL from worker/index.ts');
           const statement = Function('return (' + match[1] + ')')();
           if (!statement.includes('new_audit as') || !statement.includes('cross join new_audit')) {
