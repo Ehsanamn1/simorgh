@@ -44,6 +44,18 @@ jobs:
           test -n "$CLOUDFLARE_API_TOKEN" || { echo "CLOUDFLARE_API_TOKEN is missing"; exit 1; }
           test -n "$CLOUDFLARE_ACCOUNT_ID" || { echo "CLOUDFLARE_ACCOUNT_ID is missing"; exit 1; }
           test -n "$MEDAR_DATABASE_URL" || { echo "MEDAR_DATABASE_URL is missing"; exit 1; }
+      - name: Enforce explicit runtime mode for each Worker deployment
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -Eq '^[[:space:]]*MEDAR_MODE[[:space:]]*=' worker/wrangler.toml; then
+            echo "worker/wrangler.toml must not set MEDAR_MODE globally; the operational and demo Worker deployments set it explicitly."
+            exit 1
+          fi
+          grep -Fq -- '--name medar-ops --var MEDAR_MODE:public-demo' .github/workflows/cloudflare-worker.yml
+          grep -Fq -- 'args=(--name medar-ops --var MEDAR_MODE:operational)' .github/workflows/cloudflare-worker.yml
+          grep -Fq -- '--name medar-api --var MEDAR_MODE:public-demo' .github/workflows/cloudflare-worker.yml
+          echo "Bootstrap, operational, and compatibility Worker modes are explicit and cannot inherit a conflicting global mode."
       - name: Verify the established Medar schema before migration
         shell: bash
         run: |
@@ -389,6 +401,8 @@ jobs:
           fi
           worker_url="$(grep -Eo 'https://medar-ops\\.[a-z0-9-]+\\.workers\\.dev' /tmp/medar-ops-deploy.log 2>/dev/null | tail -n1 || true)"
           test -n "$worker_url"
+          health_response="$(curl --silent --show-error --retry 5 --retry-all-errors --retry-delay 2 "$worker_url/api/health")"
+          printf '%s' "$health_response" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{let x;try{x=JSON.parse(s)}catch{console.error('Operational health endpoint returned non-JSON:',s.slice(0,250));process.exit(1)}if(x.ok!==true||x.database!==true||x.service!=='medar-ops'||x.authentication!=='username-password'){console.error('Worker is not in operational runtime mode:',JSON.stringify({ok:x.ok,database:x.database,service:x.service,authentication:x.authentication,code:x.code}));process.exit(1)}console.log('Operational Worker runtime mode and database confirmed:',JSON.stringify({service:x.service,database:x.database,authentication:x.authentication}))})"
           WORKER_URL="$worker_url" MEDAR_ALLOWED_ORIGINS="$custom_origins" node --input-type=module <<'NODE'
           const base = process.env.WORKER_URL;
           const origins = (process.env.MEDAR_ALLOWED_ORIGINS ?? '').split(',').filter(Boolean);
