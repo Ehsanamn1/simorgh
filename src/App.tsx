@@ -46,7 +46,7 @@ const DEFERRED_NAV_KEYS = new Set<PageKey>(['agents', 'goals', 'audit', 'contact
 const navDefinitions: { key: PageKey; label: string; group: string; icon: typeof LayoutDashboard; roles: AppRole[] }[] = [
   { key: 'home', label: 'صفحه من', group: 'شروع', icon: LayoutDashboard, roles: ['owner', 'admin', 'staff', 'supplier', 'driver', 'customer'] },
   { key: 'settings', label: 'تنظیمات', group: 'مدیریت و تنظیمات', icon: Settings2, roles: ['owner', 'admin', 'staff', 'supplier', 'driver', 'customer'] },
-  { key: 'connect', label: 'مرکز ارتباطات', group: 'وظایف و رخدادها', icon: MessageCircle, roles: ['owner', 'admin', 'staff', 'supplier', 'driver', 'customer'] },
+  { key: 'connect', label: 'مرکز ارتباطات', group: 'وظایف و رخدادها', icon: MessageCircle, roles: ['owner', 'admin', 'staff', 'supplier', 'driver'] },
   { key: 'exceptions', label: 'صندوق مسائل', group: 'وظایف و رخدادها', icon: AlertTriangle, roles: ['owner', 'admin', 'staff'] },
   { key: 'command', label: 'مرکز فرمان', group: 'مدیریت', icon: LayoutDashboard, roles: ['owner', 'admin', 'staff'] },
   { key: 'orders', label: 'سفارش‌ها', group: 'مدیریت', icon: FileText, roles: ['owner', 'admin', 'staff'] },
@@ -61,12 +61,9 @@ const navDefinitions: { key: PageKey; label: string; group: string; icon: typeof
   { key: 'capacity', label: 'برنامه ظرفیت', group: 'زنجیره تأمین', icon: Warehouse, roles: ['owner', 'admin', 'staff'] },
   { key: 'quality', label: 'کیفیت و محموله', group: 'عملیات', icon: ClipboardCheck, roles: ['owner', 'admin', 'staff'] },
   { key: 'shipments', label: 'حمل‌ونقل و رانندگان', group: 'زنجیره تأمین', icon: Truck, roles: ['owner', 'admin', 'staff'] },
-  { key: 'finance', label: 'مالی و تسویه', group: 'کنترل', icon: CreditCard, roles: ['owner', 'admin', 'staff', 'supplier', 'customer'] },
+  { key: 'finance', label: 'مالی و تسویه', group: 'کنترل', icon: CreditCard, roles: ['owner', 'admin', 'staff', 'supplier'] },
   { key: 'members', label: 'دسترسی کاربران', group: 'کنترل', icon: ShieldCheck, roles: ['owner', 'admin'] },
   { key: 'audit', label: 'تاریخچه تغییرات', group: 'کنترل', icon: Activity, roles: ['owner', 'admin'] },
-  { key: 'catalog', label: 'خرید سازمانی', group: 'خرید', icon: Boxes, roles: ['customer'] },
-  { key: 'my-orders', label: 'سفارش‌های من', group: 'خرید', icon: FileText, roles: ['customer'] },
-  { key: 'my-account', label: 'حساب سازمانی', group: 'خرید', icon: Building2, roles: ['customer'] },
   { key: 'supplier-work', label: 'کارهای واگذارشده', group: 'تأمین', icon: ClipboardCheck, roles: ['supplier'] },
   { key: 'supplier-capacity', label: 'ظرفیت من', group: 'تأمین', icon: Warehouse, roles: ['supplier'] },
   { key: 'supplier-settlement', label: 'تسویه‌های من', group: 'تأمین', icon: CreditCard, roles: ['supplier'] },
@@ -225,7 +222,7 @@ function AppShell() {
   return <div className="app-frame" dir="rtl">
     <aside className={`app-sidebar ${mobileNav ? 'open' : ''}`}><div className="sidebar-brand"><div className="sidebar-brand-lockup"><Logo/><span className="sidebar-parent-brand">محصول دیجیتال راز صحرا</span></div><button type="button" className="sidebar-close" aria-label="بستن پنل" onClick={() => setMobileNav(false)}><X size={17}/></button></div><button className="workspace-switch" disabled={memberships.length <= 1} onClick={() => memberships.length > 1 && setMembershipId(memberships[(memberships.findIndex(m => m.id === membership?.id) + 1) % memberships.length].id)}><span className="workspace-avatar">{companyName.slice(0,1)}</span><span><b>{companyName}</b><small>{roleLabel[role ?? '']}</small></span>{memberships.length > 1 ? <ChevronDown size={15}/> : <span className="workspace-lock"><ShieldCheck size={14}/></span>}</button><div className="nav-caption">فضای کاری</div>
       <label className="sidebar-search"><Search size={16}/><input value={navSearch} onChange={event => setNavSearch(event.target.value)} placeholder="جست‌وجوی بخش‌ها…" aria-label="جست‌وجو در فهرست بخش‌ها"/>{navSearch && <button type="button" onClick={() => setNavSearch('')} aria-label="پاک‌کردن جست‌وجوی بخش‌ها"><X size={14}/></button>}</label>
-      <div className="nav-tools-box"><div className="nav-tools-box-heading"><span><Boxes size={15}/> منوی اصلی</span><small>{filteredNavItems.length.toLocaleString('fa-IR')}</small></div><div className="nav-groups">{navGroups.map(group => <details className="nav-group" key={group.label} open={Boolean(navSearch.trim()) || group.items.some(item => item.key === active?.key) || (role === 'supplier' && group.items.some(item => item.key === 'supplier-work')) || (role === 'driver' && group.items.some(item => item.key === 'driver-work')) || (role === 'customer' && group.items.some(item => ['catalog', 'my-orders', 'my-account'].includes(item.key)))}><summary><span>{group.label}</span><small>{group.items.length.toLocaleString('fa-IR')}</small></summary><nav className="side-nav">{group.items.map(item => {const Icon = item.icon; const current = active?.key === item.key; return <Link to={'/app/' + item.key} key={item.key} onClick={() => setMobileNav(false)} className={[current ? 'selected' : '', item.key === 'members' ? 'nav-primary-access' : '', item.key === 'connect' ? 'nav-primary-connect' : ''].filter(Boolean).join(' ')}><Icon size={17}/><span>{item.label}</span></Link>;})}</nav></details>)}</div></div></aside>
+      <div className="nav-tools-box"><div className="nav-tools-box-heading"><span><Boxes size={15}/> منوی اصلی</span><small>{filteredNavItems.length.toLocaleString('fa-IR')}</small></div><div className="nav-groups">{navGroups.map(group => <details className="nav-group" key={group.label} open={Boolean(navSearch.trim()) || group.items.some(item => item.key === active?.key) || (role === 'supplier' && group.items.some(item => item.key === 'supplier-work')) || (role === 'driver' && group.items.some(item => item.key === 'driver-work'))}><summary><span>{group.label}</span><small>{group.items.length.toLocaleString('fa-IR')}</small></summary><nav className="side-nav">{group.items.map(item => {const Icon = item.icon; const current = active?.key === item.key; return <Link to={'/app/' + item.key} key={item.key} onClick={() => setMobileNav(false)} className={[current ? 'selected' : '', item.key === 'members' ? 'nav-primary-access' : '', item.key === 'connect' ? 'nav-primary-connect' : ''].filter(Boolean).join(' ')}><Icon size={17}/><span>{item.label}</span></Link>;})}</nav></details>)}</div></div></aside>
         <button type="button" className="floating-help-trigger" onClick={() => setGuideOpen(open => !open)} aria-label={guideOpen ? 'بستن راهنمای این بخش' : 'بازکردن راهنمای این بخش'} aria-expanded={guideOpen} title="راهنمای این بخش">{guideOpen ? <X size={19}/> : <CircleHelp size={20}/>}<span>راهنما</span></button>
         {guideOpen && <HelpGuide key={location.pathname} role={role} section={routeKey} onClose={() => setGuideOpen(false)}/>} 
     {mobileNav && <button aria-label="بستن منو" className="mobile-scrim" onClick={() => setMobileNav(false)}/>} 
@@ -1406,9 +1403,8 @@ function MembersPage({membership,search}:{membership:Membership;search:string}) 
  const [accountUsername,setAccountUsername]=useState('');
  const [accountPassword,setAccountPassword]=useState('');
  const [accountRole,setAccountRole]=useState<AppRole>('supplier');
- const [accountCustomerId,setAccountCustomerId]=useState('');
  const [accountSupplierId,setAccountSupplierId]=useState('');
- const [customers,setCustomers]=useState<Row[]>([]);const [suppliers,setSuppliers]=useState<Row[]>([]);
+ const [suppliers,setSuppliers]=useState<Row[]>([]);
 const [resetSecret,setResetSecret]=useState('');
  const [permissionsMember,setPermissionsMember]=useState<Row|null>(null);
  const [modulePermissions,setModulePermissions]=useState<MemberModulePermission[]>([]);
@@ -1419,17 +1415,12 @@ const [resetSecret,setResetSecret]=useState('');
   try {
    const result=await api.get<{members:Row[]}>(`/api/workspace/members?companyId=${encodeURIComponent(membership.company_id)}`);
    setRows(result.members??[]);
-   if(dataApi){
-    const [customerResult,supplierResult]=await Promise.all([
-     dataApi.from('customers').select('id,name').eq('company_id',membership.company_id).order('name'),
-     dataApi.from('suppliers').select('id,name').eq('company_id',membership.company_id).order('name'),
-    ]);
-    // Related-record lists are optional for account provisioning. Their failure must not
-    // turn a successful member load/create into a visible false failure.
-    setCustomers(customerResult.error?[]:(customerResult.data??[]) as Row[]);
+   if(dataApi){    const supplierResult=await dataApi.from('suppliers').select('id,name').eq('company_id',membership.company_id).order('name');
+    // The optional supplier list supports linking an existing supplier profile. Its failure
+    // must not turn a successful member load/create into a visible false failure.
     setSuppliers(supplierResult.error?[]:(supplierResult.data??[]) as Row[]);
    } else {
-    setCustomers([]);setSuppliers([]);
+    setSuppliers([]);
    }
   } catch(caught) {
    setError(caught instanceof Error?caught.message:'دریافت اعضای مجموعه ناموفق بود.');
@@ -1455,7 +1446,6 @@ const [resetSecret,setResetSecret]=useState('');
     username:normalizedUsername,
     password:accountPassword,
     role:accountRole,
-    customerId:accountRole==='customer'?(accountCustomerId||null):null,
     supplierId:accountRole==='supplier'?(accountSupplierId||null):null,
    });
    if(!result.member?.membership_id||String(result.member.role)!==accountRole){
@@ -1464,13 +1454,10 @@ const [resetSecret,setResetSecret]=useState('');
    if(accountRole==='supplier'&&!result.member.supplier_id){
     throw new Error('حساب تأمین‌کننده بدون پروندهٔ متصل تأیید نشد. هیچ اطلاعات ورود تحویل نده؛ دوباره تلاش کن یا وضعیت پروندهٔ تأمین‌کننده را بررسی کن.');
    }
-   if(accountRole==='customer'&&!result.member.customer_id){
-    throw new Error('حساب مشتری بدون پروندهٔ متصل تأیید نشد. هیچ اطلاعات ورود تحویل نده؛ پروندهٔ مشتری را بررسی کن.');
-   }
    const createdUsername=String(result.member?.username??normalizedUsername);
    setResetSecret('@'+createdUsername+' : '+accountPassword);
    setNotice('حساب ساخته شد. اطلاعات ورود را امن تحویل بده؛ کاربر در اولین ورود نام، نام خانوادگی و تلفن خود را تکمیل می‌کند.');
-   setAccountOpen(false);setAccountName('');setAccountUsername('');setAccountPassword('');setAccountCustomerId('');setAccountSupplierId('');setAccountRole('supplier');
+   setAccountOpen(false);setAccountName('');setAccountUsername('');setAccountPassword('');setAccountSupplierId('');setAccountRole('supplier');
    await load();
   }catch(caught){
    setError(caught instanceof Error?caught.message:'ساخت حساب کاربری ناموفق بود.');
@@ -1534,7 +1521,7 @@ const [resetSecret,setResetSecret]=useState('');
  const visible=rows.filter(r=>(memberFilter==='all'||String(r.role)===memberFilter)&&(!search||[r.username,r.full_name,r.phone,r.role,r.supplier_name].some(v=>String(v??'').toLowerCase().includes(search.toLowerCase()))));
  const options:AppRole[]=membership.role==='owner'?['admin','staff','supplier','driver']:['staff','supplier','driver'];
  return <>
-  <PageHeading eyebrow="ACCESS / MEMBERSHIPS" title="دسترسی کاربران" description="حساب اختصاصی را با نام کاربری، رمز اولیه و نقش مشخص بساز؛ کاربر پس از اولین ورود مشخصات فردی‌اش را تکمیل می‌کند." action={<Button onClick={()=>{setAccountOpen(true);setError('');setNotice('');setAccountName('');setAccountUsername('');setAccountPassword('');setAccountRole('supplier');setAccountCustomerId('');setAccountSupplierId('');}}><Plus size={15}/> ساخت حساب جدید</Button>}/>
+  <PageHeading eyebrow="ACCESS / MEMBERSHIPS" title="دسترسی کاربران" description="حساب اختصاصی را با نام کاربری، رمز اولیه و نقش مشخص بساز؛ کاربر پس از اولین ورود مشخصات فردی‌اش را تکمیل می‌کند." action={<Button onClick={()=>{setAccountOpen(true);setError('');setNotice('');setAccountName('');setAccountUsername('');setAccountPassword('');setAccountRole('supplier');setAccountSupplierId('');}}><Plus size={15}/> ساخت حساب جدید</Button>}/>
   {error&&<InlineError error={error} retry={()=>void load()}/>}
   {notice&&<div className="form-success notice-wide"><CheckCircle2 size={17}/>{notice}</div>}
   <div className="member-role-filters" role="group" aria-label="تفکیک کاربران بر اساس نقش">
@@ -1580,11 +1567,10 @@ const [resetSecret,setResetSecret]=useState('');
    <label className="full-span">نام و نام خانوادگی (اختیاری)<input maxLength={100} value={accountName} onChange={e=>setAccountName(e.target.value)} autoComplete="off"/><small>در صورت خالی‌ماندن، کاربر هنگام اولین ورود نام و نام خانوادگی خود را ثبت می‌کند.</small></label>
    <label>نام کاربری<input required minLength={3} maxLength={32} value={accountUsername} onChange={e=>setAccountUsername(e.target.value.toLowerCase())} dir="ltr" autoComplete="off"/><small>۳ تا ۳۲ نویسه؛ بدون فاصله</small></label>
    <label>رمز عبور اولیه<input required minLength={12} maxLength={128} type="password" value={accountPassword} onChange={e=>setAccountPassword(e.target.value)} dir="ltr" autoComplete="new-password"/><small>حداقل ۱۲ نویسه؛ پس از ورود قابل تغییر است</small></label>
-   <label className="full-span">نقش کاربر<select value={accountRole} onChange={e=>{setAccountRole(e.target.value as AppRole);setAccountCustomerId('');setAccountSupplierId('');}}>{options.map(r=><option value={r} key={r}>{roleLabel[r]}</option>)}</select></label>
-   {accountRole==='customer'&&<label className="full-span">حساب مشتری<select required value={accountCustomerId} onChange={e=>setAccountCustomerId(e.target.value)}><option value="">انتخاب مشتری همین مجموعه…</option>{customers.map(row=><option key={String(row.id)} value={String(row.id)}>{String(row.name)}</option>)}</select></label>}
+   <label className="full-span">نقش کاربر<select value={accountRole} onChange={e=>{setAccountRole(e.target.value as AppRole);setAccountSupplierId('');}}>{options.map(r=><option value={r} key={r}>{roleLabel[r]}</option>)}</select></label>
    {accountRole==='supplier'&&<label className="full-span">پرونده تأمین‌کننده (اختیاری)<select value={accountSupplierId} onChange={e=>setAccountSupplierId(e.target.value)}><option value="">ساخت پرونده پس از تکمیل پروفایل کاربر</option>{suppliers.map(row=><option key={String(row.id)} value={String(row.id)}>{String(row.name)}</option>)}</select><small>اگر پرونده‌ای انتخاب نکنی، مدار هنگام ساخت حساب یک پرونده اولیه می‌سازد و با تکمیل پروفایل، نام و نشانی واقعی را روی همان پرونده ثبت می‌کند.</small></label>}
    {error&&<div className="form-error full-span">{error}</div>}
-   <div className="modal-actions"><Button variant="soft" onClick={()=>setAccountOpen(false)} disabled={busy}>انصراف</Button><Button type="submit" disabled={busy||accountUsername.trim().length<3||accountPassword.length<12||(accountRole==='customer'&&!accountCustomerId)}>{busy?'در حال ساخت حساب…':'ساخت حساب و نمایش اطلاعات ورود'}</Button></div>
+   <div className="modal-actions"><Button variant="soft" onClick={()=>setAccountOpen(false)} disabled={busy}>انصراف</Button><Button type="submit" disabled={busy||accountUsername.trim().length<3||accountPassword.length<12}>{busy?'در حال ساخت حساب…':'ساخت حساب و نمایش اطلاعات ورود'}</Button></div>
   </form></Modal>}
  </>;
 }
