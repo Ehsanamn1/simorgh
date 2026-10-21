@@ -522,3 +522,50 @@ html[data-theme="light"] .network-status { background:var(--obs-surface); }
 .in-app-notifications .notification-item-icon { width: 30px !important; height: 30px !important; }
 .in-app-notifications .notification-archive { margin-top: 5px !important; }
 .in-app-notifications .notification-archive-toggle { padding: 8px 10px !important; }
+
+
+/* Match the responsive navigation geometry to the strict desktop spacing contract. */
+@media (min-width: 861px) and (min-height: 721px) {
+  .app-sidebar .nav-tools-box .nav-groups { gap: 2px !important; row-gap: 2px !important; }
+  .app-sidebar .nav-tools-box .nav-group > summary {
+    min-height: 30px !important;
+    height: auto !important;
+    padding-block: 4px !important;
+    line-height: 1.25 !important;
+  }
+  .app-sidebar .nav-tools-box .nav-group > .side-nav { gap: 1px !important; }
+  .app-sidebar .nav-tools-box .nav-group > .side-nav a {
+    min-height: 30px !important;
+    height: auto !important;
+    padding-block: 4px !important;
+    line-height: 1.25 !important;
+  }
+}
+
+
+/* Match the help popover's compact geometry to desktop and 390px mobile viewports. */
+@media (min-width: 861px) {
+  .medar-help-backdrop { left: 12px !important; bottom: calc(env(safe-area-inset-bottom, 0px) + 16px) !important; width: 224px !important; max-width: calc(100vw - 24px) !important; }
+}
+@media (max-width: 860px) {
+  .medar-help-backdrop { left: 8px !important; bottom: calc(env(safe-area-inset-bottom, 0px) + 78px) !important; width: min(205px, calc(100vw - 16px)) !important; max-width: calc(100vw - 16px) !important; }
+}
+
+
+/* Floating controls stay above content but never intercept dialogs or operational forms. */
+@media (max-width: 860px) {
+  .mobile-workspace-nav[aria-label="ناوبری سریع موبایل"] { z-index: 44 !important; }
+}
+.floating-help-trigger { z-index: 46 !important; }
+.medar-help-backdrop { z-index: 80 !important; }
+.medar-help-dialog.show-full-section-guide,
+.medar-help-dialog.show-global-manual { z-index: 81 !important; }
+
+
+/* Keep compact help above its launcher and clear of the floating dock. */
+@media (min-width: 861px) {
+  .medar-help-backdrop { bottom: calc(env(safe-area-inset-bottom, 0px) + 70px) !important; }
+}
+@media (max-width: 860px) {
+  .medar-help-backdrop { bottom: calc(env(safe-area-inset-bottom, 0px) + 142px) !important; }
+}
