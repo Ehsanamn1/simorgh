@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
 
 const workerSource = await readFile('worker/index.ts', 'utf8');
-const match = workerSource.match(/export const MEMBER_ACCOUNT_INSERT_SQL\s*=([\s\S]*?);\s*\n\s*app\.post\('\/api\/workspace\/members\/create'/);
+const match = workerSource.match(/export const MEMBER_ACCOUNT_INSERT_SQL\\s*=([\\s\\S]*?);\\s*\\n\\s*export const MEMBER_ACCOUNT_INSERT_GENERATED_SQL/);
 if (!match) throw new Error('Could not find MEMBER_ACCOUNT_INSERT_SQL in worker/index.ts');
 
 // The expression is intentionally restricted to quoted string literals joined by +.
