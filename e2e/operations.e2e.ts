@@ -424,6 +424,35 @@ test('desktop sidebar groups and module links use compact spacing', async ({ pag
   expect(linkHeight).toBeLessThanOrEqual(30);
 });
 
+test('mobile workspace drawer groups stay compact and do not stretch to fill the screen', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await installIsolatedSession(page, 'owner');
+  await page.goto('/simorgh/app/home', { waitUntil: 'domcontentloaded' });
+  await page.getByRole('button', { name: 'بازکردن منو' }).click();
+  const sidebar = page.locator('.app-sidebar');
+  await expect(sidebar).toHaveClass(/open/);
+  const groups = sidebar.locator('.nav-tools-box .nav-groups');
+  await expect(groups).toBeVisible();
+  const layout = await groups.evaluate(element => {
+    const style = getComputedStyle(element);
+    const boxes = Array.from(element.querySelectorAll(':scope > .nav-group')).map(node => {
+      const rect = node.getBoundingClientRect();
+      return { top: rect.top, bottom: rect.bottom, height: rect.height, open: (node as HTMLDetailsElement).open };
+    });
+    return { display: style.display, direction: style.flexDirection, gap: Number.parseFloat(style.rowGap), boxes, clientHeight: element.clientHeight, scrollHeight: element.scrollHeight };
+  });
+  expect(layout.display).toBe('flex');
+  expect(layout.direction).toBe('column');
+  expect(layout.gap).toBeLessThanOrEqual(5);
+  expect(layout.boxes.length).toBeGreaterThanOrEqual(2);
+  for (const box of layout.boxes.filter(box => !box.open)) expect(box.height).toBeLessThanOrEqual(55);
+  for (let i = 1; i < layout.boxes.length; i++) {
+    expect(layout.boxes[i].top - layout.boxes[i - 1].bottom).toBeLessThanOrEqual(7);
+  }
+  await page.getByRole('button', { name: 'بستن منو' }).click();
+  await expect(sidebar).not.toHaveClass(/open/);
+});
+
 test('supplier directory remains readable from cache when offline', async ({ page }) => {
   await installIsolatedSession(page, 'owner');
   let apiReachable = true;
