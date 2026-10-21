@@ -1113,6 +1113,59 @@ test('reduced-motion preference is respected by the interface', async ({ page })
 });
 
 
+test('mobile navigation spacing and contextual help remain usable', async ({ page }, testInfo) => {
+  const viewportWidth = Number((testInfo.project.use as { viewport?: { width?: number } }).viewport?.width || 1365);
+  const errors: string[] = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await installIsolatedSession(page, 'owner');
+  await page.goto('/simorgh/app/command', { waitUntil: 'domcontentloaded' });
+
+  if (viewportWidth <= 860) {
+    await page.getByRole('button', { name: 'بازکردن منو' }).click();
+    await expect(page.locator('.app-sidebar')).toHaveClass(/open/);
+    await expect(page.locator('.app-sidebar .nav-tools-box .nav-groups')).toHaveCSS('row-gap', '2px');
+    await expect(page.locator('.app-sidebar .nav-tools-box .nav-group > summary').first()).toHaveCSS('min-height', '34px');
+    await expect(page.locator('.app-sidebar .nav-tools-box .nav-group > .side-nav a').first()).toHaveCSS('min-height', '36px');
+
+    const dimensions = await page.evaluate(() => ({
+      viewport: document.documentElement.clientWidth,
+      document: document.documentElement.scrollWidth,
+      body: document.body.scrollWidth,
+    }));
+    expect(dimensions.document).toBeLessThanOrEqual(dimensions.viewport);
+    expect(dimensions.body).toBeLessThanOrEqual(dimensions.viewport);
+    await page.getByRole('button', { name: 'بستن پنل' }).click();
+  }
+
+  await page.getByRole('button', { name: 'بازکردن راهنمای این بخش' }).click();
+  const localGuide = page.getByRole('dialog', { name: 'راهنمای این بخش' });
+  await expect(localGuide).toBeVisible();
+  await expect(localGuide).toContainText('قاعدهٔ اصلی');
+  await expect(localGuide.locator('.medar-help-steps')).toBeVisible();
+
+  await page.getByRole('button', { name: 'راهنمای کلی' }).click();
+  const fullGuide = page.getByRole('dialog', { name: 'راهنمای جامع مدیریت مدار' });
+  await expect(fullGuide).toBeVisible();
+  await expect(fullGuide).toContainText('راهنمای کلی؛ از صفر تا مدیریت روزانه');
+  await expect(fullGuide.locator('.medar-help-global-manual')).toBeVisible();
+
+  const helpDimensions = await page.evaluate(() => {
+    const box = document.querySelector('.medar-help-dialog')?.getBoundingClientRect();
+    return { viewport: document.documentElement.clientWidth, document: document.documentElement.scrollWidth,
+      left: box?.left ?? 0, right: box?.right ?? 0, width: box?.width ?? 0, height: box?.height ?? 0 };
+  });
+  expect(helpDimensions.document).toBeLessThanOrEqual(helpDimensions.viewport);
+  expect(helpDimensions.left).toBeGreaterThanOrEqual(0);
+  expect(helpDimensions.right).toBeLessThanOrEqual(helpDimensions.viewport);
+  expect(helpDimensions.width).toBeGreaterThan(200);
+  expect(helpDimensions.height).toBeGreaterThan(0);
+
+  await fullGuide.getByRole('button', { name: 'بستن راهنما' }).click();
+  await expect(fullGuide).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
+
 test('Medar provisions only operational roles and hides customer commerce routes', async ({ page }) => {
   await installIsolatedSession(page, 'owner');
   await page.goto('/simorgh/app/members', { waitUntil: 'domcontentloaded' });
