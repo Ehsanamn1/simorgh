@@ -817,7 +817,7 @@ jobs:
       - name: Upload installable operational web bundle
         uses: actions/upload-artifact@v5
         with:
-          name: medar-raaz-sahra-operational-web
+          name: medar-raz-sahra-operational-web
           path: dist/
           if-no-files-found: error
           retention-days: 30
