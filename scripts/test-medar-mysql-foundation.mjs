@@ -20,15 +20,15 @@ try {
     try {
       await db.query(statements[index]);
     } catch (error) {
-      const preview = statements[index].replace(/\\s+/g, ' ').slice(0, 180);
+      const preview = statements[index].split(String.fromCharCode(10)).join(' ').slice(0, 180);
       let diagnostic = '';
       try {
         const [statusRows] = await db.query('SHOW ENGINE INNODB STATUS');
         const status = String(statusRows?.[0]?.Status || '');
         const marker = status.indexOf('LATEST FOREIGN KEY ERROR');
-        if (marker >= 0) diagnostic = '\\n' + status.slice(marker, marker + 1600);
+        if (marker >= 0) diagnostic = String.fromCharCode(10) + status.slice(marker, marker + 1600);
       } catch {}
-      throw new Error('MySQL migration statement ' + (index + 1) + '/' + statements.length + ' failed: ' + preview + '\\n' + error.message + diagnostic);
+      throw new Error('MySQL migration statement ' + (index + 1) + '/' + statements.length + ' failed: ' + preview + String.fromCharCode(10) + error.message + diagnostic);
     }
   }
   const required = ['medar_users','medar_sessions','medar_login_attempts','medar_rate_limits','medar_audit_log','companies','profiles','memberships','access_requests'];
