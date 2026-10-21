@@ -1,8 +1,8 @@
 # مدار (Medar) — وضعیت انتشار و آمادگی عملیاتی
 
 **آخرین بازبینی:** ۲۱ اکتبر ۲۰۲۶  
-**کد عملیاتی تأییدشده:** `70329106d6cd921e1c036714157986b72e0ea201`  
-**commit فعلی main در زمان این بازبینی:** `358716baf9663c29a8dc6f7fb7287c1eaf13826a` (ادغام مستندات آمادگی تجاری؛ بدون تغییر کد Worker)  
+**کد/Worker عملیاتی تأییدشده و pin شده:** `70329106d6cd921e1c036714157986b72e0ea201`  
+**وضعیت drift از زمان pin:** مقایسهٔ `703291…` با main فعلی نشان می‌دهد تغییرات بعدی فقط آزمون‌ها، workflow و مستندات بوده‌اند؛ کد runtime/`worker/index.ts` تغییر نکرده است، بنابراین pin عملیاتی ثابت مانده است.  
 **تصمیم انتشار:** زیرساخت و استقرار تأیید شده‌اند؛ استفادهٔ تجاری گسترده تا تکمیل گیت‌های مالک/نقش، جداسازی واقعی مستأجرها، پذیرش فایل، Push و تصمیم مهاجرت داده **NO-GO** باقی می‌ماند.
 
 ## لینک‌های زنده
@@ -23,8 +23,8 @@
 - **ساخت Android debug APK:** [run 39653283373](https://github.com/Ehsanamn1/simorgh/actions/runs/39653283373) — موفق.
 - **ساخت iOS Simulator:** [run 39653283318](https://github.com/Ehsanamn1/simorgh/actions/runs/39653283318) — موفق.
 - **آرشیو کامل سورس:** [run 39653283462](https://github.com/Ehsanamn1/simorgh/actions/runs/39653283462) — موفق.
-- **انتشار ادغام‌شدهٔ راز صحرا با همین pin مدار:** [run 39654966982](https://github.com/Ehsanamn1/razsahra/actions/runs/39654966982) — موفق؛ bundle حاوی marker دقیق parent/Medar بود، مسیرهای `/`, `/madar/`, `/madar/app/home` پاسخ HTTP 200 دادند، سلامت هر دو اتصال دیتابیس تأیید شد و دسترسی ناشناس به `/api/admin/pages` با HTTP 401 رد شد.
-- **آخرین به‌روزرسانی مستندات والد:** [Raz Sahra PR #11](https://github.com/Ehsanamn1/razsahra/pull/11) ادغام شده است؛ انتشار post-merge آن در زمان آخرین بررسی در حال اجرا بود، پس تا پایان smoke-test آن را انتشار جدیدِ تأییدشده حساب نکنید.
+- **انتشار تغییر pin در راز صحرا:** [run 39655896308](https://github.com/Ehsanamn1/razsahra/actions/runs/39655896308) — موفق؛ pin عملیاتی `703291…` embed و smoke test زنده انجام شد.
+- **آخرین انتشار موفق parent پس از reconciliation مستندات:** [run 39659265140](https://github.com/Ehsanamn1/razsahra/actions/runs/39659265140) — موفق روی parent SHA `49b773d10bb142bd4c9df0cd82127d250a971236` و pin مدار `70329106d6cd921e1c036714157986b72e0ea201`. marker دقیق در JavaScript تأیید شد؛ Cloudflare URL یکتا `https://aa192a68.razsahra.pages.dev`؛ `/`, `/madar/`, `/madar/app/home` در هر دو origin HTTP 200، هر دو health/database probe موفق، و `/api/admin/pages` بدون نشست HTTP 401 بود.
 
 این آزمون‌ها TypeScript، lint، unit tests، audit وابستگی‌های production، migrationهای PostgreSQL تمیز، SQLهای واقعی برای rate-limit و حساب عضو، هم‌زمانی موجودی، چرخهٔ خرید/رسید، تست‌های مرورگر عملیاتی و دموی عمومی در اندازه‌های دسکتاپ/موبایل، مسیرهای PWA و buildهای Worker/Web را پوشش می‌دهند. این‌ها اثبات اجرای تست‌شده هستند، نه تأیید همهٔ گردش‌های تجاری با کاربران واقعی.
 
