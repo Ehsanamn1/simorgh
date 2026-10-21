@@ -44,6 +44,20 @@ jobs:
           test -n "$CLOUDFLARE_API_TOKEN" || { echo "CLOUDFLARE_API_TOKEN is missing"; exit 1; }
           test -n "$CLOUDFLARE_ACCOUNT_ID" || { echo "CLOUDFLARE_ACCOUNT_ID is missing"; exit 1; }
           test -n "$MEDAR_DATABASE_URL" || { echo "MEDAR_DATABASE_URL is missing"; exit 1; }
+      - name: Enforce explicit runtime mode for each Worker deployment
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq 'name = "medar-ops"' worker/wrangler-medar-ops.toml
+          grep -Fq 'MEDAR_DEPLOYMENT_MODE = "operational"' worker/wrangler-medar-ops.toml
+          grep -Fq 'name = "medar-ops"' worker/wrangler-medar-ops-bootstrap.toml
+          grep -Fq 'MEDAR_DEPLOYMENT_MODE = "bootstrap"' worker/wrangler-medar-ops-bootstrap.toml
+          grep -Fq 'name = "medar-api"' worker/wrangler.toml
+          grep -Fq 'MEDAR_MODE = "public-demo"' worker/wrangler.toml
+          grep -Fq -- 'deploy --config wrangler-medar-ops-bootstrap.toml' .github/workflows/cloudflare-worker.yml
+          grep -Fq -- 'args=(--config wrangler-medar-ops.toml)' .github/workflows/cloudflare-worker.yml
+          grep -Fq -- 'deploy --config wrangler.toml' .github/workflows/cloudflare-worker.yml
+          echo "Bootstrap, operational, and compatibility Workers use their own fixed Wrangler configs."
       - name: Verify the established Medar schema before migration
         shell: bash
         run: |
@@ -179,21 +193,22 @@ jobs:
           psql "$MEDAR_DATABASE_URL" -v ON_ERROR_STOP=1 -Atqc "select exists(select 1 from information_schema.columns where table_schema='public' and table_name='medar_files' and column_name='content_base64')" | grep -Fxq t
       # Keep medar-api as the public showcase. The operational app is a separate Worker
       # so enabling its sign-in UI never changes the read-only public demo.
-      - name: Build safe bootstrap bundle for the operational Worker
+      - name: Build protected sign-in shell for the operational Worker bootstrap
         run: npm run build
         env:
-          VITE_ENABLE_AUTH_UI: 'false'
-      - name: Verify safe bootstrap bundle before attaching the production database
+          VITE_ENABLE_AUTH_UI: 'true'
+      - name: Verify private sign-in bootstrap bundle before attaching the production database
         shell: bash
         run: |
           test -f dist/index.html
           grep -q 'id="root"' dist/index.html
-          grep -Rqs --include='*.js' 'demo-workspace' dist/assets
-          grep -Rqs --include='*.js' 'دموی قابل ارائه' dist/assets
-          echo "Bootstrap bundle stays in the read-only showcase mode while the operational database secret is attached."
+          grep -Rqs --include='*.js' 'simorgh-signin-layer' dist/assets
+          grep -Rqs --include='*.js' 'ثبت‌نام عمومی غیرفعال است' dist/assets
+          grep -Rqs --include='*.css' 'simorgh-signin-layer' dist/assets
+          echo "Bootstrap bundle exposes the protected sign-in UI, not the public sample workspace."
       - name: Create operational Worker script in safe bootstrap mode
         working-directory: worker
-        run: set -o pipefail; npx wrangler@4 deploy --name medar-ops --var MEDAR_MODE:public-demo 2>&1 | tee /tmp/medar-ops-bootstrap.log
+        run: set -o pipefail; npx wrangler@4 deploy --config wrangler-medar-ops-bootstrap.toml 2>&1 | tee /tmp/medar-ops-bootstrap.log
       - name: Configure Neon database secret for the operational Worker
         working-directory: worker
         shell: bash
@@ -314,7 +329,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          args=(--name medar-ops --var MEDAR_MODE:operational)
+          args=(--config wrangler-medar-ops.toml)
           custom_origins="$(printf '%s' "$MEDAR_ALLOWED_ORIGINS" | tr -d '[:space:]')"
           if [[ -n "$custom_origins" ]]; then
             default_origins="https://ehsanamn1.github.io,capacitor://localhost,https://localhost,ionic://localhost,http://localhost,http://localhost:5173,http://127.0.0.1:5173"
@@ -350,7 +365,7 @@ jobs:
             exit 1
           fi
           response="$(curl --fail --silent --show-error --retry 10 --retry-all-errors --retry-delay 3 "$worker_url/api/health")"
-          printf '%s' "$response" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const x=JSON.parse(s);if(x.ok!==true||x.database!==true||x.authentication!=='username-password'){console.error('Unexpected operational health response:',s);process.exit(1)}console.log('Operational Worker database health OK:',s)})"
+          printf '%s' "$response" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const x=JSON.parse(s);if(x.ok!==true||x.database!==true||x.service!=='medar-ops'||x.authentication!=='username-password'){console.error('Unexpected operational health response:',JSON.stringify({ok:x.ok,database:x.database,service:x.service,authentication:x.authentication,code:x.code}));process.exit(1)}console.log('Operational Worker runtime mode and database confirmed:',JSON.stringify({service:x.service,database:x.database,authentication:x.authentication}))})"
           WORKER_URL="$worker_url" node --input-type=module <<'NODE'
           const base = process.env.WORKER_URL;
           const rootResponse = await fetch(base + '/');
@@ -387,8 +402,10 @@ jobs:
             echo "No separate static-host origin configured; same-origin Worker hosting remains the recommended default."
             exit 0
           fi
-          worker_url="$(grep -Eo 'https://medar-ops\\.[a-z0-9-]+\\.workers\\.dev' /tmp/medar-ops-deploy.log 2>/dev/null | tail -n1 || true)"
+          worker_url="$(grep -Eo 'https://medar-ops\.[a-z0-9-]+\.workers\.dev' /tmp/medar-ops-deploy.log 2>/dev/null | tail -n1 || true)"
           test -n "$worker_url"
+          health_response="$(curl --silent --show-error --retry 5 --retry-all-errors --retry-delay 2 "$worker_url/api/health")"
+          printf '%s' "$health_response" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{let x;try{x=JSON.parse(s)}catch{console.error('Operational health endpoint returned non-JSON:',s.slice(0,250));process.exit(1)}if(x.ok!==true||x.database!==true||x.service!=='medar-ops'||x.authentication!=='username-password'){console.error('Worker is not in operational runtime mode:',JSON.stringify({ok:x.ok,database:x.database,service:x.service,authentication:x.authentication,code:x.code}));process.exit(1)}console.log('Operational Worker runtime mode and database confirmed:',JSON.stringify({service:x.service,database:x.database,authentication:x.authentication}))})"
           WORKER_URL="$worker_url" MEDAR_ALLOWED_ORIGINS="$custom_origins" node --input-type=module <<'NODE'
           const base = process.env.WORKER_URL;
           const origins = (process.env.MEDAR_ALLOWED_ORIGINS ?? '').split(',').filter(Boolean);
@@ -486,6 +503,10 @@ jobs:
             await page.locator('.simorgh-signin-layer').waitFor({ state: 'visible', timeout: 20000 });
             if (await page.getByRole('button', { name: 'ساخت حساب و فضای کاری' }).count()) throw new Error(label + ': public signup must remain disabled for a direct signup hash.');
             await page.getByText(/ثبت‌نام عمومی غیرفعال است/).waitFor({ state: 'visible' });
+            await page.goto(base + '/demo', { waitUntil: 'networkidle', timeout: 60000 });
+            await page.locator('.simorgh-signin-layer').waitFor({ state: 'visible', timeout: 20000 });
+            if (!new URL(page.url()).pathname.endsWith('/app/command')) throw new Error(label + ': operational build did not redirect /demo to the protected entry. URL=' + page.url());
+            if (await page.locator('.demo-workspace, .demo-preview-notice').count()) throw new Error(label + ': public sample workspace is reachable on the operational Worker.');
             const size = await page.evaluate(() => ({ viewport: innerWidth, document: document.documentElement.scrollWidth, body: document.body.scrollWidth }));
             if (size.document > size.viewport || size.body > size.viewport) throw new Error(label + ': horizontal overflow ' + JSON.stringify(size));
           }
@@ -548,7 +569,7 @@ jobs:
         run: printf '%s' "$MEDAR_DATABASE_URL" | npx wrangler@4 secret put DATABASE_URL
       - name: Deploy Worker
         working-directory: worker
-        run: set -o pipefail; npx wrangler@4 deploy --name medar-api --var MEDAR_MODE:public-demo 2>&1 | tee /tmp/medar-deploy.log
+        run: set -o pipefail; npx wrangler@4 deploy --config wrangler.toml 2>&1 | tee /tmp/medar-deploy.log
       - name: Smoke-test API and verify the public hostname redirects to operational Medar
         shell: bash
         run: |

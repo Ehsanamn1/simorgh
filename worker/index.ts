@@ -9,6 +9,7 @@ type PrivateFileStore = {
 type Bindings = {
   DATABASE_URL?: string;
   MEDAR_MODE?: string;
+  MEDAR_DEPLOYMENT_MODE?: string;
   ALLOWED_ORIGINS?: string;
   FILE_STORE?: PrivateFileStore;
   AI_ENCRYPTION_KEY?: string;
@@ -18,6 +19,15 @@ type Bindings = {
   ASSETS?: { fetch(request: Request): Promise<Response> };
 };
 type AppEnv = { Bindings: Bindings };
+
+/**
+ * Runtime role is set by the deployment workflow using a dedicated, non-secret binding.
+ * MEDAR_MODE remains a backwards-compatible fallback for the public compatibility Worker,
+ * but it must never override MEDAR_DEPLOYMENT_MODE on the operational Worker.
+ */
+export function getMedarDeploymentMode(env: { MEDAR_DEPLOYMENT_MODE?: string; MEDAR_MODE?: string }): string | undefined {
+  return env.MEDAR_DEPLOYMENT_MODE || env.MEDAR_MODE;
+}
 type Ctx = Context<AppEnv>;
 type AuthUser = { id: string; username: string; phone: string; full_name: string };
 type CurrentSession = { user: AuthUser; sessionId: string; tokenHash: string };
@@ -28,7 +38,7 @@ const app = new Hono<AppEnv>();
 // Keep its health/read-only API behavior for compatibility, but route every
 // browser-facing path to the protected operational application.
 app.use('*', async (c, next) => {
-  if (c.env.MEDAR_MODE === 'public-demo' && !c.req.path.startsWith('/api/')) {
+  if (getMedarDeploymentMode(c.env) === 'public-demo' && !c.req.path.startsWith('/api/')) {
     const target = new URL(c.req.url);
     target.protocol = 'https:';
     target.hostname = 'medar-ops.dengxiao445.workers.dev';
@@ -443,7 +453,7 @@ app.use('/api/*', async (c, next) => {
   }
   if (c.req.method === 'OPTIONS') return c.body(null, 204);
 
-  const apiAccess = resolveApiModeAccess(c.env.MEDAR_MODE, c.req.method, c.req.path);
+  const apiAccess = resolveApiModeAccess(getMedarDeploymentMode(c.env), c.req.method, c.req.path);
   if (apiAccess === 'anonymous-session') return c.json({ user: null, memberships: [] });
   if (apiAccess === 'deny') {
     return c.json({
@@ -476,7 +486,7 @@ app.get('/api/health', async (c) => {
   try {
     const sql = sqlFor(c);
     await sql`select 1 as ready`;
-    return c.json({ ok: true, service: c.env.MEDAR_MODE === 'operational' ? 'medar-ops' : 'medar-api', database: true, authentication: 'username-password' });
+    return c.json({ ok: true, service: getMedarDeploymentMode(c.env) === 'operational' ? 'medar-ops' : 'medar-api', database: true, authentication: 'username-password' });
   } catch {
     return c.json({ ok: false, service: 'medar-api', database: false }, 503);
   }
@@ -4043,7 +4053,7 @@ app.onError((error, c) => {
 const medarWorker = {
   fetch: app.fetch,
   scheduled(controller: { scheduledTime: number; cron: string }, env: Bindings, context: { waitUntil(promise: Promise<unknown>): void }) {
-    if (env.MEDAR_MODE !== 'operational') return;
+    if (getMedarDeploymentMode(env) !== 'operational') return;
     context.waitUntil((async () => {
       if (controller.cron === '30 1 * * *') await runDailyBriefingNotifications(env);
       await runWebPushOutbox(env);
