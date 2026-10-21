@@ -752,8 +752,8 @@ html[data-theme="light"] .network-status { background:var(--obs-surface); }
 }
 
 
-/* Final responsive shell contract: compact mobile navigation and a usable contextual help
-   popover. Keep these overrides last because legacy visual layers define duplicate selectors. */
+/* Final responsive shell contract: compact mobile navigation, a compact help chip,
+   and an expandable help panel. These rules intentionally come last after legacy overrides. */
 .floating-help-trigger {
   left: max(16px, env(safe-area-inset-left, 0px)) !important;
   right: auto !important;
@@ -765,16 +765,30 @@ html[data-theme="light"] .network-status { background:var(--obs-surface); }
   top: auto !important;
   right: auto !important;
   bottom: 72px !important;
-  left: max(16px, env(safe-area-inset-left, 0px)) !important;
-  width: min(360px, calc(100vw - 32px)) !important;
-  max-width: calc(100vw - 32px) !important;
-  max-height: min(68dvh, 560px) !important;
+  left: max(12px, env(safe-area-inset-left, 0px)) !important;
+  width: min(224px, calc(100vw - 24px)) !important;
+  max-width: calc(100vw - 24px) !important;
+  max-height: min(220px, 30dvh) !important;
   overflow: visible !important;
-  z-index: 5000 !important;
+  z-index: 5200 !important;
   pointer-events: none !important;
 }
-.medar-help-backdrop .medar-help-dialog {
+.medar-help-backdrop > .medar-help-dialog:not(.show-full-section-guide):not(.show-global-manual) {
   width: 100% !important;
+  max-height: min(168px, 27dvh) !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  overscroll-behavior: contain !important;
+  pointer-events: auto !important;
+}
+.medar-help-dialog.show-full-section-guide,
+.medar-help-dialog.show-global-manual {
+  position: fixed !important;
+  left: max(12px, env(safe-area-inset-left, 0px)) !important;
+  right: auto !important;
+  bottom: 72px !important;
+  width: min(440px, calc(100vw - 24px)) !important;
+  max-width: calc(100vw - 24px) !important;
   max-height: min(68dvh, 560px) !important;
   overflow-x: hidden !important;
   overflow-y: auto !important;
@@ -806,17 +820,25 @@ html[data-theme="light"] .network-status { background:var(--obs-surface); }
     line-height: 1.35 !important;
   }
   .floating-help-trigger {
-    left: max(12px, env(safe-area-inset-left, 0px)) !important;
+    left: max(8px, env(safe-area-inset-left, 0px)) !important;
     bottom: calc(88px + env(safe-area-inset-bottom, 0px)) !important;
   }
   .medar-help-backdrop {
-    left: max(12px, env(safe-area-inset-left, 0px)) !important;
-    bottom: calc(142px + env(safe-area-inset-bottom, 0px)) !important;
-    width: min(340px, calc(100vw - 24px)) !important;
-    max-width: calc(100vw - 24px) !important;
-    max-height: min(58dvh, 520px) !important;
+    left: max(8px, env(safe-area-inset-left, 0px)) !important;
+    bottom: calc(78px + env(safe-area-inset-bottom, 0px)) !important;
+    width: min(205px, calc(100vw - 16px)) !important;
+    max-width: calc(100vw - 16px) !important;
+    max-height: min(200px, 30dvh) !important;
   }
-  .medar-help-backdrop .medar-help-dialog {
+  .medar-help-backdrop > .medar-help-dialog:not(.show-full-section-guide):not(.show-global-manual) {
+    max-height: min(168px, 27dvh) !important;
+  }
+  .medar-help-dialog.show-full-section-guide,
+  .medar-help-dialog.show-global-manual {
+    left: max(8px, env(safe-area-inset-left, 0px)) !important;
+    bottom: calc(142px + env(safe-area-inset-bottom, 0px)) !important;
+    width: min(440px, calc(100vw - 16px)) !important;
+    max-width: calc(100vw - 16px) !important;
     max-height: min(58dvh, 520px) !important;
   }
 }
