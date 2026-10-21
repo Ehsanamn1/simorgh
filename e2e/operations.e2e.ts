@@ -266,6 +266,63 @@ test('generic farm types and daily rejected quantities are validated before writ
   await expect(page.locator('.ops-modal')).toBeVisible();
 });
 
+test('private supplier login establishes a session and role-scoped workspace', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const user = { id: '00000000-0000-4000-8000-000000000011', username: 'supplier_ci_login', phone: '+989120000011', full_name: 'تأمین‌کننده آزمایشی' };
+  const membership = {
+    id: '00000000-0000-4000-8000-000000000044',
+    company_id: companyId,
+    user_id: user.id,
+    role: 'supplier',
+    customer_id: null,
+    supplier_id: '00000000-0000-4000-8000-000000000033',
+    active: true,
+    company: { name: 'شرکت آزمایشی مدار' },
+  };
+  let signedIn = false;
+  let loginPayload: Record<string, unknown> | null = null;
+  await page.route('**/api/auth/me', route => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({ user: signedIn ? user : null, memberships: signedIn ? [membership] : [] }),
+  }));
+  await page.route('**/api/auth/login', async route => {
+    loginPayload = route.request().postDataJSON() as Record<string, unknown>;
+    signedIn = true;
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ user, memberships: [membership] }) });
+  });
+  await page.route('**/api/workspace/my-module-permissions**', route => route.fulfill({
+    status: 200, contentType: 'application/json', body: JSON.stringify({ companyId, permissions: {} }),
+  }));
+  await page.route('**/api/workspace/memberships', route => route.fulfill({
+    status: 200, contentType: 'application/json', body: JSON.stringify({ memberships: [membership] }),
+  }));
+  await page.route('**/api/push/config**', route => route.fulfill({
+    status: 200, contentType: 'application/json', body: JSON.stringify({ enabled: false, publicKey: null }),
+  }));
+  await page.route('**/api/client/heartbeat', route => route.fulfill({
+    status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true }),
+  }));
+  await page.route('**/api/notifications**', route => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({ notifications: [], summary: { total: 0, unread: 0 }, ok: true, updated: 0 }),
+  }));
+  await page.route('**/api/data/**', async route => {
+    const table = new URL(route.request().url()).pathname.split('/').pop() || '';
+    await route.fulfill({ status: 200, contentType: 'application/json', headers: { 'cache-control': 'no-store' }, body: JSON.stringify({ data: [], count: 0, error: null, table }) });
+  });
+
+  await page.goto('/simorgh/app/home', { waitUntil: 'domcontentloaded' });
+  await expect(page.getByRole('heading', { name: 'ورود به مدار' })).toBeVisible();
+  await page.getByLabel('نام کاربری').fill('supplier_ci_login');
+  await page.getByLabel('گذرواژه').fill('CI-supplier-login-password!');
+  await page.getByRole('button', { name: 'ورود به فضای کار' }).click();
+  await expect(page.locator('.app-frame')).toBeVisible();
+  await expect(page.locator('.workspace-home')).toBeVisible();
+  await expect(page.locator('.nav-groups').getByRole('link', { name: /کارهای واگذارشده/ })).toBeVisible();
+  await expect(page.locator('.nav-groups').getByRole('link', { name: /دسترسی کاربران/ })).toHaveCount(0);
+  expect(loginPayload).toMatchObject({ username: 'supplier_ci_login', password: 'CI-supplier-login-password!' });
+});
+
 test('accounts without a workspace cannot self-join; the owner provisions access', async ({ page }) => {
   await installIsolatedSession(page, 'unprovisioned');
   await page.goto('/simorgh/app/command', { waitUntil: 'domcontentloaded' });
