@@ -1664,7 +1664,7 @@ export default function App() {
   const protectedFallback = authUiEnabled ? <Navigate to="/app/command" replace/> : <Navigate to="/demo" replace/>;
   return <Routes>
     <Route path="/" element={home}/>
-    <Route path="/demo" element={<DemoWorkspace/>}/>
+    <Route path="/demo" element={authUiEnabled ? <Navigate to="/app/command" replace/> : <DemoWorkspace/>}/>
     <Route path="/about" element={protectedFallback}/>
     <Route path="/auth" element={protectedFallback}/>
     <Route path="/app/*" element={<WorkspaceGate/>}/>
