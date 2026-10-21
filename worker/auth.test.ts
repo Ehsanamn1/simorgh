@@ -11,6 +11,7 @@ import {
   DUMMY_PASSWORD_HASH,
   FAILED_LOGIN_UPSERT_SQL,
   normalizeUsername,
+  hashPassword,
   MEMBER_ACCOUNT_INSERT_SQL,
   MEMBER_ACCOUNT_ALLOWED_ROLES,
   parseClientHeartbeat,
@@ -194,6 +195,16 @@ describe('shared web/mobile presence payload validation', () => {
     expect(parseClientHeartbeat({ ...valid, companyId: 'public' })).toBeNull();
     expect(parseClientHeartbeat({ ...valid, appVersion: 'v'.repeat(41) })).toBeNull();
     expect(parseClientHeartbeat(null)).toBeNull();
+  });
+});
+
+describe('new account credential round-trip', () => {
+  it('hashes a provisioned account password in the format accepted by login verification', async () => {
+    const password = 'CI-only-Supplier-Password-2026!';
+    const passwordHash = await hashPassword(password);
+    expect(passwordHash).toMatch(/^pbkdf2_sha256\$100000\$/);
+    await expect(verifyPassword(password, passwordHash)).resolves.toBe(true);
+    await expect(verifyPassword(password + '-wrong', passwordHash)).resolves.toBe(false);
   });
 });
 
