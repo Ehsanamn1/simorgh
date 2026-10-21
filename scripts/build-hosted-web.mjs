@@ -113,7 +113,7 @@ const installGuide = [
   'امنیت: DATABASE_URL، توکن Cloudflare و رمزهای کاربران در این بسته قرار ندارند و هرگز نباید به فرانت‌اند یا ZIP عمومی اضافه شوند.',
   'پایگاه دادهٔ موجود در production با این بسته منتقل نمی‌شود. انتقال PostgreSQL و فایل‌ها باید جداگانه، با backup قابل‌بازیابی و آزمون staging انجام شود.',
   'این خروجی با نسخهٔ '+appVersion+' ساخته شده است.'
-].join('\\n') + '\\n';
+].join('\n') + '\n';
 await writeFile(resolve(dist, 'RAZ-SAHRA-INSTALL.txt'), installGuide, { mode: 0o644 });
 const installGuideInfo = await stat(resolve(dist, 'RAZ-SAHRA-INSTALL.txt'));
 if (installGuideInfo.size < 300) throw new Error('Raz Sahara installation guide was not written completely.');
