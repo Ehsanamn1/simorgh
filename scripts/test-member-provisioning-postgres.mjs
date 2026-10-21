@@ -42,6 +42,75 @@ const sql = [
   execute('ci_staff_member','CI Staff Member','staff'),
   execute('ci_admin_member','CI Admin Member','admin'),
   execute('ci_customer_member','CI Customer Member','customer',customerId,null),
+  ...Array.from({ length: 100 }, (_, index) => {
+    const suffix = String(index + 1).padStart(3, '0');
+    return execute('ci_load_member_' + suffix, 'CI Load Member ' + suffix, 'staff');
+  }),
+  `INSERT INTO public.medar_membership_module_permissions(company_id,membership_id,module_key,inherit_role_defaults,can_read,can_create,can_update,can_delete,can_approve,updated_by)
+   SELECT m.company_id,m.id,'agents',false,
+     (substring(u.username_normalized from '[0-9]+
+    DECLARE expected_count integer;
+    BEGIN
+      SELECT count(*) INTO expected_count FROM public.medar_users
+      WHERE username_normalized IN ('ci_supplier_member','ci_driver_member','ci_staff_member','ci_admin_member','ci_customer_member')
+        AND account_status='active';
+      IF expected_count <> 5 THEN RAISE EXCEPTION 'Expected five active provisioned identities, got %', expected_count; END IF;
+
+      SELECT count(*) INTO expected_count FROM public.medar_users
+      WHERE username_normalized LIKE 'ci_load_member_%' AND account_status='active';
+      IF expected_count <> 100 THEN RAISE EXCEPTION 'Expected 100 PostgreSQL load-test identities, got %', expected_count; END IF;
+
+      SELECT count(*) INTO expected_count FROM public.profiles p JOIN public.medar_users u ON u.id=p.id
+      WHERE u.username_normalized IN ('ci_supplier_member','ci_driver_member','ci_staff_member','ci_admin_member','ci_customer_member');
+      IF expected_count <> 5 THEN RAISE EXCEPTION 'Expected five profile rows, got %', expected_count; END IF;
+
+      SELECT count(*) INTO expected_count FROM public.memberships m JOIN public.medar_users u ON u.id=m.user_id
+      WHERE m.company_id='${companyId}'::uuid AND m.active
+        AND ((u.username_normalized='ci_supplier_member' AND m.role::text='supplier' AND m.supplier_id='${supplierId}'::uuid)
+          OR (u.username_normalized='ci_driver_member' AND m.role::text='driver')
+          OR (u.username_normalized='ci_staff_member' AND m.role::text='staff')
+          OR (u.username_normalized='ci_admin_member' AND m.role::text='admin')
+          OR (u.username_normalized='ci_customer_member' AND m.role::text='customer' AND m.customer_id='${customerId}'::uuid));
+      IF expected_count <> 5 THEN RAISE EXCEPTION 'Expected all five correctly scoped memberships, got %', expected_count; END IF;
+
+      SELECT count(*) INTO expected_count FROM public.medar_audit_log
+      WHERE actor_user_id='${ownerId}'::uuid AND action='membership.account_created'
+        AND metadata->>'company_id'='${companyId}';
+      IF expected_count <> 105 THEN RAISE EXCEPTION 'Expected 105 account creation audit events, got %', expected_count; END IF;
+
+      SELECT count(*) INTO expected_count FROM public.medar_membership_module_permissions p
+      JOIN public.memberships m ON m.id=p.membership_id
+      JOIN public.medar_users u ON u.id=m.user_id
+      WHERE p.company_id='${companyId}'::uuid AND p.module_key='agents'
+        AND u.username_normalized LIKE 'ci_load_member_%';
+      IF expected_count <> 100 THEN RAISE EXCEPTION 'Expected 100 company-scoped agent policies, got %', expected_count; END IF;
+
+      SELECT count(*) INTO expected_count FROM public.medar_membership_module_permissions p
+      JOIN public.memberships m ON m.id=p.membership_id
+      JOIN public.medar_users u ON u.id=m.user_id
+      WHERE p.company_id='${companyId}'::uuid AND p.module_key='agents'
+        AND u.username_normalized LIKE 'ci_load_member_%' AND p.can_read;
+      IF expected_count <> 50 THEN RAISE EXCEPTION 'Expected exactly 50 allowed agent read policies, got %', expected_count; END IF;
+    END
+  $verify_member_provisioning$;
+  'ROLLBACK;',
+  ''
+].join('\n');
+
+const result = spawnSync('psql', ['-h', '127.0.0.1', '-U', 'postgres', '-d', 'medar_test', '-v', 'ON_ERROR_STOP=1'], {
+  input: sql,
+  encoding: 'utf8',
+  env: process.env,
+  maxBuffer: 5 * 1024 * 1024,
+});
+if (result.stdout) process.stdout.write(result.stdout);
+if (result.stderr) process.stderr.write(result.stderr);
+if (result.error) throw result.error;
+if (result.status !== 0) process.exit(result.status ?? 1);
+console.log('Real PostgreSQL transaction test passed: five role types plus 100 additional memberships and 100 scoped agent permission policies were validated inside a rollback transaction. No fixture data was retained.');
+)::integer % 2 = 0),true,true,false,false,'${ownerId}'::uuid
+   FROM public.memberships m JOIN public.medar_users u ON u.id=m.user_id
+   WHERE m.company_id='${companyId}'::uuid AND u.username_normalized LIKE 'ci_load_member_%';`,
   `DO $verify_member_provisioning$
     DECLARE expected_count integer;
     BEGIN
