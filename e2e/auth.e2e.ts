@@ -92,3 +92,16 @@ test('a blocked JavaScript bundle shows a recovery state instead of a black page
   await expect(page.getByRole('alert')).toContainText('برنامه بارگذاری نشد');
   await expect(page.getByRole('button', { name: 'بارگذاری دوباره' })).toBeVisible();
 });
+
+
+test('operational build redirects the public demo route to authenticated sign-in', async ({ page }) => {
+  await page.route('**/api/auth/me', route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ user: null, memberships: [] }),
+  }));
+  await page.goto('/simorgh/demo', { waitUntil: 'domcontentloaded' });
+  await expect(page).toHaveURL(/\\/simorgh\\/app\\/command$/);
+  await expect(page.locator('.simorgh-signin-layer')).toBeVisible();
+  await expect(page.locator('.demo-workspace, .demo-preview-notice')).toHaveCount(0);
+});
