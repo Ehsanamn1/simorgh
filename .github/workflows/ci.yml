@@ -814,6 +814,8 @@ jobs:
           MEDAR_WEB_API_BASE_URL: ${{ vars.MEDAR_OPS_API_BASE_URL || 'https://medar-ops.dengxiao445.workers.dev' }}
           VITE_APP_VERSION: ${{ github.sha }}
         run: npm run build:hosted-web
+      - name: Test hosted PWA routing and installation shell in Chromium
+        run: npm run test:pwa:hosted
       - name: Upload installable operational web bundle
         uses: actions/upload-artifact@v5
         with:
