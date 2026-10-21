@@ -18,6 +18,19 @@ jobs:
   validate:
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: ci-root-password
+          MYSQL_DATABASE: medar_ci
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -pci-root-password"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -29,6 +42,12 @@ jobs:
         run: npm install --no-audit --no-fund
       - name: TypeScript validation
         run: npm run typecheck
+      - name: Validate MySQL migration test syntax
+        run: node --check scripts/test-medar-mysql-foundation.mjs
+      - name: Apply Medar foundation migration to disposable MySQL 8.4
+        env:
+          MEDAR_MYSQL_TEST_URL: mysql://root:ci-root-password@127.0.0.1:3306/medar_ci
+        run: npm run test:mysql-foundation
       - name: Lint
         run: npm run lint
       - name: Unit and component tests
