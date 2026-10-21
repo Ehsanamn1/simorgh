@@ -2133,10 +2133,9 @@ app.post('/api/workspace/members/create', async (c) => {
   if (password.length < 12 || password.length > 128) {
     return c.json({ message: 'رمز عبور اولیه باید بین ۱۲ تا ۱۲۸ نویسه باشد.' }, 422);
   }
-  if ((role === 'customer' && (!customerId || supplierId)) ||
-      (role === 'supplier' && customerId) ||
-      (!['customer', 'supplier'].includes(role) && (customerId || supplierId))) {
-    return c.json({ message: 'برای نقش مشتری یا تأمین‌کننده، حساب مرتبط همان مجموعه را انتخاب کن.' }, 422);
+  if ((role === 'supplier' && customerId) ||
+      (role !== 'supplier' && (customerId || supplierId))) {
+    return c.json({ message: 'پیوند پرونده فقط برای نقش تأمین‌کننده معتبر است.' }, 422);
   }
 
   const sql = sqlFor(c);
