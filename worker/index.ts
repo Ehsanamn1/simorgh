@@ -404,8 +404,8 @@ async function recordFailedLogin(c: Ctx, keys: string[]): Promise<void> {
 
 export const CREATE_OWNER_WORKSPACE_SQL = `
 with new_user as (
-  insert into public.medar_users(username,username_normalized,display_name,password_hash,requested_role,account_status)
-  values($1,$1,$2,$3,'owner','active')
+  insert into public.medar_users(username,display_name,password_hash,requested_role,account_status)
+  values($1,$2,$3,'owner','active')
   returning id,username,username_normalized,display_name
 ), new_profile as (
   insert into public.profiles(id,full_name,phone) select id,display_name,null from new_user
@@ -2103,6 +2103,13 @@ export const MEMBER_ACCOUNT_INSERT_SQL =
   ") select u.id,u.username_normalized as username,u.display_name as full_name," +
   "m.id as membership_id,m.company_id,m.role,m.supplier_id,m.customer_id from new_user u cross join new_membership m cross join new_profile p cross join new_audit a";
 
+export const MEMBER_ACCOUNT_INSERT_GENERATED_SQL = MEMBER_ACCOUNT_INSERT_SQL
+  .replace(
+    "insert into public.medar_users(username,username_normalized,phone_e164,display_name,password_hash,requested_role,account_status)",
+    "insert into public.medar_users(username,phone_e164,display_name,password_hash,requested_role,account_status)",
+  )
+  .replace("values($1,$1,null,$2,$3,$4,'active')", "values($1,null,$2,$3,$4,'active')");
+
 app.post('/api/workspace/members/create', async (c) => {
   const user = await requireUser(c);
   if (user instanceof Response) return user;
@@ -2155,8 +2162,16 @@ app.post('/api/workspace/members/create', async (c) => {
 
   try {
     const passwordHash = await hashPassword(password);
+    // Some existing Neon installations define username_normalized as a generated
+    // column (lower(btrim(username))). Others still have a writable legacy column.
+    // Select the matching SQL shape instead of trying to write into a generated column.
+    const normalizedColumn = await sql.query(
+      "select is_generated from information_schema.columns where table_schema='public' and table_name='medar_users' and column_name='username_normalized' limit 1",
+    );
+    const generatedUsername = (normalizedColumn[0] as { is_generated?: string } | undefined)?.is_generated === 'ALWAYS';
+    const insertSql = generatedUsername ? MEMBER_ACCOUNT_INSERT_GENERATED_SQL : MEMBER_ACCOUNT_INSERT_SQL;
     const rows = await sql.query(
-      MEMBER_ACCOUNT_INSERT_SQL,
+      insertSql,
       [username, fullName, passwordHash, role, companyId, user.id, customerId, supplierId],
     );
     const created = rows[0] as { id: string; username: string; full_name: string; membership_id: string; company_id: string; role: string } | undefined;

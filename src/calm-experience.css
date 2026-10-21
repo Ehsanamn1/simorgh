@@ -2349,3 +2349,9 @@ html[data-theme="dark"] .guide-backdrop{background:transparent}
   .medar-help-dialog .medar-help-step-expand,
   .medar-help-dialog .medar-help-manual-toggle { font-size: 8px !important; padding-inline: 3px !important; }
 }
+
+
+/* Parent/product relationship: compact and subordinate to the Madar identity. */
+.sidebar-brand-lockup{display:flex;flex-direction:column;align-items:flex-start;gap:6px;min-width:0}
+.sidebar-parent-brand{display:inline-flex;align-items:center;gap:7px;padding-inline:2px;color:var(--obs-muted,#aeb8c4);font-size:9px;font-weight:650;line-height:1.5;white-space:nowrap}
+.sidebar-parent-brand:before{content:"";width:15px;height:1px;flex:none;background:var(--obs-accent,#a7bbd3);opacity:.82}

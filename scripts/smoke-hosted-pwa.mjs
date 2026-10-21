@@ -79,7 +79,7 @@ try {
 
   const workerResponse = await page.request.get(origin + '/sw.js');
   expect(workerResponse.status()).toBe(200);
-  expect(await workerResponse.text()).toContain('medar-shell-v5');
+  expect(await workerResponse.text()).toMatch(/const CACHE_NAME = 'medar-shell-v\d+';/);
 
   // A nested React Router route must serve the SPA entry instead of a host 404.
   const membersResponse = await page.goto(origin + '/app/members', { waitUntil: 'networkidle', timeout: 30000 });
