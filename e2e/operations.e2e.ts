@@ -422,6 +422,15 @@ test('desktop sidebar groups and module links use compact spacing', async ({ pag
   const link = page.locator('.app-sidebar .side-nav a').first();
   const linkHeight = await link.evaluate(element => element.getBoundingClientRect().height);
   expect(linkHeight).toBeLessThanOrEqual(30);
+  const groupBoxes = await groups.locator(':scope > .nav-group').evaluateAll(elements => elements.map(element => {
+    const rect = element.getBoundingClientRect();
+    return { top: rect.top, bottom: rect.bottom, height: rect.height, open: (element as HTMLDetailsElement).open };
+  }));
+  expect(groupBoxes.length).toBeGreaterThanOrEqual(2);
+  for (const box of groupBoxes.filter(box => !box.open)) expect(box.height).toBeLessThanOrEqual(42);
+  for (let i = 1; i < groupBoxes.length; i++) {
+    expect(groupBoxes[i].top - groupBoxes[i - 1].bottom).toBeLessThanOrEqual(4);
+  }
 });
 
 test('mobile workspace drawer groups stay compact and do not stretch to fill the screen', async ({ page }) => {
