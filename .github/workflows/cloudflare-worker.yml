@@ -503,6 +503,10 @@ jobs:
             await page.locator('.simorgh-signin-layer').waitFor({ state: 'visible', timeout: 20000 });
             if (await page.getByRole('button', { name: 'ساخت حساب و فضای کاری' }).count()) throw new Error(label + ': public signup must remain disabled for a direct signup hash.');
             await page.getByText(/ثبت‌نام عمومی غیرفعال است/).waitFor({ state: 'visible' });
+            await page.goto(base + '/demo', { waitUntil: 'networkidle', timeout: 60000 });
+            await page.locator('.simorgh-signin-layer').waitFor({ state: 'visible', timeout: 20000 });
+            if (!new URL(page.url()).pathname.endsWith('/app/command')) throw new Error(label + ': operational build did not redirect /demo to the protected entry. URL=' + page.url());
+            if (await page.locator('.demo-workspace, .demo-preview-notice').count()) throw new Error(label + ': public sample workspace is reachable on the operational Worker.');
             const size = await page.evaluate(() => ({ viewport: innerWidth, document: document.documentElement.scrollWidth, body: document.body.scrollWidth }));
             if (size.document > size.viewport || size.body > size.viewport) throw new Error(label + ': horizontal overflow ' + JSON.stringify(size));
           }
