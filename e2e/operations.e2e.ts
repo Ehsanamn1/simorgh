@@ -1147,7 +1147,7 @@ test('mobile navigation spacing and contextual help remain usable', async ({ pag
   const fullGuide = page.getByRole('dialog', { name: 'راهنمای جامع مدیریت مدار' });
   await expect(fullGuide).toBeVisible();
   await expect(fullGuide).toContainText('راهنمای کلی؛ از صفر تا مدیریت روزانه');
-  await expect(fullGuide.locator('.medar-help-dialog, .medar-help-steps')).toBeVisible();
+  await expect(fullGuide.locator('.medar-help-global-manual')).toBeVisible();
 
   const helpDimensions = await page.evaluate(() => {
     const box = document.querySelector('.medar-help-dialog')?.getBoundingClientRect();
