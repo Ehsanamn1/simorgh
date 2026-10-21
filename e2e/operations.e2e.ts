@@ -1164,3 +1164,29 @@ test('mobile navigation spacing and contextual help remain usable', async ({ pag
   await expect(fullGuide).toHaveCount(0);
   expect(errors).toEqual([]);
 });
+
+
+test('Medar provisions only operational roles and hides customer commerce routes', async ({ page }) => {
+  await installIsolatedSession(page, 'owner');
+  await page.route(/\/api\/workspace\/members(?:\?.*)?$/, route =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ members: [] }) })
+  );
+  await page.goto('/simorgh/app/members', { waitUntil: 'domcontentloaded' });
+  await page.getByRole('button', { name: /ساخت حساب جدید/ }).click();
+  const roleSelect = page.getByLabel('نقش کاربر');
+  await expect(roleSelect.locator('option')).toHaveCount(4);
+  await expect.poll(() => roleSelect.locator('option').evaluateAll(options =>
+    options.map(option => (option as HTMLOptionElement).value)
+  )).toEqual(['admin', 'staff', 'supplier', 'driver']);
+
+  await installIsolatedSession(page, 'customer');
+  await page.goto('/simorgh/app/home', { waitUntil: 'domcontentloaded' });
+  await expect(page.getByRole('link', { name: 'خرید سازمانی' })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'سفارش‌های من' })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'حساب سازمانی' })).toHaveCount(0);
+
+  for (const route of ['catalog', 'my-orders', 'my-account']) {
+    await page.goto('/simorgh/app/' + route, { waitUntil: 'domcontentloaded' });
+    await expect(page).toHaveURL(/\/simorgh\/app\/home$/);
+  }
+});
