@@ -365,7 +365,7 @@ jobs:
             exit 1
           fi
           response="$(curl --fail --silent --show-error --retry 10 --retry-all-errors --retry-delay 3 "$worker_url/api/health")"
-          printf '%s' "$response" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const x=JSON.parse(s);if(x.ok!==true||x.database!==true||x.authentication!=='username-password'){console.error('Unexpected operational health response:',s);process.exit(1)}console.log('Operational Worker database health OK:',s)})"
+          printf '%s' "$response" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const x=JSON.parse(s);if(x.ok!==true||x.database!==true||x.service!=='medar-ops'||x.authentication!=='username-password'){console.error('Unexpected operational health response:',JSON.stringify({ok:x.ok,database:x.database,service:x.service,authentication:x.authentication,code:x.code}));process.exit(1)}console.log('Operational Worker runtime mode and database confirmed:',JSON.stringify({service:x.service,database:x.database,authentication:x.authentication}))})"
           WORKER_URL="$worker_url" node --input-type=module <<'NODE'
           const base = process.env.WORKER_URL;
           const rootResponse = await fetch(base + '/');
