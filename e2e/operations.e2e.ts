@@ -1231,6 +1231,12 @@ test('owner creates a supplier account through the member UI and receives verifi
 
   // The browser is deliberately isolated at the API boundary. This proves the real UI
   // request/response workflow without creating production users or storing a test password.
+  await page.route('**/api/workspace/members*', async route => {
+    await route.fulfill({
+      status: 200, contentType: 'application/json', headers: { 'cache-control': 'no-store' },
+      body: JSON.stringify({ members: createdMember ? [createdMember] : [] }),
+    });
+  });
   await page.route('**/api/workspace/members/create', async route => {
     createRequest = route.request().postDataJSON() as Record<string, unknown>;
     createdMember = {
@@ -1241,12 +1247,6 @@ test('owner creates a supplier account through the member UI and receives verifi
     await route.fulfill({
       status: 201, contentType: 'application/json', headers: { 'cache-control': 'no-store' },
       body: JSON.stringify({ member: createdMember }),
-    });
-  });
-  await page.route('**/api/workspace/members*', async route => {
-    await route.fulfill({
-      status: 200, contentType: 'application/json', headers: { 'cache-control': 'no-store' },
-      body: JSON.stringify({ members: createdMember ? [createdMember] : [] }),
     });
   });
   await page.route('**/api/data/suppliers**', async route => {
