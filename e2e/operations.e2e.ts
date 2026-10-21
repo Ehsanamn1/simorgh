@@ -1119,7 +1119,9 @@ test('Medar provisions only operational roles and hides customer commerce routes
   await page.getByRole('button', { name: /ساخت حساب جدید/ }).click();
   const roleSelect = page.getByLabel('نقش کاربر');
   await expect(roleSelect.locator('option')).toHaveCount(4);
-  await expect(roleSelect.locator('option')).toHaveText(['مدیر', 'کارشناس', 'تأمین‌کننده', 'راننده']);
+  await expect.poll(() => roleSelect.locator('option').evaluateAll(options =>
+    options.map(option => (option as HTMLOptionElement).value)
+  )).toEqual(['admin', 'staff', 'supplier', 'driver']);
 
   await installIsolatedSession(page, 'customer');
   await page.goto('/simorgh/app/home', { waitUntil: 'domcontentloaded' });
