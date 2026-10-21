@@ -1458,6 +1458,15 @@ const [resetSecret,setResetSecret]=useState('');
     customerId:accountRole==='customer'?accountCustomerId:null,
     supplierId:accountRole==='supplier'?accountSupplierId:null,
    });
+   if(!result.member?.membership_id||String(result.member.role)!==accountRole){
+    throw new Error('پاسخ سرور کامل نیست؛ عضویت اختصاصی ثبت‌شده تأیید نشد. فهرست اعضا را تازه‌سازی کن و پیش از تحویل رمز، وضعیت حساب را بررسی کن.');
+   }
+   if(accountRole==='supplier'&&!result.member.supplier_id){
+    throw new Error('حساب تأمین‌کننده بدون پروندهٔ متصل تأیید نشد. هیچ اطلاعات ورود تحویل نده؛ دوباره تلاش کن یا وضعیت پروندهٔ تأمین‌کننده را بررسی کن.');
+   }
+   if(accountRole==='customer'&&!result.member.customer_id){
+    throw new Error('حساب مشتری بدون پروندهٔ متصل تأیید نشد. هیچ اطلاعات ورود تحویل نده؛ پروندهٔ مشتری را بررسی کن.');
+   }
    const createdUsername=String(result.member?.username??normalizedUsername);
    setResetSecret('@'+createdUsername+' : '+accountPassword);
    setNotice('حساب ساخته شد. اطلاعات ورود را امن تحویل بده؛ کاربر در اولین ورود نام، نام خانوادگی و تلفن خود را تکمیل می‌کند.');
