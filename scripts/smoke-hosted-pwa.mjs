@@ -1,12 +1,14 @@
 import { chromium, expect } from '@playwright/test';
 import { spawn } from 'node:child_process';
 import { setTimeout as sleep } from 'node:timers/promises';
+import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
 const port = Number(process.env.MEDAR_PWA_SMOKE_PORT || 4179);
 if (!Number.isInteger(port) || port < 1024 || port > 65535) throw new Error('MEDAR_PWA_SMOKE_PORT must be a valid non-privileged port.');
 const origin = 'http://127.0.0.1:' + port;
-const apiOrigin = new URL(process.env.MEDAR_WEB_API_BASE_URL || 'https://medar-ops.dengxiao445.workers.dev').origin;
+const deployment = JSON.parse(await readFile(resolve('dist/medar-deployment.json'), 'utf8'));
+const apiOrigin = new URL(process.env.MEDAR_WEB_API_BASE_URL || deployment.apiOrigin || 'https://medar-ops.dengxiao445.workers.dev').origin;
 const viteCli = resolve('node_modules/vite/bin/vite.js');
 const server = spawn(process.execPath, [viteCli, 'preview', '--host', '127.0.0.1', '--port', String(port), '--strictPort'], {
   stdio: 'ignore',
