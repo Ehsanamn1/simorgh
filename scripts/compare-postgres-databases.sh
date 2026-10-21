@@ -5,38 +5,33 @@ set -euo pipefail
 : "${TARGET_DATABASE_URL:?Set TARGET_DATABASE_URL to the restored target database URL.}"
 command -v psql >/dev/null || { echo "psql is required." >&2; exit 1; }
 
-tables=(
-  medar_users
-  medar_sessions
-  companies
-  memberships
-  suppliers
-  customers
-  products
-  orders
-  order_items
-  inventory_movements
-  shipments
-  operational_tasks
-  medar_audit_log
-  medar_files
-  medar_schema_migrations
-)
+source_tables="$(psql "$SOURCE_DATABASE_URL" -X -v ON_ERROR_STOP=1 -Atqc "SELECT tablename FROM pg_tables WHERE schemaname='public' ORDER BY tablename")"
+target_tables="$(psql "$TARGET_DATABASE_URL" -X -v ON_ERROR_STOP=1 -Atqc "SELECT tablename FROM pg_tables WHERE schemaname='public' ORDER BY tablename")"
+if [[ "$source_tables" != "$target_tables" ]]; then
+  echo "The source and target public table lists differ; do not cut over." >&2
+  diff -u <(printf '%s\n' "$source_tables") <(printf '%s\n' "$target_tables") || true
+  exit 1
+fi
+[[ -n "$source_tables" ]] || { echo "The source public schema contains no tables." >&2; exit 1; }
 
 failed=0
-printf '%-36s %14s %14s\n' "table" "source rows" "target rows"
-for table in "${tables[@]}"; do
-  # Table names come only from the fixed allowlist above; identifiers are not user input.
-  source_count="$(psql "$SOURCE_DATABASE_URL" -X -v ON_ERROR_STOP=1 -Atqc "SELECT count(*) FROM public.\"$table\"")"
-  target_count="$(psql "$TARGET_DATABASE_URL" -X -v ON_ERROR_STOP=1 -Atqc "SELECT count(*) FROM public.\"$table\"")"
-  printf '%-36s %14s %14s\n' "$table" "$source_count" "$target_count"
+checked=0
+printf '%-48s %14s %14s\n' "table" "source rows" "target rows"
+while IFS= read -r table; do
+  [[ -n "$table" ]] || continue
+  # Table names come from pg_tables, and are quoted as SQL identifiers before use.
+  safe_table="${table//\"/\"\"}"
+  source_count="$(psql "$SOURCE_DATABASE_URL" -X -v ON_ERROR_STOP=1 -Atqc "SELECT count(*) FROM public.\"$safe_table\"")"
+  target_count="$(psql "$TARGET_DATABASE_URL" -X -v ON_ERROR_STOP=1 -Atqc "SELECT count(*) FROM public.\"$safe_table\"")"
+  printf '%-48s %14s %14s\n' "$table" "$source_count" "$target_count"
+  checked=$((checked + 1))
   if [[ "$source_count" != "$target_count" ]]; then
     failed=1
   fi
-done
+done <<< "$source_tables"
 
 if [[ "$failed" -ne 0 ]]; then
-  echo "Row counts differ. Do not switch production traffic; investigate missing or concurrently changing data." >&2
+  echo "Row counts differ in one or more public tables. Do not switch production traffic." >&2
   exit 1
 fi
-echo "All listed row counts match. This is a useful pre-cutover check, not a substitute for FK, checksum, file-blob, and application workflow validation."
+echo "All $checked public table row counts match. This is a pre-cutover integrity gate, not a substitute for schema/FK validation, per-table data checksums, file-blob verification, or application workflow acceptance."
