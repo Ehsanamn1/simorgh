@@ -18,6 +18,8 @@ import {
   parseClientHeartbeat,
   resolveApiModeAccess,
   getMedarDeploymentMode,
+  isExternalRoleTransitionAllowed,
+  isCustomerOrderInsertAllowed,
   aggregateModulePermissionRows,
   isBankReconciliationDirectionCompatible,
   isBankTransactionCurrencyCompatible,
@@ -100,8 +102,9 @@ describe('production and partner-finance status workflows', () => {
 });
 
 describe('dedicated member account creation SQL', () => {
-  it('accepts every supported member role, including customer, and excludes owner self-provisioning', () => {
-    expect(MEMBER_ACCOUNT_ALLOWED_ROLES).toEqual(['admin', 'staff', 'supplier', 'driver', 'customer']);
+  it('allows operational member roles only and excludes customer and owner self-provisioning', () => {
+    expect(MEMBER_ACCOUNT_ALLOWED_ROLES).toEqual(['admin', 'staff', 'supplier', 'driver']);
+    expect(MEMBER_ACCOUNT_ALLOWED_ROLES).not.toContain('customer');
     expect(MEMBER_ACCOUNT_ALLOWED_ROLES).not.toContain('owner');
   });
 
@@ -317,6 +320,25 @@ describe('bank reconciliation direction safeguards', () => {
     expect(isBankReconciliationDirectionCompatible('purchase_order', 'outgoing')).toBe(true);
     expect(isBankReconciliationDirectionCompatible('settlement', 'incoming')).toBe(false);
     expect(isBankReconciliationDirectionCompatible('unsupported', 'incoming')).toBe(false);
+  });
+});
+
+describe('customer commerce write policy', () => {
+  it('blocks customer order and order-item creation while preserving internal order writes', () => {
+    expect(isCustomerOrderInsertAllowed('customer', 'orders')).toBe(false);
+    expect(isCustomerOrderInsertAllowed('customer', 'order_items')).toBe(false);
+    expect(isCustomerOrderInsertAllowed('owner', 'orders')).toBe(true);
+    expect(isCustomerOrderInsertAllowed('staff', 'order_items')).toBe(true);
+  });
+});
+
+describe('external role transition policy', () => {
+  it('allows drivers to advance shipments but never permits customer order submission', () => {
+    expect(isExternalRoleTransitionAllowed('driver', 'shipments')).toBe(true);
+    expect(isExternalRoleTransitionAllowed('driver', 'orders')).toBe(false);
+    expect(isExternalRoleTransitionAllowed('customer', 'orders')).toBe(false);
+    expect(isExternalRoleTransitionAllowed('supplier', 'orders')).toBe(false);
+    expect(isExternalRoleTransitionAllowed('staff', 'orders')).toBe(false);
   });
 });
 

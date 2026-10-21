@@ -2086,7 +2086,7 @@ app.get('/api/workspace/members', async (c) => {
   return c.json({ members });
 });
 
-export const MEMBER_ACCOUNT_ALLOWED_ROLES = ['admin', 'staff', 'supplier', 'driver', 'customer'];
+export const MEMBER_ACCOUNT_ALLOWED_ROLES = ['admin', 'staff', 'supplier', 'driver'];
 
 export const MEMBER_ACCOUNT_INSERT_SQL =
   "with new_user as (" +
@@ -2143,10 +2143,9 @@ app.post('/api/workspace/members/create', async (c) => {
   if (password.length < 12 || password.length > 128) {
     return c.json({ message: 'رمز عبور اولیه باید بین ۱۲ تا ۱۲۸ نویسه باشد.' }, 422);
   }
-  if ((role === 'customer' && (!customerId || supplierId)) ||
-      (role === 'supplier' && customerId) ||
-      (!['customer', 'supplier'].includes(role) && (customerId || supplierId))) {
-    return c.json({ message: 'برای نقش مشتری یا تأمین‌کننده، حساب مرتبط همان مجموعه را انتخاب کن.' }, 422);
+  if ((role === 'supplier' && customerId) ||
+      (role !== 'supplier' && (customerId || supplierId))) {
+    return c.json({ message: 'پیوند پرونده فقط برای نقش تأمین‌کننده معتبر است.' }, 422);
   }
 
   const sql = sqlFor(c);
@@ -2453,6 +2452,17 @@ async function loadMembershipScopes(c:Ctx,userId:string):Promise<MembershipScope
   [userId]
  );
  return rows as MembershipScope[];
+}
+// Legacy customer memberships remain scoped for read compatibility. External state
+// transitions are limited to drivers advancing shipments; customer order submission is off.
+export function isExternalRoleTransitionAllowed(role: string, table: string): boolean {
+ return role === 'driver' && table === 'shipments';
+}
+
+// Customer memberships are retained for legacy reads, but customer-authored
+// orders and order items are not supported by the operational API.
+export function isCustomerOrderInsertAllowed(role: string, table: string): boolean {
+ return !(role === 'customer' && (table === 'orders' || table === 'order_items'));
 }
 export function buildMembershipScopeSql(table:string,columns:Set<string>,memberships:MembershipScope[],userId:string,params:unknown[],startAt=1):string {
  if(!columns.has('company_id')||!memberships.length)return 'false';
@@ -2833,6 +2843,9 @@ app.post('/api/data/:table',async c=>{
     const membership=companyRole(scopes,companyId);
     if(!membership)return c.json({message:'این شرکت به حساب فعلی تعلق ندارد.'},403);
     if(!hasPermission(membership,'can_create'))return c.json({message:'برای ایجاد رکورد در این ماژول مجوز نداری.'},403);
+    if (!isCustomerOrderInsertAllowed(membership.role, table)) {
+      return c.json({ message: 'سفارش‌گذاری مشتری در محیط عملیاتی مدار غیرفعال است.' }, 403);
+    }
     const row=applyInsertActorFields(table,original,columns,user.id);
     if(INTERNAL_ROLES.has(membership.role)){
      if(RPC_ONLY_TABLES.has(table))return c.json({message:'این رکورد باید از عملیات معتبر سمت سرور ثبت شود.'},403);
@@ -2871,22 +2884,6 @@ app.post('/api/data/:table',async c=>{
       row.status='planned';row.quality_status='not_inspected';row.produced_quantity=0;row.started_on=null;row.completed_on=null;row.rejected_quantity=0;row.created_by=user.id;
      }
      if(table==='invoices'){row.status='draft';row.paid_amount=0;}
-     sanitized.push(row);continue;
-    }
-    if(membership.role==='customer'&&membership.customer_id&&table==='orders'){
-     row.customer_id=membership.customer_id;row.status='draft';row.created_by=user.id;sanitized.push(row);continue;
-    }
-    if(membership.role==='customer'&&membership.customer_id&&table==='order_items'){
-     const orderId=String(original.order_id??''),productId=String(original.product_id??'');
-     const sql=sqlFor(c);
-     const owned=await sql.query("select id from public.orders where id=$1::uuid and company_id=$2::uuid and customer_id=$3::uuid and status='draft' limit 1",[orderId,companyId,membership.customer_id]);
-     if(!owned.length)return c.json({message:'اقلام فقط برای سفارش پیش‌نویس خودت قابل ثبت‌اند.'},403);
-     const prices=await sql.query("select unit_price,min_qty from public.price_agreements where company_id=$1::uuid and customer_id=$2::uuid and product_id=$3::uuid and valid_from<=current_date and (valid_to is null or valid_to>=current_date) order by valid_from desc limit 1",[companyId,membership.customer_id,productId]);
-     if(!prices.length)return c.json({message:'برای این محصول قرارداد قیمت فعال پیدا نشد.'},422);
-     const price=prices[0] as {unit_price:string|number;min_qty:string|number};
-     if(!Number.isFinite(Number(original.quantity))||Number(original.quantity)<Number(price.min_qty))return c.json({message:'مقدار سفارش از حداقل قرارداد کمتر است.'},422);
-     row.unit_price=Number(price.unit_price);
-     delete row.supplier_id;delete row.lot_id;delete row.capacity_commitment_id;
      sanitized.push(row);continue;
     }
     if(membership.role==='driver'&&(table==='shipment_locations'||table==='delivery_evidence')){
@@ -3001,10 +2998,8 @@ app.post('/api/data/:table',async c=>{
     }
   }
 
-  const externalOrderSubmit = isTransition && table === 'orders' &&
-    scopes.some(m => m.role === 'customer' && m.customer_id);
-  const externalDriverUpdate = isTransition && table === 'shipments' &&
-    scopes.some(m => m.role === 'driver');
+  const externalDriverUpdate = isTransition &&
+    scopes.some(m => isExternalRoleTransitionAllowed(m.role, table));
   const approvalRequired = isTransition && (
     ['approved','paid'].includes(String(requestedState)) ||
     (table === 'partner_financial_entries' && ['posted','rejected'].includes(String(requestedState))) ||
@@ -3016,8 +3011,7 @@ app.post('/api/data/:table',async c=>{
   const permissionFilteredScopes = scopes.filter(scope => hasPermission(scope, mutationCapability));
   const mutationScopes = isTransition
     ? permissionFilteredScopes.filter(m => INTERNAL_ROLES.has(m.role) ||
-        (externalOrderSubmit && m.role === 'customer') ||
-        (externalDriverUpdate && m.role === 'driver'))
+        (externalDriverUpdate && isExternalRoleTransitionAllowed(m.role, table)))
     : permissionFilteredScopes.filter(m => INTERNAL_ROLES.has(m.role));
   if (!mutationScopes.length) return c.json({ message: 'ویرایش یا حذف برای نقش فعلی مجاز نیست.' }, 403);
 
@@ -3142,10 +3136,7 @@ app.post('/api/data/:table',async c=>{
     const rowScopes = mutationScopes.filter(m => m.company_id === String(current.company_id));
     const rowHasInternalRole = rowScopes.some(m => INTERNAL_ROLES.has(m.role));
     if (table === 'orders' && !rowHasInternalRole) {
-      if (!rowScopes.some(m => m.role === 'customer' && m.customer_id === String(current.customer_id)) ||
-          currentState !== 'draft' || !['submitted', 'cancelled'].includes(nextState)) {
-        return c.json({ message: 'مشتری فقط می‌تواند پیش‌نویس متعلق به خود را ارسال یا لغو کند.' }, 403);
-      }
+      return c.json({ message: 'فقط اعضای داخلی مجموعه مجاز به تغییر وضعیت سفارش هستند.' }, 403);
     }
     if (table === 'shipments' && !rowHasInternalRole) {
       if (!rowScopes.some(m => m.role === 'driver') ||
