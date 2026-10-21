@@ -15,6 +15,7 @@ import {
   MEMBER_ACCOUNT_INSERT_SQL,
   MEMBER_ACCOUNT_INSERT_GENERATED_SQL,
   MEMBER_ACCOUNT_ALLOWED_ROLES,
+  isExternalRoleTransitionAllowed,
   parseClientHeartbeat,
   resolveApiModeAccess,
   aggregateModulePermissionRows,
@@ -95,6 +96,16 @@ describe('production and partner-finance status workflows', () => {
     expect(isSaleCollectionWithinInvoice(100, 60, 41)).toBe(false);
     expect(isSaleCollectionWithinInvoice(100, -1, 20)).toBe(false);
     expect(isSaleCollectionWithinInvoice(0, 0, 1)).toBe(false);
+  });
+});
+
+describe('external role transition policy', () => {
+  it('allows drivers to advance shipments but never permits customer order submission', () => {
+    expect(isExternalRoleTransitionAllowed('driver', 'shipments')).toBe(true);
+    expect(isExternalRoleTransitionAllowed('driver', 'orders')).toBe(false);
+    expect(isExternalRoleTransitionAllowed('customer', 'orders')).toBe(false);
+    expect(isExternalRoleTransitionAllowed('supplier', 'orders')).toBe(false);
+    expect(isExternalRoleTransitionAllowed('staff', 'orders')).toBe(false);
   });
 });
 
