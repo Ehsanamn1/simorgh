@@ -99,8 +99,9 @@ describe('production and partner-finance status workflows', () => {
 });
 
 describe('dedicated member account creation SQL', () => {
-  it('accepts every supported member role, including customer, and excludes owner self-provisioning', () => {
-    expect(MEMBER_ACCOUNT_ALLOWED_ROLES).toEqual(['admin', 'staff', 'supplier', 'driver', 'customer']);
+  it('allows operational member roles only and excludes customer and owner self-provisioning', () => {
+    expect(MEMBER_ACCOUNT_ALLOWED_ROLES).toEqual(['admin', 'staff', 'supplier', 'driver']);
+    expect(MEMBER_ACCOUNT_ALLOWED_ROLES).not.toContain('customer');
     expect(MEMBER_ACCOUNT_ALLOWED_ROLES).not.toContain('owner');
   });
 
