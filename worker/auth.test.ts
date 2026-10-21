@@ -109,6 +109,7 @@ describe('dedicated member account creation SQL', () => {
     expect(MEMBER_ACCOUNT_INSERT_SQL).toContain("values($1,$1,null,$2,$3,$4,'active') returning id,username,username_normalized,display_name");
     expect(MEMBER_ACCOUNT_INSERT_SQL).toContain('insert into public.profiles(id,full_name,phone)');
     expect(MEMBER_ACCOUNT_INSERT_SQL).toContain('select id,display_name,null from new_user');
+    expect(MEMBER_ACCOUNT_INSERT_SQL).toContain('cross join new_profile p');
     expect(MEMBER_ACCOUNT_INSERT_SQL).toContain('insert into public.memberships');
     expect(MEMBER_ACCOUNT_INSERT_SQL).toContain('created_by');
     expect(MEMBER_ACCOUNT_INSERT_SQL).toContain('insert into public.medar_audit_log');
