@@ -119,6 +119,10 @@ jobs:
               to_regprocedure('public.medar_approve_purchase_order(uuid,uuid,uuid)') is not null and
               to_regprocedure('public.medar_receive_purchase_order(uuid,uuid,uuid,jsonb,text,text)') is not null
             )" | grep -qx t
+      - name: Exercise real member provisioning SQL on PostgreSQL and rollback all fixtures
+        env:
+          PGPASSWORD: medar_test_password
+        run: node scripts/test-member-provisioning-postgres.mjs
       - name: Verify task and conversation notifications on PostgreSQL
         env:
           PGPASSWORD: medar_test_password
