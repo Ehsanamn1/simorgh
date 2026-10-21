@@ -29,6 +29,18 @@ jobs:
         with:
           node-version: 22
       - run: npm install
+      - name: Validate Worker runtime modes are explicitly scoped per deployment
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -Eq '^[[:space:]]*MEDAR_MODE[[:space:]]*=' worker/wrangler.toml; then
+            echo "A shared static MEDAR_MODE can accidentally deploy the operational Worker in public-demo mode."
+            exit 1
+          fi
+          grep -Fq -- '--name medar-ops --var MEDAR_MODE:public-demo' .github/workflows/cloudflare-worker.yml
+          grep -Fq -- 'args=(--name medar-ops --var MEDAR_MODE:operational)' .github/workflows/cloudflare-worker.yml
+          grep -Fq -- '--name medar-api --var MEDAR_MODE:public-demo' .github/workflows/cloudflare-worker.yml
+          echo "Worker mode isolation checks passed."
       - name: Validate the complete migration chain on a clean PostgreSQL 16 database
         env:
           PGPASSWORD: medar_test_password
