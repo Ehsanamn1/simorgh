@@ -1447,6 +1447,7 @@ const [resetSecret,setResetSecret]=useState('');
     username:normalizedUsername,
     password:accountPassword,
     role:accountRole,
+    customerId:null,
     supplierId:accountRole==='supplier'?(accountSupplierId||null):null,
    });
    if(!result.member?.membership_id||String(result.member.role)!==accountRole){
