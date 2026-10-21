@@ -34,9 +34,9 @@ jobs:
         run: |
           set -euo pipefail
           grep -Fq 'name = "medar-ops"' worker/wrangler-medar-ops.toml
-          grep -Fq 'MEDAR_MODE = "operational"' worker/wrangler-medar-ops.toml
+          grep -Fq 'MEDAR_DEPLOYMENT_MODE = "operational"' worker/wrangler-medar-ops.toml
           grep -Fq 'name = "medar-ops"' worker/wrangler-medar-ops-bootstrap.toml
-          grep -Fq 'MEDAR_MODE = "public-demo"' worker/wrangler-medar-ops-bootstrap.toml
+          grep -Fq 'MEDAR_DEPLOYMENT_MODE = "public-demo"' worker/wrangler-medar-ops-bootstrap.toml
           grep -Fq 'name = "medar-api"' worker/wrangler.toml
           grep -Fq 'MEDAR_MODE = "public-demo"' worker/wrangler.toml
           grep -Fq -- 'deploy --config wrangler-medar-ops-bootstrap.toml' .github/workflows/cloudflare-worker.yml
