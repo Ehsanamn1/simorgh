@@ -887,6 +887,30 @@ test('owner can configure module access for a staff member and restore inherited
 });
 
 
+test('implemented quality and partner settlement workflows are reachable for authorized owners', async ({ page }) => {
+  await installIsolatedSession(page, 'owner');
+
+  const routes = [
+    { path: 'quality', label: 'کیفیت و محموله' },
+    { path: 'partner-finance', label: 'دفتر مالی شریک' },
+    { path: 'partner-settlements', label: 'دوره‌های تسویه' },
+  ];
+  for (const route of routes) {
+    const expectedUrl = '/simorgh/app/' + route.path;
+    await page.goto(expectedUrl, { waitUntil: 'domcontentloaded' });
+    await expect(page).toHaveURL(expectedUrl);
+    await expect(page.locator('.side-nav a').filter({ hasText: route.label })).toHaveCount(1);
+  }
+});
+
+test('supplier can open the implemented supplier settlement workflow', async ({ page }) => {
+  await installIsolatedSession(page, 'supplier');
+  const expectedUrl = '/simorgh/app/supplier-settlement';
+  await page.goto(expectedUrl, { waitUntil: 'domcontentloaded' });
+  await expect(page).toHaveURL(expectedUrl);
+  await expect(page.locator('.side-nav a').filter({ hasText: 'تسویه‌های من' })).toHaveCount(1);
+});
+
 test('finance module is deferred from the core supply-chain release', async ({ page }) => {
   await installIsolatedSession(page, 'owner');
   await page.goto('/simorgh/app/finance', { waitUntil: 'domcontentloaded' });
