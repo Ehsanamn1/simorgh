@@ -2085,17 +2085,23 @@ export const MEMBER_ACCOUNT_INSERT_SQL =
   "), new_profile as (" +
     "insert into public.profiles(id,full_name,phone) select id,display_name,null from new_user " +
     "on conflict(id) do update set full_name=excluded.full_name returning id" +
+  "), new_supplier as (" +
+    "insert into public.suppliers(company_id,name,active) " +
+    "select $5::uuid,case when exists(select 1 from public.suppliers existing where existing.company_id=$5::uuid and lower(existing.name)=lower($2)) " +
+      "then left($2,120)||' ('||left(u.id::text,8)||')' else $2 end,true " +
+    "from new_user u where $4='supplier' and $8::uuid is null returning id,company_id" +
   "), new_membership as (" +
     "insert into public.memberships(company_id,user_id,role,active,created_by,customer_id,supplier_id) " +
-    "select $5::uuid,u.id,$4::public.app_role,true,$6::uuid,$7::uuid,$8::uuid from new_user u " +
-    "returning id,company_id,role" +
+    "select $5::uuid,u.id,$4::public.app_role,true,$6::uuid,$7::uuid," +
+      "case when $4='supplier' then coalesce($8::uuid,(select created_supplier.id from new_supplier created_supplier)) else null end " +
+    "from new_user u returning id,company_id,role,supplier_id,customer_id" +
   "), new_audit as (" +
     "insert into public.medar_audit_log(actor_user_id,action,entity_type,entity_id,metadata) " +
     "select $6::uuid,'membership.account_created','membership',m.id::text," +
       "jsonb_build_object('company_id',$5::text,'role',$4::text,'username',$1::text) " +
     "from new_membership m cross join new_user u returning id" +
   ") select u.id,u.username_normalized as username,u.display_name as full_name," +
-  "m.id as membership_id,m.company_id,m.role from new_user u cross join new_membership m cross join new_profile p cross join new_audit a";
+  "m.id as membership_id,m.company_id,m.role,m.supplier_id,m.customer_id from new_user u cross join new_membership m cross join new_profile p cross join new_audit a";
 
 app.post('/api/workspace/members/create', async (c) => {
   const user = await requireUser(c);
