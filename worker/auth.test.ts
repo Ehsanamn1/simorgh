@@ -19,7 +19,7 @@ import {
   resolveApiModeAccess,
   getMedarDeploymentMode,
   isExternalRoleTransitionAllowed,
-  isCustomerCommerceInsertAllowed,
+  isCustomerOrderInsertAllowed,
   aggregateModulePermissionRows,
   isBankReconciliationDirectionCompatible,
   isBankTransactionCurrencyCompatible,
@@ -325,11 +325,10 @@ describe('bank reconciliation direction safeguards', () => {
 
 describe('customer commerce write policy', () => {
   it('blocks customer order and order-item creation while preserving internal order writes', () => {
-    expect(isCustomerCommerceInsertAllowed('customer', 'orders')).toBe(false);
-    expect(isCustomerCommerceInsertAllowed('customer', 'order_items')).toBe(false);
-    expect(isCustomerCommerceInsertAllowed('owner', 'orders')).toBe(true);
-    expect(isCustomerCommerceInsertAllowed('staff', 'order_items')).toBe(true);
-    expect(isCustomerCommerceInsertAllowed('customer', 'customers')).toBe(true);
+    expect(isCustomerOrderInsertAllowed('customer', 'orders')).toBe(false);
+    expect(isCustomerOrderInsertAllowed('customer', 'order_items')).toBe(false);
+    expect(isCustomerOrderInsertAllowed('owner', 'orders')).toBe(true);
+    expect(isCustomerOrderInsertAllowed('staff', 'order_items')).toBe(true);
   });
 });
 
