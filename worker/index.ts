@@ -2095,7 +2095,7 @@ export const MEMBER_ACCOUNT_INSERT_SQL =
       "jsonb_build_object('company_id',$5::text,'role',$4::text,'username',$1::text) " +
     "from new_membership m cross join new_user u returning id" +
   ") select u.id,u.username_normalized as username,u.display_name as full_name," +
-  "m.id as membership_id,m.company_id,m.role from new_user u cross join new_membership m cross join new_audit a";
+  "m.id as membership_id,m.company_id,m.role from new_user u cross join new_membership m cross join new_profile p cross join new_audit a";
 
 app.post('/api/workspace/members/create', async (c) => {
   const user = await requireUser(c);
