@@ -9,7 +9,7 @@ not_found_handling = "single-page-application"
 run_worker_first = true
 
 [vars]
-MEDAR_DEPLOYMENT_MODE = "public-demo"
+MEDAR_DEPLOYMENT_MODE = "bootstrap"
 ALLOWED_ORIGINS = "https://ehsanamn1.github.io,capacitor://localhost,https://localhost,ionic://localhost,http://localhost,http://localhost:5173,http://127.0.0.1:5173"
 
 [triggers]
