@@ -17,6 +17,7 @@ import {
   MEMBER_ACCOUNT_ALLOWED_ROLES,
   parseClientHeartbeat,
   resolveApiModeAccess,
+  getMedarDeploymentMode,
   aggregateModulePermissionRows,
   isBankReconciliationDirectionCompatible,
   isBankTransactionCurrencyCompatible,
@@ -161,6 +162,21 @@ describe('bounded synthetic workload simulation', () => {
 });
 
 describe('Worker API deployment mode isolation', () => {
+  it('prioritizes the explicit per-deployment mode over any legacy MEDAR_MODE binding', () => {
+    const operational = getMedarDeploymentMode({ MEDAR_DEPLOYMENT_MODE: 'operational', MEDAR_MODE: 'public-demo' });
+    expect(operational).toBe('operational');
+    expect(resolveApiModeAccess(operational, 'GET', '/api/workspace/memberships')).toBe('allow');
+
+    const demo = getMedarDeploymentMode({ MEDAR_DEPLOYMENT_MODE: 'public-demo', MEDAR_MODE: 'operational' });
+    expect(demo).toBe('public-demo');
+    expect(resolveApiModeAccess(demo, 'GET', '/api/workspace/memberships')).toBe('deny');
+  });
+
+  it('keeps legacy mode as a compatibility fallback when no explicit deployment mode is set', () => {
+    expect(getMedarDeploymentMode({ MEDAR_MODE: 'public-demo' })).toBe('public-demo');
+    expect(getMedarDeploymentMode({ MEDAR_MODE: 'operational' })).toBe('operational');
+    expect(getMedarDeploymentMode({})).toBeUndefined();
+  });
   it('keeps an unconfigured or public-demo Worker read-only by default', () => {
     for (const mode of [undefined, 'public-demo', 'unknown']) {
       expect(resolveApiModeAccess(mode, 'GET', '/api/health')).toBe('allow');
