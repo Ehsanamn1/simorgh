@@ -92,3 +92,38 @@
 - [ ] ورود و گردش‌کارها با حساب‌های واقعی staging و آزمون بار همزمان اندازه‌گیری شده‌اند.
 
 کادرهای تکمیل‌نشده عمداً به‌عنوان انجام‌شده گزارش نشده‌اند؛ برای انجامشان دسترسی به DNS/هاست و محیط staging لازم است.
+
+
+## خروجی عملیاتی برای هاست اشتراکی و مهاجرت PostgreSQL
+
+برای تولید خروجی وبِ دارای ورود واقعی، از **نسخهٔ build عملیاتی** استفاده کن، نه build:pages؛ آن خروجی برای دموی ایستا است.
+
+Linux/macOS:
+
+    MEDAR_WEB_API_BASE_URL="https://medar-ops.dengxiao445.workers.dev" npm run build:hosted-web
+
+PowerShell:
+
+    $env:MEDAR_WEB_API_BASE_URL = "https://medar-ops.dengxiao445.workers.dev"
+    npm run build:hosted-web
+
+این فرمان مبدأ API را اعتبارسنجی می‌کند، UI ورود خصوصی را فعال می‌کند، اتصال به API دموی عمومی را رد می‌کند و خروجی dist/ را برای میزبانی ریشه‌ای بررسی می‌کند. سپس **محتویات** dist/ را در document root زیردامنهٔ اپ بارگذاری کن؛ خود پوشهٔ dist را به‌عنوان زیرپوشهٔ اضافی کپی نکن. فایل .htaccess همراه خروجی، مسیرهای داخلی مانند /app/home را به SPA هدایت می‌کند و فایل‌های واقعی را مستقیم سرو می‌کند. این روش فقط زمانی مناسب است که Apache و mod_rewrite فعال باشند؛ برای Nginx باید معادل fallback در پیکربندی وب‌سرور تعریف شود.
+
+اگر فرانت‌اند و API دو مبدأ متفاوت دارند، متغیر GitHub Actions به نام MEDAR_ALLOWED_ORIGINS باید مبدأ HTTPS دقیق فرانت‌اند را دربر بگیرد و Worker بعد از آن دوباره منتشر شود. فایل dist/medar-deployment.json فقط نسخهٔ عمومی build و origin API را نشان می‌دهد؛ رمز دیتابیس، توکن Cloudflare یا گذرواژهٔ کاربران نباید در آن قرار گیرد.
+
+### ابزارهای انتقال دیتابیس
+
+در این مخزن سه ابزار محافظه‌کارانه اضافه شده‌اند:
+
+    # 1) بکاپ custom-format از PostgreSQL مبدأ
+    SOURCE_DATABASE_URL="$SOURCE_DATABASE_URL" bash scripts/export-postgres.sh backups/medar
+
+    # 2) بازیابی فقط به دیتابیس خالی و جداگانه
+    TARGET_DATABASE_URL="$TARGET_DATABASE_URL" bash scripts/restore-postgres.sh backups/medar/medar-postgres-YYYYMMDDTHHMMSSZ-123.dump
+
+    # 3) مقایسهٔ تعداد رکوردهای کلیدی پیش از cutover
+    SOURCE_DATABASE_URL="$SOURCE_DATABASE_URL" TARGET_DATABASE_URL="$TARGET_DATABASE_URL" bash scripts/compare-postgres-databases.sh
+
+فرمان نمونه فقط قالب دستور را نشان می‌دهد؛ مسیر dump واقعی را از خروجی مرحلهٔ اول بردار. بکاپ شامل داده‌های حساس است و باید در فضای خصوصی با مجوز محدود نگه‌داری شود. اسکریپت restore در دیتابیس مقصد شیءهای موجود را پاک نمی‌کند؛ اگر مقصد خالی نباشد، عمداً متوقف می‌شود. شمار رکوردها فقط کنترل اولیه است، نه اثبات برابری کامل. پیش از تغییر ترافیک، کلیدهای خارجی، migration ledger، فایل‌های ذخیره‌شده، نشست‌ها و جریان‌های نقش‌محور نیز باید بررسی شوند.
+
+**نکتهٔ معماری:** خروجی وب، بک‌اند و دیتابیس سه چیز جدا هستند. آپلود dist/ به هاست اشتراکی، به‌تنهایی API را به PHP/MySQL تبدیل نمی‌کند. API فعلی روی Cloudflare Workers و PostgreSQL/Neon ساخته شده است. اگر مقصد نهایی PostgreSQL دیگری است که با درایور فعلی سازگار نیست، ابتدا آداپتور/درایور اتصال و تراکنش‌ها باید روی staging پورت و تست شود؛ روی دیتابیس تولیدی driver را با تعویض URL آزمایش نکن.
