@@ -51,7 +51,7 @@ jobs:
           grep -Fq 'name = "medar-ops"' worker/wrangler-medar-ops.toml
           grep -Fq 'MEDAR_DEPLOYMENT_MODE = "operational"' worker/wrangler-medar-ops.toml
           grep -Fq 'name = "medar-ops"' worker/wrangler-medar-ops-bootstrap.toml
-          grep -Fq 'MEDAR_DEPLOYMENT_MODE = "public-demo"' worker/wrangler-medar-ops-bootstrap.toml
+          grep -Fq 'MEDAR_DEPLOYMENT_MODE = "bootstrap"' worker/wrangler-medar-ops-bootstrap.toml
           grep -Fq 'name = "medar-api"' worker/wrangler.toml
           grep -Fq 'MEDAR_MODE = "public-demo"' worker/wrangler.toml
           grep -Fq -- 'deploy --config wrangler-medar-ops-bootstrap.toml' .github/workflows/cloudflare-worker.yml
@@ -193,18 +193,19 @@ jobs:
           psql "$MEDAR_DATABASE_URL" -v ON_ERROR_STOP=1 -Atqc "select exists(select 1 from information_schema.columns where table_schema='public' and table_name='medar_files' and column_name='content_base64')" | grep -Fxq t
       # Keep medar-api as the public showcase. The operational app is a separate Worker
       # so enabling its sign-in UI never changes the read-only public demo.
-      - name: Build safe bootstrap bundle for the operational Worker
+      - name: Build protected sign-in shell for the operational Worker bootstrap
         run: npm run build
         env:
-          VITE_ENABLE_AUTH_UI: 'false'
-      - name: Verify safe bootstrap bundle before attaching the production database
+          VITE_ENABLE_AUTH_UI: 'true'
+      - name: Verify private sign-in bootstrap bundle before attaching the production database
         shell: bash
         run: |
           test -f dist/index.html
           grep -q 'id="root"' dist/index.html
-          grep -Rqs --include='*.js' 'demo-workspace' dist/assets
-          grep -Rqs --include='*.js' 'دموی قابل ارائه' dist/assets
-          echo "Bootstrap bundle stays in the read-only showcase mode while the operational database secret is attached."
+          grep -Rqs --include='*.js' 'simorgh-signin-layer' dist/assets
+          grep -Rqs --include='*.js' 'ثبت‌نام عمومی غیرفعال است' dist/assets
+          grep -Rqs --include='*.css' 'simorgh-signin-layer' dist/assets
+          echo "Bootstrap bundle exposes the protected sign-in UI, not the public sample workspace."
       - name: Create operational Worker script in safe bootstrap mode
         working-directory: worker
         run: set -o pipefail; npx wrangler@4 deploy --config wrangler-medar-ops-bootstrap.toml 2>&1 | tee /tmp/medar-ops-bootstrap.log
