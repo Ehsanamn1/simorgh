@@ -652,7 +652,8 @@ test('supplier workspace keeps manager-only routes out of the allowed menu', asy
   await page.screenshot({ path: testInfo.outputPath('supplier-role-home-viewport.png') });
   await page.screenshot({ path: testInfo.outputPath('supplier-role-home.png'), fullPage: true });
   const operationsGroup = page.locator('.nav-group').filter({ has: page.locator('summary', { hasText: /^عملیات روزانه/ }) });
-  await operationsGroup.locator('summary').click();
+  const operationsGroupIsOpen = await operationsGroup.evaluate(element => (element as HTMLDetailsElement).open);
+  if (!operationsGroupIsOpen) await operationsGroup.locator('summary').click();
   await expect(operationsGroup.getByRole('link', { name: /کارهای واگذارشده/ })).toBeVisible();
   await expect(page.getByRole('link', { name: /دستورالعمل‌های کاری/ })).toHaveCount(0);
   await expect(page.getByRole('link', { name: /دسترسی کاربران/ })).toHaveCount(0);
