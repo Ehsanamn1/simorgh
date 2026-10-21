@@ -15,7 +15,8 @@
     "test:e2e": "playwright test",
     "serve:pages:test": "node scripts/serve-pages-simulation.mjs",
     "mobile:ios:prepare": "node scripts/build-mobile.mjs ios",
-    "build:hosted-web": "node scripts/build-hosted-web.mjs"
+    "build:hosted-web": "node scripts/build-hosted-web.mjs",
+    "test:pwa:hosted": "node scripts/smoke-hosted-pwa.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.0",
