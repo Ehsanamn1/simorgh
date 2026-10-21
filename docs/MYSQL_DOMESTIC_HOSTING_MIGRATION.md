@@ -27,7 +27,8 @@ MySQL does not implement these features identically. A mechanical SQL search-and
 
 - [ ] Add a Node.js runtime compatible with the Iranian host's supported Node version.
 - [ ] Replace the Neon connector with a MySQL driver behind a server-only repository/data-access layer.
-- [ ] Convert all 31 migrations to a versioned MySQL 8 schema.
+- [x] Start a separate versioned MySQL chain with `worker/migrations/mysql/0001_foundation.sql` for identity, sessions, tenancy, and access requests; enforce generated-column equivalents for two PostgreSQL partial unique indexes.
+- [ ] Convert the remaining migrations 0002–0031 to a versioned MySQL 8 schema.
 - [ ] Reimplement database functions/triggers as transaction-safe application services where MySQL behavior differs.
 - [ ] Preserve tenant-scoped authorization and row-level checks in every API route.
 - [ ] Preserve inventory concurrency guarantees with InnoDB transactions and explicit row locks (SELECT ... FOR UPDATE) where appropriate.
@@ -44,4 +45,4 @@ Do not change or remove the production Neon database, operational Worker, or exi
 
 ## Current status
 
-This document records the migration scope; it is not evidence that the MySQL runtime or schema conversion is complete. The current operational Worker still requires Neon/PostgreSQL. The Raz Sahra CMS MySQL schema draft is maintained separately in the Ehsanamn1/razsahra repository.
+The initial foundation migration now has a disposable MySQL 8.4 integration test in `scripts/test-medar-mysql-foundation.mjs` and the domestic CI workflow. This validates only that initial migration, not the remaining schema or runtime. This document records the migration scope; it is not evidence that the MySQL runtime or schema conversion is complete. The current operational Worker still requires Neon/PostgreSQL. The Raz Sahra CMS MySQL schema draft is maintained separately in the Ehsanamn1/razsahra repository.
