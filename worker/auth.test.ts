@@ -19,6 +19,7 @@ import {
   resolveApiModeAccess,
   getMedarDeploymentMode,
   isExternalRoleTransitionAllowed,
+  isCustomerCommerceInsertAllowed,
   aggregateModulePermissionRows,
   isBankReconciliationDirectionCompatible,
   isBankTransactionCurrencyCompatible,
@@ -319,6 +320,16 @@ describe('bank reconciliation direction safeguards', () => {
     expect(isBankReconciliationDirectionCompatible('purchase_order', 'outgoing')).toBe(true);
     expect(isBankReconciliationDirectionCompatible('settlement', 'incoming')).toBe(false);
     expect(isBankReconciliationDirectionCompatible('unsupported', 'incoming')).toBe(false);
+  });
+});
+
+describe('customer commerce write policy', () => {
+  it('blocks customer order and order-item creation while preserving internal order writes', () => {
+    expect(isCustomerCommerceInsertAllowed('customer', 'orders')).toBe(false);
+    expect(isCustomerCommerceInsertAllowed('customer', 'order_items')).toBe(false);
+    expect(isCustomerCommerceInsertAllowed('owner', 'orders')).toBe(true);
+    expect(isCustomerCommerceInsertAllowed('staff', 'order_items')).toBe(true);
+    expect(isCustomerCommerceInsertAllowed('customer', 'customers')).toBe(true);
   });
 });
 
