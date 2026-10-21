@@ -774,13 +774,28 @@ jobs:
           VITE_ENABLE_AUTH_UI: 'true'
       - name: Install Chromium for responsive browser simulation
         run: npx playwright install --with-deps chromium
-      - name: Run desktop, mobile, auth and operational browser checks
-        run: npm run test:e2e
-      - name: Upload browser reports and failure artifacts
+      - name: Run operational desktop, mobile, auth and workflow browser checks
+        run: npm run test:e2e -- e2e/auth.e2e.ts e2e/dashboard.e2e.ts e2e/operations.e2e.ts
+      - name: Upload operational browser reports and failure artifacts
         if: always()
         uses: actions/upload-artifact@v5
         with:
           name: medar-browser-test-results
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 14
+      - name: Build public demo bundle for dedicated browser checks
+        run: npm run build:pages
+        env:
+          VITE_ENABLE_AUTH_UI: 'false'
+      - name: Run public demo browser checks against the demo bundle
+        run: npm run test:e2e -- e2e/demo.e2e.ts
+      - name: Upload public demo browser reports and failure artifacts
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: medar-demo-browser-test-results
           path: |
             playwright-report/
             test-results/
