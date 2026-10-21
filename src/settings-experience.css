@@ -560,3 +560,12 @@ html[data-theme="light"] .network-status { background:var(--obs-surface); }
 .medar-help-backdrop { z-index: 80 !important; }
 .medar-help-dialog.show-full-section-guide,
 .medar-help-dialog.show-global-manual { z-index: 81 !important; }
+
+
+/* Keep compact help above its launcher and clear of the floating dock. */
+@media (min-width: 861px) {
+  .medar-help-backdrop { bottom: calc(env(safe-area-inset-bottom, 0px) + 70px) !important; }
+}
+@media (max-width: 860px) {
+  .medar-help-backdrop { bottom: calc(env(safe-area-inset-bottom, 0px) + 142px) !important; }
+}
