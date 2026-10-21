@@ -714,3 +714,39 @@ html[data-theme="light"] .network-status { background:var(--obs-surface); }
   .app-sidebar .nav-tools-box .nav-group > summary { min-height: 37px !important; padding-inline: 8px !important; }
   .app-sidebar .nav-tools-box .nav-group > .side-nav a { min-height: 37px !important; padding-inline: 8px !important; }
 }
+
+
+/* Compact accordion rows at every breakpoint. A CSS grid's auto rows can stretch to
+   distribute spare height even when its row-gap is tiny; a vertical flex list keeps
+   each closed category at its natural summary height on desktop, tablets and phones. */
+.app-sidebar .nav-tools-box .nav-groups {
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: flex-start !important;
+  align-content: flex-start !important;
+  align-items: stretch !important;
+  gap: 3px !important;
+  row-gap: 3px !important;
+  min-height: 0 !important;
+  height: auto !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+}
+.app-sidebar .nav-tools-box .nav-groups > .nav-group {
+  display: block !important;
+  flex: 0 0 auto !important;
+  align-self: stretch !important;
+  height: auto !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+}
+.app-sidebar .nav-tools-box .nav-group > .side-nav {
+  grid-template-columns: minmax(0, 1fr) !important;
+  align-content: start !important;
+}
+@media (min-width: 861px) {
+  .app-sidebar .nav-tools-box .nav-groups { gap: 2px !important; row-gap: 2px !important; }
+  .app-sidebar .nav-tools-box .nav-group > summary { min-height: 30px !important; padding-block: 4px !important; line-height: 1.25 !important; }
+  .app-sidebar .nav-tools-box .nav-group > .side-nav { gap: 1px !important; padding-block: 1px !important; }
+  .app-sidebar .nav-tools-box .nav-group > .side-nav a { min-height: 30px !important; padding-block: 4px !important; line-height: 1.25 !important; }
+}
