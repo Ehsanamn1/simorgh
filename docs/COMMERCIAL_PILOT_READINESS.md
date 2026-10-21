@@ -12,7 +12,7 @@ This is a go/no-go evidence tracker, not a feature list. A checkbox becomes comp
 - Cloudflare Worker publish and live smoke (operational-mode identity, Neon health, public signup/invite denial, unauthenticated access, CORS/origin protection, desktop/mobile sign-in, public-demo redirect): [run 39653283449](https://github.com/Ehsanamn1/simorgh/actions/runs/39653283449) — **passed**.
 - Android build: [run 39653283373](https://github.com/Ehsanamn1/simorgh/actions/runs/39653283373) — **passed**.
 - iOS Simulator build: [run 39653283318](https://github.com/Ehsanamn1/simorgh/actions/runs/39653283318) — **passed**.
-- Raz Sahra embeds this source at `/madar/`; parent release [run 39654966982](https://github.com/Ehsanamn1/razsahra/actions/runs/39654966982) — **passed**. It verified the exact combined source marker, HTTP 200 for `/`, `/madar/`, and `/madar/app/home`, both DB health checks, and HTTP 401 for unauthenticated CMS-admin access at the canonical and unique deployment origins.
+- Raz Sahra embeds this runtime pin at `/madar/`; the latest fully verified parent Pages run is [39659265140](https://github.com/Ehsanamn1/razsahra/actions/runs/39659265140) — **passed**. Build marker: `PARENT_SOURCE_SHA=49b773d10bb142bd4c9df0cd82127d250a971236`, `MEDAR_SOURCE_SHA=70329106d6cd921e1c036714157986b72e0ea201`; generated JS contains the exact combined marker. Unique deployment: `https://aa192a68.razsahra.pages.dev`. The smoke test verified HTTP 200 for `/`, `/madar/`, and `/madar/app/home` at canonical and unique origins, both DB health checks, and HTTP 401 for unauthenticated CMS-admin access.
 
 ## Stage 1 — Release integrity
 

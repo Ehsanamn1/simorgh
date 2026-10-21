@@ -11,6 +11,7 @@
 - [ساخت Android debug APK](https://github.com/Ehsanamn1/simorgh/actions/runs/39653283373) — موفق.
 - [ساخت شبیه‌ساز iOS](https://github.com/Ehsanamn1/simorgh/actions/runs/39653283318) — موفق.
 - [آرشیو کامل سورس](https://github.com/Ehsanamn1/simorgh/actions/runs/39653283462) — موفق.
+- [آخرین انتشار ادغام‌شدهٔ راز صحرا با pin فعلی مدار](https://github.com/Ehsanamn1/razsahra/actions/runs/39659265140) — موفق؛ marker ترکیبی `49b773d10bb142bd4c9df0cd82127d250a971236-70329106d6cd921e1c036714157986b72e0ea201` در bundle وجود داشت، routeهای `/madar/` و deep-link پاسخ ۲۰۰، health هر دو دیتابیس موفق و دسترسی ناشناس به CMS admin با ۴۰۱ رد شد. URL یکتای deploy: `https://aa192a68.razsahra.pages.dev`.
 
 نشانی‌های فعلی:
 
