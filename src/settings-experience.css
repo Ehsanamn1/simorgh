@@ -522,3 +522,22 @@ html[data-theme="light"] .network-status { background:var(--obs-surface); }
 .in-app-notifications .notification-item-icon { width: 30px !important; height: 30px !important; }
 .in-app-notifications .notification-archive { margin-top: 5px !important; }
 .in-app-notifications .notification-archive-toggle { padding: 8px 10px !important; }
+
+
+/* Match the responsive navigation geometry to the strict desktop spacing contract. */
+@media (min-width: 861px) and (min-height: 721px) {
+  .app-sidebar .nav-tools-box .nav-groups { gap: 2px !important; row-gap: 2px !important; }
+  .app-sidebar .nav-tools-box .nav-group > summary {
+    min-height: 30px !important;
+    height: auto !important;
+    padding-block: 4px !important;
+    line-height: 1.25 !important;
+  }
+  .app-sidebar .nav-tools-box .nav-group > .side-nav { gap: 1px !important; }
+  .app-sidebar .nav-tools-box .nav-group > .side-nav a {
+    min-height: 30px !important;
+    height: auto !important;
+    padding-block: 4px !important;
+    line-height: 1.25 !important;
+  }
+}
