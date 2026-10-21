@@ -534,7 +534,7 @@ test('installed PWA opens the private workspace and updates route-aware offline 
   const workerResponse = await page.request.get('/simorgh/sw.js');
   expect(workerResponse.ok()).toBe(true);
   const workerSource = await workerResponse.text();
-  expect(workerSource).toContain("medar-shell-v5");
+  expect(workerSource).toMatch(/const CACHE_NAME = 'medar-shell-v\d+';/);
   expect(workerSource).toContain('cache.put(navigationKey, response.clone())');
   expect(workerSource).toContain('cache.match(navigationKey)');
   expect(workerSource).toContain("if (!isLocal(url) || isSensitiveAPI(url)) return");
