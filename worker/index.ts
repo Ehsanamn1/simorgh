@@ -2076,7 +2076,7 @@ app.get('/api/workspace/members', async (c) => {
   return c.json({ members });
 });
 
-export const MEMBER_ACCOUNT_ALLOWED_ROLES = ['admin', 'staff', 'supplier', 'driver', 'customer'];
+export const MEMBER_ACCOUNT_ALLOWED_ROLES = ['admin', 'staff', 'supplier', 'driver'];
 
 export const MEMBER_ACCOUNT_INSERT_SQL =
   "with new_user as (" +
