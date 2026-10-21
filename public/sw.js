@@ -1,5 +1,18 @@
-const CACHE_NAME = 'medar-shell-v5';
+const CACHE_NAME = 'medar-shell-v6';
 const scopeURL = new URL(self.registration.scope);
+// Notification routes are emitted as app-relative paths by the Worker. Resolve
+// them against this installation's scope so /madar/ hosting stays in-scope.
+const normalizeAppHref = raw => {
+  const fallback = new URL('app/home', scopeURL);
+  if (typeof raw !== 'string' || !raw.startsWith('/app/') || raw.startsWith('//')) {
+    return fallback.pathname + fallback.search + fallback.hash;
+  }
+  const target = new URL(raw.slice(1), scopeURL);
+  if (target.origin !== self.location.origin || !target.pathname.startsWith(scopeURL.pathname)) {
+    return fallback.pathname + fallback.search + fallback.hash;
+  }
+  return target.pathname + target.search + target.hash;
+};
 const isLocal = url => url.origin === self.location.origin && url.href.startsWith(scopeURL.href);
 const isSensitiveAPI = url => ['/auth/v1/', '/rest/v1/', '/storage/v1/'].some(part => url.pathname.includes(part));
 const assetExtensions = ['.js', '.css', '.svg', '.webmanifest', '.woff', '.woff2', '.png', '.jpg', '.jpeg', '.webp'];
@@ -63,7 +76,7 @@ self.addEventListener('push', event => {
   const title = typeof payload.title === 'string' && payload.title.trim() ? payload.title.slice(0, 180) : 'اعلان جدید مدار';
   const body = typeof payload.body === 'string' ? payload.body.slice(0, 500) : '';
   const rawHref = typeof payload.href === 'string' ? payload.href : '';
-  const href = rawHref.startsWith('/app/') && !rawHref.startsWith('//') ? rawHref : new URL('app/home', scopeURL).pathname;
+  const href = normalizeAppHref(rawHref);
   event.waitUntil(self.registration.showNotification(title, {
     body,
     data: { href },
@@ -76,7 +89,7 @@ self.addEventListener('push', event => {
 self.addEventListener('notificationclick', event => {
   event.notification.close();
   const raw = event.notification.data && event.notification.data.href;
-  const href = typeof raw === 'string' && raw.startsWith('/') && !raw.startsWith('//') ? raw : new URL('app/home', scopeURL).pathname;
+  const href = normalizeAppHref(raw);
   const target = new URL(href, self.location.origin);
   if (target.origin !== self.location.origin || !target.pathname.startsWith(scopeURL.pathname)) return;
   event.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(async clients => {
