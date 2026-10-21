@@ -354,7 +354,6 @@ test('owner can create a supplier login and copy the one-time credentials', asyn
       password: 'Local-Supplier-2026!',
       role: 'supplier',
       supplierId,
-      customerId: null,
     });
     await route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ member: { membership_id: '00000000-0000-4000-8000-000000000078', username: 'supplier_local', role: 'supplier', supplier_id: supplierId } }) });
   });
@@ -404,7 +403,7 @@ test('owner can provision a supplier without a pre-existing supplier record', as
     submitted = route.request().postDataJSON() as Record<string, unknown>;
     expect(submitted).toMatchObject({
       companyId, username: 'new_supplier_without_record', role: 'supplier',
-      supplierId: null, customerId: null,
+      supplierId: null,
     });
     await route.fulfill({
       status: 201, contentType: 'application/json',
