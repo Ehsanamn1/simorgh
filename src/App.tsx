@@ -233,12 +233,40 @@ function AppShell() {
   </div>;
 }
 
+type PwaInstallPromptEvent = Event & {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed'; platform?: string }>;
+};
+
 function SettingsPage({ membership }: { membership: Membership }) {
   const { theme, setTheme } = useAppTheme(); const { user, signOut } = useAuth();
   const [currentPassword, setCurrentPassword] = useState(''); const [newPassword, setNewPassword] = useState(''); const [confirmNewPassword, setConfirmNewPassword] = useState('');
   const [passwordBusy, setPasswordBusy] = useState(false); const [passwordError, setPasswordError] = useState(''); const [passwordNotice, setPasswordNotice] = useState('');
   const [health, setHealth] = useState<SystemHealthSnapshot | null>(null); const [clients, setClients] = useState<ClientPresenceRow[]>([]);
   const [connectionLoading, setConnectionLoading] = useState(false); const [connectionError, setConnectionError] = useState('');
+  const [installPrompt, setInstallPrompt] = useState<PwaInstallPromptEvent | null>(null);
+  const [pwaInstalled, setPwaInstalled] = useState(false);
+  const [showInstallHelp, setShowInstallHelp] = useState(false);
+  useEffect(() => {
+    const handleInstallPrompt = (event: Event) => {
+      event.preventDefault();
+      setInstallPrompt(event as PwaInstallPromptEvent);
+    };
+    const handleInstalled = () => {
+      setPwaInstalled(true);
+      setInstallPrompt(null);
+      setShowInstallHelp(false);
+    };
+    const standalone = window.matchMedia('(display-mode: standalone)').matches ||
+      Boolean((navigator as Navigator & { standalone?: boolean }).standalone);
+    setPwaInstalled(standalone);
+    window.addEventListener('beforeinstallprompt', handleInstallPrompt);
+    window.addEventListener('appinstalled', handleInstalled);
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleInstallPrompt);
+      window.removeEventListener('appinstalled', handleInstalled);
+    };
+  }, []);
   const canManage = membership.role === 'owner' || membership.role === 'admin';
   const refreshConnection = useCallback(async () => {
     setConnectionLoading(true); setConnectionError('');
@@ -249,6 +277,21 @@ function SettingsPage({ membership }: { membership: Membership }) {
     setConnectionError(issues.join(' ')); setConnectionLoading(false);
   }, [canManage, membership.company_id]);
   useEffect(() => { void refreshConnection(); }, [refreshConnection]);
+  async function requestInstall() {
+    if (!installPrompt) {
+      setShowInstallHelp(value => !value);
+      return;
+    }
+    try {
+      await installPrompt.prompt();
+      const choice = await installPrompt.userChoice;
+      if (choice.outcome === 'accepted') setPwaInstalled(true);
+      setInstallPrompt(null);
+      setShowInstallHelp(choice.outcome !== 'accepted');
+    } catch {
+      setShowInstallHelp(true);
+    }
+  }
   async function changePassword(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault(); setPasswordError(''); setPasswordNotice('');
     if (newPassword.length < 8 || newPassword.length > 128) { setPasswordError('گذرواژه جدید باید بین ۸ تا ۱۲۸ نویسه باشد.'); return; }
@@ -259,6 +302,24 @@ function SettingsPage({ membership }: { membership: Membership }) {
   }
   return <div className="medar-settings-page" dir="rtl">
     <PageHeading eyebrow="حساب و ترجیحات" title="تنظیمات مدار" description="امنیت حساب، وضعیت اتصال و ظاهر برنامه را از یک محل مدیریت کن."/>
+    <section className="settings-section settings-install">
+      <div className="settings-section-heading">
+        <span className="settings-icon"><Smartphone size={19}/></span>
+        <div><h2>نصب مدار روی دستگاه</h2><p>مدار را به صفحهٔ اصلی گوشی یا رایانه اضافه کن؛ حساب‌ها و داده‌ها از همان سرویس امن مشترک استفاده می‌کنند.</p></div>
+      </div>
+      <div className="settings-form-actions">
+        {pwaInstalled
+          ? <span className="form-success" role="status"><CheckCircle2 size={16}/> مدار روی این دستگاه نصب است.</span>
+          : <Button variant="primary" onClick={() => void requestInstall()}><Smartphone size={16}/>{installPrompt ? 'نصب مدار' : 'راهنمای نصب مدار'}</Button>}
+        <span>برای نصب وب‌اپ، آدرس باید از HTTPS باز شده باشد.</span>
+      </div>
+      {showInstallHelp && !pwaInstalled && <div className="settings-install-help" role="status">
+        <b>افزودن مدار به صفحهٔ اصلی</b>
+        <p><strong>اندروید و رایانه:</strong> در Chrome یا Edge منوی مرورگر را باز کن و «Install app / نصب برنامه» یا «Add to Home screen / افزودن به صفحهٔ اصلی» را انتخاب کن.</p>
+        <p><strong>iPhone و iPad:</strong> صفحه را در Safari باز کن، Share (اشتراک‌گذاری) را بزن و «Add to Home Screen / افزودن به صفحهٔ اصلی» را انتخاب کن.</p>
+        <p>اگر گزینهٔ نصب نمایش داده نمی‌شود، مطمئن شو از HTTPS استفاده می‌کنی و صفحهٔ برنامهٔ عملیاتی را باز کرده‌ای.</p>
+      </div>}
+    </section>
     <section className="settings-section settings-appearance"><div className="settings-section-heading"><span className="settings-icon"><Sun size={19}/></span><div><h2>ظاهر برنامه</h2><p>حالت نمایش برای همهٔ بخش‌های مدار ذخیره می‌شود.</p></div></div>
       <div className="settings-theme-options" role="group" aria-label="انتخاب حالت نمایش"><button type="button" className={theme === 'light' ? 'is-selected' : ''} aria-pressed={theme === 'light'} onClick={() => setTheme('light')}><Sun size={18}/><span><b>حالت روشن</b><small>روشن و خوانا</small></span>{theme === 'light' && <CheckCircle2 size={17}/>}</button><button type="button" className={theme === 'dark' ? 'is-selected' : ''} aria-pressed={theme === 'dark'} onClick={() => setTheme('dark')}><Moon size={18}/><span><b>حالت تاریک</b><small>آرام برای محیط کم‌نور</small></span>{theme === 'dark' && <CheckCircle2 size={17}/>}</button></div></section>
     <section className="settings-section settings-account-actions"><div className="settings-section-heading"><span className="settings-icon"><ShieldCheck size={19}/></span><div><h2>حساب کاربری</h2><p>خروج امن از حساب فقط از این بخش انجام می‌شود.</p></div></div><div className="settings-form-actions"><button type="button" className="button-danger" onClick={() => void signOut()}><LogOut size={16}/> خروج از حساب</button><span>نام کاربری: {String(user?.username || 'کاربر مدار')}</span></div></section>
