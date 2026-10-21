@@ -696,7 +696,16 @@ jobs:
           test "$restored_marker" = "medar-backup-restore-roundtrip"
           test "$restored_migrations" = "31"
           echo "PostgreSQL custom-format backup restored successfully with all 31 migration records and the fixture marker."
-      - name: Summarize all dependency advisories
+            - name: Validate hosted deployment and portability scripts
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check scripts/build-hosted-web.mjs
+          bash -n scripts/export-postgres.sh scripts/restore-postgres.sh scripts/compare-postgres-databases.sh
+          test -s public/.htaccess
+          grep -q 'RewriteRule \^ index.html \[L\]' public/.htaccess
+          echo "Hosted web builder, Apache SPA routing, and PostgreSQL portability scripts pass syntax checks."
+- name: Summarize all dependency advisories
         shell: bash
         run: |
           npm audit --json > "$RUNNER_TEMP/npm-audit.json" || true
