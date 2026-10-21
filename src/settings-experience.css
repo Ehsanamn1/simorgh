@@ -541,3 +541,12 @@ html[data-theme="light"] .network-status { background:var(--obs-surface); }
     line-height: 1.25 !important;
   }
 }
+
+
+/* Match the help popover's compact geometry to desktop and 390px mobile viewports. */
+@media (min-width: 861px) {
+  .medar-help-backdrop { left: 12px !important; bottom: calc(env(safe-area-inset-bottom, 0px) + 16px) !important; width: 224px !important; max-width: calc(100vw - 24px) !important; }
+}
+@media (max-width: 860px) {
+  .medar-help-backdrop { left: 8px !important; bottom: calc(env(safe-area-inset-bottom, 0px) + 78px) !important; width: min(205px, calc(100vw - 16px)) !important; max-width: calc(100vw - 16px) !important; }
+}
