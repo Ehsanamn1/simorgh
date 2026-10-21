@@ -223,9 +223,9 @@ function AppShell() {
   if (profileOpen) return <div className="profile-completion-gate" dir="rtl"><div className="profile-completion-card"><span className="profile-completion-mark"><Users size={24}/></span><span className="eyebrow">تکمیل حساب اختصاصی</span><h1>قبل از ورود، مشخصاتت را تکمیل کن</h1><p>حساب و نقش را مدیر مجموعه ساخته است. این اطلاعات برای تماس و پیگیری عملیات استفاده می‌شود و فقط در فضای کاری مجاز نمایش داده می‌شود.</p><form className="record-form" onSubmit={event => { event.preventDefault(); void saveInitialProfile(); }}><label>نام<input required maxLength={60} autoComplete="given-name" value={profileFirstName} onChange={event=>setProfileFirstName(event.target.value)} /></label><label>نام خانوادگی<input required maxLength={80} autoComplete="family-name" value={profileLastName} onChange={event=>setProfileLastName(event.target.value)} /></label><label className="full-span">شماره تلفن همراه<input required type="tel" inputMode="tel" autoComplete="tel" maxLength={24} placeholder="مثلاً ۰۹۱۲… یا +98912…" value={profilePhone} onChange={event=>setProfilePhone(event.target.value)} /></label>{role==='supplier'&&<><label>استان<input required maxLength={80} value={profileProvince} onChange={event=>setProfileProvince(event.target.value)} placeholder="استان محل فعالیت"/></label><label>شهر<input required maxLength={80} value={profileCity} onChange={event=>setProfileCity(event.target.value)} placeholder="شهر محل فعالیت"/></label><label className="full-span">نشانی دقیق محل فعالیت<input required maxLength={240} value={profileAddress} onChange={event=>setProfileAddress(event.target.value)} placeholder="خیابان، محدوده و نشانی قابل پیگیری"/></label></>}{profileError&&<div className="form-error full-span">{profileError}</div>}<div className="modal-actions full-span"><Button type="submit" disabled={profileBusy||profileFirstName.trim().length<1||profileLastName.trim().length<1||profilePhone.trim().length<7||(role==='supplier'&&(profileProvince.trim().length<2||profileCity.trim().length<2||profileAddress.trim().length<5))}>{profileBusy?'در حال ذخیره مشخصات…':'تأیید و ورود به پنل'}</Button></div></form><small>نام کاربری: <b dir="ltr">@{user.username}</b> · نقش دسترسی توسط مدیر تعیین شده و از این فرم قابل تغییر نیست.</small></div></div>;
   const companyName = membership?.company?.name || 'مجموعه مدار';
   return <div className="app-frame" dir="rtl">
-    <aside className={`app-sidebar ${mobileNav ? 'open' : ''}`}><div className="sidebar-brand"><Logo/><button className="sidebar-close" onClick={() => setMobileNav(false)}><X size={17}/></button></div><button className="workspace-switch" disabled={memberships.length <= 1} onClick={() => memberships.length > 1 && setMembershipId(memberships[(memberships.findIndex(m => m.id === membership?.id) + 1) % memberships.length].id)}><span className="workspace-avatar">{companyName.slice(0,1)}</span><span><b>{companyName}</b><small>{roleLabel[role ?? '']}</small></span>{memberships.length > 1 ? <ChevronDown size={15}/> : <span className="workspace-lock"><ShieldCheck size={14}/></span>}</button><div className="nav-caption">فضای کاری</div>
+    <aside className={`app-sidebar ${mobileNav ? 'open' : ''}`}><div className="sidebar-brand"><Logo/><button type="button" className="sidebar-close" aria-label="بستن پنل" onClick={() => setMobileNav(false)}><X size={17}/></button></div><button className="workspace-switch" disabled={memberships.length <= 1} onClick={() => memberships.length > 1 && setMembershipId(memberships[(memberships.findIndex(m => m.id === membership?.id) + 1) % memberships.length].id)}><span className="workspace-avatar">{companyName.slice(0,1)}</span><span><b>{companyName}</b><small>{roleLabel[role ?? '']}</small></span>{memberships.length > 1 ? <ChevronDown size={15}/> : <span className="workspace-lock"><ShieldCheck size={14}/></span>}</button><div className="nav-caption">فضای کاری</div>
       <label className="sidebar-search"><Search size={16}/><input value={navSearch} onChange={event => setNavSearch(event.target.value)} placeholder="جست‌وجوی بخش‌ها…" aria-label="جست‌وجو در فهرست بخش‌ها"/>{navSearch && <button type="button" onClick={() => setNavSearch('')} aria-label="پاک‌کردن جست‌وجوی بخش‌ها"><X size={14}/></button>}</label>
-      <div className="nav-tools-box"><div className="nav-tools-box-heading"><span><Boxes size={15}/> منوی اصلی</span><small>{filteredNavItems.length.toLocaleString('fa-IR')}</small></div><div className="nav-groups">{navGroups.map(group => <details className="nav-group" key={group.label} open={Boolean(navSearch.trim()) || group.items.some(item => item.key === active?.key)}><summary><span>{group.label}</span><small>{group.items.length.toLocaleString('fa-IR')}</small></summary><nav className="side-nav">{group.items.map(item => {const Icon = item.icon; const current = active?.key === item.key; return <Link to={'/app/' + item.key} key={item.key} onClick={() => setMobileNav(false)} className={[current ? 'selected' : '', item.key === 'members' ? 'nav-primary-access' : '', item.key === 'connect' ? 'nav-primary-connect' : ''].filter(Boolean).join(' ')}><Icon size={17}/><span>{item.label}</span></Link>;})}</nav></details>)}</div></div></aside>
+      <div className="nav-tools-box"><div className="nav-tools-box-heading"><span><Boxes size={15}/> منوی اصلی</span><small>{filteredNavItems.length.toLocaleString('fa-IR')}</small></div><div className="nav-groups">{navGroups.map(group => <details className="nav-group" key={group.label} open={Boolean(navSearch.trim()) || group.items.some(item => item.key === active?.key) || (role === 'supplier' && group.items.some(item => item.key === 'supplier-work')) || (role === 'driver' && group.items.some(item => item.key === 'driver-work')) || (role === 'customer' && group.items.some(item => ['catalog', 'my-orders', 'my-account'].includes(item.key)))}><summary><span>{group.label}</span><small>{group.items.length.toLocaleString('fa-IR')}</small></summary><nav className="side-nav">{group.items.map(item => {const Icon = item.icon; const current = active?.key === item.key; return <Link to={'/app/' + item.key} key={item.key} onClick={() => setMobileNav(false)} className={[current ? 'selected' : '', item.key === 'members' ? 'nav-primary-access' : '', item.key === 'connect' ? 'nav-primary-connect' : ''].filter(Boolean).join(' ')}><Icon size={17}/><span>{item.label}</span></Link>;})}</nav></details>)}</div></div></aside>
         <button type="button" className="floating-help-trigger" onClick={() => setGuideOpen(open => !open)} aria-label={guideOpen ? 'بستن راهنمای این بخش' : 'بازکردن راهنمای این بخش'} aria-expanded={guideOpen} title="راهنمای این بخش">{guideOpen ? <X size={19}/> : <CircleHelp size={20}/>}<span>راهنما</span></button>
         {guideOpen && <HelpGuide key={location.pathname} role={role} section={routeKey} onClose={() => setGuideOpen(false)}/>} 
     {mobileNav && <button aria-label="بستن منو" className="mobile-scrim" onClick={() => setMobileNav(false)}/>} 
@@ -233,12 +233,40 @@ function AppShell() {
   </div>;
 }
 
+type PwaInstallPromptEvent = Event & {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed'; platform?: string }>;
+};
+
 function SettingsPage({ membership }: { membership: Membership }) {
   const { theme, setTheme } = useAppTheme(); const { user, signOut } = useAuth();
   const [currentPassword, setCurrentPassword] = useState(''); const [newPassword, setNewPassword] = useState(''); const [confirmNewPassword, setConfirmNewPassword] = useState('');
   const [passwordBusy, setPasswordBusy] = useState(false); const [passwordError, setPasswordError] = useState(''); const [passwordNotice, setPasswordNotice] = useState('');
   const [health, setHealth] = useState<SystemHealthSnapshot | null>(null); const [clients, setClients] = useState<ClientPresenceRow[]>([]);
   const [connectionLoading, setConnectionLoading] = useState(false); const [connectionError, setConnectionError] = useState('');
+  const [installPrompt, setInstallPrompt] = useState<PwaInstallPromptEvent | null>(null);
+  const [pwaInstalled, setPwaInstalled] = useState(false);
+  const [showInstallHelp, setShowInstallHelp] = useState(false);
+  useEffect(() => {
+    const handleInstallPrompt = (event: Event) => {
+      event.preventDefault();
+      setInstallPrompt(event as PwaInstallPromptEvent);
+    };
+    const handleInstalled = () => {
+      setPwaInstalled(true);
+      setInstallPrompt(null);
+      setShowInstallHelp(false);
+    };
+    const standalone = window.matchMedia('(display-mode: standalone)').matches ||
+      Boolean((navigator as Navigator & { standalone?: boolean }).standalone);
+    setPwaInstalled(standalone);
+    window.addEventListener('beforeinstallprompt', handleInstallPrompt);
+    window.addEventListener('appinstalled', handleInstalled);
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleInstallPrompt);
+      window.removeEventListener('appinstalled', handleInstalled);
+    };
+  }, []);
   const canManage = membership.role === 'owner' || membership.role === 'admin';
   const refreshConnection = useCallback(async () => {
     setConnectionLoading(true); setConnectionError('');
@@ -249,6 +277,21 @@ function SettingsPage({ membership }: { membership: Membership }) {
     setConnectionError(issues.join(' ')); setConnectionLoading(false);
   }, [canManage, membership.company_id]);
   useEffect(() => { void refreshConnection(); }, [refreshConnection]);
+  async function requestInstall() {
+    if (!installPrompt) {
+      setShowInstallHelp(value => !value);
+      return;
+    }
+    try {
+      await installPrompt.prompt();
+      const choice = await installPrompt.userChoice;
+      if (choice.outcome === 'accepted') setPwaInstalled(true);
+      setInstallPrompt(null);
+      setShowInstallHelp(choice.outcome !== 'accepted');
+    } catch {
+      setShowInstallHelp(true);
+    }
+  }
   async function changePassword(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault(); setPasswordError(''); setPasswordNotice('');
     if (newPassword.length < 8 || newPassword.length > 128) { setPasswordError('گذرواژه جدید باید بین ۸ تا ۱۲۸ نویسه باشد.'); return; }
@@ -259,6 +302,24 @@ function SettingsPage({ membership }: { membership: Membership }) {
   }
   return <div className="medar-settings-page" dir="rtl">
     <PageHeading eyebrow="حساب و ترجیحات" title="تنظیمات مدار" description="امنیت حساب، وضعیت اتصال و ظاهر برنامه را از یک محل مدیریت کن."/>
+    <section className="settings-section settings-install">
+      <div className="settings-section-heading">
+        <span className="settings-icon"><Smartphone size={19}/></span>
+        <div><h2>نصب مدار روی دستگاه</h2><p>مدار را به صفحهٔ اصلی گوشی یا رایانه اضافه کن؛ حساب‌ها و داده‌ها از همان سرویس امن مشترک استفاده می‌کنند.</p></div>
+      </div>
+      <div className="settings-form-actions">
+        {pwaInstalled
+          ? <span className="form-success" role="status"><CheckCircle2 size={16}/> مدار روی این دستگاه نصب است.</span>
+          : <Button variant="primary" onClick={() => void requestInstall()}><Smartphone size={16}/>{installPrompt ? 'نصب مدار' : 'راهنمای نصب مدار'}</Button>}
+        <span>برای نصب وب‌اپ، آدرس باید از HTTPS باز شده باشد.</span>
+      </div>
+      {showInstallHelp && !pwaInstalled && <div className="settings-install-help" role="status">
+        <b>افزودن مدار به صفحهٔ اصلی</b>
+        <p><strong>اندروید و رایانه:</strong> در Chrome یا Edge منوی مرورگر را باز کن و «Install app / نصب برنامه» یا «Add to Home screen / افزودن به صفحهٔ اصلی» را انتخاب کن.</p>
+        <p><strong>iPhone و iPad:</strong> صفحه را در Safari باز کن، Share (اشتراک‌گذاری) را بزن و «Add to Home Screen / افزودن به صفحهٔ اصلی» را انتخاب کن.</p>
+        <p>اگر گزینهٔ نصب نمایش داده نمی‌شود، مطمئن شو از HTTPS استفاده می‌کنی و صفحهٔ برنامهٔ عملیاتی را باز کرده‌ای.</p>
+      </div>}
+    </section>
     <section className="settings-section settings-appearance"><div className="settings-section-heading"><span className="settings-icon"><Sun size={19}/></span><div><h2>ظاهر برنامه</h2><p>حالت نمایش برای همهٔ بخش‌های مدار ذخیره می‌شود.</p></div></div>
       <div className="settings-theme-options" role="group" aria-label="انتخاب حالت نمایش"><button type="button" className={theme === 'light' ? 'is-selected' : ''} aria-pressed={theme === 'light'} onClick={() => setTheme('light')}><Sun size={18}/><span><b>حالت روشن</b><small>روشن و خوانا</small></span>{theme === 'light' && <CheckCircle2 size={17}/>}</button><button type="button" className={theme === 'dark' ? 'is-selected' : ''} aria-pressed={theme === 'dark'} onClick={() => setTheme('dark')}><Moon size={18}/><span><b>حالت تاریک</b><small>آرام برای محیط کم‌نور</small></span>{theme === 'dark' && <CheckCircle2 size={17}/>}</button></div></section>
     <section className="settings-section settings-account-actions"><div className="settings-section-heading"><span className="settings-icon"><ShieldCheck size={19}/></span><div><h2>حساب کاربری</h2><p>خروج امن از حساب فقط از این بخش انجام می‌شود.</p></div></div><div className="settings-form-actions"><button type="button" className="button-danger" onClick={() => void signOut()}><LogOut size={16}/> خروج از حساب</button><span>نام کاربری: {String(user?.username || 'کاربر مدار')}</span></div></section>
@@ -1394,13 +1455,22 @@ const [resetSecret,setResetSecret]=useState('');
     username:normalizedUsername,
     password:accountPassword,
     role:accountRole,
-    customerId:accountRole==='customer'?accountCustomerId:null,
-    supplierId:accountRole==='supplier'?accountSupplierId:null,
+    customerId:accountRole==='customer'?(accountCustomerId||null):null,
+    supplierId:accountRole==='supplier'?(accountSupplierId||null):null,
    });
+   if(!result.member?.membership_id||String(result.member.role)!==accountRole){
+    throw new Error('پاسخ سرور کامل نیست؛ عضویت اختصاصی ثبت‌شده تأیید نشد. فهرست اعضا را تازه‌سازی کن و پیش از تحویل رمز، وضعیت حساب را بررسی کن.');
+   }
+   if(accountRole==='supplier'&&!result.member.supplier_id){
+    throw new Error('حساب تأمین‌کننده بدون پروندهٔ متصل تأیید نشد. هیچ اطلاعات ورود تحویل نده؛ دوباره تلاش کن یا وضعیت پروندهٔ تأمین‌کننده را بررسی کن.');
+   }
+   if(accountRole==='customer'&&!result.member.customer_id){
+    throw new Error('حساب مشتری بدون پروندهٔ متصل تأیید نشد. هیچ اطلاعات ورود تحویل نده؛ پروندهٔ مشتری را بررسی کن.');
+   }
    const createdUsername=String(result.member?.username??normalizedUsername);
    setResetSecret('@'+createdUsername+' : '+accountPassword);
    setNotice('حساب ساخته شد. اطلاعات ورود را امن تحویل بده؛ کاربر در اولین ورود نام، نام خانوادگی و تلفن خود را تکمیل می‌کند.');
-   setAccountOpen(false);setAccountPassword('');
+   setAccountOpen(false);setAccountName('');setAccountUsername('');setAccountPassword('');setAccountCustomerId('');setAccountSupplierId('');setAccountRole('supplier');
    await load();
   }catch(caught){
    setError(caught instanceof Error?caught.message:'ساخت حساب کاربری ناموفق بود.');
@@ -1508,11 +1578,11 @@ const [resetSecret,setResetSecret]=useState('');
   </Modal>}
   {accountOpen&&<Modal title="ساخت حساب اختصاصی" subtitle="حساب فوراً با نقش تعیین‌شده ساخته می‌شود؛ نام کاربری و رمز اولیه را از مسیر امن به فرد بده." onClose={()=>{if(!busy)setAccountOpen(false);}}><form className="record-form" onSubmit={e=>{e.preventDefault();void createAccount();}}>
    <label className="full-span">نام و نام خانوادگی (اختیاری)<input maxLength={100} value={accountName} onChange={e=>setAccountName(e.target.value)} autoComplete="off"/><small>در صورت خالی‌ماندن، کاربر هنگام اولین ورود نام و نام خانوادگی خود را ثبت می‌کند.</small></label>
-   <label>نام کاربری<input required minLength={3} maxLength={32} pattern="[\\p{L}\\p{N}._-]+" value={accountUsername} onChange={e=>setAccountUsername(e.target.value.toLowerCase())} dir="ltr" autoComplete="off"/><small>۳ تا ۳۲ نویسه؛ بدون فاصله</small></label>
+   <label>نام کاربری<input required minLength={3} maxLength={32} value={accountUsername} onChange={e=>setAccountUsername(e.target.value.toLowerCase())} dir="ltr" autoComplete="off"/><small>۳ تا ۳۲ نویسه؛ بدون فاصله</small></label>
    <label>رمز عبور اولیه<input required minLength={12} maxLength={128} type="password" value={accountPassword} onChange={e=>setAccountPassword(e.target.value)} dir="ltr" autoComplete="new-password"/><small>حداقل ۱۲ نویسه؛ پس از ورود قابل تغییر است</small></label>
    <label className="full-span">نقش کاربر<select value={accountRole} onChange={e=>{setAccountRole(e.target.value as AppRole);setAccountCustomerId('');setAccountSupplierId('');}}>{options.map(r=><option value={r} key={r}>{roleLabel[r]}</option>)}</select></label>
    {accountRole==='customer'&&<label className="full-span">حساب مشتری<select required value={accountCustomerId} onChange={e=>setAccountCustomerId(e.target.value)}><option value="">انتخاب مشتری همین مجموعه…</option>{customers.map(row=><option key={String(row.id)} value={String(row.id)}>{String(row.name)}</option>)}</select></label>}
-   {accountRole==='supplier'&&<label className="full-span">پرونده تأمین‌کننده (اختیاری)<select value={accountSupplierId} onChange={e=>setAccountSupplierId(e.target.value)}><option value="">ساخت پرونده پس از تکمیل پروفایل کاربر</option>{suppliers.map(row=><option key={String(row.id)} value={String(row.id)}>{String(row.name)}</option>)}</select><small>اگر پرونده‌ای انتخاب نکنی، هنگام تکمیل پروفایل، پرونده اولیه به‌صورت خودکار ایجاد و به این حساب متصل می‌شود.</small></label>}
+   {accountRole==='supplier'&&<label className="full-span">پرونده تأمین‌کننده (اختیاری)<select value={accountSupplierId} onChange={e=>setAccountSupplierId(e.target.value)}><option value="">ساخت پرونده پس از تکمیل پروفایل کاربر</option>{suppliers.map(row=><option key={String(row.id)} value={String(row.id)}>{String(row.name)}</option>)}</select><small>اگر پرونده‌ای انتخاب نکنی، مدار هنگام ساخت حساب یک پرونده اولیه می‌سازد و با تکمیل پروفایل، نام و نشانی واقعی را روی همان پرونده ثبت می‌کند.</small></label>}
    {error&&<div className="form-error full-span">{error}</div>}
    <div className="modal-actions"><Button variant="soft" onClick={()=>setAccountOpen(false)} disabled={busy}>انصراف</Button><Button type="submit" disabled={busy||accountUsername.trim().length<3||accountPassword.length<12||(accountRole==='customer'&&!accountCustomerId)}>{busy?'در حال ساخت حساب…':'ساخت حساب و نمایش اطلاعات ورود'}</Button></div>
   </form></Modal>}

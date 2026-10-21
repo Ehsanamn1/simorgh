@@ -4,7 +4,7 @@
   "description": "سامانه‌ی یکپارچه‌ی مدیریت مزرعه، عملیات، سفارش، کیفیت، ارسال و امور مالی",
   "lang": "fa",
   "dir": "rtl",
-  "start_url": "./",
+  "start_url": "./app/home",
   "scope": "./",
   "display": "standalone",
   "display_override": [
@@ -16,10 +16,21 @@
   "theme_color": "#101719",
   "icons": [
     {
-      "src": "./medar-icon.svg",
-      "sizes": "any",
+      "src": "./medar-icon-192.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "./medar-icon-512.svg",
+      "sizes": "512x512",
       "type": "image/svg+xml",
       "purpose": "any maskable"
     }
+  ],
+  "prefer_related_applications": false,
+  "categories": [
+    "business",
+    "productivity"
   ]
 }

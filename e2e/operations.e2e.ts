@@ -266,6 +266,63 @@ test('generic farm types and daily rejected quantities are validated before writ
   await expect(page.locator('.ops-modal')).toBeVisible();
 });
 
+test('private supplier login establishes a session and role-scoped workspace', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const user = { id: '00000000-0000-4000-8000-000000000011', username: 'supplier_ci_login', phone: '+989120000011', full_name: 'تأمین‌کننده آزمایشی' };
+  const membership = {
+    id: '00000000-0000-4000-8000-000000000044',
+    company_id: companyId,
+    user_id: user.id,
+    role: 'supplier',
+    customer_id: null,
+    supplier_id: '00000000-0000-4000-8000-000000000033',
+    active: true,
+    company: { name: 'شرکت آزمایشی مدار' },
+  };
+  let signedIn = false;
+  let loginPayload: Record<string, unknown> | null = null;
+  await page.route('**/api/auth/me', route => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({ user: signedIn ? user : null, memberships: signedIn ? [membership] : [] }),
+  }));
+  await page.route('**/api/auth/login', async route => {
+    loginPayload = route.request().postDataJSON() as Record<string, unknown>;
+    signedIn = true;
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ user, memberships: [membership] }) });
+  });
+  await page.route('**/api/workspace/my-module-permissions**', route => route.fulfill({
+    status: 200, contentType: 'application/json', body: JSON.stringify({ companyId, permissions: {} }),
+  }));
+  await page.route('**/api/workspace/memberships', route => route.fulfill({
+    status: 200, contentType: 'application/json', body: JSON.stringify({ memberships: [membership] }),
+  }));
+  await page.route('**/api/push/config**', route => route.fulfill({
+    status: 200, contentType: 'application/json', body: JSON.stringify({ enabled: false, publicKey: null }),
+  }));
+  await page.route('**/api/client/heartbeat', route => route.fulfill({
+    status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true }),
+  }));
+  await page.route('**/api/notifications**', route => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({ notifications: [], summary: { total: 0, unread: 0 }, ok: true, updated: 0 }),
+  }));
+  await page.route('**/api/data/**', async route => {
+    const table = new URL(route.request().url()).pathname.split('/').pop() || '';
+    await route.fulfill({ status: 200, contentType: 'application/json', headers: { 'cache-control': 'no-store' }, body: JSON.stringify({ data: [], count: 0, error: null, table }) });
+  });
+
+  await page.goto('/simorgh/app/home', { waitUntil: 'domcontentloaded' });
+  await expect(page.getByRole('heading', { name: 'ورود به مدار' })).toBeVisible();
+  await page.getByLabel('نام کاربری').fill('supplier_ci_login');
+  await page.getByRole('textbox', { name: 'گذرواژه' }).fill('CI-supplier-login-password!');
+  await page.getByRole('button', { name: 'ورود به فضای کار' }).click();
+  await expect(page.locator('.app-frame')).toBeVisible();
+  await expect(page.locator('.workspace-home')).toBeVisible();
+  await expect(page.locator('.nav-groups').getByRole('link', { name: /کارهای واگذارشده/ })).toBeVisible();
+  await expect(page.locator('.nav-groups').getByRole('link', { name: /دسترسی کاربران/ })).toHaveCount(0);
+  expect(loginPayload).toMatchObject({ username: 'supplier_ci_login', password: 'CI-supplier-login-password!' });
+});
+
 test('accounts without a workspace cannot self-join; the owner provisions access', async ({ page }) => {
   await installIsolatedSession(page, 'unprovisioned');
   await page.goto('/simorgh/app/command', { waitUntil: 'domcontentloaded' });
@@ -299,7 +356,7 @@ test('owner can create a supplier login and copy the one-time credentials', asyn
       supplierId,
       customerId: null,
     });
-    await route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ member: { membership_id: '00000000-0000-4000-8000-000000000078', username: 'supplier_local', role: 'supplier' } }) });
+    await route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ member: { membership_id: '00000000-0000-4000-8000-000000000078', username: 'supplier_local', role: 'supplier', supplier_id: supplierId } }) });
   });
   await page.goto('/simorgh/app/members', { waitUntil: 'domcontentloaded' });
   await expect(page.getByRole('button', { name: /تأمین‌کنندگان/ })).toBeVisible();
@@ -313,6 +370,63 @@ test('owner can create a supplier login and copy the one-time credentials', asyn
   await expect(page.locator('.invite-code-panel')).toContainText('@supplier_local : Local-Supplier-2026!');
   await expect(page.getByRole('button', { name: 'کپی اطلاعات' })).toBeVisible();
   expect(submitted?.role).toBe('supplier');
+});
+
+test('member username field does not use an invalid HTML regex pattern', async ({ page }) => {
+  await installIsolatedSession(page, 'owner');
+  await page.route('**/api/workspace/members?*', route => route.fulfill({
+    status: 200, contentType: 'application/json', body: JSON.stringify({ members: [] }),
+  }));
+  await page.route('**/api/data/**', route => route.fulfill({
+    status: 200, contentType: 'application/json', body: JSON.stringify({ data: [], count: 0, error: null }),
+  }));
+  await page.goto('/simorgh/app/members', { waitUntil: 'domcontentloaded' });
+  await page.getByRole('button', { name: /ساخت حساب جدید/ }).click();
+  const username = page.getByLabel('نام کاربری');
+  await expect(username).toBeVisible();
+  expect(await username.getAttribute('pattern')).toBeNull();
+  await username.fill('کاربر_تأمین');
+  expect(await username.evaluate(element => (element as HTMLInputElement).checkValidity())).toBe(true);
+  await page.getByLabel('رمز عبور اولیه').fill('CI-Form-Validation-Password-2026!');
+  await expect(page.getByRole('button', { name: 'ساخت حساب و نمایش اطلاعات ورود' })).toBeEnabled();
+});
+
+test('owner can provision a supplier without a pre-existing supplier record', async ({ page }) => {
+  await installIsolatedSession(page, 'owner');
+  await page.route('**/api/workspace/members?*', route => route.fulfill({
+    status: 200, contentType: 'application/json', body: JSON.stringify({ members: [] }),
+  }));
+  await page.route('**/api/data/**', route => route.fulfill({
+    status: 200, contentType: 'application/json', body: JSON.stringify({ data: [], count: 0, error: null }),
+  }));
+  let submitted: Record<string, unknown> | null = null;
+  await page.route('**/api/workspace/members/create', async route => {
+    submitted = route.request().postDataJSON() as Record<string, unknown>;
+    expect(submitted).toMatchObject({
+      companyId, username: 'new_supplier_without_record', role: 'supplier',
+      supplierId: null, customerId: null,
+    });
+    await route.fulfill({
+      status: 201, contentType: 'application/json',
+      body: JSON.stringify({ member: {
+        id: '00000000-0000-4000-8000-000000000081',
+        username: 'new_supplier_without_record',
+        full_name: 'new_supplier_without_record',
+        membership_id: '00000000-0000-4000-8000-000000000082',
+        company_id: companyId, role: 'supplier',
+        supplier_id: '00000000-0000-4000-8000-000000000083',
+      } }),
+    });
+  });
+  await page.goto('/simorgh/app/members', { waitUntil: 'domcontentloaded' });
+  await page.getByRole('button', { name: /ساخت حساب جدید/ }).click();
+  await page.getByLabel('نام کاربری').fill('new_supplier_without_record');
+  await page.getByLabel('رمز عبور اولیه').fill('Safe-New-Supplier-Password-2026!');
+  await page.getByLabel('نقش کاربر').selectOption('supplier');
+  await expect(page.getByLabel('پرونده تأمین‌کننده (اختیاری)')).toHaveValue('');
+  await page.getByRole('button', { name: 'ساخت حساب و نمایش اطلاعات ورود' }).click();
+  await expect(page.getByText(/حساب ساخته شد/)).toBeVisible();
+  expect(submitted).not.toBeNull();
 });
 
 test('contextual help stays compact at the bottom-left and can be dismissed', async ({ page }) => {
@@ -407,6 +521,25 @@ test('owner access panel uses direct account creation without invitation codes',
   await expect(page.locator('.invite-code-panel')).toHaveCount(0);
 });
 
+test('installed PWA opens the private workspace and updates route-aware offline shell cache', async ({ page }) => {
+  const manifestResponse = await page.request.get('/simorgh/manifest.webmanifest');
+  expect(manifestResponse.ok()).toBe(true);
+  const manifest = await manifestResponse.json() as { start_url?: string; scope?: string; display?: string; lang?: string; dir?: string };
+  expect(manifest.start_url).toBe('./app/home');
+  expect(manifest.scope).toBe('./');
+  expect(manifest.display).toBe('standalone');
+  expect(manifest.lang).toBe('fa');
+  expect(manifest.dir).toBe('rtl');
+
+  const workerResponse = await page.request.get('/simorgh/sw.js');
+  expect(workerResponse.ok()).toBe(true);
+  const workerSource = await workerResponse.text();
+  expect(workerSource).toContain("medar-shell-v5");
+  expect(workerSource).toContain('cache.put(navigationKey, response.clone())');
+  expect(workerSource).toContain('cache.match(navigationKey)');
+  expect(workerSource).toContain("if (!isLocal(url) || isSensitiveAPI(url)) return");
+});
+
 test('desktop sidebar groups and module links use compact spacing', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 1000 });
   await installIsolatedSession(page, 'owner');
@@ -422,6 +555,54 @@ test('desktop sidebar groups and module links use compact spacing', async ({ pag
   const link = page.locator('.app-sidebar .side-nav a').first();
   const linkHeight = await link.evaluate(element => element.getBoundingClientRect().height);
   expect(linkHeight).toBeLessThanOrEqual(30);
+  const groupBoxes = await groups.locator(':scope > .nav-group').evaluateAll(elements => elements.map(element => {
+    const rect = element.getBoundingClientRect();
+    return { top: rect.top, bottom: rect.bottom, height: rect.height, open: (element as HTMLDetailsElement).open };
+  }));
+  expect(groupBoxes.length).toBeGreaterThanOrEqual(2);
+  for (const box of groupBoxes.filter(box => !box.open)) expect(box.height).toBeLessThanOrEqual(42);
+  for (let i = 1; i < groupBoxes.length; i++) {
+    expect(groupBoxes[i].top - groupBoxes[i - 1].bottom).toBeLessThanOrEqual(4);
+  }
+});
+
+test('mobile workspace drawer groups stay compact and do not stretch to fill the screen', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await installIsolatedSession(page, 'owner');
+  await page.goto('/simorgh/app/home', { waitUntil: 'domcontentloaded' });
+  await page.getByRole('button', { name: 'بازکردن منو' }).click();
+  const sidebar = page.locator('.app-sidebar');
+  await expect(sidebar).toHaveClass(/open/);
+  const groups = sidebar.locator('.nav-tools-box .nav-groups');
+  await expect(groups).toBeVisible();
+  const layout = await groups.evaluate(element => {
+    const style = getComputedStyle(element);
+    const boxes = Array.from(element.querySelectorAll(':scope > .nav-group')).map(node => {
+      const rect = node.getBoundingClientRect();
+      return { top: rect.top, bottom: rect.bottom, height: rect.height, open: (node as HTMLDetailsElement).open };
+    });
+    return { display: style.display, direction: style.flexDirection, gap: Number.parseFloat(style.rowGap), boxes, clientHeight: element.clientHeight, scrollHeight: element.scrollHeight };
+  });
+  expect(layout.display).toBe('flex');
+  expect(layout.direction).toBe('column');
+  expect(layout.gap).toBeLessThanOrEqual(5);
+  expect(layout.boxes.length).toBeGreaterThanOrEqual(2);
+  for (const box of layout.boxes.filter(box => !box.open)) expect(box.height).toBeLessThanOrEqual(55);
+  for (let i = 1; i < layout.boxes.length; i++) {
+    expect(layout.boxes[i].top - layout.boxes[i - 1].bottom).toBeLessThanOrEqual(7);
+  }
+  await page.getByRole('button', { name: 'بستن پنل' }).click();
+  await expect(sidebar).not.toHaveClass(/open/);
+});
+
+test('settings exposes installation instructions when native install prompt is unavailable', async ({ page }) => {
+  await installIsolatedSession(page, 'owner');
+  await page.goto('/simorgh/app/settings', { waitUntil: 'domcontentloaded' });
+  await expect(page.getByRole('heading', { name: 'نصب مدار روی دستگاه' })).toBeVisible();
+  await page.getByRole('button', { name: 'راهنمای نصب مدار' }).click();
+  await expect(page.getByRole('status').filter({ hasText: 'افزودن مدار به صفحهٔ اصلی' })).toBeVisible();
+  await expect(page.getByText(/iPhone و iPad/)).toBeVisible();
+  await expect(page.getByText(/اندروید و رایانه/)).toBeVisible();
 });
 
 test('supplier directory remains readable from cache when offline', async ({ page }) => {
@@ -471,7 +652,8 @@ test('supplier workspace keeps manager-only routes out of the allowed menu', asy
   await page.screenshot({ path: testInfo.outputPath('supplier-role-home-viewport.png') });
   await page.screenshot({ path: testInfo.outputPath('supplier-role-home.png'), fullPage: true });
   const operationsGroup = page.locator('.nav-group').filter({ has: page.locator('summary', { hasText: /^عملیات روزانه/ }) });
-  await operationsGroup.locator('summary').click();
+  const operationsGroupIsOpen = await operationsGroup.evaluate(element => (element as HTMLDetailsElement).open);
+  if (!operationsGroupIsOpen) await operationsGroup.locator('summary').click();
   await expect(operationsGroup.getByRole('link', { name: /کارهای واگذارشده/ })).toBeVisible();
   await expect(page.getByRole('link', { name: /دستورالعمل‌های کاری/ })).toHaveCount(0);
   await expect(page.getByRole('link', { name: /دسترسی کاربران/ })).toHaveCount(0);

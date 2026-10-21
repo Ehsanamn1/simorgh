@@ -11,6 +11,7 @@ import {
   DUMMY_PASSWORD_HASH,
   FAILED_LOGIN_UPSERT_SQL,
   normalizeUsername,
+  hashPassword,
   MEMBER_ACCOUNT_INSERT_SQL,
   MEMBER_ACCOUNT_ALLOWED_ROLES,
   parseClientHeartbeat,
@@ -109,6 +110,10 @@ describe('dedicated member account creation SQL', () => {
     expect(MEMBER_ACCOUNT_INSERT_SQL).toContain("values($1,$1,null,$2,$3,$4,'active') returning id,username,username_normalized,display_name");
     expect(MEMBER_ACCOUNT_INSERT_SQL).toContain('insert into public.profiles(id,full_name,phone)');
     expect(MEMBER_ACCOUNT_INSERT_SQL).toContain('select id,display_name,null from new_user');
+    expect(MEMBER_ACCOUNT_INSERT_SQL).toContain('cross join new_profile p');
+    expect(MEMBER_ACCOUNT_INSERT_SQL).toContain('insert into public.suppliers(company_id,name,active)');
+    expect(MEMBER_ACCOUNT_INSERT_SQL).toContain("where $4='supplier' and $8::uuid is null returning id,company_id");
+    expect(MEMBER_ACCOUNT_INSERT_SQL).toContain('coalesce($8::uuid,(select created_supplier.id from new_supplier created_supplier))');
     expect(MEMBER_ACCOUNT_INSERT_SQL).toContain('insert into public.memberships');
     expect(MEMBER_ACCOUNT_INSERT_SQL).toContain('created_by');
     expect(MEMBER_ACCOUNT_INSERT_SQL).toContain('insert into public.medar_audit_log');
@@ -193,6 +198,16 @@ describe('shared web/mobile presence payload validation', () => {
     expect(parseClientHeartbeat({ ...valid, companyId: 'public' })).toBeNull();
     expect(parseClientHeartbeat({ ...valid, appVersion: 'v'.repeat(41) })).toBeNull();
     expect(parseClientHeartbeat(null)).toBeNull();
+  });
+});
+
+describe('new account credential round-trip', () => {
+  it('hashes a provisioned account password in the format accepted by login verification', async () => {
+    const password = 'CI-only-Supplier-Password-2026!';
+    const passwordHash = await hashPassword(password);
+    expect(passwordHash).toMatch(/^pbkdf2_sha256\$100000\$/);
+    await expect(verifyPassword(password, passwordHash)).resolves.toBe(true);
+    await expect(verifyPassword(password + '-wrong', passwordHash)).resolves.toBe(false);
   });
 });
 
