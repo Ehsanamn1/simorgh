@@ -208,7 +208,7 @@ test('generic farm types and daily rejected quantities are validated before writ
   await installIsolatedSession(page, 'owner');
 
   await page.goto('/simorgh/app/products', { waitUntil: 'domcontentloaded' });
-  await expect(page).toHaveURL(/\/simorgh\/app\/home$/);
+    await expect(page).toHaveURL('/simorgh/app/home');
   await expect(page.getByRole('heading', { name: 'کاتالوگ و مشخصات محصول' })).toHaveCount(0);
 
   await page.goto('/simorgh/app/farm-sites', { waitUntil: 'domcontentloaded' });
