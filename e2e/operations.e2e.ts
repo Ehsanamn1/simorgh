@@ -1161,7 +1161,7 @@ test('Medar provisions only operational roles and hides customer commerce routes
 
   for (const route of ['catalog', 'my-orders', 'my-account']) {
     await page.goto('/simorgh/app/' + route, { waitUntil: 'domcontentloaded' });
-    await expect(page).toHaveURL(/\\/simorgh\\/app\\/home$/);
+    await expect(page).toHaveURL('/simorgh/app/home');
   }
 });
 
