@@ -101,7 +101,7 @@ test('operational build redirects the public demo route to authenticated sign-in
     body: JSON.stringify({ user: null, memberships: [] }),
   }));
   await page.goto('/simorgh/demo', { waitUntil: 'domcontentloaded' });
-  await expect(page).toHaveURL(/\\/simorgh\\/app\\/command$/);
+  await expect(page).toHaveURL(/\/simorgh\/app\/command$/);
   await expect(page.locator('.simorgh-signin-layer')).toBeVisible();
   await expect(page.locator('.demo-workspace, .demo-preview-notice')).toHaveCount(0);
 });
