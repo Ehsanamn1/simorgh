@@ -1,0 +1,50 @@
+name: Domestic migration CI — Madar
+
+on:
+  push:
+    branches: ["feat/mysql-domestic-hosting"]
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: madar-domestic-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: TypeScript validation
+        run: npm run typecheck
+      - name: Lint
+        run: npm run lint
+      - name: Unit and component tests
+        run: npm run test
+      - name: Build browser application
+        run: npm run build
+      - name: Verify build output
+        run: |
+          set -euo pipefail
+          test -s dist/index.html
+          test -s dist/manifest.webmanifest
+          test -s dist/sw.js
+      - name: Upload build artifact for review (not an operational deployment)
+        uses: actions/upload-artifact@v4
+        with:
+          name: madar-web-ci-${{ github.sha }}
+          path: dist/
+          if-no-files-found: error
+          retention-days: 7
