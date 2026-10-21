@@ -557,6 +557,16 @@ test('mobile workspace drawer groups stay compact and do not stretch to fill the
   await expect(sidebar).not.toHaveClass(/open/);
 });
 
+test('settings exposes installation instructions when native install prompt is unavailable', async ({ page }) => {
+  await installIsolatedSession(page, 'owner');
+  await page.goto('/simorgh/app/settings', { waitUntil: 'domcontentloaded' });
+  await expect(page.getByRole('heading', { name: 'نصب مدار روی دستگاه' })).toBeVisible();
+  await page.getByRole('button', { name: 'راهنمای نصب مدار' }).click();
+  await expect(page.getByRole('status').filter({ hasText: 'افزودن مدار به صفحهٔ اصلی' })).toBeVisible();
+  await expect(page.getByText(/iPhone و iPad/)).toBeVisible();
+  await expect(page.getByText(/اندروید و رایانه/)).toBeVisible();
+});
+
 test('supplier directory remains readable from cache when offline', async ({ page }) => {
   await installIsolatedSession(page, 'owner');
   let apiReachable = true;
