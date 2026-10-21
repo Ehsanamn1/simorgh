@@ -291,7 +291,7 @@ test('private supplier login establishes a session and role-scoped workspace', a
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ user, memberships: [membership] }) });
   });
   await page.route('**/api/workspace/my-module-permissions**', route => route.fulfill({
-    status: 200, contentType: 'application/json', body: JSON.stringify({ companyId, permissions: {} }),
+    status: 200, contentType: 'application/json', body: JSON.stringify({ companyId, permissions: { 'operational-tasks': true, capacity: true, 'partner-settlements': true, 'farm-sites': true, 'flock-cycles': true, 'production-batches': true, 'daily-production': true } }),
   }));
   await page.route('**/api/workspace/memberships', route => route.fulfill({
     status: 200, contentType: 'application/json', body: JSON.stringify({ memberships: [membership] }),
