@@ -25,11 +25,24 @@ self.addEventListener('fetch', event => {
   if (!isLocal(url) || isSensitiveAPI(url)) return;
 
   if (request.mode === 'navigate') {
+    const navigationURL = new URL(request.url);
+    // Query strings may contain transient search/filter state; cache the path, not user-entered query data.
+    navigationURL.search = '';
+    navigationURL.hash = '';
+    const navigationKey = new Request(navigationURL.href, { method: 'GET' });
     event.respondWith(
       fetch(new Request(request, { cache: 'no-store' })).then(response => {
-        if (response.ok) void caches.open(CACHE_NAME).then(cache => cache.put(scopeURL.href, response.clone()));
+        if (response.ok && response.type === 'basic') {
+          void caches.open(CACHE_NAME).then(cache => Promise.all([
+            cache.put(scopeURL.href, response.clone()),
+            cache.put(navigationKey, response.clone())
+          ]));
+        }
         return response;
-      }).catch(async () => (await caches.match(scopeURL.href)) || Response.error())
+      }).catch(async () => {
+        const cache = await caches.open(CACHE_NAME);
+        return (await cache.match(navigationKey)) || (await cache.match(scopeURL.href)) || Response.error();
+      })
     );
     return;
   }
