@@ -696,7 +696,37 @@ jobs:
           test "$restored_marker" = "medar-backup-restore-roundtrip"
           test "$restored_migrations" = "31"
           echo "PostgreSQL custom-format backup restored successfully with all 31 migration records and the fixture marker."
-            - name: Validate hosted deployment and portability scripts
+            - name: Exercise repository PostgreSQL export, safe restore, and row-count comparison
+        env:
+          PGPASSWORD: medar_test_password
+        shell: bash
+        run: |
+          set -euo pipefail
+          source_url="postgresql://postgres:medar_test_password@127.0.0.1:5432/medar_test"
+          target_db="medar_portability_restore"
+          target_url="postgresql://postgres:medar_test_password@127.0.0.1:5432/$target_db"
+          output_dir="$RUNNER_TEMP/medar-portability"
+          cleanup_portability() {
+            dropdb -h 127.0.0.1 -U postgres --if-exists "$target_db" >/dev/null 2>&1 || true
+            psql -h 127.0.0.1 -U postgres -d medar_test -v ON_ERROR_STOP=1 -c "DROP TABLE IF EXISTS public.ci_portability_probe" >/dev/null 2>&1 || true
+            rm -rf "$output_dir"
+          }
+          trap cleanup_portability EXIT
+          mkdir -p "$output_dir"
+          psql -h 127.0.0.1 -U postgres -d medar_test -v ON_ERROR_STOP=1 <<'SQL'
+          CREATE TABLE public.ci_portability_probe (id integer PRIMARY KEY, marker text NOT NULL);
+          INSERT INTO public.ci_portability_probe(id,marker) VALUES (1,'medar-portability-roundtrip');
+          SQL
+          createdb -h 127.0.0.1 -U postgres "$target_db"
+          SOURCE_DATABASE_URL="$source_url" bash scripts/export-postgres.sh "$output_dir"
+          dump_file="$(find "$output_dir" -maxdepth 1 -type f -name 'medar-postgres-*.dump' -print -quit)"
+          test -n "$dump_file"
+          TARGET_DATABASE_URL="$target_url" bash scripts/restore-postgres.sh "$dump_file"
+          SOURCE_DATABASE_URL="$source_url" TARGET_DATABASE_URL="$target_url" bash scripts/compare-postgres-databases.sh
+          restored_marker="$(psql -h 127.0.0.1 -U postgres -d "$target_db" -v ON_ERROR_STOP=1 -Atqc "SELECT marker FROM public.ci_portability_probe WHERE id=1")"
+          test "$restored_marker" = "medar-portability-roundtrip"
+          echo "Repository portability tools passed on a disposable PostgreSQL database; all operations were isolated to CI fixtures."
+      - name: Validate hosted deployment and portability scripts
         shell: bash
         run: |
           set -euo pipefail
