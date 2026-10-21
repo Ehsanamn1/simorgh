@@ -283,13 +283,13 @@ jobs:
       - name: Build the protected operational app with sign-in enabled and shared API
         run: npm run build
         env:
-          VITE_API_BASE_URL: ${{ vars.MEDAR_OPS_API_BASE_URL || 'https://medar-ops.dengxiao445.workers.dev' }}
+          VITE_API_BASE_URL: ${{ vars.MEDAR_OPS_API_BASE_URL }}
           VITE_ENABLE_AUTH_UI: 'true'
           VITE_APP_VERSION: ${{ github.sha }}
       - name: Verify the operational bundle includes sign-in and invite-only access
         shell: bash
         env:
-          MEDAR_OPS_API_BASE_URL: ${{ vars.MEDAR_OPS_API_BASE_URL || 'https://medar-ops.dengxiao445.workers.dev' }}
+          MEDAR_OPS_API_BASE_URL: ${{ vars.MEDAR_OPS_API_BASE_URL }}
           MEDAR_APP_VERSION: ${{ github.sha }}
         run: |
           test -f dist/index.html
@@ -299,7 +299,12 @@ jobs:
           grep -Rqs --include='*.js' 'simorgh-signin-layer' dist/assets
           grep -Rqs --include='*.js' 'ثبت‌نام عمومی غیرفعال است' dist/assets
           grep -Rqs --include='*.js' 'حداقل ۸ نویسه' dist/assets
-          grep -Rqs --include='*.js' -F "$MEDAR_OPS_API_BASE_URL" dist/assets
+          if [[ -n "$MEDAR_OPS_API_BASE_URL" ]]; then
+            grep -Rqs --include='*.js' -F "$MEDAR_OPS_API_BASE_URL" dist/assets
+            echo "Operational bundle embeds the explicitly configured external API origin."
+          else
+            echo "Operational bundle uses same-origin /api routes; this is the default for a Worker custom domain."
+          fi
           grep -Rqs --include='*.js' -F "$MEDAR_APP_VERSION" dist/assets
           grep -Rqs --include='*.css' 'simorgh-signin-layer' dist/assets
           grep -Rqs --include='*.css' 'signin-form-card' dist/assets
