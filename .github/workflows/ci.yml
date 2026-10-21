@@ -42,7 +42,9 @@ jobs:
           grep -Fq -- 'deploy --config wrangler-medar-ops-bootstrap.toml' .github/workflows/cloudflare-worker.yml
           grep -Fq -- 'args=(--config wrangler-medar-ops.toml)' .github/workflows/cloudflare-worker.yml
           grep -Fq -- 'deploy --config wrangler.toml' .github/workflows/cloudflare-worker.yml
-          echo "Runtime mode isolation checks passed."
+          grep -Fq 'push_config_status=' .github/workflows/cloudflare-worker.yml
+          grep -Fq 'private_file_status=' .github/workflows/cloudflare-worker.yml
+          echo "Runtime mode isolation and anonymous sensitive-route guards passed."
       - name: Validate the complete migration chain on a clean PostgreSQL 16 database
         env:
           PGPASSWORD: medar_test_password
