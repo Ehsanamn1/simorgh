@@ -2076,7 +2076,7 @@ app.get('/api/workspace/members', async (c) => {
   return c.json({ members });
 });
 
-export const MEMBER_ACCOUNT_ALLOWED_ROLES = ['admin', 'staff', 'supplier', 'driver', 'customer'];
+export const MEMBER_ACCOUNT_ALLOWED_ROLES = ['admin', 'staff', 'supplier', 'driver'];
 
 export const MEMBER_ACCOUNT_INSERT_SQL =
   "with new_user as (" +
@@ -2133,10 +2133,9 @@ app.post('/api/workspace/members/create', async (c) => {
   if (password.length < 12 || password.length > 128) {
     return c.json({ message: 'رمز عبور اولیه باید بین ۱۲ تا ۱۲۸ نویسه باشد.' }, 422);
   }
-  if ((role === 'customer' && (!customerId || supplierId)) ||
-      (role === 'supplier' && customerId) ||
-      (!['customer', 'supplier'].includes(role) && (customerId || supplierId))) {
-    return c.json({ message: 'برای نقش مشتری یا تأمین‌کننده، حساب مرتبط همان مجموعه را انتخاب کن.' }, 422);
+  if ((role === 'supplier' && customerId) ||
+      (role !== 'supplier' && (customerId || supplierId))) {
+    return c.json({ message: 'پیوند پرونده فقط برای نقش تأمین‌کننده معتبر است.' }, 422);
   }
 
   const sql = sqlFor(c);
@@ -2443,6 +2442,11 @@ async function loadMembershipScopes(c:Ctx,userId:string):Promise<MembershipScope
   [userId]
  );
  return rows as MembershipScope[];
+}
+// Legacy customer memberships remain scoped for read compatibility. External state
+// transitions are limited to drivers advancing shipments; customer order submission is off.
+export function isExternalRoleTransitionAllowed(role: string, table: string): boolean {
+ return role === 'driver' && table === 'shipments';
 }
 export function buildMembershipScopeSql(table:string,columns:Set<string>,memberships:MembershipScope[],userId:string,params:unknown[],startAt=1):string {
  if(!columns.has('company_id')||!memberships.length)return 'false';
@@ -2991,10 +2995,8 @@ app.post('/api/data/:table',async c=>{
     }
   }
 
-  const externalOrderSubmit = isTransition && table === 'orders' &&
-    scopes.some(m => m.role === 'customer' && m.customer_id);
-  const externalDriverUpdate = isTransition && table === 'shipments' &&
-    scopes.some(m => m.role === 'driver');
+  const externalDriverUpdate = isTransition &&
+    scopes.some(m => isExternalRoleTransitionAllowed(m.role, table));
   const approvalRequired = isTransition && (
     ['approved','paid'].includes(String(requestedState)) ||
     (table === 'partner_financial_entries' && ['posted','rejected'].includes(String(requestedState))) ||
@@ -3006,8 +3008,7 @@ app.post('/api/data/:table',async c=>{
   const permissionFilteredScopes = scopes.filter(scope => hasPermission(scope, mutationCapability));
   const mutationScopes = isTransition
     ? permissionFilteredScopes.filter(m => INTERNAL_ROLES.has(m.role) ||
-        (externalOrderSubmit && m.role === 'customer') ||
-        (externalDriverUpdate && m.role === 'driver'))
+        (externalDriverUpdate && isExternalRoleTransitionAllowed(m.role, table)))
     : permissionFilteredScopes.filter(m => INTERNAL_ROLES.has(m.role));
   if (!mutationScopes.length) return c.json({ message: 'ویرایش یا حذف برای نقش فعلی مجاز نیست.' }, 403);
 
@@ -3132,10 +3133,7 @@ app.post('/api/data/:table',async c=>{
     const rowScopes = mutationScopes.filter(m => m.company_id === String(current.company_id));
     const rowHasInternalRole = rowScopes.some(m => INTERNAL_ROLES.has(m.role));
     if (table === 'orders' && !rowHasInternalRole) {
-      if (!rowScopes.some(m => m.role === 'customer' && m.customer_id === String(current.customer_id)) ||
-          currentState !== 'draft' || !['submitted', 'cancelled'].includes(nextState)) {
-        return c.json({ message: 'مشتری فقط می‌تواند پیش‌نویس متعلق به خود را ارسال یا لغو کند.' }, 403);
-      }
+      return c.json({ message: 'فقط اعضای داخلی مجموعه مجاز به تغییر وضعیت سفارش هستند.' }, 403);
     }
     if (table === 'shipments' && !rowHasInternalRole) {
       if (!rowScopes.some(m => m.role === 'driver') ||
