@@ -314,7 +314,7 @@ test('private supplier login establishes a session and role-scoped workspace', a
   await page.goto('/simorgh/app/home', { waitUntil: 'domcontentloaded' });
   await expect(page.getByRole('heading', { name: 'ورود به مدار' })).toBeVisible();
   await page.getByLabel('نام کاربری').fill('supplier_ci_login');
-  await page.getByLabel('گذرواژه').fill('CI-supplier-login-password!');
+  await page.getByRole('textbox', { name: 'گذرواژه' }).fill('CI-supplier-login-password!');
   await page.getByRole('button', { name: 'ورود به فضای کار' }).click();
   await expect(page.locator('.app-frame')).toBeVisible();
   await expect(page.locator('.workspace-home')).toBeVisible();
@@ -370,6 +370,24 @@ test('owner can create a supplier login and copy the one-time credentials', asyn
   await expect(page.locator('.invite-code-panel')).toContainText('@supplier_local : Local-Supplier-2026!');
   await expect(page.getByRole('button', { name: 'کپی اطلاعات' })).toBeVisible();
   expect(submitted?.role).toBe('supplier');
+});
+
+test('member username field does not use an invalid HTML regex pattern', async ({ page }) => {
+  await installIsolatedSession(page, 'owner');
+  await page.route('**/api/workspace/members?*', route => route.fulfill({
+    status: 200, contentType: 'application/json', body: JSON.stringify({ members: [] }),
+  }));
+  await page.route('**/api/data/**', route => route.fulfill({
+    status: 200, contentType: 'application/json', body: JSON.stringify({ data: [], count: 0, error: null }),
+  }));
+  await page.goto('/simorgh/app/members', { waitUntil: 'domcontentloaded' });
+  await page.getByRole('button', { name: /ساخت حساب جدید/ }).click();
+  const username = page.getByLabel('نام کاربری');
+  await expect(username).toBeVisible();
+  expect(await username.getAttribute('pattern')).toBeNull();
+  await username.fill('کاربر_تأمین');
+  expect(await username.evaluate(element => (element as HTMLInputElement).checkValidity())).toBe(true);
+  await expect(page.getByRole('button', { name: 'ساخت حساب و نمایش اطلاعات ورود' })).toBeEnabled();
 });
 
 test('owner can provision a supplier without a pre-existing supplier record', async ({ page }) => {
@@ -572,7 +590,7 @@ test('mobile workspace drawer groups stay compact and do not stretch to fill the
   for (let i = 1; i < layout.boxes.length; i++) {
     expect(layout.boxes[i].top - layout.boxes[i - 1].bottom).toBeLessThanOrEqual(7);
   }
-  await page.getByRole('button', { name: 'بستن منو' }).click();
+  await page.getByRole('button', { name: 'بستن پنل' }).click();
   await expect(sidebar).not.toHaveClass(/open/);
 });
 
