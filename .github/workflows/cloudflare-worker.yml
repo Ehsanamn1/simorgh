@@ -528,6 +528,11 @@ jobs:
           test -n "$worker_url"
           membership_status="$(curl --silent --show-error --output "$RUNNER_TEMP/medar-ops-memberships.json" --write-out '%{http_code}' "$worker_url/api/workspace/memberships")"
           if [[ "$membership_status" != "401" ]]; then echo "Unauthenticated operational memberships must return 401 (received $membership_status)."; cat "$RUNNER_TEMP/medar-ops-memberships.json"; exit 1; fi
+          push_config_status="$(curl --silent --show-error --output "$RUNNER_TEMP/medar-ops-push-config.json" --write-out '%{http_code}' "$worker_url/api/push/config?companyId=00000000-0000-4000-8000-000000000011")"
+          if [[ "$push_config_status" != "401" ]]; then echo "Unauthenticated Push configuration must return 401 (received $push_config_status)."; cat "$RUNNER_TEMP/medar-ops-push-config.json"; exit 1; fi
+          private_file_status="$(curl --silent --show-error --output "$RUNNER_TEMP/medar-ops-private-file.json" --write-out '%{http_code}' "$worker_url/api/storage/operational-evidence?path=00000000-0000-4000-8000-000000000011/unauthenticated-probe.txt")"
+          if [[ "$private_file_status" != "401" ]]; then echo "Unauthenticated private file retrieval must return 401 (received $private_file_status)."; cat "$RUNNER_TEMP/medar-ops-private-file.json"; exit 1; fi
+          echo "Unauthenticated workspace, Push configuration, and private file access denied."
           cors_status="$(curl --silent --show-error --output "$RUNNER_TEMP/medar-ops-cors.json" --write-out '%{http_code}' --request POST --header 'Origin: https://untrusted-origin.invalid' --header 'Content-Type: application/json' --data '{"username":"ab","password":"x"}' "$worker_url/api/auth/login")"
           if [[ "$cors_status" != "403" ]]; then echo "Untrusted-origin operational mutation must return 403 (received $cors_status)."; cat "$RUNNER_TEMP/medar-ops-cors.json"; exit 1; fi
           # Unknown-user password verification was exercised live on the app-code release,
