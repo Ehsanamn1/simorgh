@@ -41,7 +41,7 @@ const PAGE_PERMISSION_MODULE: Record<PageKey, string> = {
   'partner-settlements': 'partner-settlements', 'contacts-import': 'contacts', goals: 'goals',
 };
 
-const DEFERRED_NAV_KEYS = new Set<PageKey>(['agents', 'goals', 'audit', 'contacts-import', 'exceptions', 'quality', 'task-templates', 'partnership-agreements', 'partner-finance', 'partner-settlements', 'customers', 'contacts', 'orders', 'purchase-orders', 'products', 'inventory', 'finance', 'catalog', 'my-orders', 'my-account', 'supplier-settlement']);
+const DEFERRED_NAV_KEYS = new Set<PageKey>(['agents', 'goals', 'audit', 'contacts-import', 'exceptions', 'task-templates', 'partnership-agreements', 'customers', 'contacts', 'orders', 'purchase-orders', 'products', 'inventory', 'finance', 'catalog', 'my-orders', 'my-account']);
 
 const navDefinitions: { key: PageKey; label: string; group: string; icon: typeof LayoutDashboard; roles: AppRole[] }[] = [
   { key: 'home', label: 'صفحه من', group: 'شروع', icon: LayoutDashboard, roles: ['owner', 'admin', 'staff', 'supplier', 'driver', 'customer'] },
@@ -181,8 +181,8 @@ function AppShell() {
       .catch(() => { if (active) setModuleReadPermissions(null); });
     return () => { active = false; };
   }, [membership?.id, membership?.company_id]);
-  // Keep the first release focused on daily operations. Advanced/AI pages remain in the codebase
-  // but are removed from the active release and their routes redirect to the role home.
+  // Only explicitly deferred modules stay hidden and route-disabled; implemented quality and
+  // settlement workflows remain reachable through role-filtered navigation and server permissions.
   const navItems = useMemo(() => navDefinitions.filter(n =>
     !DEFERRED_NAV_KEYS.has(n.key) && Boolean(role && n.roles.includes(role)) &&
     (n.key === 'settings' || moduleReadPermissions === null || moduleReadPermissions[PAGE_PERMISSION_MODULE[n.key]] !== false)
