@@ -6,7 +6,7 @@ const match = workerSource.match(/export const MEMBER_ACCOUNT_INSERT_SQL\s*=([\s
 if (!match) throw new Error('Could not find MEMBER_ACCOUNT_INSERT_SQL in worker/index.ts');
 
 // The expression is intentionally restricted to quoted string literals joined by +.
-// Avoid evaluating arbitrary source just to extract the SQL used by the Worker.
+// Avoid evaluating source just to extract the SQL used by the Worker.
 const expression = match[1];
 const tokens = expression.match(/"(?:\\.|[^"\\])*"/g) ?? [];
 const residue = expression.replace(/"(?:\\.|[^"\\])*"/g, '').replace(/[+\s]/g, '');
@@ -29,14 +29,40 @@ const execute = (username, displayName, role, linkedCustomerId = null, linkedSup
   [username, displayName, 'ci-only-not-a-real-login-hash', role, companyId, ownerId, linkedCustomerId, linkedSupplierId]
     .map(value => value === null ? 'NULL' : quote(value)).join(', ') + ');';
 
+const verificationSql = [
+  'DO $verify_member_provisioning$',
+  'DECLARE expected_count integer;',
+  'BEGIN',
+  "  SELECT count(*) INTO expected_count FROM public.medar_users WHERE username_normalized IN ('ci_supplier_member','ci_driver_member','ci_staff_member','ci_admin_member','ci_customer_member') AND account_status='active';",
+  "  IF expected_count <> 5 THEN RAISE EXCEPTION 'Expected five active role identities, got %', expected_count; END IF;",
+  "  SELECT count(*) INTO expected_count FROM public.medar_users WHERE username_normalized LIKE 'ci_load_member_%' AND account_status='active';",
+  "  IF expected_count <> 100 THEN RAISE EXCEPTION 'Expected 100 PostgreSQL load-test identities, got %', expected_count; END IF;",
+  "  SELECT count(*) INTO expected_count FROM public.profiles p JOIN public.medar_users u ON u.id=p.id WHERE u.username_normalized IN ('ci_supplier_member','ci_driver_member','ci_staff_member','ci_admin_member','ci_customer_member');",
+  "  IF expected_count <> 5 THEN RAISE EXCEPTION 'Expected five profile rows for role identities, got %', expected_count; END IF;",
+  "  SELECT count(*) INTO expected_count FROM public.profiles p JOIN public.medar_users u ON u.id=p.id WHERE u.username_normalized LIKE 'ci_load_member_%';",
+  "  IF expected_count <> 100 THEN RAISE EXCEPTION 'Expected 100 load-test profiles, got %', expected_count; END IF;",
+  "  SELECT count(*) INTO expected_count FROM public.memberships m JOIN public.medar_users u ON u.id=m.user_id WHERE m.company_id=" + quote(companyId) + "::uuid AND m.active AND ((u.username_normalized='ci_supplier_member' AND m.role::text='supplier' AND m.supplier_id=" + quote(supplierId) + "::uuid) OR (u.username_normalized='ci_driver_member' AND m.role::text='driver') OR (u.username_normalized='ci_staff_member' AND m.role::text='staff') OR (u.username_normalized='ci_admin_member' AND m.role::text='admin') OR (u.username_normalized='ci_customer_member' AND m.role::text='customer' AND m.customer_id=" + quote(customerId) + "::uuid));",
+  "  IF expected_count <> 5 THEN RAISE EXCEPTION 'Expected all five correctly scoped memberships, got %', expected_count; END IF;",
+  "  SELECT count(*) INTO expected_count FROM public.memberships m JOIN public.medar_users u ON u.id=m.user_id WHERE m.company_id=" + quote(companyId) + "::uuid AND m.active AND m.role::text='staff' AND u.username_normalized LIKE 'ci_load_member_%';",
+  "  IF expected_count <> 100 THEN RAISE EXCEPTION 'Expected 100 active staff memberships, got %', expected_count; END IF;",
+  "  SELECT count(*) INTO expected_count FROM public.medar_audit_log WHERE actor_user_id=" + quote(ownerId) + "::uuid AND action='membership.account_created' AND metadata->>'company_id'=" + quote(companyId) + ';',
+  "  IF expected_count <> 105 THEN RAISE EXCEPTION 'Expected 105 account creation audit events, got %', expected_count; END IF;",
+  "  SELECT count(*) INTO expected_count FROM public.medar_membership_module_permissions p JOIN public.memberships m ON m.id=p.membership_id JOIN public.medar_users u ON u.id=m.user_id WHERE p.company_id=" + quote(companyId) + "::uuid AND p.module_key='agents' AND u.username_normalized LIKE 'ci_load_member_%';",
+  "  IF expected_count <> 100 THEN RAISE EXCEPTION 'Expected 100 company-scoped agent policies, got %', expected_count; END IF;",
+  "  SELECT count(*) INTO expected_count FROM public.medar_membership_module_permissions p JOIN public.memberships m ON m.id=p.membership_id JOIN public.medar_users u ON u.id=m.user_id WHERE p.company_id=" + quote(companyId) + "::uuid AND p.module_key='agents' AND u.username_normalized LIKE 'ci_load_member_%' AND p.can_read;",
+  "  IF expected_count <> 50 THEN RAISE EXCEPTION 'Expected exactly 50 allowed agent read policies, got %', expected_count; END IF;",
+  'END',
+  '$verify_member_provisioning$;'
+].join('\n');
+
 const sql = [
   'BEGIN;',
-  `INSERT INTO public.companies(id,name) VALUES (${quote(companyId)},'CI member provisioning') ON CONFLICT(id) DO NOTHING;`,
-  `INSERT INTO public.medar_users(id,username,username_normalized,phone_e164,display_name,password_hash,requested_role,account_status) VALUES (${quote(ownerId)},'ci_provision_owner','ci_provision_owner',NULL,'CI Provision Owner','ci-only-not-a-real-login-hash','owner','active') ON CONFLICT(id) DO NOTHING;`,
-  `INSERT INTO public.memberships(id,company_id,user_id,role,active,created_by) VALUES (${quote(ownerMembershipId)},${quote(companyId)},${quote(ownerId)},'owner',true,${quote(ownerId)}) ON CONFLICT(id) DO NOTHING;`,
-  `INSERT INTO public.suppliers(id,company_id,name) VALUES (${quote(supplierId)},${quote(companyId)},'CI Provision Supplier') ON CONFLICT(id) DO NOTHING;`,
-  `INSERT INTO public.customers(id,company_id,name) VALUES (${quote(customerId)},${quote(companyId)},'CI Provision Customer') ON CONFLICT(id) DO NOTHING;`,
-  `PREPARE medar_member_provisioning(text,text,text,text,uuid,uuid,uuid,uuid) AS ${memberSql};`,
+  'INSERT INTO public.companies(id,name) VALUES (' + quote(companyId) + ",'CI member provisioning') ON CONFLICT(id) DO NOTHING;",
+  'INSERT INTO public.medar_users(id,username,username_normalized,phone_e164,display_name,password_hash,requested_role,account_status) VALUES (' + quote(ownerId) + ",'ci_provision_owner','ci_provision_owner',NULL,'CI Provision Owner','ci-only-not-a-real-login-hash','owner','active') ON CONFLICT(id) DO NOTHING;",
+  'INSERT INTO public.memberships(id,company_id,user_id,role,active,created_by) VALUES (' + quote(ownerMembershipId) + ',' + quote(companyId) + ',' + quote(ownerId) + ",'owner',true," + quote(ownerId) + ') ON CONFLICT(id) DO NOTHING;',
+  'INSERT INTO public.suppliers(id,company_id,name) VALUES (' + quote(supplierId) + ',' + quote(companyId) + ",'CI Provision Supplier') ON CONFLICT(id) DO NOTHING;",
+  'INSERT INTO public.customers(id,company_id,name) VALUES (' + quote(customerId) + ',' + quote(companyId) + ",'CI Provision Customer') ON CONFLICT(id) DO NOTHING;",
+  'PREPARE medar_member_provisioning(text,text,text,text,uuid,uuid,uuid,uuid) AS ' + memberSql + ';',
   execute('ci_supplier_member','CI Supplier Member','supplier',null,supplierId),
   execute('ci_driver_member','CI Driver Member','driver'),
   execute('ci_staff_member','CI Staff Member','staff'),
@@ -46,53 +72,10 @@ const sql = [
     const suffix = String(index + 1).padStart(3, '0');
     return execute('ci_load_member_' + suffix, 'CI Load Member ' + suffix, 'staff');
   }),
-  `INSERT INTO public.medar_membership_module_permissions(company_id,membership_id,module_key,inherit_role_defaults,can_read,can_create,can_update,can_delete,can_approve,updated_by)
-   SELECT m.company_id,m.id,'agents',false,
-     (substring(u.username_normalized from '[0-9]+
-    DECLARE expected_count integer;
-    BEGIN
-      SELECT count(*) INTO expected_count FROM public.medar_users
-      WHERE username_normalized IN ('ci_supplier_member','ci_driver_member','ci_staff_member','ci_admin_member','ci_customer_member')
-        AND account_status='active';
-      IF expected_count <> 5 THEN RAISE EXCEPTION 'Expected five active provisioned identities, got %', expected_count; END IF;
-
-      SELECT count(*) INTO expected_count FROM public.medar_users
-      WHERE username_normalized LIKE 'ci_load_member_%' AND account_status='active';
-      IF expected_count <> 100 THEN RAISE EXCEPTION 'Expected 100 PostgreSQL load-test identities, got %', expected_count; END IF;
-
-      SELECT count(*) INTO expected_count FROM public.profiles p JOIN public.medar_users u ON u.id=p.id
-      WHERE u.username_normalized IN ('ci_supplier_member','ci_driver_member','ci_staff_member','ci_admin_member','ci_customer_member');
-      IF expected_count <> 5 THEN RAISE EXCEPTION 'Expected five profile rows, got %', expected_count; END IF;
-
-      SELECT count(*) INTO expected_count FROM public.memberships m JOIN public.medar_users u ON u.id=m.user_id
-      WHERE m.company_id='${companyId}'::uuid AND m.active
-        AND ((u.username_normalized='ci_supplier_member' AND m.role::text='supplier' AND m.supplier_id='${supplierId}'::uuid)
-          OR (u.username_normalized='ci_driver_member' AND m.role::text='driver')
-          OR (u.username_normalized='ci_staff_member' AND m.role::text='staff')
-          OR (u.username_normalized='ci_admin_member' AND m.role::text='admin')
-          OR (u.username_normalized='ci_customer_member' AND m.role::text='customer' AND m.customer_id='${customerId}'::uuid));
-      IF expected_count <> 5 THEN RAISE EXCEPTION 'Expected all five correctly scoped memberships, got %', expected_count; END IF;
-
-      SELECT count(*) INTO expected_count FROM public.medar_audit_log
-      WHERE actor_user_id='${ownerId}'::uuid AND action='membership.account_created'
-        AND metadata->>'company_id'='${companyId}';
-      IF expected_count <> 105 THEN RAISE EXCEPTION 'Expected 105 account creation audit events, got %', expected_count; END IF;
-
-      SELECT count(*) INTO expected_count FROM public.medar_membership_module_permissions p
-      JOIN public.memberships m ON m.id=p.membership_id
-      JOIN public.medar_users u ON u.id=m.user_id
-      WHERE p.company_id='${companyId}'::uuid AND p.module_key='agents'
-        AND u.username_normalized LIKE 'ci_load_member_%';
-      IF expected_count <> 100 THEN RAISE EXCEPTION 'Expected 100 company-scoped agent policies, got %', expected_count; END IF;
-
-      SELECT count(*) INTO expected_count FROM public.medar_membership_module_permissions p
-      JOIN public.memberships m ON m.id=p.membership_id
-      JOIN public.medar_users u ON u.id=m.user_id
-      WHERE p.company_id='${companyId}'::uuid AND p.module_key='agents'
-        AND u.username_normalized LIKE 'ci_load_member_%' AND p.can_read;
-      IF expected_count <> 50 THEN RAISE EXCEPTION 'Expected exactly 50 allowed agent read policies, got %', expected_count; END IF;
-    END
-  $verify_member_provisioning$;
+  'INSERT INTO public.medar_membership_module_permissions(company_id,membership_id,module_key,inherit_role_defaults,can_read,can_create,can_update,can_delete,can_approve,updated_by) ' +
+    'SELECT m.company_id,m.id,\'agents\',false,(substring(u.username_normalized from \'[0-9]+$\')::integer % 2 = 0),true,true,false,false,' + quote(ownerId) + '::uuid ' +
+    'FROM public.memberships m JOIN public.medar_users u ON u.id=m.user_id WHERE m.company_id=' + quote(companyId) + '::uuid AND u.username_normalized LIKE \'ci_load_member_%\';',
+  verificationSql,
   'ROLLBACK;',
   ''
 ].join('\n');
@@ -107,49 +90,4 @@ if (result.stdout) process.stdout.write(result.stdout);
 if (result.stderr) process.stderr.write(result.stderr);
 if (result.error) throw result.error;
 if (result.status !== 0) process.exit(result.status ?? 1);
-console.log('Real PostgreSQL transaction test passed: five role types plus 100 additional memberships and 100 scoped agent permission policies were validated inside a rollback transaction. No fixture data was retained.');
-)::integer % 2 = 0),true,true,false,false,'${ownerId}'::uuid
-   FROM public.memberships m JOIN public.medar_users u ON u.id=m.user_id
-   WHERE m.company_id='${companyId}'::uuid AND u.username_normalized LIKE 'ci_load_member_%';`,
-  `DO $verify_member_provisioning$
-    DECLARE expected_count integer;
-    BEGIN
-      SELECT count(*) INTO expected_count FROM public.medar_users
-      WHERE username_normalized IN ('ci_supplier_member','ci_driver_member','ci_staff_member','ci_admin_member','ci_customer_member')
-        AND account_status='active';
-      IF expected_count <> 5 THEN RAISE EXCEPTION 'Expected five active provisioned identities, got %', expected_count; END IF;
-
-      SELECT count(*) INTO expected_count FROM public.profiles p JOIN public.medar_users u ON u.id=p.id
-      WHERE u.username_normalized IN ('ci_supplier_member','ci_driver_member','ci_staff_member','ci_admin_member','ci_customer_member');
-      IF expected_count <> 5 THEN RAISE EXCEPTION 'Expected five profile rows, got %', expected_count; END IF;
-
-      SELECT count(*) INTO expected_count FROM public.memberships m JOIN public.medar_users u ON u.id=m.user_id
-      WHERE m.company_id='${companyId}'::uuid AND m.active
-        AND ((u.username_normalized='ci_supplier_member' AND m.role::text='supplier' AND m.supplier_id='${supplierId}'::uuid)
-          OR (u.username_normalized='ci_driver_member' AND m.role::text='driver')
-          OR (u.username_normalized='ci_staff_member' AND m.role::text='staff')
-          OR (u.username_normalized='ci_admin_member' AND m.role::text='admin')
-          OR (u.username_normalized='ci_customer_member' AND m.role::text='customer' AND m.customer_id='${customerId}'::uuid));
-      IF expected_count <> 5 THEN RAISE EXCEPTION 'Expected all five correctly scoped memberships, got %', expected_count; END IF;
-
-      SELECT count(*) INTO expected_count FROM public.medar_audit_log
-      WHERE actor_user_id='${ownerId}'::uuid AND action='membership.account_created'
-        AND metadata->>'company_id'='${companyId}';
-      IF expected_count <> 5 THEN RAISE EXCEPTION 'Expected five account creation audit events, got %', expected_count; END IF;
-    END
-  $verify_member_provisioning$;
-  'ROLLBACK;',
-  ''
-].join('\n');
-
-const result = spawnSync('psql', ['-h', '127.0.0.1', '-U', 'postgres', '-d', 'medar_test', '-v', 'ON_ERROR_STOP=1'], {
-  input: sql,
-  encoding: 'utf8',
-  env: process.env,
-  maxBuffer: 5 * 1024 * 1024,
-});
-if (result.stdout) process.stdout.write(result.stdout);
-if (result.stderr) process.stderr.write(result.stderr);
-if (result.error) throw result.error;
-if (result.status !== 0) process.exit(result.status ?? 1);
-console.log('Real PostgreSQL transaction test passed: owner-provisioned supplier, driver, staff, admin and customer identities, profiles, memberships, record links and audit rows were all validated inside a rollback transaction. No fixture data was retained.');
+console.log('PostgreSQL integration passed: five role types, 100 member identities, 100 memberships and 100 company-scoped agent policies were verified inside a rollback transaction; no fixture data was retained.');
