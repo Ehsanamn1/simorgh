@@ -1216,3 +1216,64 @@ test('mobile navigation spacing and contextual help remain usable', async ({ pag
   await expect(fullGuide).toHaveCount(0);
   expect(errors).toEqual([]);
 });
+
+
+test('owner creates a supplier account through the member UI and receives verified credentials', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await installIsolatedSession(page, 'owner');
+
+  const userId = '00000000-0000-4000-8000-000000000111';
+  const membershipId = '00000000-0000-4000-8000-000000000222';
+  const supplierId = '00000000-0000-4000-8000-000000000333';
+  let createRequest: Record<string, unknown> | null = null;
+  let createdMember: Record<string, unknown> | null = null;
+
+  // The browser is deliberately isolated at the API boundary. This proves the real UI
+  // request/response workflow without creating production users or storing a test password.
+  await page.route('**/api/workspace/members/create', async route => {
+    createRequest = route.request().postDataJSON() as Record<string, unknown>;
+    createdMember = {
+      id: userId, membership_id: membershipId, company_id: companyId,
+      username: 'new_supplier', full_name: 'new_supplier', role: 'supplier',
+      supplier_id: supplierId, customer_id: null, active: true, account_status: 'active',
+    };
+    await route.fulfill({
+      status: 201, contentType: 'application/json', headers: { 'cache-control': 'no-store' },
+      body: JSON.stringify({ member: createdMember }),
+    });
+  });
+  await page.route('**/api/workspace/members*', async route => {
+    await route.fulfill({
+      status: 200, contentType: 'application/json', headers: { 'cache-control': 'no-store' },
+      body: JSON.stringify({ members: createdMember ? [createdMember] : [] }),
+    });
+  });
+  await page.route('**/api/data/suppliers**', async route => {
+    await route.fulfill({
+      status: 200, contentType: 'application/json', headers: { 'cache-control': 'no-store' },
+      body: JSON.stringify({ data: [], count: 0, error: null }),
+    });
+  });
+
+  await page.goto('/simorgh/app/members', { waitUntil: 'domcontentloaded' });
+  await expect(page.getByRole('heading', { name: 'دسترسی کاربران' })).toBeVisible();
+  await page.getByRole('button', { name: 'ساخت حساب جدید' }).click();
+  await expect(page.getByRole('heading', { name: 'ساخت حساب اختصاصی' })).toBeVisible();
+
+  const password = 'Test-Only-Password-2026!';
+  await page.getByLabel('نام کاربری').fill('New_Supplier');
+  await page.getByLabel('رمز عبور اولیه').fill(password);
+  await page.getByRole('button', { name: 'ساخت حساب و نمایش اطلاعات ورود' }).click();
+
+  await expect(page.locator('.form-success.notice-wide')).toContainText('حساب ساخته شد');
+  await expect(page.locator('.invite-code-value')).toContainText('@new_supplier : ' + password);
+  await expect(page.locator('.members-list-panel')).toContainText('@new_supplier');
+  expect(createRequest).toEqual({
+    companyId, fullName: '', username: 'new_supplier', password,
+    role: 'supplier', supplierId: null,
+  });
+  expect(createdMember?.membership_id).toBe(membershipId);
+  expect(createdMember?.supplier_id).toBe(supplierId);
+  expect(errors).toEqual([]);
+});
