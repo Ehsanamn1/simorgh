@@ -354,6 +354,7 @@ test('owner can create a supplier login and copy the one-time credentials', asyn
       password: 'Local-Supplier-2026!',
       role: 'supplier',
       supplierId,
+      customerId: null,
     });
     await route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ member: { membership_id: '00000000-0000-4000-8000-000000000078', username: 'supplier_local', role: 'supplier', supplier_id: supplierId } }) });
   });
@@ -403,7 +404,7 @@ test('owner can provision a supplier without a pre-existing supplier record', as
     submitted = route.request().postDataJSON() as Record<string, unknown>;
     expect(submitted).toMatchObject({
       companyId, username: 'new_supplier_without_record', role: 'supplier',
-      supplierId: null,
+      supplierId: null, customerId: null,
     });
     await route.fulfill({
       status: 201, contentType: 'application/json',
@@ -885,6 +886,30 @@ test('owner can configure module access for a staff member and restore inherited
   expect(saved!.every(module => module.configured === false)).toBe(true);
 });
 
+
+test('implemented quality and partner settlement workflows are reachable for authorized owners', async ({ page }) => {
+  await installIsolatedSession(page, 'owner');
+
+  const routes = [
+    { path: 'quality', label: 'کیفیت و محموله' },
+    { path: 'partner-finance', label: 'دفتر مالی شریک' },
+    { path: 'partner-settlements', label: 'دوره‌های تسویه' },
+  ];
+  for (const route of routes) {
+    const expectedUrl = '/simorgh/app/' + route.path;
+    await page.goto(expectedUrl, { waitUntil: 'domcontentloaded' });
+    await expect(page).toHaveURL(expectedUrl);
+    await expect(page.locator('.side-nav a').filter({ hasText: route.label })).toHaveCount(1);
+  }
+});
+
+test('supplier can open the implemented supplier settlement workflow', async ({ page }) => {
+  await installIsolatedSession(page, 'supplier');
+  const expectedUrl = '/simorgh/app/supplier-settlement';
+  await page.goto(expectedUrl, { waitUntil: 'domcontentloaded' });
+  await expect(page).toHaveURL(expectedUrl);
+  await expect(page.locator('.side-nav a').filter({ hasText: 'تسویه‌های من' })).toHaveCount(1);
+});
 
 test('finance module is deferred from the core supply-chain release', async ({ page }) => {
   await installIsolatedSession(page, 'owner');
