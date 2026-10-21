@@ -15,6 +15,7 @@ import {
   MEMBER_ACCOUNT_INSERT_SQL,
   MEMBER_ACCOUNT_INSERT_GENERATED_SQL,
   MEMBER_ACCOUNT_ALLOWED_ROLES,
+  isExternalRoleTransitionAllowed,
   parseClientHeartbeat,
   resolveApiModeAccess,
   aggregateModulePermissionRows,
@@ -98,9 +99,20 @@ describe('production and partner-finance status workflows', () => {
   });
 });
 
+describe('external role transition policy', () => {
+  it('allows drivers to advance shipments but never permits customer order submission', () => {
+    expect(isExternalRoleTransitionAllowed('driver', 'shipments')).toBe(true);
+    expect(isExternalRoleTransitionAllowed('driver', 'orders')).toBe(false);
+    expect(isExternalRoleTransitionAllowed('customer', 'orders')).toBe(false);
+    expect(isExternalRoleTransitionAllowed('supplier', 'orders')).toBe(false);
+    expect(isExternalRoleTransitionAllowed('staff', 'orders')).toBe(false);
+  });
+});
+
 describe('dedicated member account creation SQL', () => {
-  it('accepts every supported member role, including customer, and excludes owner self-provisioning', () => {
-    expect(MEMBER_ACCOUNT_ALLOWED_ROLES).toEqual(['admin', 'staff', 'supplier', 'driver', 'customer']);
+  it('allows operational member roles only and excludes customer and owner self-provisioning', () => {
+    expect(MEMBER_ACCOUNT_ALLOWED_ROLES).toEqual(['admin', 'staff', 'supplier', 'driver']);
+    expect(MEMBER_ACCOUNT_ALLOWED_ROLES).not.toContain('customer');
     expect(MEMBER_ACCOUNT_ALLOWED_ROLES).not.toContain('owner');
   });
 
