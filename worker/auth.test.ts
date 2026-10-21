@@ -13,6 +13,7 @@ import {
   normalizeUsername,
   hashPassword,
   MEMBER_ACCOUNT_INSERT_SQL,
+  MEMBER_ACCOUNT_INSERT_GENERATED_SQL,
   MEMBER_ACCOUNT_ALLOWED_ROLES,
   parseClientHeartbeat,
   resolveApiModeAccess,
@@ -103,9 +104,12 @@ describe('dedicated member account creation SQL', () => {
     expect(MEMBER_ACCOUNT_ALLOWED_ROLES).not.toContain('owner');
   });
 
-  it('writes both the canonical username and the required normalized username column', () => {
+  it('supports both writable legacy and database-generated normalized username columns', () => {
     expect(MEMBER_ACCOUNT_INSERT_SQL).toContain('insert into public.medar_users(username,username_normalized,phone_e164,display_name,password_hash,requested_role,account_status)');
     expect(MEMBER_ACCOUNT_INSERT_SQL).toContain("values($1,$1,null,$2,$3,$4,'active') returning id,username,username_normalized,display_name");
+    expect(MEMBER_ACCOUNT_INSERT_GENERATED_SQL).toContain('insert into public.medar_users(username,phone_e164,display_name,password_hash,requested_role,account_status)');
+    expect(MEMBER_ACCOUNT_INSERT_GENERATED_SQL).toContain("values($1,null,$2,$3,$4,'active') returning id,username,username_normalized,display_name");
+    expect(MEMBER_ACCOUNT_INSERT_GENERATED_SQL).not.toContain('insert into public.medar_users(username,username_normalized,');
     expect(MEMBER_ACCOUNT_INSERT_SQL).toContain('insert into public.medar_users(username,username_normalized,phone_e164,display_name,password_hash,requested_role,account_status)');
     expect(MEMBER_ACCOUNT_INSERT_SQL).toContain("values($1,$1,null,$2,$3,$4,'active') returning id,username,username_normalized,display_name");
     expect(MEMBER_ACCOUNT_INSERT_SQL).toContain('insert into public.profiles(id,full_name,phone)');
