@@ -402,7 +402,7 @@ jobs:
             echo "No separate static-host origin configured; same-origin Worker hosting remains the recommended default."
             exit 0
           fi
-          worker_url="$(grep -Eo 'https://medar-ops\\.[a-z0-9-]+\\.workers\\.dev' /tmp/medar-ops-deploy.log 2>/dev/null | tail -n1 || true)"
+          worker_url="$(grep -Eo 'https://medar-ops\.[a-z0-9-]+\.workers\.dev' /tmp/medar-ops-deploy.log 2>/dev/null | tail -n1 || true)"
           test -n "$worker_url"
           health_response="$(curl --silent --show-error --retry 5 --retry-all-errors --retry-delay 2 "$worker_url/api/health")"
           printf '%s' "$health_response" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{let x;try{x=JSON.parse(s)}catch{console.error('Operational health endpoint returned non-JSON:',s.slice(0,250));process.exit(1)}if(x.ok!==true||x.database!==true||x.service!=='medar-ops'||x.authentication!=='username-password'){console.error('Worker is not in operational runtime mode:',JSON.stringify({ok:x.ok,database:x.database,service:x.service,authentication:x.authentication,code:x.code}));process.exit(1)}console.log('Operational Worker runtime mode and database confirmed:',JSON.stringify({service:x.service,database:x.database,authentication:x.authentication}))})"
