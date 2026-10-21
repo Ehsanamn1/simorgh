@@ -550,3 +550,13 @@ html[data-theme="light"] .network-status { background:var(--obs-surface); }
 @media (max-width: 860px) {
   .medar-help-backdrop { left: 8px !important; bottom: calc(env(safe-area-inset-bottom, 0px) + 78px) !important; width: min(205px, calc(100vw - 16px)) !important; max-width: calc(100vw - 16px) !important; }
 }
+
+
+/* Floating controls stay above content but never intercept dialogs or operational forms. */
+@media (max-width: 860px) {
+  .mobile-workspace-nav[aria-label="ناوبری سریع موبایل"] { z-index: 44 !important; }
+}
+.floating-help-trigger { z-index: 46 !important; }
+.medar-help-backdrop { z-index: 80 !important; }
+.medar-help-dialog.show-full-section-guide,
+.medar-help-dialog.show-global-manual { z-index: 81 !important; }
