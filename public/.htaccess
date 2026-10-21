@@ -1,0 +1,14 @@
+Options -Indexes
+RewriteEngine On
+
+# API calls must reach a configured API/proxy, never silently receive index.html.
+# If the hosting server proxies /api/* in its vhost config, that proxy rule must take precedence.
+RewriteRule ^api(/|$) - [L]
+
+# Serve real files and directories (JS/CSS/icons/manifest/service worker) directly.
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+
+# React Router deep links such as /app/home must load the SPA entry point.
+RewriteRule ^ index.html [L]
