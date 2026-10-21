@@ -348,13 +348,15 @@ jobs:
           const [js, css] = await Promise.all([Promise.all(jsPaths.map(getText)), Promise.all(cssPaths.map(getText))]);
           if (!js.join('\n').includes('simorgh-signin-layer') || !js.join('\n').includes('ثبت‌نام عمومی غیرفعال است')) throw new Error('Live operational JS bundle is missing private sign-in/registration gating.');
           if (!css.join('\n').includes('simorgh-signin-layer')) throw new Error('Live operational CSS is missing the sign-in surface.');
+          if (!css.join('\n').includes('--medar-ui-release') || !css.join('\n').includes('2026-10-21')) throw new Error('Live operational CSS does not include the expected Medar UX release marker.');
+          if (!css.join('\n').includes('.nav-tools-box') || !css.join('\n').includes('medar-help-dialog')) throw new Error('Live operational CSS is missing the compact navigation/help fixes.');
           const deepLink = await fetch(base + '/app/command');
           if (!deepLink.ok || !(await deepLink.text()).includes('id="root"')) throw new Error('Operational /app/command deep-link failed.');
           const meResponse = await fetch(base + '/api/auth/me');
           if (!meResponse.ok) throw new Error('Unauthenticated session inspection failed: ' + meResponse.status);
           const session = await meResponse.json();
           if (session.user !== null || !Array.isArray(session.memberships)) throw new Error('Unexpected unauthenticated session payload.');
-          console.log('Operational root, live JS/CSS, /app/command deep-link, and unauthenticated session response verified.');
+          console.log('Operational root, live JS/CSS with Medar UX release marker, /app/command deep-link, and unauthenticated session response verified.');
           NODE
       - name: Install Chromium for live Worker verification
         run: npx playwright install --with-deps chromium
