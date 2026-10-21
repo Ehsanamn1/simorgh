@@ -5,12 +5,10 @@ import mysql from 'mysql2/promise';
 const url = process.env.MEDAR_MYSQL_TEST_URL;
 if (!url) throw new Error('MEDAR_MYSQL_TEST_URL is required for the disposable MySQL migration test.');
 const sql = await readFile(new URL('../worker/migrations/mysql/0001_foundation.sql', import.meta.url), 'utf8');
-const statements = sql.split(';').map(part =>
-  part.split(String.fromCharCode(10))
-    .filter(line => !line.trim().startsWith('--'))
-    .join(String.fromCharCode(10))
-    .trim()
-).filter(Boolean);
+const sqlWithoutComments = sql.split(String.fromCharCode(10))
+  .filter(line => !line.trim().startsWith('--'))
+  .join(String.fromCharCode(10));
+const statements = sqlWithoutComments.split(';').map(part => part.trim()).filter(Boolean);
 
 const db = await mysql.createConnection(url);
 try {
