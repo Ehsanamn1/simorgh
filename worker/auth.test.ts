@@ -170,6 +170,10 @@ describe('Worker API deployment mode isolation', () => {
     const demo = getMedarDeploymentMode({ MEDAR_DEPLOYMENT_MODE: 'public-demo', MEDAR_MODE: 'operational' });
     expect(demo).toBe('public-demo');
     expect(resolveApiModeAccess(demo, 'GET', '/api/workspace/memberships')).toBe('deny');
+
+    const bootstrap = getMedarDeploymentMode({ MEDAR_DEPLOYMENT_MODE: 'bootstrap', MEDAR_MODE: 'public-demo' });
+    expect(bootstrap).toBe('bootstrap');
+    expect(resolveApiModeAccess(bootstrap, 'GET', '/api/workspace/memberships')).toBe('deny');
   });
 
   it('keeps legacy mode as a compatibility fallback when no explicit deployment mode is set', () => {
@@ -178,7 +182,7 @@ describe('Worker API deployment mode isolation', () => {
     expect(getMedarDeploymentMode({})).toBeUndefined();
   });
   it('keeps an unconfigured or public-demo Worker read-only by default', () => {
-    for (const mode of [undefined, 'public-demo', 'unknown']) {
+    for (const mode of [undefined, 'public-demo', 'bootstrap', 'unknown']) {
       expect(resolveApiModeAccess(mode, 'GET', '/api/health')).toBe('allow');
       expect(resolveApiModeAccess(mode, 'GET', '/api/auth/me')).toBe('anonymous-session');
       expect(resolveApiModeAccess(mode, 'POST', '/api/auth/signup')).toBe('deny');
