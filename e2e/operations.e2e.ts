@@ -1160,7 +1160,7 @@ test('mobile navigation spacing and contextual help remain usable', async ({ pag
   expect(helpDimensions.width).toBeGreaterThan(200);
   expect(helpDimensions.height).toBeGreaterThan(0);
 
-  await page.getByRole('button', { name: 'بستن راهنما' }).click();
-  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await fullGuide.getByRole('button', { name: 'بستن راهنما' }).click();
+  await expect(fullGuide).toHaveCount(0);
   expect(errors).toEqual([]);
 });
