@@ -2458,6 +2458,12 @@ async function loadMembershipScopes(c:Ctx,userId:string):Promise<MembershipScope
 export function isExternalRoleTransitionAllowed(role: string, table: string): boolean {
  return role === 'driver' && table === 'shipments';
 }
+
+// Customer memberships are retained for legacy reads, but customer-authored
+// orders and order items are not supported by the operational API.
+export function isCustomerCommerceInsertAllowed(role: string, table: string): boolean {
+ return !(role === 'customer' && (table === 'orders' || table === 'order_items'));
+}
 export function buildMembershipScopeSql(table:string,columns:Set<string>,memberships:MembershipScope[],userId:string,params:unknown[],startAt=1):string {
  if(!columns.has('company_id')||!memberships.length)return 'false';
  const add=(value:unknown)=>{params.push(value);return '$'+(startAt+params.length-1);};
@@ -2837,6 +2843,9 @@ app.post('/api/data/:table',async c=>{
     const membership=companyRole(scopes,companyId);
     if(!membership)return c.json({message:'این شرکت به حساب فعلی تعلق ندارد.'},403);
     if(!hasPermission(membership,'can_create'))return c.json({message:'برای ایجاد رکورد در این ماژول مجوز نداری.'},403);
+    if (!isCustomerCommerceInsertAllowed(membership.role, table)) {
+      return c.json({ message: 'سفارش‌گذاری مشتری در محیط عملیاتی مدار غیرفعال است.' }, 403);
+    }
     const row=applyInsertActorFields(table,original,columns,user.id);
     if(INTERNAL_ROLES.has(membership.role)){
      if(RPC_ONLY_TABLES.has(table))return c.json({message:'این رکورد باید از عملیات معتبر سمت سرور ثبت شود.'},403);
@@ -2875,22 +2884,6 @@ app.post('/api/data/:table',async c=>{
       row.status='planned';row.quality_status='not_inspected';row.produced_quantity=0;row.started_on=null;row.completed_on=null;row.rejected_quantity=0;row.created_by=user.id;
      }
      if(table==='invoices'){row.status='draft';row.paid_amount=0;}
-     sanitized.push(row);continue;
-    }
-    if(membership.role==='customer'&&membership.customer_id&&table==='orders'){
-     row.customer_id=membership.customer_id;row.status='draft';row.created_by=user.id;sanitized.push(row);continue;
-    }
-    if(membership.role==='customer'&&membership.customer_id&&table==='order_items'){
-     const orderId=String(original.order_id??''),productId=String(original.product_id??'');
-     const sql=sqlFor(c);
-     const owned=await sql.query("select id from public.orders where id=$1::uuid and company_id=$2::uuid and customer_id=$3::uuid and status='draft' limit 1",[orderId,companyId,membership.customer_id]);
-     if(!owned.length)return c.json({message:'اقلام فقط برای سفارش پیش‌نویس خودت قابل ثبت‌اند.'},403);
-     const prices=await sql.query("select unit_price,min_qty from public.price_agreements where company_id=$1::uuid and customer_id=$2::uuid and product_id=$3::uuid and valid_from<=current_date and (valid_to is null or valid_to>=current_date) order by valid_from desc limit 1",[companyId,membership.customer_id,productId]);
-     if(!prices.length)return c.json({message:'برای این محصول قرارداد قیمت فعال پیدا نشد.'},422);
-     const price=prices[0] as {unit_price:string|number;min_qty:string|number};
-     if(!Number.isFinite(Number(original.quantity))||Number(original.quantity)<Number(price.min_qty))return c.json({message:'مقدار سفارش از حداقل قرارداد کمتر است.'},422);
-     row.unit_price=Number(price.unit_price);
-     delete row.supplier_id;delete row.lot_id;delete row.capacity_commitment_id;
      sanitized.push(row);continue;
     }
     if(membership.role==='driver'&&(table==='shipment_locations'||table==='delivery_evidence')){
