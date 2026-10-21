@@ -387,6 +387,7 @@ test('member username field does not use an invalid HTML regex pattern', async (
   expect(await username.getAttribute('pattern')).toBeNull();
   await username.fill('کاربر_تأمین');
   expect(await username.evaluate(element => (element as HTMLInputElement).checkValidity())).toBe(true);
+  await page.getByLabel('رمز عبور اولیه').fill('CI-Form-Validation-Password-2026!');
   await expect(page.getByRole('button', { name: 'ساخت حساب و نمایش اطلاعات ورود' })).toBeEnabled();
 });
 
