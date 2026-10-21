@@ -98,6 +98,26 @@ await writeFile(resolve(dist, 'medar-deployment.json'), JSON.stringify({
   note: 'Public metadata only. Never place database URLs, API tokens, or credentials in this file.',
 }, null, 2) + '\n', { mode: 0o644 });
 
+const installGuide = [
+  'مدار — راهنمای نصب نسخهٔ عملیاتی روی هاست راز صحرا',
+  '',
+  '۱) محتوای این بسته را در document root یک زیردامنهٔ اپلیکیشن استخراج کن؛ فایل‌ها را روی ریشهٔ سایت اصلی راز صحرا جایگزین نکن.',
+  '۲) برای Apache، mod_rewrite باید فعال باشد و فایل .htaccess کنار index.html حفظ شود؛ این فایل مسیرهای مستقیم /app/home و دیگر مسیرهای SPA را به index.html هدایت می‌کند.',
+  '۳) این بسته رابط وب و پوستهٔ PWA است؛ API و دیتابیس را به هاست استاتیک تبدیل نمی‌کند. در این build، API عملیاتی از مبدأ زیر استفاده می‌کند:',
+  parsedApi.origin,
+  '۴) اگر وب و API روی دو مبدأ جدا هستند، مبدأ HTTPS همین وب‌سایت را در GitHub Actions variable به نام MEDAR_ALLOWED_ORIGINS قرار بده و Worker عملیاتی را دوباره منتشر کن تا CORS مجاز شود.',
+  '۵) گزینهٔ کم‌ریسک‌تر این است که زیردامنهٔ اپ را مستقیم به Worker عملیاتی Cloudflare متصل کنی تا وب و /api روی یک مبدأ باشند.',
+  '۶) پس از بارگذاری، این مسیرها را بررسی کن: /, /app/home, /manifest.webmanifest, /sw.js. سپس ورود، خروج، ساخت حساب در فضای آزمایشی و role permissions را با حساب‌های staging آزمایش کن.',
+  '۷) برای نصب روی دستگاه، برنامه را با HTTPS باز کن و از Install app یا Add to Home Screen استفاده کن. در iPhone/iPad از Safari > Share > Add to Home Screen استفاده کن.',
+  '',
+  'امنیت: DATABASE_URL، توکن Cloudflare و رمزهای کاربران در این بسته قرار ندارند و هرگز نباید به فرانت‌اند یا ZIP عمومی اضافه شوند.',
+  'پایگاه دادهٔ موجود در production با این بسته منتقل نمی‌شود. انتقال PostgreSQL و فایل‌ها باید جداگانه، با backup قابل‌بازیابی و آزمون staging انجام شود.',
+  'این خروجی با نسخهٔ '+appVersion+' ساخته شده است.'
+].join('\\n') + '\\n';
+await writeFile(resolve(dist, 'RAZ-SAHRA-INSTALL.txt'), installGuide, { mode: 0o644 });
+const installGuideInfo = await stat(resolve(dist, 'RAZ-SAHRA-INSTALL.txt'));
+if (installGuideInfo.size < 300) throw new Error('Raz Sahara installation guide was not written completely.');
+
 console.log('Hosted Medar web bundle is ready in dist/.');
 console.log('API origin: ' + parsedApi.origin);
 console.log('PWA manifest, icons, service worker, Apache SPA fallback, sign-in gate, and API configuration verified.');
