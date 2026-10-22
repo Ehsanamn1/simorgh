@@ -1,4 +1,8 @@
 import { serve } from '@hono/node-server';
+import process from 'node:process';
+import console from 'node:console';
+import { Buffer } from 'node:buffer';
+import { URL } from 'node:url';
 import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import mysql from 'mysql2/promise';
