@@ -155,8 +155,10 @@ app.use('*', async (c, next) => {
   c.header('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
   c.header('Cache-Control', 'no-store');
   const origin = c.req.header('origin');
-  const allowedOrigin = process.env.APP_ORIGIN;
-  if (origin && allowedOrigin && origin !== allowedOrigin) return c.json({ message: 'مبدأ درخواست مجاز نیست.' }, 403);
+  const allowedOrigin = process.env.APP_ORIGIN || (process.env.NODE_ENV === 'production' ? '' : new URL(c.req.url).origin);
+  const unsafeMethod = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(c.req.method.toUpperCase());
+  if (origin && (!allowedOrigin || origin !== allowedOrigin)) return c.json({ message: 'مبدأ درخواست مجاز نیست.' }, 403);
+  if (process.env.NODE_ENV === 'production' && unsafeMethod && !origin) return c.json({ message: 'مبدأ درخواست مشخص نیست.' }, 403);
   await next();
 });
 
