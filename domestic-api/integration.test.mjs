@@ -185,6 +185,43 @@ test('domestic API authenticates a provisioned MySQL user and revokes the sessio
     const supplierId = randomUUID();
     const agreementId = randomUUID();
     await db.execute('INSERT INTO suppliers (id,company_id,name) VALUES (?,?,?)', [supplierId, companyId, 'Domestic CI Partner']);
+
+    const fileName = 'capacity-ci-' + suffix + '.png';
+    const evidencePath = companyId + '/' + supplierId + '/' + fileName;
+    const imageBytes = Uint8Array.from([137, 80, 78, 71, 13, 10, 26, 10, 1, 2, 3, 4]);
+    const uploadFile = await app.request('http://localhost/api/storage/capacity-evidence?path=' + encodeURIComponent(evidencePath), {
+      method: 'PUT',
+      headers: { cookie, 'content-type': 'image/png' },
+      body: imageBytes,
+    });
+    assert.equal(uploadFile.status, 200, 'Authorized managers must be able to upload evidence.');
+    assert.equal((await uploadFile.json()).data.size, imageBytes.length);
+    const [[fileMetadata]] = await db.query('SELECT company_id,content_type,size_bytes,uploaded_by FROM medar_files WHERE bucket_id=? AND name=?', ['capacity-evidence', evidencePath]);
+    assert.equal(fileMetadata.company_id, companyId);
+    assert.equal(fileMetadata.content_type, 'image/png');
+    assert.equal(Number(fileMetadata.size_bytes), imageBytes.length);
+    assert.equal(fileMetadata.uploaded_by, userId);
+
+    const downloadFile = await app.request('http://localhost/api/storage/capacity-evidence?path=' + encodeURIComponent(evidencePath), { headers: { cookie } });
+    assert.equal(downloadFile.status, 200);
+    assert.equal(downloadFile.headers.get('content-type'), 'image/png');
+    assert.deepEqual(new Uint8Array(await downloadFile.arrayBuffer()), imageBytes);
+    const rangedFile = await app.request('http://localhost/api/storage/capacity-evidence?path=' + encodeURIComponent(evidencePath), {
+      headers: { cookie, range: 'bytes=1-3' },
+    });
+    assert.equal(rangedFile.status, 206);
+    assert.deepEqual(new Uint8Array(await rangedFile.arrayBuffer()), imageBytes.slice(1, 4));
+
+    const removeFile = await app.request('http://localhost/api/storage/capacity-evidence/remove', {
+      method: 'POST',
+      headers: { cookie, 'content-type': 'application/json' },
+      body: JSON.stringify({ paths: [evidencePath] }),
+    });
+    assert.equal(removeFile.status, 200);
+    assert.deepEqual((await removeFile.json()).data, [evidencePath]);
+    const [[removedMetadata]] = await db.query('SELECT id FROM medar_files WHERE bucket_id=? AND name=?', ['capacity-evidence', evidencePath]);
+    assert.equal(removedMetadata, undefined);
+
     await db.execute(
       "INSERT INTO partnership_agreements (id,company_id,supplier_id,agreement_code,status,effective_from,company_profit_share_pct,partner_profit_share_pct,shared_expense_categories,signed_document_path,signed_at,approved_by,approved_at,created_by) VALUES (?,?,?,?,'active','2025-01-01',50,50,?,'ci/signed-agreement.pdf',NOW(3),?,NOW(3),?)",
       [agreementId, companyId, supplierId, 'CI-SETTLEMENT-' + username, JSON.stringify({ feed: true }), userId, userId],
