@@ -1,5 +1,5 @@
 /* Public, read-only product tour. The sample data is intentionally labelled throughout. */
-.demo-workspace{min-height:100vh;display:grid;grid-template-columns:264px minmax(0,1fr);background:var(--obs-bg);color:var(--obs-text);font-family:Vazirmatn,system-ui,sans-serif}
+.demo-workspace{min-height:100vh;display:grid;grid-template-columns:264px minmax(0,1fr);background:var(--obs-bg);color:var(--obs-text);font-family:system-ui,system-ui,sans-serif}
 .demo-sidebar{position:sticky;top:0;height:100vh;min-height:640px;display:flex;flex-direction:column;padding:22px 15px 14px;background:linear-gradient(180deg,#11191c 0%,#0d1416 100%);border-left:1px solid var(--obs-border);z-index:45;min-width:0}
 .demo-brand-row{display:flex;align-items:center;justify-content:space-between;padding:0 7px 23px}
 .demo-brand-row .brand-lockup{gap:9px}
@@ -208,7 +208,7 @@
 .demo-mobile-bottom-nav{display:none}
 @media(max-width:700px){
   .demo-mobile-bottom-nav{position:fixed;z-index:35;right:max(10px,env(safe-area-inset-right));bottom:max(8px,env(safe-area-inset-bottom));left:max(10px,env(safe-area-inset-left));display:flex;align-items:stretch;gap:4px;padding:6px;border:1px solid var(--obs-border);border-radius:18px;background:rgb(17 25 28 / 96%);box-shadow:0 12px 36px rgb(0 0 0 / 42%);backdrop-filter:blur(20px)}
-  .demo-mobile-bottom-nav>button{display:flex;flex:1 1 0;flex-direction:column;align-items:center;justify-content:center;gap:4px;min-width:0;min-height:54px;padding:4px 2px;border:0;border-radius:12px;background:transparent;color:var(--obs-muted);font:750 9px/1.4 Vazirmatn,system-ui,sans-serif;cursor:pointer}
+  .demo-mobile-bottom-nav>button{display:flex;flex:1 1 0;flex-direction:column;align-items:center;justify-content:center;gap:4px;min-width:0;min-height:54px;padding:4px 2px;border:0;border-radius:12px;background:transparent;color:var(--obs-muted);font:750 9px/1.4 system-ui,system-ui,sans-serif;cursor:pointer}
   .demo-mobile-bottom-nav>button>svg{flex:none}
   .demo-mobile-bottom-nav>button.is-active{background:#203435;color:var(--obs-text)}
   .demo-mobile-bottom-nav>button.is-active>svg{color:var(--obs-accent)}
