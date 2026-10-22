@@ -88,7 +88,7 @@ if (!allJavaScript.includes('simorgh-signin-layer') || !allJavaScript.includes('
   throw new Error('Hosted build does not contain the private sign-in UI with public self-registration disabled.');
 }
 if (!allJavaScript.includes(apiBaseUrl)) {
-  throw new Error('The configured API origin was not embedded in the built JavaScript.');
+  throw new Error('The configured API base was not embedded in the built JavaScript.');
 }
 
 await writeFile(resolve(dist, 'medar-deployment.json'), JSON.stringify({
