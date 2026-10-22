@@ -111,11 +111,13 @@ try {
         const foreignKeyError = marker >= 0 ? status.slice(marker, marker + 3500) : '';
         diagnostics += String.fromCharCode(10) + 'InnoDB status length: ' + status.length + String.fromCharCode(10) + 'InnoDB: ' + (foreignKeyError || status.slice(-3000));
       } catch (diagnosticError) { diagnostics += String.fromCharCode(10) + 'InnoDB diagnostics unavailable: ' + diagnosticError.message; }
-      for (const tableName of ['companies','medar_users','medar_ai_provider_configs']) {
+      for (const tableName of ['companies','medar_users','medar_ai_provider_configs','notifications','medar_notification_outbox']) {
         try {
           const [createRows] = await db.query('SHOW CREATE TABLE `' + tableName + '`');
-          diagnostics += String.fromCharCode(10) + 'SHOW CREATE ' + tableName + ': ' + String(createRows?.[0]?.['Create Table'] || '').slice(0, 1800);
-        } catch (diagnosticError) { diagnostics += String.fromCharCode(10) + 'SHOW CREATE ' + tableName + ' unavailable: ' + diagnosticError.message; }
+          diagnostics += String.fromCharCode(10) + 'SHOW CREATE ' + tableName + ': ' + String(createRows?.[0]?.['Create Table'] || '').slice(0, 2400);
+          const [indexRows] = await db.query('SELECT INDEX_NAME, NON_UNIQUE, SEQ_IN_INDEX, COLUMN_NAME FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? ORDER BY INDEX_NAME, SEQ_IN_INDEX', [tableName]);
+          diagnostics += String.fromCharCode(10) + 'INDEXES ' + tableName + ': ' + JSON.stringify(indexRows);
+        } catch (diagnosticError) { diagnostics += String.fromCharCode(10) + 'SHOW CREATE / indexes ' + tableName + ' unavailable: ' + diagnosticError.message; }
       }
       throw new Error('MySQL extended migration statement ' + (index + 1) + '/' + extendedStatements.length + ' failed: ' + preview + String.fromCharCode(10) + error.message + diagnostics);
     }
