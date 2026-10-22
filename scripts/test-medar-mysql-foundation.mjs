@@ -27,7 +27,23 @@ try {
         const status = String(statusRows?.[0]?.Status || '');
         const marker = status.indexOf('LATEST FOREIGN KEY ERROR');
         if (marker >= 0) diagnostic = String.fromCharCode(10) + status.slice(marker, marker + 1600);
-      } catch {}
+      } catch (diagnosticError) {
+        diagnostic = ' (could not retrieve InnoDB diagnostics: ' + diagnosticError.message + ')';
+      }
+      try {
+        const [warnings] = await db.query('SHOW WARNINGS');
+        if (warnings.length) diagnostic += String.fromCharCode(10) + JSON.stringify(warnings);
+      } catch (warningError) {
+        diagnostic += ' (could not retrieve SQL warnings: ' + warningError.message + ')';
+      }
+      for (const table of ['companies', 'medar_users']) {
+        try {
+          const [ddl] = await db.query('SHOW CREATE TABLE `' + table + '`');
+          diagnostic += String.fromCharCode(10) + 'SHOW CREATE ' + table + ': ' + ddl[0]['Create Table'];
+        } catch (ddlError) {
+          diagnostic += String.fromCharCode(10) + 'SHOW CREATE ' + table + ' failed: ' + ddlError.message;
+        }
+      }
       throw new Error('MySQL migration statement ' + (index + 1) + '/' + statements.length + ' failed: ' + preview + String.fromCharCode(10) + error.message + diagnostic);
     }
   }
