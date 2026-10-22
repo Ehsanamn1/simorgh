@@ -467,6 +467,9 @@ app.post('/api/data/:table', async (c) => {
       if (!input.length || input.length > 100 || input.some((row) => !row || typeof row !== 'object' || Array.isArray(row))) {
         return c.json({ message: 'رکورد ورودی معتبر نیست.' }, 422);
       }
+      if (input.some((original) => !memberships.some((m) => m.company_id === String(original.company_id || '') && INTERNAL_ROLES.has(String(m.role))))) {
+        return c.json({ message: 'این شرکت به حساب فعلی تعلق ندارد.' }, 403);
+      }
       const inserted = [];
       const connection = await pool.getConnection();
       try {
@@ -474,7 +477,7 @@ app.post('/api/data/:table', async (c) => {
         for (const original of input) {
         const companyId = typeof original.company_id === 'string' ? original.company_id : '';
         if (!memberships.some((m) => m.company_id === companyId && INTERNAL_ROLES.has(String(m.role)))) {
-          return c.json({ message: 'این شرکت به حساب فعلی تعلق ندارد.' }, 403);
+          throw new Error('Cross-company write');
         }
         const row = {};
         for (const [key, value] of Object.entries(original)) {
