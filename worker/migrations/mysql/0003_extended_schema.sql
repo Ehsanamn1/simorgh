@@ -365,5 +365,5 @@ CREATE TABLE IF NOT EXISTS medar_notification_outbox (
   UNIQUE(company_id,user_id,channel,idempotency_key),
   CONSTRAINT fk_medar_notification_outbox_company_id FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE,
   CONSTRAINT fk_medar_notification_outbox_user_id FOREIGN KEY (user_id) REFERENCES medar_users(id) ON DELETE CASCADE,
-  CONSTRAINT fk_medar_notification_outbox_notification_id FOREIGN KEY (notification_id) REFERENCES notifications(id) ON DELETE CASCADE
+  FOREIGN KEY (company_id,notification_id) REFERENCES notifications(company_id,id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
