@@ -6,140 +6,158 @@ SET NAMES utf8mb4;
 SET time_zone = '+00:00';
 
 CREATE TABLE IF NOT EXISTS customers (
-  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin primary key default UUID(), company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null references companies(id) on delete cascade,
-  name TEXT not null check(length(trim(name)) between 2 and 160), segment TEXT, city TEXT, phone TEXT, address TEXT,
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL PRIMARY KEY, company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
+  name VARCHAR(160) not null check(length(trim(name)) between 2 and 160), segment TEXT, city TEXT, phone TEXT, address TEXT,
   credit_limit numeric(16,0) check(credit_limit is null or credit_limit >= 0), active boolean not null default true,
   created_at DATETIME(3) not null default now(), updated_at DATETIME(3) not null default now(),
-  unique(company_id,id), unique(company_id,name)
- ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+  unique(company_id,id), unique(company_id,name),
+  CONSTRAINT fk_customers_company_id FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS suppliers (
-  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin primary key default UUID(), company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null references companies(id) on delete cascade,
-  name TEXT not null check(length(trim(name)) between 2 and 160), city TEXT, phone TEXT, farm_registration TEXT,
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL PRIMARY KEY, company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
+  name VARCHAR(160) not null check(length(trim(name)) between 2 and 160), city TEXT, phone TEXT, farm_registration TEXT,
   active boolean not null default true, created_at DATETIME(3) not null default now(), updated_at DATETIME(3) not null default now(),
-  unique(company_id,id), unique(company_id,name)
- ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+  unique(company_id,id), unique(company_id,name),
+  CONSTRAINT fk_suppliers_company_id FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS products (
-  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin primary key default UUID(), company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null references companies(id) on delete cascade,
-  sku TEXT not null, name TEXT not null check(length(trim(name)) between 2 and 160), kind product_kind not null,
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL PRIMARY KEY, company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
+  sku VARCHAR(80) not null, name VARCHAR(160) not null check(length(trim(name)) between 2 and 160), kind VARCHAR(40) not null,
   unit TEXT not null default 'کیلوگرم', pack_size integer check(pack_size is null or pack_size>0),
   shelf_life_days integer check(shelf_life_days is null or shelf_life_days>0), storage_note TEXT,
   active boolean not null default true, created_at DATETIME(3) not null default now(), updated_at DATETIME(3) not null default now(),
-  unique(company_id,id), unique(company_id,sku)
- ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+  unique(company_id,id), unique(company_id,sku),
+  CONSTRAINT fk_products_company_id FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS price_agreements (
-  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin primary key default UUID(), company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null references companies(id) on delete cascade,
-  customer_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null, product_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null, unit_price numeric(16,0) not null check(unit_price>0),
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL PRIMARY KEY, company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
+  customer_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL, reference VARCHAR(120) NOT NULL,
   min_qty integer not null default 1 check(min_qty>0), valid_from date not null default current_date, valid_to date,
   created_at DATETIME(3) not null default now(), created_by CHAR(36) CHARACTER SET ascii COLLATE ascii_bin REFERENCES medar_users(id),
   foreign key(company_id,customer_id) references customers(company_id,id) on delete cascade,
   foreign key(company_id,product_id) references products(company_id,id) on delete cascade,
-  check(valid_to is null or valid_to>=valid_from)
- ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+  check(valid_to is null or valid_to>=valid_from),
+  CONSTRAINT fk_price_agreements_company_id FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS orders (
-  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin primary key default UUID(), company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null references companies(id) on delete cascade,
-  customer_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null, reference VARCHAR(120) NOT NULL,'YYMMDD')||'-'||upper(substr(UUID()::TEXT,1,6))),
-  status order_status not null default 'draft', requested_delivery date, delivery_address TEXT, notes TEXT,
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL PRIMARY KEY, company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
+  customer_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null, reference VARCHAR(120) NOT NULL,'YYMMDD')||'-'||upper(substr(UUID(),1,6))),
+  status VARCHAR(40) not null default 'draft', requested_delivery date, delivery_address TEXT, notes TEXT,
   created_by CHAR(36) CHARACTER SET ascii COLLATE ascii_bin REFERENCES medar_users(id), created_at DATETIME(3) not null default now(), updated_at DATETIME(3) not null default now(),
   foreign key(company_id,customer_id) references customers(company_id,id) on delete restrict,
-  unique(company_id,id), unique(company_id,reference)
- ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+  unique(company_id,id), unique(company_id,reference),
+  CONSTRAINT fk_orders_company_id FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS order_items (
-  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin primary key default UUID(), company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null references companies(id) on delete cascade,
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL PRIMARY KEY, company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
   order_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null, product_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null, quantity numeric(14,3) not null check(quantity>0),
   unit_price numeric(16,0) not null default 0 check(unit_price>=0), supplier_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin, lot_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin,
   created_at DATETIME(3) not null default now(),
   foreign key(company_id,order_id) references orders(company_id,id) on delete cascade,
   foreign key(company_id,product_id) references products(company_id,id) on delete restrict,
   foreign key(company_id,supplier_id) references suppliers(company_id,id) on delete restrict,
-  unique(company_id,id)
- ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+  unique(company_id,id),
+  CONSTRAINT fk_order_items_company_id FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS capacity_commitments (
-  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin primary key default UUID(), company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null references companies(id) on delete cascade,
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL PRIMARY KEY, company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
   supplier_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null, product_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null, period_start date not null, period_end date not null,
   declared_qty numeric(14,3) not null check(declared_qty>=0), confirmed_qty numeric(14,3) check(confirmed_qty is null or confirmed_qty>=0),
-  committed_qty numeric(14,3) check(committed_qty is null or committed_qty>=0), status capacity_status not null default 'declared', note TEXT,
+  committed_qty numeric(14,3) check(committed_qty is null or committed_qty>=0), status VARCHAR(40) not null default 'declared', note TEXT,
   created_at DATETIME(3) not null default now(), updated_at DATETIME(3) not null default now(), created_by CHAR(36) CHARACTER SET ascii COLLATE ascii_bin REFERENCES medar_users(id),
   foreign key(company_id,supplier_id) references suppliers(company_id,id) on delete cascade,
   foreign key(company_id,product_id) references products(company_id,id) on delete restrict,
   unique(company_id,id),
   check(period_end>=period_start), check(confirmed_qty is null or confirmed_qty<=declared_qty),
-  check(committed_qty is null or confirmed_qty is null or committed_qty<=confirmed_qty)
- ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+  check(committed_qty is null or confirmed_qty is null or committed_qty<=confirmed_qty),
+  CONSTRAINT fk_capacity_commitments_company_id FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS lots (
-  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin primary key default UUID(), company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null references companies(id) on delete cascade,
-  supplier_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null, product_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null, code TEXT not null, produced_on date not null, best_before date,
-  quantity numeric(14,3) not null check(quantity>0), status lot_status not null default 'pending_review',
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL PRIMARY KEY, company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
+  supplier_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null, product_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null, code VARCHAR(80) not null, produced_on date not null, best_before date,
+  quantity numeric(14,3) not null check(quantity>0), status VARCHAR(40) not null default 'pending_review',
   created_at DATETIME(3) not null default now(),
   foreign key(company_id,supplier_id) references suppliers(company_id,id) on delete restrict,
   foreign key(company_id,product_id) references products(company_id,id) on delete restrict,
-  unique(company_id,id), unique(company_id,code), check(best_before is null or best_before>=produced_on)
- ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+  unique(company_id,id), unique(company_id,code), check(best_before is null or best_before>=produced_on),
+  CONSTRAINT fk_lots_company_id FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS quality_reviews (
-  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin primary key default UUID(), company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null references companies(id) on delete cascade,
-  lot_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null, result review_result not null, checklist JSON not null DEFAULT (JSON_OBJECT()), notes TEXT,
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL PRIMARY KEY, company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
+  lot_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null, result VARCHAR(40) not null, checklist JSON not null DEFAULT (JSON_OBJECT()), notes TEXT,
   reviewer_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin REFERENCES medar_users(id), reviewed_at DATETIME(3) not null default now(),
-  foreign key(company_id,lot_id) references lots(company_id,id) on delete cascade
- ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+  foreign key(company_id,lot_id) references lots(company_id,id) on delete cascade,
+  CONSTRAINT fk_quality_reviews_company_id FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS shipments (
-  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin primary key default UUID(), company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null references companies(id) on delete cascade,
-  order_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null, driver_user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin REFERENCES medar_users(id) on delete set null, vehicle TEXT,
-  stage shipment_stage not null default 'planned', planned_departure DATETIME(3), departed_at DATETIME(3), delivered_at DATETIME(3),
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL PRIMARY KEY, company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
+  order_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null, driver_user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin, vehicle TEXT,
+  stage VARCHAR(40) not null default 'planned', planned_departure DATETIME(3), departed_at DATETIME(3), delivered_at DATETIME(3),
   failure_reason TEXT, created_at DATETIME(3) not null default now(), updated_at DATETIME(3) not null default now(),
-  foreign key(company_id,order_id) references orders(company_id,id) on delete restrict, unique(company_id,id)
- ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+  foreign key(company_id,order_id) references orders(company_id,id) on delete restrict, unique(company_id,id),
+  CONSTRAINT fk_shipments_company_id FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE,
+  CONSTRAINT fk_shipments_driver_user_id FOREIGN KEY (driver_user_id) REFERENCES medar_users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS delivery_evidence (
-  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin primary key default UUID(), company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null references companies(id) on delete cascade,
-  shipment_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null, kind evidence_kind not null, storage_path TEXT, recipient_name TEXT, note TEXT,
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL PRIMARY KEY, company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
+  shipment_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null, kind VARCHAR(40) not null, storage_path TEXT, recipient_name TEXT, note TEXT,
   reading_celsius numeric(5,2), captured_by CHAR(36) CHARACTER SET ascii COLLATE ascii_bin REFERENCES medar_users(id), captured_at DATETIME(3) not null default now(),
   foreign key(company_id,shipment_id) references shipments(company_id,id) on delete cascade,
-  check(kind<>'temperature_reading' or reading_celsius is not null)
- ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+  check(kind<>'temperature_reading' or reading_celsius is not null),
+  CONSTRAINT fk_delivery_evidence_company_id FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS invoices (
-  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin primary key default UUID(), company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null references companies(id) on delete cascade,
-  order_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null, customer_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null, reference TEXT not null, amount numeric(16,0) not null check(amount>=0),
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL PRIMARY KEY, company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
+  order_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null, customer_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null, reference VARCHAR(120) not null, amount numeric(16,0) not null check(amount>=0),
   paid_amount numeric(16,0) not null default 0 check(paid_amount>=0 and paid_amount<=amount), due_date date,
-  status invoice_status not null default 'draft', issued_at DATETIME(3), created_at DATETIME(3) not null default now(),
+  status VARCHAR(40) not null default 'draft', issued_at DATETIME(3), created_at DATETIME(3) not null default now(),
   foreign key(company_id,order_id) references orders(company_id,id) on delete restrict,
   foreign key(company_id,customer_id) references customers(company_id,id) on delete restrict,
-  unique(company_id,reference)
- ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+  unique(company_id,reference),
+  CONSTRAINT fk_invoices_company_id FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS settlements (
-  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin primary key default UUID(), company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null references companies(id) on delete cascade,
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL PRIMARY KEY, company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
   supplier_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null, invoice_ref TEXT, amount numeric(16,0) not null check(amount>=0), due_date date,
-  status settlement_status not null default 'pending', note TEXT, created_at DATETIME(3) not null default now(), updated_at DATETIME(3) not null default now(),
-  foreign key(company_id,supplier_id) references suppliers(company_id,id) on delete restrict
- ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+  status VARCHAR(40) not null default 'pending', note TEXT, created_at DATETIME(3) not null default now(), updated_at DATETIME(3) not null default now(),
+  foreign key(company_id,supplier_id) references suppliers(company_id,id) on delete restrict,
+  CONSTRAINT fk_settlements_company_id FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS notifications (
-  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin primary key default UUID(), company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null references companies(id) on delete cascade,
-  user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null REFERENCES medar_users(id) on delete cascade, title TEXT not null, body TEXT, href TEXT,
-  read_at DATETIME(3), created_at DATETIME(3) not null default now()
- ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL PRIMARY KEY, company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
+  user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null, title TEXT not null, body TEXT, href TEXT,
+  read_at DATETIME(3), created_at DATETIME(3) not null default now(),
+  CONSTRAINT fk_notifications_company_id FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE,
+  CONSTRAINT fk_notifications_user_id FOREIGN KEY (user_id) REFERENCES medar_users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS audit_events (
-  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin primary key default UUID(), company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null references companies(id) on delete cascade,
-  actor_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin REFERENCES medar_users(id) on delete set null, table_name TEXT not null, record_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin, action TEXT not null,
-  changes JSON, occurred_at DATETIME(3) not null default now()
- ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL PRIMARY KEY, company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
+  actor_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin, table_name TEXT not null, record_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin, action TEXT not null,
+  changes JSON, occurred_at DATETIME(3) not null default now(),
+  CONSTRAINT fk_audit_events_company_id FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE,
+  CONSTRAINT fk_audit_events_actor_id FOREIGN KEY (actor_id) REFERENCES medar_users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS farm_sites (
-  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin primary key default UUID(),
-  company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null references companies(id) on delete cascade,
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL PRIMARY KEY,
+  company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
   supplier_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin,
-  site_code TEXT not null check (length(trim(site_code)) between 2 and 48),
-  name TEXT not null check (length(trim(name)) between 2 and 180),
+  site_code VARCHAR(48) not null check (length(trim(site_code)) between 2 and 48),
+  name VARCHAR(180) not null check (length(trim(name)) between 2 and 180),
   province TEXT not null default 'گلستان',
   city TEXT,
   address TEXT,
@@ -147,19 +165,21 @@ CREATE TABLE IF NOT EXISTS farm_sites (
   license_expires_on date,
   timezone TEXT not null default 'Asia/Tehran',
   active boolean not null default true,
-  created_by CHAR(36) CHARACTER SET ascii COLLATE ascii_bin REFERENCES medar_users(id) on delete set null,
+  created_by CHAR(36) CHARACTER SET ascii COLLATE ascii_bin,
   created_at DATETIME(3) not null default now(),
   updated_at DATETIME(3) not null default now(),
   unique(company_id,id),
   unique(company_id,site_code),
-  foreign key(company_id,supplier_id) references suppliers(company_id,id) on delete restrict
- ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+  foreign key(company_id,supplier_id) references suppliers(company_id,id) on delete restrict,
+  CONSTRAINT fk_farm_sites_company_id FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE,
+  CONSTRAINT fk_farm_sites_created_by FOREIGN KEY (created_by) REFERENCES medar_users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS partnership_agreements (
-  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin primary key default UUID(),
-  company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null references companies(id) on delete cascade,
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL PRIMARY KEY,
+  company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
   supplier_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
-  agreement_code TEXT not null check (length(trim(agreement_code)) between 2 and 60),
+  agreement_code VARCHAR(60) not null check (length(trim(agreement_code)) between 2 and 60),
   version integer not null default 1 check (version > 0),
   status TEXT not null default 'draft' check (status in ('draft','pending_signature','active','suspended','expired','terminated')),
   effective_from date not null,
@@ -173,9 +193,9 @@ CREATE TABLE IF NOT EXISTS partnership_agreements (
   signed_document_path TEXT,
   signed_at DATETIME(3),
   supersedes_agreement_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin,
-  approved_by CHAR(36) CHARACTER SET ascii COLLATE ascii_bin REFERENCES medar_users(id) on delete set null,
+  approved_by CHAR(36) CHARACTER SET ascii COLLATE ascii_bin,
   approved_at DATETIME(3),
-  created_by CHAR(36) CHARACTER SET ascii COLLATE ascii_bin REFERENCES medar_users(id) on delete set null,
+  created_by CHAR(36) CHARACTER SET ascii COLLATE ascii_bin,
   created_at DATETIME(3) not null default now(),
   updated_at DATETIME(3) not null default now(),
   unique(company_id,id),
@@ -185,14 +205,17 @@ CREATE TABLE IF NOT EXISTS partnership_agreements (
   foreign key(company_id,supplier_id,supersedes_agreement_id) references partnership_agreements(company_id,supplier_id,id) on delete restrict,
   check (company_profit_share_pct + partner_profit_share_pct = 100),
   check (effective_to is null or effective_to >= effective_from),
-  check ((status <> 'active') or (signed_at is not null and signed_document_path is not null and approved_by is not null and approved_at is not null and JSON_LENGTH(shared_expense_categories)>0))
- ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+  check ((status <> 'active') or (signed_at is not null and signed_document_path is not null and approved_by is not null and approved_at is not null and JSON_LENGTH(shared_expense_categories)>0)),
+  CONSTRAINT fk_partnership_agreements_company_id FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE,
+  CONSTRAINT fk_partnership_agreements_approved_by FOREIGN KEY (approved_by) REFERENCES medar_users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_partnership_agreements_created_by FOREIGN KEY (created_by) REFERENCES medar_users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS flock_cycles (
-  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin primary key default UUID(),
-  company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null references companies(id) on delete cascade,
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL PRIMARY KEY,
+  company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
   farm_site_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
-  cycle_code TEXT not null check (length(trim(cycle_code)) between 2 and 60),
+  cycle_code VARCHAR(60) not null check (length(trim(cycle_code)) between 2 and 60),
   species TEXT not null default 'quail' check (species = 'quail'),
   arrived_on date,
   planned_end_on date,
@@ -201,26 +224,28 @@ CREATE TABLE IF NOT EXISTS flock_cycles (
   status TEXT not null default 'planned' check (status in ('planned','active','paused','completed','cancelled')),
   source_reference TEXT,
   notes TEXT,
-  created_by CHAR(36) CHARACTER SET ascii COLLATE ascii_bin REFERENCES medar_users(id) on delete set null,
+  created_by CHAR(36) CHARACTER SET ascii COLLATE ascii_bin,
   created_at DATETIME(3) not null default now(),
   updated_at DATETIME(3) not null default now(),
   unique(company_id,id),
   unique(company_id,farm_site_id,cycle_code),
   foreign key(company_id,farm_site_id) references farm_sites(company_id,id) on delete restrict,
   check (planned_end_on is null or arrived_on is null or planned_end_on >= arrived_on),
-  check (ended_on is null or arrived_on is null or ended_on >= arrived_on)
- ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+  check (ended_on is null or arrived_on is null or ended_on >= arrived_on),
+  CONSTRAINT fk_flock_cycles_company_id FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE,
+  CONSTRAINT fk_flock_cycles_created_by FOREIGN KEY (created_by) REFERENCES medar_users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS production_batches (
-  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin primary key default UUID(),
-  company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null references companies(id) on delete cascade,
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL PRIMARY KEY,
+  company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
   farm_site_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
   supplier_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin,
   agreement_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin,
   flock_cycle_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin,
   product_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin,
   lot_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin,
-  batch_code TEXT not null check (length(trim(batch_code)) between 2 and 80),
+  batch_code VARCHAR(80) not null check (length(trim(batch_code)) between 2 and 80),
   production_kind TEXT not null check (production_kind in ('eggs','meat','other')),
   status TEXT not null default 'planned' check (status in ('planned','active','submitted_for_review','approved','on_hold','rejected','completed','cancelled')),
   unit TEXT not null default 'کیلوگرم',
@@ -232,7 +257,7 @@ CREATE TABLE IF NOT EXISTS production_batches (
   completed_on date,
   quality_status TEXT not null default 'not_inspected' check (quality_status in ('not_inspected','pending','passed','conditional','failed')),
   manager_notes TEXT,
-  created_by CHAR(36) CHARACTER SET ascii COLLATE ascii_bin REFERENCES medar_users(id) on delete set null,
+  created_by CHAR(36) CHARACTER SET ascii COLLATE ascii_bin,
   created_at DATETIME(3) not null default now(),
   updated_at DATETIME(3) not null default now(),
   unique(company_id,id),
@@ -244,12 +269,14 @@ CREATE TABLE IF NOT EXISTS production_batches (
   foreign key(company_id,product_id) references products(company_id,id) on delete restrict,
   foreign key(company_id,lot_id) references lots(company_id,id) on delete restrict,
   check (expected_on is null or started_on is null or expected_on >= started_on),
-  check (completed_on is null or started_on is null or completed_on >= started_on)
- ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+  check (completed_on is null or started_on is null or completed_on >= started_on),
+  CONSTRAINT fk_production_batches_company_id FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE,
+  CONSTRAINT fk_production_batches_created_by FOREIGN KEY (created_by) REFERENCES medar_users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS daily_production_records (
-  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin primary key default UUID(),
-  company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null references companies(id) on delete cascade,
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL PRIMARY KEY,
+  company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
   batch_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
   record_date date not null,
   shift_label TEXT not null default 'daily',
@@ -260,17 +287,19 @@ CREATE TABLE IF NOT EXISTS daily_production_records (
   produced_quantity numeric(14,3) check (produced_quantity is null or produced_quantity >= 0),
   average_weight_grams numeric(10,2) check (average_weight_grams is null or average_weight_grams >= 0),
   note TEXT,
-  recorded_by CHAR(36) CHARACTER SET ascii COLLATE ascii_bin REFERENCES medar_users(id) on delete set null,
+  recorded_by CHAR(36) CHARACTER SET ascii COLLATE ascii_bin,
   recorded_at DATETIME(3) not null default now(),
   updated_at DATETIME(3) not null default now(),
   unique(company_id,id),
-  foreign key(company_id,batch_id) references production_batches(company_id,id) on delete restrict
- ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+  foreign key(company_id,batch_id) references production_batches(company_id,id) on delete restrict,
+  CONSTRAINT fk_daily_production_records_company_id FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE,
+  CONSTRAINT fk_daily_production_records_recorded_by FOREIGN KEY (recorded_by) REFERENCES medar_users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS task_templates (
-  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin primary key default UUID(),
-  company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null references companies(id) on delete cascade,
-  template_code TEXT not null check (length(trim(template_code)) between 2 and 60),
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL PRIMARY KEY,
+  company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
+  template_code VARCHAR(60) not null check (length(trim(template_code)) between 2 and 60),
   version integer not null default 1 check (version > 0),
   title TEXT not null check (length(trim(title)) between 2 and 180),
   instructions TEXT not null,
@@ -279,25 +308,28 @@ CREATE TABLE IF NOT EXISTS task_templates (
   evidence_required boolean not null default false,
   expected_evidence_types JSON not null DEFAULT (JSON_OBJECT()),
   status TEXT not null default 'draft' check (status in ('draft','approved','retired')),
-  approved_by CHAR(36) CHARACTER SET ascii COLLATE ascii_bin REFERENCES medar_users(id) on delete set null,
+  approved_by CHAR(36) CHARACTER SET ascii COLLATE ascii_bin,
   approved_at DATETIME(3),
-  created_by CHAR(36) CHARACTER SET ascii COLLATE ascii_bin REFERENCES medar_users(id) on delete set null,
+  created_by CHAR(36) CHARACTER SET ascii COLLATE ascii_bin,
   created_at DATETIME(3) not null default now(),
   updated_at DATETIME(3) not null default now(),
   unique(company_id,id),
   unique(company_id,template_code,version),
-  check ((status <> 'approved') or (approved_by is not null and approved_at is not null))
- ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+  check ((status <> 'approved') or (approved_by is not null and approved_at is not null)),
+  CONSTRAINT fk_task_templates_company_id FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE,
+  CONSTRAINT fk_task_templates_approved_by FOREIGN KEY (approved_by) REFERENCES medar_users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_task_templates_created_by FOREIGN KEY (created_by) REFERENCES medar_users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS operational_tasks (
-  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin primary key default UUID(),
-  company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null references companies(id) on delete cascade,
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL PRIMARY KEY,
+  company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
   farm_site_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin,
   batch_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin,
   template_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin,
-  assignee_user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin REFERENCES medar_users(id) on delete set null,
+  assignee_user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin,
   assignee_supplier_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin,
-  assigned_by CHAR(36) CHARACTER SET ascii COLLATE ascii_bin REFERENCES medar_users(id) on delete set null,
+  assigned_by CHAR(36) CHARACTER SET ascii COLLATE ascii_bin,
   title TEXT not null check (length(trim(title)) between 2 and 180),
   instructions_snapshot TEXT not null default '',
   category TEXT not null default 'operations',
@@ -307,7 +339,7 @@ CREATE TABLE IF NOT EXISTS operational_tasks (
   started_at DATETIME(3),
   submitted_at DATETIME(3),
   reviewed_at DATETIME(3),
-  reviewed_by CHAR(36) CHARACTER SET ascii COLLATE ascii_bin REFERENCES medar_users(id) on delete set null,
+  reviewed_by CHAR(36) CHARACTER SET ascii COLLATE ascii_bin,
   completion_note TEXT,
   review_note TEXT,
   evidence_required boolean not null default false,
@@ -320,19 +352,23 @@ CREATE TABLE IF NOT EXISTS operational_tasks (
   foreign key(company_id,assignee_supplier_id) references suppliers(company_id,id) on delete restrict,
   check (assignee_user_id is not null or assignee_supplier_id is not null),
   check (status <> 'approved' or (reviewed_by is not null and reviewed_at is not null)),
-  check (status <> 'submitted' or submitted_at is not null)
- ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+  check (status <> 'submitted' or submitted_at is not null),
+  CONSTRAINT fk_operational_tasks_company_id FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE,
+  CONSTRAINT fk_operational_tasks_assignee_user_id FOREIGN KEY (assignee_user_id) REFERENCES medar_users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_operational_tasks_assigned_by FOREIGN KEY (assigned_by) REFERENCES medar_users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_operational_tasks_reviewed_by FOREIGN KEY (reviewed_by) REFERENCES medar_users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS task_evidence (
-  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin primary key default UUID(),
-  company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null references companies(id) on delete cascade,
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL PRIMARY KEY,
+  company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
   task_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
   evidence_type TEXT not null check (evidence_type in ('photo','document','note','measurement')),
   storage_path TEXT,
   note TEXT,
   measurement_value numeric(14,3),
   measurement_unit TEXT,
-  uploaded_by CHAR(36) CHARACTER SET ascii COLLATE ascii_bin REFERENCES medar_users(id) on delete set null,
+  uploaded_by CHAR(36) CHARACTER SET ascii COLLATE ascii_bin,
   captured_at DATETIME(3) not null default now(),
   created_at DATETIME(3) not null default now(),
   updated_at DATETIME(3) not null default now(),
@@ -341,16 +377,18 @@ CREATE TABLE IF NOT EXISTS task_evidence (
   check ((evidence_type in ('photo','document') and storage_path is not null) or (evidence_type in ('note','measurement'))),
   constraint task_evidence_storage_path_scope_check check (storage_path is null or storage_path like (CONCAT(company_id, '/', task_id, '/%'))), 
   constraint task_evidence_note_nonempty_check check (evidence_type <> 'note' or length(trim(coalesce(note,'')))>0),
-  check (evidence_type <> 'measurement' or measurement_value is not null)
- ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+  check (evidence_type <> 'measurement' or measurement_value is not null),
+  CONSTRAINT fk_task_evidence_company_id FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE,
+  CONSTRAINT fk_task_evidence_uploaded_by FOREIGN KEY (uploaded_by) REFERENCES medar_users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS operational_incidents (
-  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin primary key default UUID(),
-  company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null references companies(id) on delete cascade,
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL PRIMARY KEY,
+  company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
   farm_site_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin,
   batch_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin,
   task_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin,
-  reported_by CHAR(36) CHARACTER SET ascii COLLATE ascii_bin REFERENCES medar_users(id) on delete set null,
+  reported_by CHAR(36) CHARACTER SET ascii COLLATE ascii_bin,
   reported_supplier_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin,
   severity TEXT not null default 'medium' check (severity in ('low','medium','high','critical')),
   category TEXT not null check (category in ('production','quality','animal_welfare','inventory','safety','logistics','finance','other')),
@@ -358,7 +396,7 @@ CREATE TABLE IF NOT EXISTS operational_incidents (
   description TEXT not null default '',
   status TEXT not null default 'open' check (status in ('open','investigating','action_required','resolved','closed')),
   resolution_note TEXT,
-  resolved_by CHAR(36) CHARACTER SET ascii COLLATE ascii_bin REFERENCES medar_users(id) on delete set null,
+  resolved_by CHAR(36) CHARACTER SET ascii COLLATE ascii_bin,
   resolved_at DATETIME(3),
   created_at DATETIME(3) not null default now(),
   updated_at DATETIME(3) not null default now(),
@@ -367,12 +405,15 @@ CREATE TABLE IF NOT EXISTS operational_incidents (
   foreign key(company_id,batch_id) references production_batches(company_id,id) on delete restrict,
   foreign key(company_id,task_id) references operational_tasks(company_id,id) on delete restrict,
   foreign key(company_id,reported_supplier_id) references suppliers(company_id,id) on delete restrict,
-  check (status not in ('resolved','closed') or (resolved_by is not null and resolved_at is not null))
- ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+  check (status not in ('resolved','closed') or (resolved_by is not null and resolved_at is not null)),
+  CONSTRAINT fk_operational_incidents_company_id FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE,
+  CONSTRAINT fk_operational_incidents_reported_by FOREIGN KEY (reported_by) REFERENCES medar_users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_operational_incidents_resolved_by FOREIGN KEY (resolved_by) REFERENCES medar_users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS partner_financial_entries (
-  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin primary key default UUID(),
-  company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null references companies(id) on delete cascade,
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL PRIMARY KEY,
+  company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
   supplier_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
   agreement_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
   entry_type TEXT not null check (entry_type in ('sale_invoice','sale_collection','expense','partner_advance','settlement_payment','adjustment')),
@@ -386,19 +427,19 @@ CREATE TABLE IF NOT EXISTS partner_financial_entries (
   paid_by TEXT not null default 'none' check (paid_by in ('none','company','partner','customer','vendor','third_party')),
   payment_status TEXT not null default 'not_applicable' check (payment_status in ('not_applicable','unpaid','partial','paid')),
   recognized_on date not null default current_date,
-  external_reference TEXT,
+  external_reference VARCHAR(160),
   source_table TEXT,
   source_record_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin,
   linked_entry_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin,
   adjustment_effect TEXT check (adjustment_effect in ('increase','decrease')),
   notes TEXT,
-  submitted_by CHAR(36) CHARACTER SET ascii COLLATE ascii_bin REFERENCES medar_users(id) on delete set null,
+  submitted_by CHAR(36) CHARACTER SET ascii COLLATE ascii_bin,
   submitted_at DATETIME(3),
-  approved_by CHAR(36) CHARACTER SET ascii COLLATE ascii_bin REFERENCES medar_users(id) on delete set null,
+  approved_by CHAR(36) CHARACTER SET ascii COLLATE ascii_bin,
   approved_at DATETIME(3),
-  posted_by CHAR(36) CHARACTER SET ascii COLLATE ascii_bin REFERENCES medar_users(id) on delete set null,
+  posted_by CHAR(36) CHARACTER SET ascii COLLATE ascii_bin,
   posted_at DATETIME(3),
-  created_by CHAR(36) CHARACTER SET ascii COLLATE ascii_bin REFERENCES medar_users(id) on delete set null,
+  created_by CHAR(36) CHARACTER SET ascii COLLATE ascii_bin,
   created_at DATETIME(3) not null default now(),
   updated_at DATETIME(3) not null default now(),
   unique(company_id,id),
@@ -418,12 +459,17 @@ CREATE TABLE IF NOT EXISTS partner_financial_entries (
   check ((entry_type='adjustment' and linked_entry_id is not null and adjustment_effect is not null) or (entry_type<>'adjustment' and adjustment_effect is null)),
   check (status <> 'posted' or (posted_at is not null and posted_by is not null)),
   constraint partner_financial_posted_sale_collection_evidence_check check (entry_type <> 'sale_collection' or status <> 'posted' or (paid_amount=amount and payment_status='paid' and external_reference is not null)), 
-  constraint partner_financial_posted_cash_entry_evidence_check check (entry_type not in ('partner_advance','settlement_payment') or status <> 'posted' or (paid_amount=amount and payment_status='paid' and external_reference is not null))
- ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+  constraint partner_financial_posted_cash_entry_evidence_check check (entry_type not in ('partner_advance','settlement_payment') or status <> 'posted' or (paid_amount=amount and payment_status='paid' and external_reference is not null)),
+  CONSTRAINT fk_partner_financial_entries_company_id FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE,
+  CONSTRAINT fk_partner_financial_entries_submitted_by FOREIGN KEY (submitted_by) REFERENCES medar_users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_partner_financial_entries_approved_by FOREIGN KEY (approved_by) REFERENCES medar_users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_partner_financial_entries_posted_by FOREIGN KEY (posted_by) REFERENCES medar_users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_partner_financial_entries_created_by FOREIGN KEY (created_by) REFERENCES medar_users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS partner_settlement_periods (
-  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin primary key default UUID(),
-  company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null references companies(id) on delete cascade,
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL PRIMARY KEY,
+  company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
   supplier_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
   agreement_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
   period_start date not null,
@@ -446,11 +492,11 @@ CREATE TABLE IF NOT EXISTS partner_settlement_periods (
   settled_amount numeric(16,0) not null default 0 check (settled_amount >= 0),
   calculation_snapshot JSON not null DEFAULT (JSON_OBJECT()),
   calculated_at DATETIME(3),
-  approved_by CHAR(36) CHARACTER SET ascii COLLATE ascii_bin REFERENCES medar_users(id) on delete set null,
+  approved_by CHAR(36) CHARACTER SET ascii COLLATE ascii_bin,
   approved_at DATETIME(3),
-  settled_by CHAR(36) CHARACTER SET ascii COLLATE ascii_bin REFERENCES medar_users(id) on delete set null,
+  settled_by CHAR(36) CHARACTER SET ascii COLLATE ascii_bin,
   settled_at DATETIME(3),
-  created_by CHAR(36) CHARACTER SET ascii COLLATE ascii_bin REFERENCES medar_users(id) on delete set null,
+  created_by CHAR(36) CHARACTER SET ascii COLLATE ascii_bin,
   created_at DATETIME(3) not null default now(),
   updated_at DATETIME(3) not null default now(),
   unique(company_id,id),
@@ -460,41 +506,54 @@ CREATE TABLE IF NOT EXISTS partner_settlement_periods (
   check (period_end >= period_start),
   check (balance_due_to_partner = 0 or balance_due_to_company = 0),
   check (status <> 'approved' or (approved_by is not null and approved_at is not null)),
-  check (status <> 'settled' or (settled_by is not null and settled_at is not null))
- ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+  check (status <> 'settled' or (settled_by is not null and settled_at is not null)),
+  CONSTRAINT fk_partner_settlement_periods_company_id FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE,
+  CONSTRAINT fk_partner_settlement_periods_approved_by FOREIGN KEY (approved_by) REFERENCES medar_users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_partner_settlement_periods_settled_by FOREIGN KEY (settled_by) REFERENCES medar_users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_partner_settlement_periods_created_by FOREIGN KEY (created_by) REFERENCES medar_users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS shipment_locations (
-  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin primary key default UUID(),
-  company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null references companies(id) on delete cascade,
-  shipment_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null references shipments(id) on delete cascade,
-  driver_user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null REFERENCES medar_users(id) on delete cascade,
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL PRIMARY KEY,
+  company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
+  shipment_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
+  driver_user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
   latitude double precision not null check (latitude >= -90 and latitude <= 90),
   longitude double precision not null check (longitude >= -180 and longitude <= 180),
   accuracy_m double precision check (accuracy_m is null or (accuracy_m >= 0 and accuracy_m <= 100000)),
   captured_at DATETIME(3) not null default now(),
-  created_at DATETIME(3) not null default now()
- ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+  created_at DATETIME(3) not null default now(),
+  CONSTRAINT fk_shipment_locations_company_id FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE,
+  CONSTRAINT fk_shipment_locations_shipment_id FOREIGN KEY (shipment_id) REFERENCES shipments(id) ON DELETE CASCADE,
+  CONSTRAINT fk_shipment_locations_driver_user_id FOREIGN KEY (driver_user_id) REFERENCES medar_users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS inventory_movements (
-  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin primary key default UUID(),
-  company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null references companies(id) on delete cascade,
-  product_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null references products(id) on delete restrict,
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL PRIMARY KEY,
+  company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
+  product_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
   movement_type TEXT not null check (movement_type in ('purchase_in','sale_out','adjustment_in','adjustment_out','waste_out','return_in')),
   quantity numeric(16,3) not null check (quantity > 0),
   unit_cost numeric(16,2) check (unit_cost is null or unit_cost >= 0),
-  supplier_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin references suppliers(id) on delete set null,
-  order_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin references orders(id) on delete set null,
-  lot_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin references lots(id) on delete set null,
+  supplier_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin,
+  order_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin,
+  lot_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin,
   reference_code TEXT check (reference_code is null or length(reference_code) <= 120),
   note TEXT check (note is null or length(note) <= 2000),
-  recorded_by CHAR(36) CHARACTER SET ascii COLLATE ascii_bin REFERENCES medar_users(id) on delete set null,
+  recorded_by CHAR(36) CHARACTER SET ascii COLLATE ascii_bin,
   occurred_at DATETIME(3) not null default now(),
-  created_at DATETIME(3) not null default now()
- ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+  created_at DATETIME(3) not null default now(),
+  CONSTRAINT fk_inventory_movements_company_id FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE,
+  CONSTRAINT fk_inventory_movements_product_id FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE RESTRICT,
+  CONSTRAINT fk_inventory_movements_supplier_id FOREIGN KEY (supplier_id) REFERENCES suppliers(id) ON DELETE SET NULL,
+  CONSTRAINT fk_inventory_movements_order_id FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE SET NULL,
+  CONSTRAINT fk_inventory_movements_lot_id FOREIGN KEY (lot_id) REFERENCES lots(id) ON DELETE SET NULL,
+  CONSTRAINT fk_inventory_movements_recorded_by FOREIGN KEY (recorded_by) REFERENCES medar_users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS company_goals (
-  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin primary key default UUID(),
-  company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null references companies(id) on delete cascade,
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL PRIMARY KEY,
+  company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
   title TEXT not null check (length(trim(title)) between 3 and 160),
   description TEXT not null default '' check (length(description) <= 3000),
   category TEXT not null default 'operations'
@@ -507,11 +566,15 @@ CREATE TABLE IF NOT EXISTS company_goals (
   status TEXT not null default 'planned' check (status in ('planned','active','at_risk','achieved','paused','cancelled')),
   period_start date,
   due_date date,
-  owner_user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin REFERENCES medar_users(id) on delete set null,
-  created_by CHAR(36) CHARACTER SET ascii COLLATE ascii_bin REFERENCES medar_users(id) on delete set null,
-  updated_by CHAR(36) CHARACTER SET ascii COLLATE ascii_bin REFERENCES medar_users(id) on delete set null,
+  owner_user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin,
+  created_by CHAR(36) CHARACTER SET ascii COLLATE ascii_bin,
+  updated_by CHAR(36) CHARACTER SET ascii COLLATE ascii_bin,
   created_at DATETIME(3) not null default now(),
   updated_at DATETIME(3) not null default now(),
   check (due_date is null or period_start is null or due_date >= period_start),
-  check (target_value >= 0)
- ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+  check (target_value >= 0),
+  CONSTRAINT fk_company_goals_company_id FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE,
+  CONSTRAINT fk_company_goals_owner_user_id FOREIGN KEY (owner_user_id) REFERENCES medar_users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_company_goals_created_by FOREIGN KEY (created_by) REFERENCES medar_users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_company_goals_updated_by FOREIGN KEY (updated_by) REFERENCES medar_users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
