@@ -72,6 +72,8 @@ try {
   );
   const operationalFound = new Set(operationalRows.map(row => String(row.TABLE_NAME).toLowerCase()));
   for (const table of operationalRequired) assert(operationalFound.has(table), 'Missing MySQL operational table: ' + table);
+  const [[emailColumn]] = await db.query("SELECT COUNT(*) AS count FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'access_requests' AND COLUMN_NAME = 'email'");
+  assert.equal(Number(emailColumn.count), 1, 'Access-request email field from the later PostgreSQL schema must be present.');
   for (let index = 0; index < operationalStatements.length; index += 1) {
     await db.query(operationalStatements[index]);
   }
@@ -133,6 +135,16 @@ try {
     'An invoice must not record paid_amount above its amount.',
   );
   await assert.rejects(
+    db.execute("INSERT INTO invoices (id,company_id,order_id,customer_id,reference,amount,paid_amount,status) VALUES (?,?,?,?,?,?,?,'paid')", [randomUUID(), companyA, orderA, customerA, 'INV-CI-MISSING-EVIDENCE', 100, 100]),
+    error => error?.code === 'ER_CHECK_CONSTRAINT_VIOLATED',
+    'Paid invoices must include payment reference, timestamp and actor evidence.',
+  );
+  await assert.rejects(
+    db.execute("INSERT INTO settlements (id,company_id,supplier_id,amount,status) VALUES (?,?,?,?, 'paid')", [randomUUID(), companyA, supplierA, 100]),
+    error => error?.code === 'ER_CHECK_CONSTRAINT_VIOLATED',
+    'Paid settlements must include payment reference, timestamp and actor evidence.',
+  );
+  await assert.rejects(
     db.execute('INSERT INTO order_items (id,company_id,order_id,product_id,quantity,unit_price) VALUES (?,?,?,?,?,?)', [randomUUID(), companyA, orderA, productB, 10, 100]),
     error => error?.code === 'ER_NO_REFERENCED_ROW_2',
     'Operational composite foreign keys must prevent cross-company product references.',
@@ -141,6 +153,21 @@ try {
     db.execute('INSERT INTO partnership_agreements (id,company_id,supplier_id,agreement_code,effective_from,company_profit_share_pct,partner_profit_share_pct) VALUES (?,?,?,?,?,?,?)', [randomUUID(), companyA, supplierA, 'CI-INVALID-SHARE', '2026-01-01', 70, 50]),
     error => error?.code === 'ER_CHECK_CONSTRAINT_VIOLATED',
     'Partnership share percentages must total exactly 100 percent.',
+  );
+  const activeAgreement = () => [randomUUID(), companyA, supplierA, 'CI-ACTIVE-' + randomUUID().slice(0, 8), '2026-01-01', 'active', JSON.stringify(['feed']), 'ci/companyA/agreements/active.pdf', '2026-01-01 00:00:00', ownerId, '2026-01-01 00:00:00'];
+  await db.execute(
+    'INSERT INTO partnership_agreements (id,company_id,supplier_id,agreement_code,effective_from,status,shared_expense_categories,signed_document_path,signed_at,approved_by,approved_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
+    activeAgreement(),
+  );
+  await assert.rejects(
+    db.execute('INSERT INTO partnership_agreements (id,company_id,supplier_id,agreement_code,effective_from,status,shared_expense_categories,signed_document_path,signed_at,approved_by,approved_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)', activeAgreement()),
+    error => error?.code === 'ER_DUP_ENTRY',
+    'A supplier must not have more than one active partnership agreement per company.',
+  );
+  await assert.rejects(
+    db.execute('INSERT INTO company_goals (id,company_id,title,baseline_value,target_value) VALUES (?,?,?,?,?)', [randomUUID(), companyA, 'CI Invalid Goal', 10, 10]),
+    error => error?.code === 'ER_CHECK_CONSTRAINT_VIOLATED',
+    'A company goal target must be above its baseline.',
   );
 
   await db.execute('INSERT INTO company_owners (company_id,owner_user_id) VALUES (?,?)', [companyA, ownerId]);
