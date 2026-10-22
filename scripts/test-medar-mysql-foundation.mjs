@@ -168,8 +168,24 @@ try {
     'INSERT INTO medar_users (id,username,username_normalized,phone_e164,display_name,password_hash,requested_role,account_status) VALUES (?,?,?,?,?,?,?,?)',
     [secondOwnerId, 'mysql-owner-b', 'mysql-owner-b', '+15550000002', 'Owner Two', 'ci-password-hash', 'owner', 'active'],
   );
+  const adminUserId = randomUUID();
+  await db.execute(
+    'INSERT INTO medar_users (id,username,username_normalized,display_name,password_hash,requested_role,account_status) VALUES (?,?,?,?,?,?,?)',
+    [adminUserId, 'mysql-admin-ci', 'mysql-admin-ci', 'CI Admin', 'ci-password-hash', 'admin', 'active'],
+  );
+  await db.execute('INSERT INTO profiles (id,full_name) VALUES (?,?)', [adminUserId, 'CI Admin']);
   await db.execute('INSERT INTO companies (id,name,province) VALUES (?,?,?)', [companyA, 'CI Company A', 'Golestan']);
   await db.execute('INSERT INTO companies (id,name,province) VALUES (?,?,?)', [companyB, 'CI Company B', 'Golestan']);
+  const membershipA = randomUUID();
+  const membershipB = randomUUID();
+  await db.execute('INSERT INTO memberships (id,company_id,user_id,role,active) VALUES (?,?,?,?,?)', [membershipA, companyA, ownerId, 'owner', true]);
+  await db.execute('INSERT INTO memberships (id,company_id,user_id,role,active) VALUES (?,?,?,?,?)', [membershipB, companyB, secondOwnerId, 'owner', true]);
+  await db.execute('INSERT INTO medar_membership_module_permissions (company_id,membership_id,module_key,updated_by) VALUES (?,?,?,?)', [companyA, membershipA, 'orders', ownerId]);
+  await assert.rejects(
+    db.execute('INSERT INTO medar_membership_module_permissions (company_id,membership_id,module_key,updated_by) VALUES (?,?,?,?)', [companyA, membershipB, 'finance', ownerId]),
+    error => error?.code === 'ER_NO_REFERENCED_ROW_2',
+    'Module permissions must not reference a membership from another company.',
+  );
 
   const supplierA = randomUUID();
   const customerA = randomUUID();
