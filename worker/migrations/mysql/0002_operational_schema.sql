@@ -6,7 +6,7 @@ SET NAMES utf8mb4;
 SET time_zone = '+00:00';
 
 CREATE TABLE IF NOT EXISTS customers (
-  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL PRIMARY KEY, company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL DEFAULT (UUID()) PRIMARY KEY, company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
   name VARCHAR(160) not null check(length(trim(name)) between 2 and 160), segment TEXT, city TEXT, phone TEXT, address TEXT,
   credit_limit numeric(16,0) check(credit_limit is null or credit_limit >= 0), active boolean not null default true,
   created_at DATETIME(3) not null DEFAULT CURRENT_TIMESTAMP(3), updated_at DATETIME(3) not null DEFAULT CURRENT_TIMESTAMP(3),
@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS customers (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS suppliers (
-  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL PRIMARY KEY, company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL DEFAULT (UUID()) PRIMARY KEY, company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
   name VARCHAR(160) not null check(length(trim(name)) between 2 and 160), city TEXT, phone TEXT, farm_registration TEXT,
   active boolean not null default true, created_at DATETIME(3) not null DEFAULT CURRENT_TIMESTAMP(3), updated_at DATETIME(3) not null DEFAULT CURRENT_TIMESTAMP(3),
   unique(company_id,id), unique(company_id,name),
@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS suppliers (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS products (
-  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL PRIMARY KEY, company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL DEFAULT (UUID()) PRIMARY KEY, company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
   sku VARCHAR(80) not null, name VARCHAR(160) not null check(length(trim(name)) between 2 and 160), kind VARCHAR(40) NOT NULL CHECK (kind IN ('eggs','meat','other')),
   unit VARCHAR(64) not null default 'کیلوگرم', pack_size integer check(pack_size is null or pack_size>0),
   shelf_life_days integer check(shelf_life_days is null or shelf_life_days>0), storage_note TEXT,
@@ -33,7 +33,7 @@ CREATE TABLE IF NOT EXISTS products (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS price_agreements (
-  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL PRIMARY KEY, company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL DEFAULT (UUID()) PRIMARY KEY, company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
   customer_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL, product_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
   min_qty integer not null default 1 check(min_qty>0), valid_from date not null DEFAULT (CURRENT_DATE), valid_to date,
   created_at DATETIME(3) not null DEFAULT CURRENT_TIMESTAMP(3), created_by CHAR(36) CHARACTER SET ascii COLLATE ascii_bin,
@@ -45,8 +45,8 @@ CREATE TABLE IF NOT EXISTS price_agreements (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS orders (
-  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL PRIMARY KEY, company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
-  customer_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL, reference VARCHAR(120) NOT NULL,
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL DEFAULT (UUID()) PRIMARY KEY, company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
+  customer_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL, reference VARCHAR(120) NOT NULL DEFAULT (CONCAT('SO-', DATE_FORMAT(CURRENT_DATE(), '%y%m%d'), '-', UPPER(SUBSTRING(REPLACE(UUID(), '-', ''), 1, 6)))),
   status VARCHAR(40) NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','submitted','confirmed','allocated','in_fulfillment','dispatched','delivered','cancelled')), requested_delivery date, delivery_address TEXT, notes TEXT,
   created_by CHAR(36) CHARACTER SET ascii COLLATE ascii_bin, created_at DATETIME(3) not null DEFAULT CURRENT_TIMESTAMP(3), updated_at DATETIME(3) not null DEFAULT CURRENT_TIMESTAMP(3),
   foreign key(company_id,customer_id) references customers(company_id,id) on delete restrict,
@@ -56,7 +56,7 @@ CREATE TABLE IF NOT EXISTS orders (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS order_items (
-  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL PRIMARY KEY, company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL DEFAULT (UUID()) PRIMARY KEY, company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
   order_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null, product_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null, quantity numeric(14,3) not null check(quantity>0),
   unit_price numeric(16,0) not null default 0 check(unit_price>=0), supplier_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin, lot_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin,
   created_at DATETIME(3) not null DEFAULT CURRENT_TIMESTAMP(3),
@@ -68,7 +68,7 @@ CREATE TABLE IF NOT EXISTS order_items (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS capacity_commitments (
-  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL PRIMARY KEY, company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL DEFAULT (UUID()) PRIMARY KEY, company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
   supplier_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null, product_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null, period_start date not null, period_end date not null,
   declared_qty numeric(14,3) not null check(declared_qty>=0), confirmed_qty numeric(14,3) check(confirmed_qty is null or confirmed_qty>=0),
   committed_qty numeric(14,3) check(committed_qty is null or committed_qty>=0), status VARCHAR(40) NOT NULL DEFAULT 'declared' CHECK (status IN ('declared','confirmed','committed','released','cancelled')), note TEXT,
@@ -83,7 +83,7 @@ CREATE TABLE IF NOT EXISTS capacity_commitments (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS lots (
-  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL PRIMARY KEY, company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL DEFAULT (UUID()) PRIMARY KEY, company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
   supplier_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null, product_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null, code VARCHAR(80) not null, produced_on date not null, best_before date,
   quantity numeric(14,3) not null check(quantity>0), status VARCHAR(40) NOT NULL DEFAULT 'pending_review' CHECK (status IN ('pending_review','released','on_hold','rejected','consumed')),
   created_at DATETIME(3) not null DEFAULT CURRENT_TIMESTAMP(3),
@@ -94,7 +94,7 @@ CREATE TABLE IF NOT EXISTS lots (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS quality_reviews (
-  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL PRIMARY KEY, company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL DEFAULT (UUID()) PRIMARY KEY, company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
   lot_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL, result VARCHAR(40) NOT NULL CHECK (result IN ('pass','conditional','fail')), checklist JSON not null DEFAULT (JSON_OBJECT()), notes TEXT,
   reviewer_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin, reviewed_at DATETIME(3) not null DEFAULT CURRENT_TIMESTAMP(3),
   foreign key(company_id,lot_id) references lots(company_id,id) on delete cascade,
@@ -103,7 +103,7 @@ CREATE TABLE IF NOT EXISTS quality_reviews (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS shipments (
-  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL PRIMARY KEY, company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL DEFAULT (UUID()) PRIMARY KEY, company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
   order_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null, driver_user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin, vehicle TEXT,
   stage VARCHAR(40) NOT NULL DEFAULT 'planned' CHECK (stage IN ('planned','loading','in_transit','arrived','delivered','failed','returned')), planned_departure DATETIME(3), departed_at DATETIME(3), delivered_at DATETIME(3),
   failure_reason TEXT, created_at DATETIME(3) not null DEFAULT CURRENT_TIMESTAMP(3), updated_at DATETIME(3) not null DEFAULT CURRENT_TIMESTAMP(3),
@@ -113,7 +113,7 @@ CREATE TABLE IF NOT EXISTS shipments (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS delivery_evidence (
-  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL PRIMARY KEY, company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL DEFAULT (UUID()) PRIMARY KEY, company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
   shipment_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL, kind VARCHAR(40) NOT NULL CHECK (kind IN ('photo','signature','note','temperature_reading')), storage_path TEXT, recipient_name TEXT, note TEXT,
   reading_celsius numeric(5,2), captured_by CHAR(36) CHARACTER SET ascii COLLATE ascii_bin, captured_at DATETIME(3) not null DEFAULT CURRENT_TIMESTAMP(3),
   foreign key(company_id,shipment_id) references shipments(company_id,id) on delete cascade,
@@ -123,7 +123,7 @@ CREATE TABLE IF NOT EXISTS delivery_evidence (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS invoices (
-  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL PRIMARY KEY, company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL DEFAULT (UUID()) PRIMARY KEY, company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
   order_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null, customer_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null, reference VARCHAR(120) not null, amount numeric(16,0) not null check(amount>=0),
   paid_amount numeric(16,0) NOT NULL DEFAULT 0 CHECK (paid_amount >= 0), due_date date,
   status VARCHAR(40) NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','issued','partially_paid','paid','overdue','void')), issued_at DATETIME(3), created_at DATETIME(3) not null DEFAULT CURRENT_TIMESTAMP(3),
@@ -136,7 +136,7 @@ CREATE TABLE IF NOT EXISTS invoices (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS settlements (
-  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL PRIMARY KEY, company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL DEFAULT (UUID()) PRIMARY KEY, company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
   supplier_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null, invoice_ref TEXT, amount numeric(16,0) not null check(amount>=0), due_date date,
   status VARCHAR(40) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','approved','paid','disputed')), note TEXT, created_at DATETIME(3) not null DEFAULT CURRENT_TIMESTAMP(3), updated_at DATETIME(3) not null DEFAULT CURRENT_TIMESTAMP(3),
   foreign key(company_id,supplier_id) references suppliers(company_id,id) on delete restrict,
@@ -144,7 +144,7 @@ CREATE TABLE IF NOT EXISTS settlements (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS notifications (
-  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL PRIMARY KEY, company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL DEFAULT (UUID()) PRIMARY KEY, company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
   user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null, title TEXT not null, body TEXT, href TEXT,
   read_at DATETIME(3), created_at DATETIME(3) not null DEFAULT CURRENT_TIMESTAMP(3),
   CONSTRAINT fk_notifications_company_id FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE,
@@ -152,7 +152,7 @@ CREATE TABLE IF NOT EXISTS notifications (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS audit_events (
-  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL PRIMARY KEY, company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL DEFAULT (UUID()) PRIMARY KEY, company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
   actor_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin, table_name TEXT not null, record_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin, action TEXT not null,
   changes JSON, occurred_at DATETIME(3) not null DEFAULT CURRENT_TIMESTAMP(3),
   CONSTRAINT fk_audit_events_company_id FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE,
@@ -160,7 +160,7 @@ CREATE TABLE IF NOT EXISTS audit_events (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS farm_sites (
-  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL PRIMARY KEY,
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL DEFAULT (UUID()) PRIMARY KEY,
   company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
   supplier_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin,
   site_code VARCHAR(48) not null check (length(trim(site_code)) between 2 and 48),
@@ -183,7 +183,7 @@ CREATE TABLE IF NOT EXISTS farm_sites (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS partnership_agreements (
-  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL PRIMARY KEY,
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL DEFAULT (UUID()) PRIMARY KEY,
   company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
   supplier_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
   agreement_code VARCHAR(60) not null check (length(trim(agreement_code)) between 2 and 60),
@@ -219,7 +219,7 @@ CREATE TABLE IF NOT EXISTS partnership_agreements (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS flock_cycles (
-  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL PRIMARY KEY,
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL DEFAULT (UUID()) PRIMARY KEY,
   company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
   farm_site_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
   cycle_code VARCHAR(60) not null check (length(trim(cycle_code)) between 2 and 60),
@@ -244,7 +244,7 @@ CREATE TABLE IF NOT EXISTS flock_cycles (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS production_batches (
-  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL PRIMARY KEY,
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL DEFAULT (UUID()) PRIMARY KEY,
   company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
   farm_site_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
   supplier_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin,
@@ -284,7 +284,7 @@ CREATE TABLE IF NOT EXISTS production_batches (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS daily_production_records (
-  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL PRIMARY KEY,
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL DEFAULT (UUID()) PRIMARY KEY,
   company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
   batch_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
   record_date date not null,
@@ -308,7 +308,7 @@ CREATE TABLE IF NOT EXISTS daily_production_records (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS task_templates (
-  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL PRIMARY KEY,
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL DEFAULT (UUID()) PRIMARY KEY,
   company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
   template_code VARCHAR(60) not null check (length(trim(template_code)) between 2 and 60),
   version integer not null default 1 check (version > 0),
@@ -333,7 +333,7 @@ CREATE TABLE IF NOT EXISTS task_templates (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS operational_tasks (
-  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL PRIMARY KEY,
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL DEFAULT (UUID()) PRIMARY KEY,
   company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
   farm_site_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin,
   batch_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin,
@@ -371,7 +371,7 @@ CREATE TABLE IF NOT EXISTS operational_tasks (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS task_evidence (
-  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL PRIMARY KEY,
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL DEFAULT (UUID()) PRIMARY KEY,
   company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
   task_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
   evidence_type TEXT not null check (evidence_type in ('photo','document','note','measurement')),
@@ -394,7 +394,7 @@ CREATE TABLE IF NOT EXISTS task_evidence (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS operational_incidents (
-  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL PRIMARY KEY,
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL DEFAULT (UUID()) PRIMARY KEY,
   company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
   farm_site_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin,
   batch_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin,
@@ -423,7 +423,7 @@ CREATE TABLE IF NOT EXISTS operational_incidents (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS partner_financial_entries (
-  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL PRIMARY KEY,
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL DEFAULT (UUID()) PRIMARY KEY,
   company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
   supplier_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
   agreement_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
@@ -481,7 +481,7 @@ CREATE TABLE IF NOT EXISTS partner_financial_entries (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS partner_settlement_periods (
-  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL PRIMARY KEY,
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL DEFAULT (UUID()) PRIMARY KEY,
   company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
   supplier_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
   agreement_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
@@ -527,7 +527,7 @@ CREATE TABLE IF NOT EXISTS partner_settlement_periods (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS shipment_locations (
-  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL PRIMARY KEY,
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL DEFAULT (UUID()) PRIMARY KEY,
   company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
   shipment_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
   driver_user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
@@ -542,7 +542,7 @@ CREATE TABLE IF NOT EXISTS shipment_locations (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS inventory_movements (
-  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL PRIMARY KEY,
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL DEFAULT (UUID()) PRIMARY KEY,
   company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
   product_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
   movement_type TEXT not null check (movement_type in ('purchase_in','sale_out','adjustment_in','adjustment_out','waste_out','return_in')),
@@ -565,7 +565,7 @@ CREATE TABLE IF NOT EXISTS inventory_movements (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS company_goals (
-  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL PRIMARY KEY,
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL DEFAULT (UUID()) PRIMARY KEY,
   company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
   title TEXT not null check (length(trim(title)) between 3 and 160),
   description VARCHAR(3000) not null default '' check (length(description) <= 3000),
