@@ -861,7 +861,7 @@ function storagePath(bucket, name) {
   return { segments, companyId: segments[0], file };
 }
 
-async function storageAccess(connection, session, bucket, parsed, mode) {
+async function storageAccess(connection, session, bucket, parsed) {
   const memberships = await membershipsFor(session.user.id);
   const membership = memberships.find((item) => String(item.company_id) === parsed.companyId && item.active);
   if (!membership) return { allowed: false, manager: false, membership: null };
