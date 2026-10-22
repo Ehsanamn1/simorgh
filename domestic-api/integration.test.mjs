@@ -128,6 +128,54 @@ test('domestic API authenticates a provisioned MySQL user and revokes the sessio
     const invalidReview = await rpc('review_operational_task', { _task: taskId, _decision: 'rejected', _review_note: 'Too late' });
     assert.equal(invalidReview.status, 422, 'A reviewed task cannot be transitioned a second time.');
 
+    const supplierId = randomUUID();
+    const agreementId = randomUUID();
+    await db.execute('INSERT INTO suppliers (id,company_id,name) VALUES (?,?,?)', [supplierId, companyId, 'Domestic CI Partner']);
+    await db.execute(
+      "INSERT INTO partnership_agreements (id,company_id,supplier_id,agreement_code,status,effective_from,company_profit_share_pct,partner_profit_share_pct,shared_expense_categories,signed_document_path,signed_at,approved_by,approved_at,created_by) VALUES (?,?,?,?,'active','2025-01-01',50,50,?,'ci/signed-agreement.pdf',NOW(3),?,NOW(3),?)",
+      [agreementId, companyId, supplierId, 'CI-SETTLEMENT-' + username, JSON.stringify({ feed: true }), userId, userId],
+    );
+    await db.execute(
+      "INSERT INTO partner_financial_entries (id,company_id,supplier_id,agreement_id,entry_type,status,direction,amount,paid_amount,currency,paid_by,payment_status,recognized_on,external_reference,created_by,submitted_by,submitted_at,approved_by,approved_at,posted_by,posted_at) VALUES (?,?,?,?,'sale_collection','posted','inflow_to_company',10000,10000,'TOMAN','customer','paid','2026-01-15',?,?,?,NOW(3),?,NOW(3),?,NOW(3))",
+      [randomUUID(), companyId, supplierId, agreementId, 'CI-SETTLEMENT-COLLECTION-' + username, userId, userId, userId, userId, userId],
+    );
+    const createPeriod = await rpc('create_partner_settlement_period', {
+      _agreement: agreementId, _period_start: '2026-01-01', _period_end: '2026-01-31',
+    });
+    assert.equal(createPeriod.status, 200);
+    const createdPeriodBody = await createPeriod.json();
+    const periodId = createdPeriodBody.data.id;
+    assert.match(periodId, /^[0-9a-f-]{36}$/i);
+    const [[createdPeriod]] = await db.query(
+      'SELECT collected_revenue,partner_share_amount,balance_due_to_partner,recorded_cash_available,status FROM partner_settlement_periods WHERE id=?',
+      [periodId],
+    );
+    assert.equal(String(createdPeriod.collected_revenue), '10000');
+    assert.equal(String(createdPeriod.partner_share_amount), '5000');
+    assert.equal(String(createdPeriod.balance_due_to_partner), '5000');
+    assert.equal(String(createdPeriod.recorded_cash_available), '10000');
+    assert.equal(createdPeriod.status, 'draft');
+
+    const overlapPeriod = await rpc('create_partner_settlement_period', {
+      _agreement: agreementId, _period_start: '2026-01-15', _period_end: '2026-02-15',
+    });
+    assert.equal(overlapPeriod.status, 422, 'Settlement periods must not overlap for the same agreement.');
+    const approvePeriod = await rpc('approve_partner_settlement_period', { _period: periodId });
+    assert.equal(approvePeriod.status, 200);
+    const payPeriod = await rpc('record_partner_settlement_payment', {
+      _period: periodId, _amount: 3000, _payment_reference: 'CI-PAYMENT-' + username,
+    });
+    assert.equal(payPeriod.status, 200);
+    const partialPeriod = await rpc('record_partner_settlement_payment', {
+      _period: periodId, _amount: 2000, _payment_reference: 'CI-PAYMENT-FINAL-' + username,
+    });
+    assert.equal(partialPeriod.status, 200);
+    const [[settledPeriod]] = await db.query('SELECT status,settled_amount,settled_by,settled_at FROM partner_settlement_periods WHERE id=?', [periodId]);
+    assert.equal(settledPeriod.status, 'settled');
+    assert.equal(String(settledPeriod.settled_amount), '5000');
+    assert.equal(settledPeriod.settled_by, userId);
+    assert.ok(settledPeriod.settled_at);
+
     const logout = await app.request('http://localhost/api/auth/logout', { method: 'POST', headers: { cookie } });
     assert.equal(logout.status, 200);
     const afterLogout = await app.request('http://localhost/api/auth/me', { headers: { cookie } });
