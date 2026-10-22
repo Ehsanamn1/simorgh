@@ -7,6 +7,20 @@ import { resolve } from 'node:path';
 import mysql from 'mysql2/promise';
 import { app, hashPassword, closePool } from './server.mjs';
 
+async function requestWithTimeout(input, init) {
+  let timer;
+  try {
+    return await Promise.race([
+      app.request(input, init),
+      new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error('Domestic API request timed out: ' + String(input))), 15_000);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 test('domestic API authenticates a provisioned MySQL user and revokes the session on logout', { skip: !process.env.MYSQL_URL, timeout: 120_000 }, async () => {
   const db = await mysql.createConnection(process.env.MYSQL_URL);
   const userId = randomUUID();
@@ -34,32 +48,32 @@ test('domestic API authenticates a provisioned MySQL user and revokes the sessio
       [membershipId, companyId, userId, 'owner', userId],
     );
 
-    const health = await app.request('http://localhost/api/health');
+    const health = await requestWithTimeout('http://localhost/api/health');
     assert.equal(health.status, 200);
     assert.deepEqual(await health.json(), { ok: true, service: 'medar-domestic-api', database: true, auth: 'mysql' });
     assert.equal(health.headers.get('x-content-type-options'), 'nosniff');
     assert.equal(health.headers.get('x-frame-options'), 'DENY');
     assert.equal(health.headers.get('cache-control'), 'no-store');
 
-    const rejectedOrigin = await app.request('http://localhost/api/auth/logout', {
+    const rejectedOrigin = await requestWithTimeout('http://localhost/api/auth/logout', {
       method: 'POST',
       headers: { origin: 'https://untrusted.example' },
     });
     assert.equal(rejectedOrigin.status, 403, 'Unsafe requests from an untrusted origin must be rejected before route handling.');
-    const disabledSignup = await app.request('http://localhost/api/auth/signup', {
+    const disabledSignup = await requestWithTimeout('http://localhost/api/auth/signup', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ username, password }),
     });
     assert.equal(disabledSignup.status, 403, 'Public signup must remain disabled on the domestic API.');
-    const disabledInvite = await app.request('http://localhost/api/auth/signup-with-invite', {
+    const disabledInvite = await requestWithTimeout('http://localhost/api/auth/signup-with-invite', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ inviteCode: 'invalid' }),
     });
     assert.equal(disabledInvite.status, 410, 'Invite-based signup must not accidentally become active.');
 
-    const login = await app.request('http://localhost/api/auth/login', {
+    const login = await requestWithTimeout('http://localhost/api/auth/login', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ username, password }),
@@ -80,7 +94,7 @@ test('domestic API authenticates a provisioned MySQL user and revokes the sessio
     assert.notEqual(storedSession.token_hash, sessionToken, 'The raw session token must never be stored in MySQL.');
     assert.match(storedSession.token_hash, /^[a-f0-9]{64}$/);
 
-    const badLogin = await app.request('http://localhost/api/auth/login', {
+    const badLogin = await requestWithTimeout('http://localhost/api/auth/login', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ username, password: password + '-wrong' }),
@@ -96,14 +110,14 @@ test('domestic API authenticates a provisioned MySQL user and revokes the sessio
     const limitedUsername = username + '-limit';
     const limitedKey = createHash('sha256').update('username:' + limitedUsername).digest('hex');
     for (let attempt = 0; attempt < 8; attempt += 1) {
-      const failed = await app.request('http://localhost/api/auth/login', {
+      const failed = await requestWithTimeout('http://localhost/api/auth/login', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ username: limitedUsername, password: 'Incorrect-Domestic-Password' }),
       });
       assert.equal(failed.status, 401, 'Failed credentials should not reveal whether the username exists.');
     }
-    const rateLimited = await app.request('http://localhost/api/auth/login', {
+    const rateLimited = await requestWithTimeout('http://localhost/api/auth/login', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ username: limitedUsername, password: 'Incorrect-Domestic-Password' }),
@@ -112,13 +126,13 @@ test('domestic API authenticates a provisioned MySQL user and revokes the sessio
     const [[limitedRecord]] = await db.query('SELECT attempts FROM medar_rate_limits WHERE key_hash=?', [limitedKey]);
     assert.ok(Number(limitedRecord?.attempts) >= 8, 'The rate limit must be persisted for the normalized username key.');
 
-    const me = await app.request('http://localhost/api/auth/me', { headers: { cookie } });
+    const me = await requestWithTimeout('http://localhost/api/auth/me', { headers: { cookie } });
     assert.equal(me.status, 200);
     const meBody = await me.json();
     assert.equal(meBody.user.id, userId);
     assert.equal(meBody.memberships[0].id, membershipId);
 
-    const insertCustomer = await app.request('http://localhost/api/data/customers', {
+    const insertCustomer = await requestWithTimeout('http://localhost/api/data/customers', {
       method: 'POST',
       headers: { cookie, 'content-type': 'application/json' },
       body: JSON.stringify({ action: 'insert', values: { company_id: companyId, name: 'Domestic CI Customer' } }),
@@ -129,7 +143,7 @@ test('domestic API authenticates a provisioned MySQL user and revokes the sessio
     assert.match(inserted.data[0].id, /^[0-9a-f-]{36}$/i);
     assert.equal(inserted.data[0].company_id, companyId);
 
-    const attemptedStatusOverride = await app.request('http://localhost/api/data/orders', {
+    const attemptedStatusOverride = await requestWithTimeout('http://localhost/api/data/orders', {
       method: 'POST',
       headers: { cookie, 'content-type': 'application/json' },
       body: JSON.stringify({ action: 'insert', values: {
@@ -140,7 +154,7 @@ test('domestic API authenticates a provisioned MySQL user and revokes the sessio
       } }),
     });
     assert.equal(attemptedStatusOverride.status, 200);
-    const protectedOrder = await app.request('http://localhost/api/data/orders', {
+    const protectedOrder = await requestWithTimeout('http://localhost/api/data/orders', {
       method: 'POST',
       headers: { cookie, 'content-type': 'application/json' },
       body: JSON.stringify({ action: 'select', filters: [{ column: 'reference', op: 'eq', value: 'CI-PROTECTED-STATUS-' + username }] }),
@@ -148,7 +162,7 @@ test('domestic API authenticates a provisioned MySQL user and revokes the sessio
     assert.equal(protectedOrder.status, 200);
     assert.equal((await protectedOrder.json()).data[0].status, 'draft', 'Generic CRUD must not bypass protected order-state transitions.');
 
-    const selectCustomers = await app.request('http://localhost/api/data/customers', {
+    const selectCustomers = await requestWithTimeout('http://localhost/api/data/customers', {
       method: 'POST',
       headers: { cookie, 'content-type': 'application/json' },
       body: JSON.stringify({ action: 'select', filters: [{ column: 'name', op: 'eq', value: 'Domestic CI Customer' }], count: true }),
@@ -158,7 +172,7 @@ test('domestic API authenticates a provisioned MySQL user and revokes the sessio
     assert.equal(selected.count, 1);
     assert.equal(selected.data[0].name, 'Domestic CI Customer');
 
-    const atomicInsert = await app.request('http://localhost/api/data/customers', {
+    const atomicInsert = await requestWithTimeout('http://localhost/api/data/customers', {
       method: 'POST',
       headers: { cookie, 'content-type': 'application/json' },
       body: JSON.stringify({ action: 'insert', values: [
@@ -170,7 +184,7 @@ test('domestic API authenticates a provisioned MySQL user and revokes the sessio
     const [[atomicCount]] = await db.query('SELECT COUNT(*) AS count FROM customers WHERE company_id=? AND name=?', [companyId, 'Atomic CI Customer']);
     assert.equal(Number(atomicCount.count), 0, 'A failed bulk insert must roll back all earlier rows in the same batch.');
 
-    const projectedSelect = await app.request('http://localhost/api/data/customers', {
+    const projectedSelect = await requestWithTimeout('http://localhost/api/data/customers', {
       method: 'POST',
       headers: { cookie, 'content-type': 'application/json' },
       body: JSON.stringify({
@@ -185,14 +199,14 @@ test('domestic API authenticates a provisioned MySQL user and revokes the sessio
     assert.ok(projected.data.some((row) => row.name === 'Domestic CI Customer'));
     assert.deepEqual(Object.keys(projected.data[0]).sort(), ['id','name']);
 
-    const crossTenantInsert = await app.request('http://localhost/api/data/customers', {
+    const crossTenantInsert = await requestWithTimeout('http://localhost/api/data/customers', {
       method: 'POST',
       headers: { cookie, 'content-type': 'application/json' },
       body: JSON.stringify({ action: 'insert', values: { company_id: randomUUID(), name: 'Cross Tenant Customer' } }),
     });
     assert.equal(crossTenantInsert.status, 403, 'Generic writes must not allow users to target a company they do not belong to.');
 
-    const deniedTable = await app.request('http://localhost/api/data/medar_users', {
+    const deniedTable = await requestWithTimeout('http://localhost/api/data/medar_users', {
       method: 'POST',
       headers: { cookie, 'content-type': 'application/json' },
       body: JSON.stringify({ action: 'select' }),
@@ -204,7 +218,7 @@ test('domestic API authenticates a provisioned MySQL user and revokes the sessio
       "INSERT INTO operational_tasks (id,company_id,assignee_user_id,assigned_by,title,status) VALUES (?,?,?,?,?,'pending')",
       [taskId, companyId, userId, userId, 'Domestic CI task lifecycle'],
     );
-    const rpc = async (name, args) => app.request('http://localhost/api/rpc/' + name, {
+    const rpc = async (name, args) => requestWithTimeout('http://localhost/api/rpc/' + name, {
       method: 'POST',
       headers: { cookie, 'content-type': 'application/json' },
       body: JSON.stringify({ args }),
@@ -239,7 +253,7 @@ test('domestic API authenticates a provisioned MySQL user and revokes the sessio
       'INSERT INTO memberships (id,company_id,user_id,supplier_id,role,active,created_by) VALUES (?,?,?,?,?,TRUE,?)',
       [supplierMembershipId, companyId, supplierUserId, supplierId, 'supplier', userId],
     );
-    const supplierLogin = await app.request('http://localhost/api/auth/login', {
+    const supplierLogin = await requestWithTimeout('http://localhost/api/auth/login', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ username: supplierUsername, password: supplierPassword }),
@@ -247,7 +261,7 @@ test('domestic API authenticates a provisioned MySQL user and revokes the sessio
     assert.equal(supplierLogin.status, 200);
     const supplierCookie = String(supplierLogin.headers.get('set-cookie') || '').split(';')[0];
     assert.match(supplierCookie, /^medar_session=[a-f0-9]{64}$/);
-    const supplierRead = await app.request('http://localhost/api/data/suppliers', {
+    const supplierRead = await requestWithTimeout('http://localhost/api/data/suppliers', {
       method: 'POST',
       headers: { cookie: supplierCookie, 'content-type': 'application/json' },
       body: JSON.stringify({ action: 'select' }),
@@ -255,7 +269,7 @@ test('domestic API authenticates a provisioned MySQL user and revokes the sessio
     assert.equal(supplierRead.status, 200);
     const supplierRows = await supplierRead.json();
     assert.deepEqual(supplierRows.data.map((row) => row.id), [supplierId], 'A supplier membership must be scoped to its own supplier record.');
-    const supplierWrite = await app.request('http://localhost/api/data/customers', {
+    const supplierWrite = await requestWithTimeout('http://localhost/api/data/customers', {
       method: 'POST',
       headers: { cookie: supplierCookie, 'content-type': 'application/json' },
       body: JSON.stringify({ action: 'insert', values: { company_id: companyId, name: 'Supplier Must Not Create Customers' } }),
@@ -265,13 +279,13 @@ test('domestic API authenticates a provisioned MySQL user and revokes the sessio
     const fileName = 'capacity-ci-' + username + '.png';
     const evidencePath = companyId + '/' + supplierId + '/' + fileName;
     const imageBytes = Uint8Array.from([137, 80, 78, 71, 13, 10, 26, 10, 1, 2, 3, 4]);
-    const mismatchedUpload = await app.request('http://localhost/api/storage/capacity-evidence?path=' + encodeURIComponent(evidencePath), {
+    const mismatchedUpload = await requestWithTimeout('http://localhost/api/storage/capacity-evidence?path=' + encodeURIComponent(evidencePath), {
       method: 'PUT',
       headers: { cookie, 'content-type': 'image/jpeg' },
       body: imageBytes,
     });
     assert.equal(mismatchedUpload.status, 415, 'The API must reject a declared MIME type that does not match the file signature.');
-    const uploadFile = await app.request('http://localhost/api/storage/capacity-evidence?path=' + encodeURIComponent(evidencePath), {
+    const uploadFile = await requestWithTimeout('http://localhost/api/storage/capacity-evidence?path=' + encodeURIComponent(evidencePath), {
       method: 'PUT',
       headers: { cookie, 'content-type': 'image/png' },
       body: imageBytes,
@@ -284,17 +298,17 @@ test('domestic API authenticates a provisioned MySQL user and revokes the sessio
     assert.equal(Number(fileMetadata.size_bytes), imageBytes.length);
     assert.equal(fileMetadata.uploaded_by, userId);
 
-    const downloadFile = await app.request('http://localhost/api/storage/capacity-evidence?path=' + encodeURIComponent(evidencePath), { headers: { cookie } });
+    const downloadFile = await requestWithTimeout('http://localhost/api/storage/capacity-evidence?path=' + encodeURIComponent(evidencePath), { headers: { cookie } });
     assert.equal(downloadFile.status, 200);
     assert.equal(downloadFile.headers.get('content-type'), 'image/png');
     assert.deepEqual(new Uint8Array(await downloadFile.arrayBuffer()), imageBytes);
-    const rangedFile = await app.request('http://localhost/api/storage/capacity-evidence?path=' + encodeURIComponent(evidencePath), {
+    const rangedFile = await requestWithTimeout('http://localhost/api/storage/capacity-evidence?path=' + encodeURIComponent(evidencePath), {
       headers: { cookie, range: 'bytes=1-3' },
     });
     assert.equal(rangedFile.status, 206);
     assert.deepEqual(new Uint8Array(await rangedFile.arrayBuffer()), imageBytes.slice(1, 4));
 
-    const removeFile = await app.request('http://localhost/api/storage/capacity-evidence/remove', {
+    const removeFile = await requestWithTimeout('http://localhost/api/storage/capacity-evidence/remove', {
       method: 'POST',
       headers: { cookie, 'content-type': 'application/json' },
       body: JSON.stringify({ paths: [evidencePath] }),
@@ -349,9 +363,9 @@ test('domestic API authenticates a provisioned MySQL user and revokes the sessio
     assert.equal(settledPeriod.settled_by, userId);
     assert.ok(settledPeriod.settled_at);
 
-    const logout = await app.request('http://localhost/api/auth/logout', { method: 'POST', headers: { cookie } });
+    const logout = await requestWithTimeout('http://localhost/api/auth/logout', { method: 'POST', headers: { cookie } });
     assert.equal(logout.status, 200);
-    const afterLogout = await app.request('http://localhost/api/auth/me', { headers: { cookie } });
+    const afterLogout = await requestWithTimeout('http://localhost/api/auth/me', { headers: { cookie } });
     assert.deepEqual(await afterLogout.json(), { user: null, memberships: [] });
   } finally {
     await db.execute('DELETE FROM medar_rate_limits WHERE key_hash IN (?,?)', [usernameKey, createHash('sha256').update('username:' + username + '-limit').digest('hex')]);
