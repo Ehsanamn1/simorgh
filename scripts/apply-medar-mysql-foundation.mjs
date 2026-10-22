@@ -23,6 +23,11 @@ const migrations = [
     file: '../worker/migrations/mysql/0002_operational_schema.sql',
     required: ['customers','suppliers','products','price_agreements','orders','order_items','capacity_commitments','lots','quality_reviews','shipments','delivery_evidence','invoices','settlements','notifications','audit_events','farm_sites','partnership_agreements','flock_cycles','production_batches','daily_production_records','task_templates','operational_tasks','task_evidence','operational_incidents','partner_financial_entries','partner_settlement_periods','shipment_locations','inventory_movements','company_goals'],
   },
+  {
+    version: '0003_extended_schema',
+    file: '../worker/migrations/mysql/0003_extended_schema.sql',
+    required: ['company_invites','medar_files','purchase_orders','purchase_order_items','medar_client_presence','medar_ai_provider_configs','medar_ai_usage_log','medar_ai_action_runs','medar_membership_module_permissions','medar_bank_accounts','medar_bank_transactions','medar_operational_events','medar_exception_cases','medar_conversations','medar_conversation_participants','medar_messages','medar_push_subscriptions','medar_notification_outbox'],
+  },
 ];
 
 function statementsOf(raw) {
