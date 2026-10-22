@@ -123,7 +123,7 @@ CREATE TABLE IF NOT EXISTS shipments (
 
 CREATE TABLE IF NOT EXISTS delivery_evidence (
   id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL DEFAULT (UUID()) PRIMARY KEY, company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
-  shipment_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL, kind VARCHAR(40) NOT NULL CHECK (kind IN ('photo','signature','note','temperature_reading')), storage_path TEXT, recipient_name TEXT, note TEXT,
+  shipment_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL, kind VARCHAR(40) NOT NULL CHECK (kind IN ('photo','video','signature','note','temperature_reading')), storage_path TEXT, recipient_name TEXT, note TEXT,
   reading_celsius numeric(5,2), captured_by CHAR(36) CHARACTER SET ascii COLLATE ascii_bin, captured_at DATETIME(3) not null DEFAULT CURRENT_TIMESTAMP(3),
   foreign key(company_id,shipment_id) references shipments(company_id,id) on delete cascade,
   check(kind<>'temperature_reading' or reading_celsius is not null),
