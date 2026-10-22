@@ -41,7 +41,7 @@ CREATE TABLE IF NOT EXISTS medar_files (
   uploaded_by CHAR(36) CHARACTER SET ascii COLLATE ascii_bin,
   created_at DATETIME(3) not null DEFAULT CURRENT_TIMESTAMP(3),
   UNIQUE KEY medar_files_bucket_name_hash_unique (bucket_id, name_hash),
-  content_base64 TEXT NULL,
+  content_base64 MEDIUMTEXT NULL,
   constraint medar_files_company_path_check check (
     char_length(name) between 40 and 1000 and SUBSTRING_INDEX(name, '/', 1) = company_id
   ),
@@ -153,7 +153,7 @@ CREATE TABLE IF NOT EXISTS medar_ai_action_runs (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS medar_membership_module_permissions (
-  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin PRIMARY KEY DEFAULT UUID(),
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL DEFAULT (UUID()) PRIMARY KEY,
   company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
   membership_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
   module_key VARCHAR(80) NOT NULL CHECK (module_key IN (
@@ -180,7 +180,7 @@ CREATE TABLE IF NOT EXISTS medar_membership_module_permissions (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS medar_bank_accounts (
-  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin PRIMARY KEY DEFAULT UUID(),
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL DEFAULT (UUID()) PRIMARY KEY,
   company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
   label VARCHAR(120) NOT NULL CHECK (length(trim(label)) BETWEEN 2 AND 120),
   bank_name VARCHAR(120) NOT NULL DEFAULT '' CHECK (length(bank_name) <= 120),
@@ -201,7 +201,7 @@ CREATE TABLE IF NOT EXISTS medar_bank_accounts (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS medar_bank_transactions (
-  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin PRIMARY KEY DEFAULT UUID(),
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL DEFAULT (UUID()) PRIMARY KEY,
   company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
   bank_account_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
   external_transaction_id VARCHAR(240) NOT NULL CHECK (length(external_transaction_id) BETWEEN 8 AND 240),
@@ -231,7 +231,7 @@ CREATE TABLE IF NOT EXISTS medar_bank_transactions (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS medar_operational_events (
-  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin PRIMARY KEY DEFAULT UUID(),
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL DEFAULT (UUID()) PRIMARY KEY,
   company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
   actor_user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin,
   event_type VARCHAR(80) NOT NULL CHECK (event_type REGEXP '^[a-z][a-z0-9_.-]{1,79}$'),
@@ -251,7 +251,7 @@ CREATE TABLE IF NOT EXISTS medar_operational_events (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS medar_exception_cases (
-  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin PRIMARY KEY DEFAULT UUID(),
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL DEFAULT (UUID()) PRIMARY KEY,
   company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
   event_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin,
   title VARCHAR(180) NOT NULL CHECK (length(trim(title)) BETWEEN 2 AND 180),
@@ -279,7 +279,7 @@ CREATE TABLE IF NOT EXISTS medar_exception_cases (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS medar_conversations (
-  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin PRIMARY KEY DEFAULT UUID(),
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL DEFAULT (UUID()) PRIMARY KEY,
   company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
   title VARCHAR(180) NOT NULL DEFAULT '' CHECK (length(title) <= 180),
   related_entity_type VARCHAR(32) CHECK (related_entity_type IS NULL OR related_entity_type IN ('order','purchase_order','task','shipment','invoice','exception','other')),
@@ -307,7 +307,7 @@ CREATE TABLE IF NOT EXISTS medar_conversation_participants (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS medar_messages (
-  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin PRIMARY KEY DEFAULT UUID(),
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL DEFAULT (UUID()) PRIMARY KEY,
   company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
   conversation_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
   sender_user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
@@ -323,7 +323,7 @@ CREATE TABLE IF NOT EXISTS medar_messages (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS medar_push_subscriptions (
-  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin PRIMARY KEY DEFAULT UUID(),
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL DEFAULT (UUID()) PRIMARY KEY,
   company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
   user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
   endpoint VARCHAR(2048) NOT NULL CHECK (length(endpoint) BETWEEN 20 AND 2048),
@@ -345,7 +345,7 @@ CREATE TABLE IF NOT EXISTS medar_push_subscriptions (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS medar_notification_outbox (
-  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin PRIMARY KEY DEFAULT UUID(),
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL DEFAULT (UUID()) PRIMARY KEY,
   company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
   user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
   notification_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin,
