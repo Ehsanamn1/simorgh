@@ -112,12 +112,12 @@ CREATE TABLE IF NOT EXISTS medar_ai_provider_configs (
   model VARCHAR(120) NOT NULL CHECK (char_length(model) BETWEEN 1 AND 120),
   encrypted_api_key VARCHAR(4096) NOT NULL CHECK (char_length(encrypted_api_key) BETWEEN 32 AND 4096),
   is_default BOOLEAN NOT NULL DEFAULT FALSE,
-  default_company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin GENERATED ALWAYS AS (CASE WHEN is_default = TRUE THEN company_id ELSE NULL END) STORED,
+  default_flag TINYINT GENERATED ALWAYS AS (CASE WHEN is_default = TRUE THEN 1 ELSE NULL END) STORED,
   updated_by CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
   created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   UNIQUE (company_id, provider),
-  UNIQUE KEY medar_ai_provider_one_default_per_company (default_company_id)
+  UNIQUE KEY medar_ai_provider_one_default_per_company (company_id, default_flag)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 ALTER TABLE medar_ai_provider_configs
