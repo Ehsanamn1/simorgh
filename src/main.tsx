@@ -2,7 +2,7 @@ import { Capacitor } from '@capacitor/core';
 import React from 'react';
 import RuntimeErrorBoundary from './RuntimeErrorBoundary';
 import { createRoot } from 'react-dom/client';
-import { BrowserRouter } from 'react-router-dom';
+import { BrowserRouter, useLocation } from 'react-router-dom';
 import { AuthProvider } from './lib/AuthContext';
 import { ThemeProvider } from './lib/ThemeContext';
 import App from './App';
@@ -13,6 +13,12 @@ import './calm-experience.css';
 import './settings-experience.css';
 
 const ProductExperience = React.lazy(() => import('./ProductExperience'));
+
+function ProductExperienceGate() {
+  const location = useLocation();
+  const shouldLoad = location.pathname.includes('/app') || location.hash === '#signin' || location.hash === '#signup';
+  return shouldLoad ? <React.Suspense fallback={null}><ProductExperience /></React.Suspense> : null;
+}
 
 if (import.meta.env.PROD && !Capacitor.isNativePlatform() && 'serviceWorker' in navigator) {
   window.addEventListener('load', () => {
@@ -38,7 +44,7 @@ createRoot(document.getElementById('root')!).render(
           <AuthProvider>
             <BootSignal />
             <App />
-            <React.Suspense fallback={null}><ProductExperience /></React.Suspense>
+            <ProductExperienceGate />
           </AuthProvider>
         </ThemeProvider>
       </BrowserRouter>
