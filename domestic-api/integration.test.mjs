@@ -189,6 +189,12 @@ test('domestic API authenticates a provisioned MySQL user and revokes the sessio
     const fileName = 'capacity-ci-' + username + '.png';
     const evidencePath = companyId + '/' + supplierId + '/' + fileName;
     const imageBytes = Uint8Array.from([137, 80, 78, 71, 13, 10, 26, 10, 1, 2, 3, 4]);
+    const mismatchedUpload = await app.request('http://localhost/api/storage/capacity-evidence?path=' + encodeURIComponent(evidencePath), {
+      method: 'PUT',
+      headers: { cookie, 'content-type': 'image/jpeg' },
+      body: imageBytes,
+    });
+    assert.equal(mismatchedUpload.status, 415, 'The API must reject a declared MIME type that does not match the file signature.');
     const uploadFile = await app.request('http://localhost/api/storage/capacity-evidence?path=' + encodeURIComponent(evidencePath), {
       method: 'PUT',
       headers: { cookie, 'content-type': 'image/png' },
