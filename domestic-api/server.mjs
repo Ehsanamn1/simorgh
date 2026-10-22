@@ -468,7 +468,10 @@ app.post('/api/data/:table', async (c) => {
         return c.json({ message: 'رکورد ورودی معتبر نیست.' }, 422);
       }
       const inserted = [];
-      for (const original of input) {
+      const connection = await pool.getConnection();
+      try {
+        await connection.beginTransaction();
+        for (const original of input) {
         const companyId = typeof original.company_id === 'string' ? original.company_id : '';
         if (!memberships.some((m) => m.company_id === companyId && INTERNAL_ROLES.has(String(m.role)))) {
           return c.json({ message: 'این شرکت به حساب فعلی تعلق ندارد.' }, 403);
@@ -495,11 +498,18 @@ app.post('/api/data/:table', async (c) => {
         for (const [key, value] of Object.entries(serverDefaults[table] || {})) if (columns.has(key)) row[key] = value;
         if (!Object.keys(row).length) throw new Error('Empty insert');
         const keys = Object.keys(row);
-        const [result] = await pool.execute(
+        await connection.execute(
           'INSERT INTO ' + sqlIdentifier(table) + ' (' + keys.map(sqlIdentifier).join(',') + ') VALUES (' + keys.map(() => '?').join(',') + ')',
           keys.map((key) => row[key]),
         );
-        inserted.push({ id: result.insertId ?? null, ...row });
+        inserted.push({ id: row.id ?? null, ...row });
+        }
+        await connection.commit();
+      } catch (insertError) {
+        await connection.rollback().catch(() => undefined);
+        throw insertError;
+      } finally {
+        connection.release();
       }
       return c.json({ data: inserted, count: inserted.length, error: null });
     }
