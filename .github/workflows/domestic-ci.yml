@@ -48,6 +48,13 @@ jobs:
         env:
           MEDAR_MYSQL_TEST_URL: mysql://root:ci-root-password@127.0.0.1:3306/medar_ci
         run: npm run test:mysql-foundation
+      - name: Verify guarded migration runner and idempotent re-run
+        env:
+          MEDAR_MYSQL_URL: mysql://root:ci-root-password@127.0.0.1:3306/medar_ci
+        run: |
+          npm run checkmysql
+          node scripts/apply-medar-mysql-foundation.mjs --apply
+          node scripts/apply-medar-mysql-foundation.mjs --apply
       - name: Lint
         run: npm run lint
       - name: Unit and component tests
