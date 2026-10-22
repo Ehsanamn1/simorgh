@@ -61,6 +61,12 @@ jobs:
           npm run checkmysql
           node scripts/apply-medar-mysql-foundation.mjs --apply
           node scripts/apply-medar-mysql-foundation.mjs --apply
+      - name: Test domestic API against the migrated disposable MySQL database
+        working-directory: domestic-api
+        env:
+          MYSQL_URL: mysql://root:ci-root-password@127.0.0.1:3306/medar_ci
+          NODE_ENV: test
+        run: npm run test:integration
       - name: Lint
         run: npm run lint
       - name: Unit and component tests
