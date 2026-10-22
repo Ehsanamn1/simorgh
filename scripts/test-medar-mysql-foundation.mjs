@@ -198,6 +198,98 @@ try {
   await db.execute('INSERT INTO customers (id,company_id,name) VALUES (?,?,?)', [customerB, companyB, 'CI Customer B']);
   await db.execute('INSERT INTO products (id,company_id,sku,name,kind) VALUES (?,?,?,?,?)', [productA, companyA, 'CI-EGG-A', 'CI Quail Eggs A', 'eggs']);
   await db.execute('INSERT INTO products (id,company_id,sku,name,kind) VALUES (?,?,?,?,?)', [productB, companyB, 'CI-EGG-B', 'CI Quail Eggs B', 'eggs']);
+
+  const inviteToken = 'a'.repeat(64);
+  await db.execute('INSERT INTO company_invites (id,company_id,role,token_hash,created_by,expires_at,customer_id) VALUES (?,?,?,?,?,?,?)', [randomUUID(), companyA, 'customer', inviteToken, ownerId, '2026-12-01 00:00:00', customerA]);
+  await assert.rejects(
+    db.execute('INSERT INTO company_invites (id,company_id,role,token_hash,created_by,expires_at,customer_id) VALUES (?,?,?,?,?,?,?)', [randomUUID(), companyA, 'customer', inviteToken, ownerId, '2026-12-01 00:00:00', customerA]),
+    error => error?.code === 'ER_DUP_ENTRY',
+    'Company invite token hashes must be unique.',
+  );
+
+  const filePath = companyA + '/capacity-evidence/' + randomUUID() + '.json';
+  await db.execute('INSERT INTO medar_files (bucket_id,name,company_id,content_type,size_bytes,uploaded_by) VALUES (?,?,?,?,?,?)', ['capacity-evidence', filePath, companyA, 'application/json', 32, ownerId]);
+  await assert.rejects(
+    db.execute('INSERT INTO medar_files (bucket_id,name,company_id,content_type,size_bytes,uploaded_by) VALUES (?,?,?,?,?,?)', ['capacity-evidence', filePath, companyA, 'application/json', 32, ownerId]),
+    error => error?.code === 'ER_DUP_ENTRY',
+    'Private-file paths must be unique within a storage bucket.',
+  );
+
+  await db.execute('INSERT INTO purchase_orders (company_id,supplier_id,reference,created_by) VALUES (?,?,?,?)', [companyA, supplierA, 'PO-CI-001', ownerId]);
+  const [[purchaseOrder]] = await db.query('SELECT id FROM purchase_orders WHERE company_id=? AND reference=?', [companyA, 'PO-CI-001']);
+  await db.execute('INSERT INTO purchase_order_items (company_id,purchase_order_id,product_id,ordered_quantity,received_quantity,unit_cost) VALUES (?,?,?,?,?,?)', [companyA, purchaseOrder.id, productA, 10, 0, 1]);
+  await assert.rejects(
+    db.execute('UPDATE purchase_order_items SET received_quantity=11 WHERE company_id=? AND purchase_order_id=? AND product_id=?', [companyA, purchaseOrder.id, productA]),
+    error => error?.code === 'ER_CHECK_CONSTRAINT_VIOLATED',
+    'Purchase receiving must not exceed the ordered quantity.',
+  );
+
+  const clientId = randomUUID();
+  await db.execute('INSERT INTO medar_client_presence (company_id,user_id,client_id,platform) VALUES (?,?,?,?)', [companyA, ownerId, clientId, 'web']);
+  await assert.rejects(
+    db.execute('INSERT INTO medar_client_presence (company_id,user_id,client_id,platform) VALUES (?,?,?,?)', [companyA, ownerId, clientId, 'web']),
+    error => error?.code === 'ER_DUP_ENTRY',
+    'Client presence must be unique per company/user/client.',
+  );
+
+  await db.execute('INSERT INTO medar_ai_provider_configs (company_id,provider,model,encrypted_api_key,is_default,updated_by) VALUES (?,?,?,?,?,?)', [companyA, 'openai', 'gpt-ci', 'x'.repeat(64), true, ownerId]);
+  await assert.rejects(
+    db.execute('INSERT INTO medar_ai_provider_configs (company_id,provider,model,encrypted_api_key,is_default,updated_by) VALUES (?,?,?,?,?,?)', [companyA, 'gemini', 'gemini-ci', 'y'.repeat(64), true, ownerId]),
+    error => error?.code === 'ER_DUP_ENTRY',
+    'Only one AI provider may be the default for a company.',
+  );
+  await db.execute('INSERT INTO medar_ai_usage_log (company_id,user_id,provider,model,input_chars) VALUES (?,?,?,?,?)', [companyA, ownerId, 'openai', 'gpt-ci', 120]);
+  await assert.rejects(
+    db.execute("INSERT INTO medar_ai_action_runs (company_id,requested_by,tool_key,status,arguments) VALUES (?,?,?,'executed',?)", [companyA, ownerId, 'create_operational_task', '{}']),
+    error => error?.code === 'ER_CHECK_CONSTRAINT_VIOLATED',
+    'An AI action cannot be marked executed without result, actor and timestamp.',
+  );
+
+  await db.execute('INSERT INTO medar_bank_accounts (company_id,label,created_by) VALUES (?,?,?)', [companyA, 'CI Operating Account', ownerId]);
+  const [[bankAccount]] = await db.query('SELECT id FROM medar_bank_accounts WHERE company_id=? AND label=?', [companyA, 'CI Operating Account']);
+  await db.execute("INSERT INTO medar_bank_transactions (company_id,bank_account_id,external_transaction_id,booked_at,amount,currency,direction,imported_by) VALUES (?,?,?,?,?,?,?,?)", [companyA, bankAccount.id, 'BANK-CI-0001', '2026-10-20 10:00:00', 100, 'IRR', 'incoming', ownerId]);
+  await assert.rejects(
+    db.execute("INSERT INTO medar_bank_transactions (company_id,bank_account_id,external_transaction_id,booked_at,amount,currency,direction,imported_by) VALUES (?,?,?,?,?,?,?,?)", [companyA, bankAccount.id, 'BANK-CI-0002', '2026-10-20 10:00:00', -100, 'IRR', 'incoming', ownerId]),
+    error => error?.code === 'ER_CHECK_CONSTRAINT_VIOLATED',
+    'Incoming bank transactions must have positive amounts.',
+  );
+
+  await db.execute("INSERT INTO medar_operational_events (company_id,event_type,source_type,title,idempotency_key) VALUES (?,?,?,?,?)", [companyA, 'order.created', 'order', 'CI order event', 'ci-event-0001']);
+  await assert.rejects(
+    db.execute("INSERT INTO medar_operational_events (company_id,event_type,source_type,title,idempotency_key) VALUES (?,?,?,?,?)", [companyA, 'order.created', 'order', 'CI duplicate event', 'ci-event-0001']),
+    error => error?.code === 'ER_DUP_ENTRY',
+    'Operational event idempotency keys must be unique per company.',
+  );
+  const [[eventRow]] = await db.query('SELECT id FROM medar_operational_events WHERE company_id=? AND idempotency_key=?', [companyA, 'ci-event-0001']);
+  await db.execute('INSERT INTO medar_exception_cases (company_id,event_id,title,dedupe_key,created_by) VALUES (?,?,?,?,?)', [companyA, eventRow.id, 'CI exception', 'ci-exception-0001', ownerId]);
+  await assert.rejects(
+    db.execute('INSERT INTO medar_exception_cases (company_id,event_id,title,dedupe_key,created_by) VALUES (?,?,?,?,?)', [companyA, eventRow.id, 'CI duplicate exception', 'ci-exception-0001', ownerId]),
+    error => error?.code === 'ER_DUP_ENTRY',
+    'Unresolved exceptions must deduplicate by company and dedupe key.',
+  );
+  await db.execute("UPDATE medar_exception_cases SET status='resolved',resolved_at=CURRENT_TIMESTAMP(3),resolved_by=? WHERE company_id=? AND dedupe_key=?", [ownerId, companyA, 'ci-exception-0001']);
+  await db.execute('INSERT INTO medar_exception_cases (company_id,event_id,title,dedupe_key,created_by) VALUES (?,?,?,?,?)', [companyA, eventRow.id, 'CI reopened exception', 'ci-exception-0001', ownerId]);
+
+  await db.execute('INSERT INTO medar_conversations (company_id,title,created_by) VALUES (?,?,?)', [companyA, 'CI conversation', ownerId]);
+  const [[conversation]] = await db.query('SELECT id FROM medar_conversations WHERE company_id=? AND title=?', [companyA, 'CI conversation']);
+  await db.execute('INSERT INTO medar_messages (company_id,conversation_id,sender_user_id,body,client_message_id) VALUES (?,?,?,?,?)', [companyA, conversation.id, ownerId, 'CI message', 'ci-message-0001']);
+  await assert.rejects(
+    db.execute('INSERT INTO medar_messages (company_id,conversation_id,sender_user_id,body,client_message_id) VALUES (?,?,?,?,?)', [companyA, conversation.id, ownerId, 'CI duplicate message', 'ci-message-0001']),
+    error => error?.code === 'ER_DUP_ENTRY',
+    'Client message IDs must be idempotent within a conversation.',
+  );
+
+  const pushEndpoint = 'https://push.example.invalid/' + randomUUID();
+  await db.execute('INSERT INTO medar_push_subscriptions (company_id,user_id,endpoint,endpoint_hash,p256dh_key,auth_secret) VALUES (?,?,?,?,?,?)', [companyA, ownerId, pushEndpoint, 'b'.repeat(64), 'p'.repeat(80), 'a'.repeat(16)]);
+  const notificationId = randomUUID();
+  await db.execute('INSERT INTO notifications (id,company_id,user_id,title,body,dedupe_key) VALUES (?,?,?,?,?,?)', [notificationId, companyA, ownerId, 'CI notification', 'CI body', 'ci-notification-0001']);
+  await db.execute('INSERT INTO medar_notification_outbox (company_id,user_id,notification_id,payload,idempotency_key) VALUES (?,?,?,?,?)', [companyA, ownerId, notificationId, '{}', 'ci-push-0001']);
+  await assert.rejects(
+    db.execute('INSERT INTO medar_notification_outbox (company_id,user_id,notification_id,payload,idempotency_key) VALUES (?,?,?,?,?)', [companyB, secondOwnerId, notificationId, '{}', 'ci-cross-company-push-0001']),
+    error => error?.code === 'ER_NO_REFERENCED_ROW_2',
+    'Notification outbox rows must not reference another company\'s notification.',
+  );
+
   await db.execute('INSERT INTO orders (id,company_id,customer_id,reference,status) VALUES (?,?,?,?,?)', [orderA, companyA, customerA, 'SO-CI-001', 'draft']);
   await db.execute('INSERT INTO order_items (id,company_id,order_id,product_id,quantity,unit_price) VALUES (?,?,?,?,?,?)', [randomUUID(), companyA, orderA, productA, 10, 100]);
   await db.execute('INSERT INTO orders (company_id,customer_id,status,notes) VALUES (?,?,?,?)', [companyA, customerA, 'draft', 'CI AUTO DEFAULTS']);
