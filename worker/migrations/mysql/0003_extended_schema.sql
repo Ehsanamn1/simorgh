@@ -4,7 +4,7 @@ SET NAMES utf8mb4;
 SET time_zone = '+00:00';
 
 CREATE TABLE IF NOT EXISTS company_invites (
-  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin primary key DEFAULT (UUID()),
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL DEFAULT (UUID()) PRIMARY KEY,
   company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
   role VARCHAR(16) NOT NULL check (role in ('admin','staff','customer','supplier','driver')),
   token_hash CHAR(64) not null unique check (char_length(token_hash) = 64),
@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS company_invites (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS medar_files (
-  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin primary key DEFAULT (UUID()),
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL DEFAULT (UUID()) PRIMARY KEY,
   bucket_id VARCHAR(32) not null check (bucket_id in ('delivery-evidence','operational-evidence','contract-documents','capacity-evidence')),
   name VARCHAR(1000) NOT NULL,
   name_hash BINARY(32) GENERATED ALWAYS AS (UNHEX(SHA2(name, 256))) STORED,
@@ -51,7 +51,7 @@ CREATE TABLE IF NOT EXISTS medar_files (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS purchase_orders (
-  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin PRIMARY KEY DEFAULT (UUID()),
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL DEFAULT (UUID()) PRIMARY KEY,
   company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
   supplier_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
   reference VARCHAR(80) NOT NULL CHECK (length(trim(reference)) BETWEEN 3 AND 80),
@@ -75,7 +75,7 @@ CREATE TABLE IF NOT EXISTS purchase_orders (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS purchase_order_items (
-  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin PRIMARY KEY DEFAULT (UUID()),
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL DEFAULT (UUID()) PRIMARY KEY,
   company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
   purchase_order_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
   product_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
@@ -106,7 +106,7 @@ CREATE TABLE IF NOT EXISTS medar_client_presence (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS medar_ai_provider_configs (
-  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin PRIMARY KEY DEFAULT (UUID()),
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL DEFAULT (UUID()) PRIMARY KEY,
   company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
   provider VARCHAR(24) NOT NULL CHECK (provider IN ('openai','gemini','deepseek','anthropic')),
   model VARCHAR(120) NOT NULL CHECK (char_length(model) BETWEEN 1 AND 120),
@@ -135,7 +135,7 @@ CREATE TABLE IF NOT EXISTS medar_ai_usage_log (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS medar_ai_action_runs (
-  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin PRIMARY KEY DEFAULT (UUID()),
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL DEFAULT (UUID()) PRIMARY KEY,
   company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
   requested_by CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
   tool_key VARCHAR(80) NOT NULL CHECK (tool_key IN ('create_operational_task')),
