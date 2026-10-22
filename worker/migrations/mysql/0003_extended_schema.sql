@@ -40,8 +40,8 @@ CREATE TABLE IF NOT EXISTS medar_files (
   size_bytes bigint not null check (size_bytes between 0 and 20971520),
   uploaded_by CHAR(36) CHARACTER SET ascii COLLATE ascii_bin,
   created_at DATETIME(3) not null DEFAULT CURRENT_TIMESTAMP(3),
-  UNIQUE KEY medar_files_bucket_name_hash_unique (bucket_id, name_hash),
   content_base64 MEDIUMTEXT NULL,
+  UNIQUE KEY medar_files_bucket_name_hash_unique (bucket_id, name_hash),
   constraint medar_files_company_path_check check (
     char_length(name) between 40 and 1000 and SUBSTRING_INDEX(name, '/', 1) = company_id
   ),
