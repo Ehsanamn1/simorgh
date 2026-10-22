@@ -238,7 +238,7 @@ test('domestic API authenticates a provisioned MySQL user and revokes the sessio
     provisionedMembershipIds.push(adminCreatedMember.membership_id);
     assert.equal(adminCreatedMember.role, 'admin');
 
-    const supplierLogin = await requestWithTimeout('http://localhost/api/auth/login', {
+    const supplierLoginForDataApi = await requestWithTimeout('http://localhost/api/auth/login', {
       method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ username: provisionedUsername, password: provisionedPassword }),
     });
@@ -392,12 +392,12 @@ test('domestic API authenticates a provisioned MySQL user and revokes the sessio
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ username: supplierUsername, password: supplierPassword }),
     });
-    assert.equal(supplierLogin.status, 200);
-    const supplierCookie = String(supplierLogin.headers.get('set-cookie') || '').split(';')[0];
-    assert.match(supplierCookie, /^medar_session=[a-f0-9]{64}$/);
+    assert.equal(supplierLoginForDataApi.status, 200);
+    const supplierCookieForDataApi = String(supplierLoginForDataApi.headers.get('set-cookie') || '').split(';')[0];
+    assert.match(supplierCookieForDataApi, /^medar_session=[a-f0-9]{64}$/);
     const supplierRead = await requestWithTimeout('http://localhost/api/data/suppliers', {
       method: 'POST',
-      headers: { cookie: supplierCookie, 'content-type': 'application/json' },
+      headers: { cookie: supplierCookieForDataApi, 'content-type': 'application/json' },
       body: JSON.stringify({ action: 'select' }),
     });
     assert.equal(supplierRead.status, 200);
