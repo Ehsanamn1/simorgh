@@ -533,6 +533,295 @@ app.post('/api/data/:table', async (c) => {
   }
 });
 
+
+const RPC_NAMES = new Set([
+  'start_operational_task','submit_operational_task','review_operational_task',
+  'create_partner_settlement_period','refresh_partner_settlement_period',
+  'approve_partner_settlement_period','record_partner_settlement_payment',
+]);
+const RPC_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const RPC_MONEY_FIELDS = [
+  'invoiced_revenue','collected_revenue','recognized_revenue','approved_shared_expenses',
+  'unpaid_approved_expenses','company_paid_shared_expenses','partner_paid_shared_expenses',
+  'net_result','company_share_amount','partner_share_amount','balance_due_to_partner',
+  'balance_due_to_company','recorded_cash_available',
+];
+
+function tehranDate() {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Tehran', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+}
+
+function validIsoDate(value) {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const date = new Date(value + 'T00:00:00.000Z');
+  return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value;
+}
+
+function moneyInteger(value) {
+  const text = String(value ?? '0');
+  if (!/^-?\d+(?:\.\d+)?$/.test(text)) throw new Error('مبلغ مالی معتبر نیست.');
+  return BigInt(text.split('.')[0]);
+}
+
+function percentBasisPoints(value) {
+  const text = String(value ?? '0');
+  const match = text.match(/^(\d+)(?:\.(\d{1,2}))?$/);
+  if (!match) throw new Error('درصد مشارکت معتبر نیست.');
+  return BigInt(match[1]) * 100n + BigInt((match[2] || '').padEnd(2, '0') || '0');
+}
+
+function roundedShare(amount, basisPoints) {
+  const numerator = amount * basisPoints;
+  const sign = numerator < 0n ? -1n : 1n;
+  const absolute = numerator < 0n ? -numerator : numerator;
+  return sign * ((absolute + 5000n) / 10000n);
+}
+
+function serializeMoney(value) { return value.toString(); }
+
+async function rpcManager(connection, companyId, userId, ownersOnly = false) {
+  const roles = ownersOnly ? ['owner','admin'] : ['owner','admin','staff'];
+  const [rows] = await connection.execute(
+    'SELECT id FROM memberships WHERE company_id=? AND user_id=? AND active=TRUE AND role IN (' + roles.map(() => '?').join(',') + ') LIMIT 1',
+    [companyId, userId, ...roles],
+  );
+  return rows.length > 0;
+}
+
+async function taskRpc(connection, name, args, userId) {
+  const taskId = String(args._task || '');
+  if (!RPC_UUID.test(taskId)) throw new Error('شناسه وظیفه معتبر نیست.');
+  const [rows] = await connection.execute('SELECT * FROM operational_tasks WHERE id=? FOR UPDATE', [taskId]);
+  const task = rows[0];
+  if (!task) throw new Error('وظیفه پیدا نشد.');
+  const manager = await rpcManager(connection, task.company_id, userId, false);
+  let supplierAssigned = false;
+  if (task.assignee_supplier_id) {
+    const [supplierRows] = await connection.execute(
+      "SELECT id FROM memberships WHERE company_id=? AND user_id=? AND active=TRUE AND role='supplier' AND supplier_id=? LIMIT 1",
+      [task.company_id, userId, task.assignee_supplier_id],
+    );
+    supplierAssigned = supplierRows.length > 0;
+  }
+  const canExecute = manager || String(task.assignee_user_id || '') === userId || supplierAssigned;
+  if (name === 'review_operational_task') {
+    if (!manager) throw new Error('دسترسی مالک، مدیر یا کارمند مجاز لازم است.');
+    if (task.status !== 'submitted') throw new Error('فقط وظیفه ارسال‌شده قابل بازبینی است.');
+    const decision = String(args._decision || '');
+    if (!['approved','rejected'].includes(decision)) throw new Error('تصمیم بازبینی نامعتبر است.');
+    const note = String(args._review_note || '').trim();
+    if (decision === 'rejected' && !note) throw new Error('برای رد وظیفه، دلیل و اقدام اصلاحی لازم است.');
+    await connection.execute(
+      'UPDATE operational_tasks SET status=?,reviewed_at=NOW(3),reviewed_by=?,review_note=?,updated_at=NOW(3) WHERE id=? AND company_id=?',
+      [decision, userId, note || null, taskId, task.company_id],
+    );
+    return { ok: true };
+  }
+  if (!canExecute) throw new Error('این وظیفه به شما یا تأمین‌کننده شما واگذار نشده است.');
+  if (name === 'start_operational_task') {
+    if (!['pending','rejected','blocked'].includes(task.status)) throw new Error('فقط وظیفه در انتظار، ردشده یا رفع‌مسدودی‌شده قابل شروع است.');
+    await connection.execute(
+      "UPDATE operational_tasks SET status='in_progress',started_at=COALESCE(started_at,NOW(3)),updated_at=NOW(3) WHERE id=? AND company_id=?",
+      [taskId, task.company_id],
+    );
+    return { ok: true };
+  }
+  if (!['pending','in_progress','rejected'].includes(task.status)) throw new Error('وضعیت فعلی اجازه ارسال پایان کار نمی‌دهد.');
+  if (task.evidence_required) {
+    const [evidence] = await connection.execute(
+      "SELECT e.id FROM task_evidence e WHERE e.company_id=? AND e.task_id=? AND (" +
+      "(e.evidence_type='note' AND CHAR_LENGTH(TRIM(COALESCE(e.note,'')))>0) OR " +
+      "(e.evidence_type='measurement' AND e.measurement_value IS NOT NULL) OR " +
+      "(e.evidence_type IN ('photo','document') AND e.storage_path LIKE CONCAT(?, '/', ?, '/%') AND EXISTS " +
+      "(SELECT 1 FROM medar_files f WHERE f.bucket_id='operational-evidence' AND f.company_id=e.company_id AND f.name=e.storage_path))" +
+      ') LIMIT 1',
+      [task.company_id, taskId, task.company_id, taskId],
+    );
+    if (!evidence.length) throw new Error('برای تکمیل این وظیفه مدرک واقعی لازم است.');
+  }
+  const note = String(args._completion_note || '').trim().slice(0, 3000);
+  await connection.execute(
+    "UPDATE operational_tasks SET status='submitted',submitted_at=NOW(3),completion_note=?,updated_at=NOW(3) WHERE id=? AND company_id=?",
+    [note || null, taskId, task.company_id],
+  );
+  return { ok: true };
+}
+
+async function settlementSnapshot(connection, agreementId, periodStart, periodEnd) {
+  const [agreementRows] = await connection.execute('SELECT * FROM partnership_agreements WHERE id=? FOR UPDATE', [agreementId]);
+  const agreement = agreementRows[0];
+  if (!agreement) throw new Error('قرارداد مشارکت پیدا نشد.');
+  if (periodStart < String(agreement.effective_from).slice(0, 10) ||
+      (agreement.effective_to && periodEnd > String(agreement.effective_to).slice(0, 10))) {
+    throw new Error('دوره باید در بازه اعتبار قرارداد باشد.');
+  }
+  const [entries] = await connection.execute(
+    'SELECT e.*, target.entry_type AS target_entry_type, target.is_shared_cost AS target_is_shared_cost ' +
+    'FROM partner_financial_entries e LEFT JOIN partner_financial_entries target ' +
+    'ON target.company_id=e.company_id AND target.id=e.linked_entry_id AND target.supplier_id=e.supplier_id AND target.agreement_id=e.agreement_id ' +
+    'WHERE e.company_id=? AND e.supplier_id=? AND e.agreement_id=? AND e.recognized_on BETWEEN ? AND ? ' +
+    'ORDER BY e.recognized_on,e.created_at,e.id',
+    [agreement.company_id, agreement.supplier_id, agreement.id, periodStart, periodEnd],
+  );
+  let invoiceTotal=0n, collectionTotal=0n, expenseTotal=0n, unpaidExpenseTotal=0n;
+  let companyPaidTotal=0n, partnerPaidTotal=0n, companyAdvanceTotal=0n, partnerAdvanceTotal=0n, paidToPartnerTotal=0n, paidToCompanyTotal=0n;
+  for (const entry of entries) {
+    const amount=moneyInteger(entry.amount), paid=moneyInteger(entry.paid_amount);
+    const posted=entry.status==='posted';
+    const adjustmentSign=entry.adjustment_effect==='decrease'?-1n:1n;
+    if (posted && entry.entry_type==='sale_invoice') invoiceTotal+=amount;
+    if (posted && entry.entry_type==='adjustment' && entry.target_entry_type==='sale_invoice') invoiceTotal+=amount*adjustmentSign;
+    if (posted && entry.entry_type==='sale_collection') collectionTotal+=amount;
+    if (posted && entry.entry_type==='adjustment' && entry.target_entry_type==='sale_collection') collectionTotal+=amount*adjustmentSign;
+    if (entry.entry_type==='expense' && entry.is_shared_cost && ['approved','posted'].includes(entry.status)) {
+      expenseTotal+=amount;
+      unpaidExpenseTotal+=amount-paid;
+      if (entry.paid_by==='company') companyPaidTotal+=paid;
+      if (entry.paid_by==='partner') partnerPaidTotal+=paid;
+    }
+    if (posted && entry.entry_type==='adjustment' && entry.target_entry_type==='expense' && entry.target_is_shared_cost) {
+      expenseTotal+=amount*adjustmentSign;
+      unpaidExpenseTotal+=amount*adjustmentSign;
+    }
+    if (posted && entry.entry_type==='partner_advance' && entry.direction==='company_to_partner') companyAdvanceTotal+=amount;
+    if (posted && entry.entry_type==='partner_advance' && entry.direction==='partner_to_company') partnerAdvanceTotal+=amount;
+    if (posted && entry.entry_type==='settlement_payment' && entry.direction==='company_to_partner') paidToPartnerTotal+=amount;
+    if (posted && entry.entry_type==='settlement_payment' && entry.direction==='partner_to_company') paidToCompanyTotal+=amount;
+  }
+  if (expenseTotal<0n) expenseTotal=0n;
+  if (unpaidExpenseTotal<0n) unpaidExpenseTotal=0n;
+  const revenueUsed=String(agreement.settlement_basis)==='accrual'?invoiceTotal:collectionTotal;
+  const netResult=revenueUsed-expenseTotal;
+  const companyPct=percentBasisPoints(agreement.company_profit_share_pct);
+  const partnerPct=percentBasisPoints(agreement.partner_profit_share_pct);
+  const companyShare=roundedShare(netResult,companyPct);
+  const partnerShare=roundedShare(netResult,partnerPct);
+  let partnerBalance=partnerShare+partnerPaidTotal-roundedShare(expenseTotal,partnerPct)+partnerAdvanceTotal+paidToCompanyTotal-companyAdvanceTotal-paidToPartnerTotal;
+  const companyBalance=partnerBalance<0n?-partnerBalance:0n;
+  if(partnerBalance<0n)partnerBalance=0n;
+  const cashAvailable=collectionTotal-companyPaidTotal-companyAdvanceTotal-paidToPartnerTotal+partnerAdvanceTotal+paidToCompanyTotal;
+  const lines=entries.filter((entry)=>['approved','posted'].includes(entry.status)).map((entry)=>({
+    id:entry.id,type:entry.entry_type,status:entry.status,amount:String(entry.amount),paid_amount:String(entry.paid_amount),
+    currency:entry.currency,category:entry.expense_category,shared_cost:Boolean(entry.is_shared_cost),paid_by:entry.paid_by,
+    date:String(entry.recognized_on).slice(0,10),reference:entry.external_reference,source_table:entry.source_table,
+    source_record_id:entry.source_record_id,linked_entry_id:entry.linked_entry_id,adjustment_effect:entry.adjustment_effect,notes:entry.notes,
+  }));
+  const snapshot={
+    agreement_id:agreement.id,agreement_code:agreement.agreement_code,agreement_version:agreement.version,
+    supplier_id:agreement.supplier_id,period_start:periodStart,period_end:periodEnd,settlement_basis:agreement.settlement_basis,
+    currency:'TOMAN',company_profit_share_pct:String(agreement.company_profit_share_pct),partner_profit_share_pct:String(agreement.partner_profit_share_pct),
+    invoiced_revenue:serializeMoney(invoiceTotal),collected_revenue:serializeMoney(collectionTotal),recognized_revenue:serializeMoney(revenueUsed),
+    approved_shared_expenses:serializeMoney(expenseTotal),unpaid_approved_expenses:serializeMoney(unpaidExpenseTotal),
+    company_paid_shared_expenses:serializeMoney(companyPaidTotal),partner_paid_shared_expenses:serializeMoney(partnerPaidTotal),
+    net_result:serializeMoney(netResult),company_share_amount:serializeMoney(companyShare),partner_share_amount:serializeMoney(partnerShare),
+    balance_due_to_partner:serializeMoney(partnerBalance),balance_due_to_company:serializeMoney(companyBalance),
+    recorded_cash_available:serializeMoney(cashAvailable),
+    cash_note:'این عدد فقط از اسناد ثبت‌شده محاسبه می‌شود و موجودی بانکی را تأیید نمی‌کند.',
+    entries:lines,calculated_at:new Date().toISOString(),
+  };
+  return { agreement, snapshot };
+}
+
+async function saveSettlementSnapshot(connection, periodId, snapshot) {
+  const values = RPC_MONEY_FIELDS.map((field)=>snapshot[field]);
+  await connection.execute(
+    'UPDATE partner_settlement_periods SET invoiced_revenue=?,collected_revenue=?,recognized_revenue=?,approved_shared_expenses=?,unpaid_approved_expenses=?,company_paid_shared_expenses=?,partner_paid_shared_expenses=?,net_result=?,company_share_amount=?,partner_share_amount=?,balance_due_to_partner=?,balance_due_to_company=?,recorded_cash_available=?,calculation_snapshot=?,calculated_at=NOW(3),updated_at=NOW(3) WHERE id=?',
+    [...values,JSON.stringify(snapshot),periodId],
+  );
+}
+
+async function settlementRpc(connection, name, args, userId) {
+  if (name==='create_partner_settlement_period') {
+    const agreementId=String(args._agreement||''), start=String(args._period_start||''), end=String(args._period_end||'');
+    if(!RPC_UUID.test(agreementId)||!validIsoDate(start)||!validIsoDate(end)||end<start) throw new Error('قرارداد و بازه تاریخ معتبر لازم است.');
+    if(end>tehranDate()) throw new Error('دوره تسویه آینده قابل ایجاد نیست.');
+    const [agreements]=await connection.execute('SELECT * FROM partnership_agreements WHERE id=? FOR UPDATE',[agreementId]);
+    const agreement=agreements[0];
+    if(!agreement) throw new Error('قرارداد مشارکت پیدا نشد.');
+    if(!await rpcManager(connection,agreement.company_id,userId,true)) throw new Error('ایجاد دوره فقط برای مالک یا مدیر مجاز است.');
+    if(!['active','suspended','expired','terminated'].includes(agreement.status)) throw new Error('قرارداد باید امضا و تأیید شده باشد.');
+    const [overlaps]=await connection.execute(
+      "SELECT id FROM partner_settlement_periods WHERE company_id=? AND agreement_id=? AND status<>'cancelled' AND period_start<=? AND period_end>=? LIMIT 1",
+      [agreement.company_id,agreement.id,end,start],
+    );
+    if(overlaps.length) throw new Error('این بازه با یک دوره تسویه موجود هم‌پوشانی دارد.');
+    const {snapshot}=await settlementSnapshot(connection,agreementId,start,end);
+    const id=randomUUID();
+    const values=RPC_MONEY_FIELDS.map((field)=>snapshot[field]);
+    await connection.execute(
+      'INSERT INTO partner_settlement_periods (id,company_id,supplier_id,agreement_id,period_start,period_end,status,currency,'+
+      RPC_MONEY_FIELDS.join(',')+',calculation_snapshot,calculated_at,created_by) VALUES (?,?,?,?,?,?,\'draft\',\'TOMAN\','+
+      values.map(()=>'?').join(',')+',?,NOW(3),?)',
+      [id,agreement.company_id,agreement.supplier_id,agreement.id,start,end,...values,JSON.stringify(snapshot),userId],
+    );
+    return { id };
+  }
+  const periodId=String(args._period||'');
+  if(!RPC_UUID.test(periodId)) throw new Error('شناسه دوره تسویه معتبر نیست.');
+  const [periodRows]=await connection.execute('SELECT * FROM partner_settlement_periods WHERE id=? FOR UPDATE',[periodId]);
+  const period=periodRows[0];
+  if(!period) throw new Error('دوره تسویه پیدا نشد.');
+  if(!await rpcManager(connection,period.company_id,userId,true)) throw new Error('این عملیات فقط برای مالک یا مدیر مجاز است.');
+  if(name==='refresh_partner_settlement_period'||name==='approve_partner_settlement_period') {
+    if(period.status!=='draft') throw new Error('فقط دوره پیش‌نویس قابل بازمحاسبه یا تأیید است.');
+    const {snapshot}=await settlementSnapshot(connection,period.agreement_id,String(period.period_start).slice(0,10),String(period.period_end).slice(0,10));
+    await saveSettlementSnapshot(connection,period.id,snapshot);
+    if(name==='approve_partner_settlement_period') {
+      await connection.execute("UPDATE partner_settlement_periods SET status='approved',approved_by=?,approved_at=NOW(3),updated_at=NOW(3) WHERE id=?",[userId,period.id]);
+    }
+    return { ok:true };
+  }
+  if(name==='record_partner_settlement_payment') {
+    if(!['approved','settled'].includes(period.status)) throw new Error('دوره باید قبل از ثبت پرداخت تأیید شده باشد.');
+    const amountText=String(args._amount??'');
+    if(!/^\d+$/.test(amountText)||BigInt(amountText)<=0n||BigInt(amountText)>9999999999999999n) throw new Error('مبلغ پرداخت باید یک عدد صحیح مثبت به تومان باشد.');
+    const amount=BigInt(amountText), due=moneyInteger(period.balance_due_to_partner), settled=moneyInteger(period.settled_amount), cash=moneyInteger(period.recorded_cash_available);
+    if(due<=0n) throw new Error('این دوره مبلغی برای پرداخت به شریک ندارد.');
+    if(amount>due-settled) throw new Error('مبلغ پرداخت بیشتر از مانده دوره است.');
+    if(amount>cash-settled) throw new Error('مبلغ پرداخت از وجه نقد محاسبه‌شده در اسناد دوره بیشتر است.');
+    const reference=String(args._payment_reference||'').trim().slice(0,160);
+    if(!reference) throw new Error('مرجع پرداخت واقعی لازم است.');
+    const id=randomUUID();
+    await connection.execute(
+      "INSERT INTO partner_financial_entries (id,company_id,supplier_id,agreement_id,entry_type,status,direction,amount,paid_amount,currency,paid_by,payment_status,recognized_on,external_reference,source_table,source_record_id,notes,created_by,submitted_by,submitted_at,approved_by,approved_at,posted_by,posted_at) VALUES (?,?,?,?,'settlement_payment','posted','company_to_partner',?,?,?,'company','paid',?,?, 'partner_settlement_periods',?,'پرداخت توسط مدیر ثبت و تأیید شده؛ انتقال بانکی توسط سامانه اجرا نمی‌شود.',?, ?,NOW(3),?,NOW(3),?,NOW(3))",
+      [id,period.company_id,period.supplier_id,period.agreement_id,amountText,amountText,period.currency,tehranDate(),reference,period.id,userId,userId,userId,userId],
+    );
+    const newSettled=settled+amount;
+    const completed=newSettled>=due;
+    await connection.execute(
+      'UPDATE partner_settlement_periods SET settled_amount=?,status=?,settled_at=?,settled_by=?,updated_at=NOW(3) WHERE id=?',
+      [newSettled.toString(),completed?'settled':'approved',completed?new Date():null,completed?userId:null,period.id],
+    );
+    return { ok:true };
+  }
+  throw new Error('عملیات تسویه شناخته نشد.');
+}
+
+app.post('/api/rpc/:name', async (c) => {
+  if (!pool) return c.json({ message: 'پایگاه داده تنظیم نشده است.' }, 503);
+  const session=await currentSession(c);
+  if(!session) return c.json({ message: 'برای ادامه وارد حساب شو.' }, 401);
+  const name=c.req.param('name');
+  if(!RPC_NAMES.has(name)) return c.json({ message: 'این عملیات در API داخلی هنوز پیاده‌سازی نشده است.' }, 501);
+  const body=await c.req.json().catch(()=>null);
+  const args=body&&typeof body==='object'&&!Array.isArray(body)&&body.args&&typeof body.args==='object'&&!Array.isArray(body.args)?body.args:{};
+  const connection=await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+    const result=name.endsWith('_operational_task')
+      ? await taskRpc(connection,name,args,session.user.id)
+      : await settlementRpc(connection,name,args,session.user.id);
+    await connection.commit();
+    return c.json({ data: result, error: null });
+  } catch(error) {
+    await connection.rollback().catch(()=>undefined);
+    const message=error instanceof Error?error.message:'اجرای عملیات ناموفق بود.';
+    return c.json({ message, error: { message } }, 422);
+  } finally {
+    connection.release();
+  }
+});
+
 app.notFound((c) => c.json({ message: 'مسیر API در نسخه داخلی پیدا نشد.' }, 404));
 app.onError((error, c) => {
   const requestId = randomBytes(8).toString('hex');
