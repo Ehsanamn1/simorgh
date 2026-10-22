@@ -133,6 +133,7 @@ CREATE TABLE IF NOT EXISTS access_requests (
   requested_role VARCHAR(16) NOT NULL,
   full_name VARCHAR(160) NOT NULL,
   organization_name VARCHAR(240) NULL,
+  email VARCHAR(320) NULL,
   phone VARCHAR(60) NULL,
   notes TEXT NULL,
   status VARCHAR(16) NOT NULL DEFAULT 'pending',
