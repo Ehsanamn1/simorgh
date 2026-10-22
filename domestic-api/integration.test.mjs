@@ -104,6 +104,30 @@ test('domestic API authenticates a provisioned MySQL user and revokes the sessio
     });
     assert.equal(deniedTable.status, 404, 'Authentication tables must not be exposed through the generic data API.');
 
+    const taskId = randomUUID();
+    await db.execute(
+      "INSERT INTO operational_tasks (id,company_id,assignee_user_id,assigned_by,title,status) VALUES (?,?,?,?,?,'pending')",
+      [taskId, companyId, userId, userId, 'Domestic CI task lifecycle'],
+    );
+    const rpc = async (name, args) => app.request('http://localhost/api/rpc/' + name, {
+      method: 'POST',
+      headers: { cookie, 'content-type': 'application/json' },
+      body: JSON.stringify({ args }),
+    });
+    const startTask = await rpc('start_operational_task', { _task: taskId });
+    assert.equal(startTask.status, 200);
+    const submitTask = await rpc('submit_operational_task', { _task: taskId, _completion_note: 'Completed by CI' });
+    assert.equal(submitTask.status, 200);
+    const reviewTask = await rpc('review_operational_task', { _task: taskId, _decision: 'approved', _review_note: 'Verified by CI' });
+    assert.equal(reviewTask.status, 200);
+    const [[taskAfterReview]] = await db.query('SELECT status,reviewed_by,reviewed_at,completion_note FROM operational_tasks WHERE id=?', [taskId]);
+    assert.equal(taskAfterReview.status, 'approved');
+    assert.equal(taskAfterReview.reviewed_by, userId);
+    assert.ok(taskAfterReview.reviewed_at);
+    assert.equal(taskAfterReview.completion_note, 'Completed by CI');
+    const invalidReview = await rpc('review_operational_task', { _task: taskId, _decision: 'rejected', _review_note: 'Too late' });
+    assert.equal(invalidReview.status, 422, 'A reviewed task cannot be transitioned a second time.');
+
     const logout = await app.request('http://localhost/api/auth/logout', { method: 'POST', headers: { cookie } });
     assert.equal(logout.status, 200);
     const afterLogout = await app.request('http://localhost/api/auth/me', { headers: { cookie } });
