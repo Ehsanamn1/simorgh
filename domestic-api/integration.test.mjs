@@ -124,6 +124,25 @@ test('domestic API authenticates a provisioned MySQL user and revokes the sessio
     assert.match(inserted.data[0].id, /^[0-9a-f-]{36}$/i);
     assert.equal(inserted.data[0].company_id, companyId);
 
+    const attemptedStatusOverride = await app.request('http://localhost/api/data/orders', {
+      method: 'POST',
+      headers: { cookie, 'content-type': 'application/json' },
+      body: JSON.stringify({ action: 'insert', values: {
+        company_id: companyId,
+        customer_id: inserted.data[0].id,
+        reference: 'CI-PROTECTED-STATUS-' + username,
+        status: 'delivered',
+      } }),
+    });
+    assert.equal(attemptedStatusOverride.status, 200);
+    const protectedOrder = await app.request('http://localhost/api/data/orders', {
+      method: 'POST',
+      headers: { cookie, 'content-type': 'application/json' },
+      body: JSON.stringify({ action: 'select', filters: [{ column: 'reference', op: 'eq', value: 'CI-PROTECTED-STATUS-' + username }] }),
+    });
+    assert.equal(protectedOrder.status, 200);
+    assert.equal((await protectedOrder.json()).data[0].status, 'draft', 'Generic CRUD must not bypass protected order-state transitions.');
+
     const selectCustomers = await app.request('http://localhost/api/data/customers', {
       method: 'POST',
       headers: { cookie, 'content-type': 'application/json' },
