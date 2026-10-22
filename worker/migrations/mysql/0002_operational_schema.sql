@@ -612,3 +612,11 @@ CREATE TABLE IF NOT EXISTS company_goals (
   CONSTRAINT fk_company_goals_created_by FOREIGN KEY (created_by) REFERENCES medar_users(id) ON DELETE SET NULL,
   CONSTRAINT fk_company_goals_updated_by FOREIGN KEY (updated_by) REFERENCES medar_users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- Membership references are added after the customer/supplier tables exist.
+ALTER TABLE memberships
+  ADD CONSTRAINT memberships_customer_fk
+  FOREIGN KEY (company_id, customer_id) REFERENCES customers(company_id, id) ON DELETE RESTRICT;
+ALTER TABLE memberships
+  ADD CONSTRAINT memberships_supplier_fk
+  FOREIGN KEY (company_id, supplier_id) REFERENCES suppliers(company_id, id) ON DELETE RESTRICT;
