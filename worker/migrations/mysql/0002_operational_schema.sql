@@ -35,7 +35,7 @@ CREATE TABLE IF NOT EXISTS products (
 CREATE TABLE IF NOT EXISTS price_agreements (
   id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL PRIMARY KEY, company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
   customer_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL, product_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-  min_qty integer not null default 1 check(min_qty>0), valid_from date not null default current_date, valid_to date,
+  min_qty integer not null default 1 check(min_qty>0), valid_from date not null DEFAULT (CURRENT_DATE), valid_to date,
   created_at DATETIME(3) not null DEFAULT CURRENT_TIMESTAMP(3), created_by CHAR(36) CHARACTER SET ascii COLLATE ascii_bin,
   foreign key(company_id,customer_id) references customers(company_id,id) on delete cascade,
   foreign key(company_id,product_id) references products(company_id,id) on delete cascade,
@@ -431,7 +431,7 @@ CREATE TABLE IF NOT EXISTS partner_financial_entries (
   is_shared_cost boolean not null default false,
   paid_by TEXT not null default 'none' check (paid_by in ('none','company','partner','customer','vendor','third_party')),
   payment_status TEXT not null default 'not_applicable' check (payment_status in ('not_applicable','unpaid','partial','paid')),
-  recognized_on date not null default current_date,
+  recognized_on date not null DEFAULT (CURRENT_DATE),
   external_reference VARCHAR(160),
   source_table TEXT,
   source_record_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin,
