@@ -72,6 +72,9 @@ try {
   );
   const operationalFound = new Set(operationalRows.map(row => String(row.TABLE_NAME).toLowerCase()));
   for (const table of operationalRequired) assert(operationalFound.has(table), 'Missing MySQL operational table: ' + table);
+  for (let index = 0; index < operationalStatements.length; index += 1) {
+    await db.query(operationalStatements[index]);
+  }
 
   const required = ['medar_users','medar_sessions','medar_login_attempts','medar_rate_limits','medar_audit_log','companies','profiles','memberships','company_owners','access_requests','pending_access_request_guards'];
   const [rows] = await db.query(
