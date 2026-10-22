@@ -48,6 +48,31 @@ try {
       throw new Error('MySQL migration statement ' + (index + 1) + '/' + statements.length + ' failed: ' + preview + String.fromCharCode(10) + error.message + diagnostic);
     }
   }
+  const operationalSql = await readFile(new URL('../worker/migrations/mysql/0002_operational_schema.sql', import.meta.url), 'utf8');
+  const operationalStatements = operationalSql.split(String.fromCharCode(10))
+    .filter(line => !line.trim().startsWith('--'))
+    .join(String.fromCharCode(10))
+    .split(';').map(part => part.trim()).filter(Boolean);
+  for (let index = 0; index < operationalStatements.length; index += 1) {
+    try {
+      await db.query(operationalStatements[index]);
+    } catch (error) {
+      const preview = operationalStatements[index].split(String.fromCharCode(10)).join(' ').slice(0, 180);
+      let diagnostics = '';
+      try {
+        const [warnings] = await db.query('SHOW WARNINGS');
+        if (warnings.length) diagnostics = String.fromCharCode(10) + JSON.stringify(warnings);
+      } catch {}
+      throw new Error('MySQL operational migration statement ' + (index + 1) + '/' + operationalStatements.length + ' failed: ' + preview + String.fromCharCode(10) + error.message + diagnostics);
+    }
+  }
+  const operationalRequired = ['customers','suppliers','products','price_agreements','orders','order_items','capacity_commitments','lots','quality_reviews','shipments','delivery_evidence','invoices','settlements','notifications','audit_events','farm_sites','partnership_agreements','flock_cycles','production_batches','daily_production_records','task_templates','operational_tasks','task_evidence','operational_incidents','partner_financial_entries','partner_settlement_periods','shipment_locations','inventory_movements','company_goals'];
+  const [operationalRows] = await db.query(
+    'SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_TYPE = \'BASE TABLE\'',
+  );
+  const operationalFound = new Set(operationalRows.map(row => String(row.TABLE_NAME).toLowerCase()));
+  for (const table of operationalRequired) assert(operationalFound.has(table), 'Missing MySQL operational table: ' + table);
+
   const required = ['medar_users','medar_sessions','medar_login_attempts','medar_rate_limits','medar_audit_log','companies','profiles','memberships','company_owners','access_requests','pending_access_request_guards'];
   const [rows] = await db.query(
     'SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_TYPE = \'BASE TABLE\'',
@@ -108,7 +133,7 @@ try {
     error => error?.code === 'ER_DUP_ENTRY',
     'Only one pending request per company/user may be guarded at once.',
   );
-  console.log('Medar MySQL foundation passed:', required.length, 'tables,', constraints.length, 'foreign keys, owner and pending-request uniqueness semantics.');
+  console.log('Medar MySQL schema passed:', required.length + operationalRequired.length, 'identity + operational tables,', constraints.length, 'foundation foreign keys, owner and pending-request uniqueness semantics.');
 } finally {
   await db.end();
 }
