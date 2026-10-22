@@ -114,11 +114,17 @@ ALTER TABLE memberships
   ADD CONSTRAINT memberships_user_fk FOREIGN KEY (user_id) REFERENCES medar_users(id) ON DELETE CASCADE;
 ALTER TABLE memberships
   ADD CONSTRAINT memberships_created_by_fk FOREIGN KEY (created_by) REFERENCES medar_users(id) ON DELETE SET NULL;
-ALTER TABLE memberships
-  ADD COLUMN active_owner_company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin
-    GENERATED ALWAYS AS (CASE WHEN active = TRUE AND role = 'owner' THEN company_id ELSE NULL END) STORED;
-ALTER TABLE memberships
-  ADD UNIQUE KEY memberships_one_active_owner_per_company_idx (active_owner_company_id);
+-- Explicit owner registry avoids MySQL generated-column ALTER issues and
+-- enforces at most one registered owner per company through the primary key.
+-- Application owner changes must update this table and memberships in one transaction.
+CREATE TABLE IF NOT EXISTS company_owners (
+  company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL PRIMARY KEY,
+  owner_user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  CONSTRAINT company_owners_company_fk FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE,
+  CONSTRAINT company_owners_user_fk FOREIGN KEY (owner_user_id) REFERENCES medar_users(id) ON DELETE RESTRICT,
+  UNIQUE KEY company_owners_user_unique (owner_user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS access_requests (
   id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL DEFAULT (UUID()) PRIMARY KEY,
@@ -134,16 +140,26 @@ CREATE TABLE IF NOT EXISTS access_requests (
   reviewed_at DATETIME(3) NULL,
   created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
-  pending_company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin GENERATED ALWAYS AS (
-    CASE WHEN status = 'pending' THEN company_id ELSE NULL END
-  ) STORED,
   CONSTRAINT access_requests_role_chk CHECK (requested_role IN ('customer','supplier','driver','staff')),
   CONSTRAINT access_requests_name_chk CHECK (CHAR_LENGTH(TRIM(full_name)) BETWEEN 2 AND 160),
   CONSTRAINT access_requests_status_chk CHECK (status IN ('pending','approved','rejected')),
   CONSTRAINT access_requests_company_fk FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE,
   CONSTRAINT access_requests_user_fk FOREIGN KEY (user_id) REFERENCES medar_users(id) ON DELETE CASCADE,
   CONSTRAINT access_requests_reviewer_fk FOREIGN KEY (reviewed_by) REFERENCES medar_users(id) ON DELETE SET NULL,
-  UNIQUE KEY access_requests_one_pending_per_user_company_idx (pending_company_id, user_id),
   KEY access_requests_company_status_created_idx (company_id, status, created_at DESC),
   KEY access_requests_user_status_idx (user_id, status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- Insert/delete this guard in the same transaction as a request entering/leaving
+-- pending status. Its primary key prevents two simultaneous pending requests.
+CREATE TABLE IF NOT EXISTS pending_access_request_guards (
+  company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  access_request_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (company_id, user_id),
+  UNIQUE KEY pending_access_request_guard_request_unique (access_request_id),
+  CONSTRAINT pending_access_guard_company_fk FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE,
+  CONSTRAINT pending_access_guard_user_fk FOREIGN KEY (user_id) REFERENCES medar_users(id) ON DELETE CASCADE,
+  CONSTRAINT pending_access_guard_request_fk FOREIGN KEY (access_request_id) REFERENCES access_requests(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
