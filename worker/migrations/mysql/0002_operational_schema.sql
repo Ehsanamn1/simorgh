@@ -163,6 +163,7 @@ CREATE TABLE IF NOT EXISTS notifications (
   id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL DEFAULT (UUID()) PRIMARY KEY, company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
   user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null, title VARCHAR(180) NOT NULL, body VARCHAR(4000), href VARCHAR(1000), dedupe_key VARCHAR(240),
   read_at DATETIME(3), created_at DATETIME(3) not null DEFAULT CURRENT_TIMESTAMP(3),
+  UNIQUE KEY notifications_company_id_unique (company_id,id),
   UNIQUE KEY notifications_dedupe_uq (company_id,user_id,dedupe_key),
   CONSTRAINT fk_notifications_company_id FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE,
   CONSTRAINT fk_notifications_user_id FOREIGN KEY (user_id) REFERENCES medar_users(id) ON DELETE CASCADE
