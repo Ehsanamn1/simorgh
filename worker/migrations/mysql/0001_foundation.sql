@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS medar_users (
   id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL DEFAULT (UUID()) PRIMARY KEY,
   username VARCHAR(32) NOT NULL,
   username_normalized VARCHAR(32) NOT NULL,
-  phone_e164 VARCHAR(40) NOT NULL,
+  phone_e164 VARCHAR(40) NULL,
   display_name VARCHAR(160) NOT NULL,
   password_hash TEXT NOT NULL,
   requested_role VARCHAR(16) NOT NULL DEFAULT 'customer',
@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS medar_users (
   CONSTRAINT medar_users_username_chk CHECK (CHAR_LENGTH(TRIM(username)) BETWEEN 3 AND 32),
   CONSTRAINT medar_users_username_normalized_chk CHECK (CHAR_LENGTH(username_normalized) BETWEEN 3 AND 32),
   CONSTRAINT medar_users_display_name_chk CHECK (CHAR_LENGTH(TRIM(display_name)) BETWEEN 2 AND 160),
-  CONSTRAINT medar_users_requested_role_chk CHECK (requested_role IN ('owner','customer','supplier','driver','staff')),
+  CONSTRAINT medar_users_requested_role_chk CHECK (requested_role IN ('owner','admin','customer','supplier','driver','staff')),
   CONSTRAINT medar_users_account_status_chk CHECK (account_status IN ('active','locked','disabled')),
   UNIQUE KEY medar_users_username_unique (username_normalized),
   UNIQUE KEY medar_users_phone_unique (phone_e164)
@@ -89,7 +89,7 @@ CREATE TABLE IF NOT EXISTS companies (
 CREATE TABLE IF NOT EXISTS profiles (
   id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL PRIMARY KEY,
   full_name VARCHAR(160) NOT NULL,
-  phone VARCHAR(60) NOT NULL,
+  phone VARCHAR(60) NULL,
   created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
   CONSTRAINT profiles_user_fk FOREIGN KEY (id) REFERENCES medar_users(id) ON DELETE CASCADE
