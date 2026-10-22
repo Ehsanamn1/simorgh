@@ -214,7 +214,7 @@ CREATE TABLE IF NOT EXISTS partnership_agreements (
   check (effective_to is null or effective_to >= effective_from),
   check ((status <> 'active') or (signed_at is not null and signed_document_path is not null and approved_by is not null and approved_at is not null and JSON_LENGTH(shared_expense_categories)>0)),
   CONSTRAINT fk_partnership_agreements_company_id FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE,
-  CONSTRAINT fk_partnership_agreements_approved_by FOREIGN KEY (approved_by) REFERENCES medar_users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_partnership_agreements_approved_by FOREIGN KEY (approved_by) REFERENCES medar_users(id) ON DELETE RESTRICT,
   CONSTRAINT fk_partnership_agreements_created_by FOREIGN KEY (created_by) REFERENCES medar_users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
@@ -328,7 +328,7 @@ CREATE TABLE IF NOT EXISTS task_templates (
   unique(company_id,template_code,version),
   check ((status <> 'approved') or (approved_by is not null and approved_at is not null)),
   CONSTRAINT fk_task_templates_company_id FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE,
-  CONSTRAINT fk_task_templates_approved_by FOREIGN KEY (approved_by) REFERENCES medar_users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_task_templates_approved_by FOREIGN KEY (approved_by) REFERENCES medar_users(id) ON DELETE RESTRICT,
   CONSTRAINT fk_task_templates_created_by FOREIGN KEY (created_by) REFERENCES medar_users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
@@ -367,7 +367,7 @@ CREATE TABLE IF NOT EXISTS operational_tasks (
   CONSTRAINT fk_operational_tasks_company_id FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE,
   CONSTRAINT fk_operational_tasks_assignee_user_id FOREIGN KEY (assignee_user_id) REFERENCES medar_users(id) ON DELETE SET NULL,
   CONSTRAINT fk_operational_tasks_assigned_by FOREIGN KEY (assigned_by) REFERENCES medar_users(id) ON DELETE SET NULL,
-  CONSTRAINT fk_operational_tasks_reviewed_by FOREIGN KEY (reviewed_by) REFERENCES medar_users(id) ON DELETE SET NULL
+  CONSTRAINT fk_operational_tasks_reviewed_by FOREIGN KEY (reviewed_by) REFERENCES medar_users(id) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS task_evidence (
@@ -419,7 +419,7 @@ CREATE TABLE IF NOT EXISTS operational_incidents (
   check (status not in ('resolved','closed') or (resolved_by is not null and resolved_at is not null)),
   CONSTRAINT fk_operational_incidents_company_id FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE,
   CONSTRAINT fk_operational_incidents_reported_by FOREIGN KEY (reported_by) REFERENCES medar_users(id) ON DELETE SET NULL,
-  CONSTRAINT fk_operational_incidents_resolved_by FOREIGN KEY (resolved_by) REFERENCES medar_users(id) ON DELETE SET NULL
+  CONSTRAINT fk_operational_incidents_resolved_by FOREIGN KEY (resolved_by) REFERENCES medar_users(id) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS partner_financial_entries (
@@ -474,7 +474,7 @@ CREATE TABLE IF NOT EXISTS partner_financial_entries (
   CONSTRAINT fk_partner_financial_entries_company_id FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE,
   CONSTRAINT fk_partner_financial_entries_submitted_by FOREIGN KEY (submitted_by) REFERENCES medar_users(id) ON DELETE SET NULL,
   CONSTRAINT fk_partner_financial_entries_approved_by FOREIGN KEY (approved_by) REFERENCES medar_users(id) ON DELETE SET NULL,
-  CONSTRAINT fk_partner_financial_entries_posted_by FOREIGN KEY (posted_by) REFERENCES medar_users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_partner_financial_entries_posted_by FOREIGN KEY (posted_by) REFERENCES medar_users(id) ON DELETE RESTRICT,
   CONSTRAINT fk_partner_financial_entries_created_by FOREIGN KEY (created_by) REFERENCES medar_users(id) ON DELETE SET NULL
 ,
   CHECK (paid_amount <= amount)
@@ -521,8 +521,8 @@ CREATE TABLE IF NOT EXISTS partner_settlement_periods (
   check (status <> 'approved' or (approved_by is not null and approved_at is not null)),
   check (status <> 'settled' or (settled_by is not null and settled_at is not null)),
   CONSTRAINT fk_partner_settlement_periods_company_id FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE,
-  CONSTRAINT fk_partner_settlement_periods_approved_by FOREIGN KEY (approved_by) REFERENCES medar_users(id) ON DELETE SET NULL,
-  CONSTRAINT fk_partner_settlement_periods_settled_by FOREIGN KEY (settled_by) REFERENCES medar_users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_partner_settlement_periods_approved_by FOREIGN KEY (approved_by) REFERENCES medar_users(id) ON DELETE RESTRICT,
+  CONSTRAINT fk_partner_settlement_periods_settled_by FOREIGN KEY (settled_by) REFERENCES medar_users(id) ON DELETE RESTRICT,
   CONSTRAINT fk_partner_settlement_periods_created_by FOREIGN KEY (created_by) REFERENCES medar_users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
