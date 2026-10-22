@@ -105,9 +105,16 @@ try {
       try {
         const [statusRows] = await db.query('SHOW ENGINE INNODB STATUS');
         const status = String(statusRows?.[0]?.Status || '');
-        const foreignKeyError = status.slice(status.lastIndexOf('LATEST FOREIGN KEY ERROR'), status.lastIndexOf('LATEST FOREIGN KEY ERROR') + 3500);
-        diagnostics += String.fromCharCode(10) + 'InnoDB status length: ' + status.length + String.fromCharCode(10) + 'InnoDB: ' + (foreignKeyError || status.slice(0, 2500));
+        const marker = status.lastIndexOf('LATEST FOREIGN KEY ERROR');
+        const foreignKeyError = marker >= 0 ? status.slice(marker, marker + 3500) : '';
+        diagnostics += String.fromCharCode(10) + 'InnoDB status length: ' + status.length + String.fromCharCode(10) + 'InnoDB: ' + (foreignKeyError || status.slice(-3000));
       } catch (diagnosticError) { diagnostics += String.fromCharCode(10) + 'InnoDB diagnostics unavailable: ' + diagnosticError.message; }
+      for (const tableName of ['companies','medar_users','medar_ai_provider_configs']) {
+        try {
+          const [createRows] = await db.query('SHOW CREATE TABLE `' + tableName + '`');
+          diagnostics += String.fromCharCode(10) + 'SHOW CREATE ' + tableName + ': ' + String(createRows?.[0]?.['Create Table'] || '').slice(0, 1800);
+        } catch (diagnosticError) { diagnostics += String.fromCharCode(10) + 'SHOW CREATE ' + tableName + ' unavailable: ' + diagnosticError.message; }
+      }
       throw new Error('MySQL extended migration statement ' + (index + 1) + '/' + extendedStatements.length + ' failed: ' + preview + String.fromCharCode(10) + error.message + diagnostics);
     }
   }
