@@ -17,21 +17,28 @@ let sessionCookie = '';
 
 after(async () => {
   if (!db) return;
+  console.log('[medar-integration] cleanup:start');
   try {
+    console.log('[medar-integration] cleanup:sessions');
     await db.execute('DELETE FROM medar_sessions WHERE user_id=?', [userId]);
     await db.execute('DELETE FROM memberships WHERE id=?', [membershipId]);
     await db.execute('DELETE FROM medar_audit_log WHERE actor_user_id=?', [userId]);
     await db.execute('DELETE FROM medar_login_attempts WHERE username_normalized=?', [username]);
     await db.execute('DELETE FROM medar_users WHERE id=?', [userId]);
     await db.execute('DELETE FROM companies WHERE id=?', [companyId]);
+    console.log('[medar-integration] cleanup:rows-deleted');
   } finally {
+    console.log('[medar-integration] cleanup:close-test-pool');
     await db.end();
+    console.log('[medar-integration] cleanup:close-app-pool');
     await closePool();
+    console.log('[medar-integration] cleanup:complete');
   }
 });
 
 test('domestic MySQL API supports health, login, session, memberships, password change and logout', { skip: !mysqlUrl, timeout: 120_000 }, async () => {
   if (!db) return;
+  console.log('[medar-integration] setup:hash-password');
   const encodedPassword = await hashPassword(password);
   await db.execute('INSERT INTO companies (id,name,province) VALUES (?,?,?)', [companyId, 'CI Medar Workspace', 'Golestan']);
   await db.execute(
@@ -43,10 +50,12 @@ test('domestic MySQL API supports health, login, session, memberships, password 
     [membershipId, companyId, userId, 'owner'],
   );
 
+  console.log('[medar-integration] request:health');
   const health = await app.request('/api/health');
   assert.equal(health.status, 200, 'health endpoint must confirm MySQL connectivity');
   assert.equal((await health.json()).database, true);
 
+  console.log('[medar-integration] request:login');
   const login = await app.request('/api/auth/login', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -58,6 +67,7 @@ test('domestic MySQL API supports health, login, session, memberships, password 
   assert.match(String(login.headers.get('set-cookie')), /HttpOnly/);
   assert.match(String(login.headers.get('set-cookie')), /SameSite=Lax/);
 
+  console.log('[medar-integration] request:me');
   const me = await app.request('/api/auth/me', { headers: { cookie: sessionCookie } });
   assert.equal(me.status, 200);
   const mePayload = await me.json();
@@ -67,10 +77,12 @@ test('domestic MySQL API supports health, login, session, memberships, password 
   assert.equal(mePayload.memberships[0].id, membershipId);
   assert.equal(mePayload.memberships[0].company.name, 'CI Medar Workspace');
 
+  console.log('[medar-integration] request:memberships');
   const membershipList = await app.request('/api/workspace/memberships', { headers: { cookie: sessionCookie } });
   assert.equal(membershipList.status, 200);
   assert.equal((await membershipList.json()).memberships.length, 1);
 
+  console.log('[medar-integration] request:password-change');
   const changed = await app.request('/api/auth/password/change', {
     method: 'POST',
     headers: { 'content-type': 'application/json', cookie: sessionCookie },
@@ -80,10 +92,12 @@ test('domestic MySQL API supports health, login, session, memberships, password 
   const [sessions] = await db.execute('SELECT revoked_at FROM medar_sessions WHERE user_id=?', [userId]);
   assert.ok(sessions.some(row => row.revoked_at === null), 'password change should keep the current session while revoking other sessions');
 
+  console.log('[medar-integration] request:logout');
   const logout = await app.request('/api/auth/logout', {
     method: 'POST',
     headers: { cookie: sessionCookie },
   });
   assert.equal(logout.status, 200);
   assert.match(String(logout.headers.get('set-cookie')), /Max-Age=0/);
+  console.log('[medar-integration] test:complete');
 });
