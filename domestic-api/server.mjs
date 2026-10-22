@@ -374,6 +374,204 @@ app.post('/api/workspace/members/create', async (c) => {
   }
 });
 
+const MEMBER_PERMISSION_CATALOG = [
+  { key: 'home', label: 'صفحه اصلی و کارهای روزانه' },
+  { key: 'command', label: 'مرکز فرمان و گزارش‌ها' },
+  { key: 'agents', label: 'دستیار و مرکز ایجنت‌ها' },
+  { key: 'contacts', label: 'دفترچه مخاطبین و واردکردن مخاطب' },
+  { key: 'customers', label: 'مشتریان و قراردادهای مشتری' },
+  { key: 'suppliers', label: 'تأمین‌کنندگان و ظرفیت' },
+  { key: 'orders', label: 'سفارش‌ها و اقلام سفارش' },
+  { key: 'purchase-orders', label: 'خرید و سفارش خرید' },
+  { key: 'products', label: 'محصولات و کاتالوگ' },
+  { key: 'inventory', label: 'موجودی و گردش انبار' },
+  { key: 'capacity', label: 'ظرفیت و تعهد تأمین' },
+  { key: 'quality', label: 'کیفیت و کنترل محموله' },
+  { key: 'shipments', label: 'حمل‌ونقل، رانندگان و مدارک' },
+  { key: 'finance', label: 'امور مالی و تسویه‌ها' },
+  { key: 'farm-sites', label: 'سایت‌ها و نقشه' },
+  { key: 'flock-cycles', label: 'چرخه‌های کشت و پرورش' },
+  { key: 'production-batches', label: 'دوره‌های تولید' },
+  { key: 'daily-production', label: 'ثبت روزانهٔ تولید' },
+  { key: 'operational-tasks', label: 'وظایف و شواهد کار' },
+  { key: 'task-templates', label: 'الگوهای وظیفه' },
+  { key: 'incidents', label: 'رخدادها و مغایرت‌ها' },
+  { key: 'partnership-agreements', label: 'قراردادهای مشارکت' },
+  { key: 'partner-finance', label: 'دفتر مالی شریک' },
+  { key: 'partner-settlements', label: 'دوره‌ها و تسویهٔ شریک' },
+  { key: 'goals', label: 'اهداف و برنامه' },
+  { key: 'members', label: 'اعضا و دسترسی‌ها' },
+  { key: 'audit', label: 'تاریخچه و ممیزی' },
+];
+const MEMBER_PERMISSION_KEYS = new Set(MEMBER_PERMISSION_CATALOG.map((module) => module.key));
+
+app.get('/api/workspace/members', async (c) => {
+  if (!pool) return c.json({ message: 'پایگاه داده تنظیم نشده است.' }, 503);
+  const session = await currentSession(c);
+  if (!session) return c.json({ message: 'برای ادامه وارد حساب شو.' }, 401);
+  const companyId = c.req.query('companyId') ?? '';
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  if (!uuidPattern.test(companyId)) return c.json({ message: 'شناسه مجموعه معتبر نیست.' }, 422);
+  const [actorRows] = await pool.execute('SELECT role FROM memberships WHERE user_id=? AND company_id=? AND active=TRUE LIMIT 1', [session.user.id, companyId]);
+  const actorRole = actorRows[0]?.role;
+  if (!actorRole || !['owner', 'admin'].includes(String(actorRole))) return c.json({ message: 'برای مدیریت اعضا دسترسی مالک یا مدیر لازم است.' }, 403);
+  const [rows] = await pool.execute(
+    'SELECT m.id AS membership_id, m.company_id, m.user_id, m.role, m.active, m.created_at, m.supplier_id, m.customer_id, ' +
+    'u.username, u.phone_e164 AS phone, u.display_name AS full_name, u.last_login_at, u.account_status, s.name AS supplier_name ' +
+    'FROM memberships m JOIN medar_users u ON u.id=m.user_id ' +
+    'LEFT JOIN suppliers s ON s.id=m.supplier_id AND s.company_id=m.company_id ' +
+    'WHERE m.company_id=? ORDER BY CASE m.role WHEN \'owner\' THEN 0 WHEN \'admin\' THEN 1 ELSE 2 END, m.created_at',
+    [companyId],
+  );
+  return c.json({ members: rows.map((row) => ({ ...row, active: Boolean(row.active) })) });
+});
+
+app.post('/api/workspace/members/deactivate', async (c) => {
+  if (!pool) return c.json({ message: 'پایگاه داده تنظیم نشده است.' }, 503);
+  const session = await currentSession(c);
+  if (!session) return c.json({ message: 'برای ادامه وارد حساب شو.' }, 401);
+  const body = await c.req.json().catch(() => null);
+  const companyId = typeof body?.companyId === 'string' ? body.companyId : '';
+  const membershipId = typeof body?.membershipId === 'string' ? body.membershipId : '';
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  if (!uuidPattern.test(companyId) || !uuidPattern.test(membershipId)) return c.json({ message: 'شناسه مجموعه یا عضویت معتبر نیست.' }, 422);
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+    const [actorRows] = await connection.execute('SELECT role FROM memberships WHERE user_id=? AND company_id=? AND active=TRUE LIMIT 1 FOR UPDATE', [session.user.id, companyId]);
+    const actorRole = actorRows[0]?.role;
+    if (!actorRole || !['owner', 'admin'].includes(String(actorRole))) { await connection.rollback(); return c.json({ message: 'برای مدیریت اعضا دسترسی مالک یا مدیر لازم است.' }, 403); }
+    const [targetRows] = await connection.execute('SELECT id, role, active FROM memberships WHERE id=? AND company_id=? LIMIT 1 FOR UPDATE', [membershipId, companyId]);
+    const target = targetRows[0];
+    if (!target || !Boolean(target.active)) { await connection.rollback(); return c.json({ message: 'عضویت فعال در این مجموعه پیدا نشد.' }, 404); }
+    if (String(target.role) === 'owner') { await connection.rollback(); return c.json({ message: 'دسترسی مالک را نمی‌توان از این صفحه غیرفعال کرد.' }, 403); }
+    if (String(target.role) === 'admin' && actorRole !== 'owner') { await connection.rollback(); return c.json({ message: 'فقط مالک می‌تواند دسترسی مدیر را غیرفعال کند.' }, 403); }
+    await connection.execute('UPDATE memberships SET active=FALSE WHERE id=? AND company_id=?', [membershipId, companyId]);
+    await connection.execute('INSERT INTO medar_audit_log (actor_user_id, action, entity_type, entity_id, metadata) VALUES (?, ?, ?, ?, JSON_OBJECT(\'company_id\', ?))', [session.user.id, 'membership.deactivated', 'membership', membershipId, companyId]);
+    await connection.commit();
+    return c.json({ ok: true });
+  } catch (error) {
+    await connection.rollback().catch(() => undefined);
+    const code = error && typeof error === 'object' ? error.code : undefined;
+    console.error('Domestic member deactivation failed', { code: typeof code === 'string' ? code : 'unknown' });
+    return c.json({ message: 'غیرفعال‌سازی عضویت کامل نشد. دوباره تلاش کن.' }, 500);
+  } finally { connection.release(); }
+});
+
+app.post('/api/workspace/members/reset-password', async (c) => {
+  if (!pool) return c.json({ message: 'پایگاه داده تنظیم نشده است.' }, 503);
+  const session = await currentSession(c);
+  if (!session) return c.json({ message: 'برای ادامه وارد حساب شو.' }, 401);
+  const body = await c.req.json().catch(() => null);
+  const companyId = typeof body?.companyId === 'string' ? body.companyId : '';
+  const membershipId = typeof body?.membershipId === 'string' ? body.membershipId : '';
+  const newPassword = typeof body?.newPassword === 'string' ? body.newPassword : '';
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  if (!uuidPattern.test(companyId) || !uuidPattern.test(membershipId)) return c.json({ message: 'شناسه مجموعه یا عضویت معتبر نیست.' }, 422);
+  if (newPassword.length < 12 || newPassword.length > 128) return c.json({ message: 'گذرواژه موقت باید بین ۱۲ تا ۱۲۸ نویسه باشد.' }, 422);
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+    const [actorRows] = await connection.execute('SELECT role FROM memberships WHERE user_id=? AND company_id=? AND active=TRUE LIMIT 1 FOR UPDATE', [session.user.id, companyId]);
+    const actorRole = actorRows[0]?.role;
+    if (!actorRole || !['owner', 'admin'].includes(String(actorRole))) { await connection.rollback(); return c.json({ message: 'فقط مالک یا مدیر می‌تواند گذرواژه عضو را بازنشانی کند.' }, 403); }
+    const [targetRows] = await connection.execute('SELECT user_id, role, active FROM memberships WHERE id=? AND company_id=? LIMIT 1 FOR UPDATE', [membershipId, companyId]);
+    const target = targetRows[0];
+    if (!target || !Boolean(target.active)) { await connection.rollback(); return c.json({ message: 'عضویت فعال در این مجموعه پیدا نشد.' }, 404); }
+    if (String(target.role) === 'owner') { await connection.rollback(); return c.json({ message: 'گذرواژه مالک از این مسیر بازنشانی نمی‌شود.' }, 403); }
+    if (String(target.role) === 'admin' && actorRole !== 'owner') { await connection.rollback(); return c.json({ message: 'فقط مالک می‌تواند گذرواژه مدیر دیگری را بازنشانی کند.' }, 403); }
+    const encoded = await hashPassword(newPassword);
+    await connection.execute('UPDATE medar_users SET password_hash=?, updated_at=NOW(3) WHERE id=?', [encoded, target.user_id]);
+    await connection.execute('UPDATE medar_sessions SET revoked_at=NOW(3) WHERE user_id=? AND revoked_at IS NULL', [target.user_id]);
+    await connection.execute('INSERT INTO medar_audit_log (actor_user_id, action, entity_type, entity_id, metadata) VALUES (?, ?, ?, ?, JSON_OBJECT(\'company_id\', ?, \'target_user_id\', ?))', [session.user.id, 'member.password_reset', 'membership', membershipId, companyId, target.user_id]);
+    await connection.commit();
+    return c.json({ ok: true, message: 'گذرواژه بازنشانی شد و نشست‌های قبلی عضو بسته شدند.' });
+  } catch (error) {
+    await connection.rollback().catch(() => undefined);
+    const code = error && typeof error === 'object' ? error.code : undefined;
+    console.error('Domestic member password reset failed', { code: typeof code === 'string' ? code : 'unknown' });
+    return c.json({ message: 'بازنشانی گذرواژه کامل نشد. دوباره تلاش کن.' }, 500);
+  } finally { connection.release(); }
+});
+
+app.get('/api/workspace/members/:membershipId/permissions', async (c) => {
+  if (!pool) return c.json({ message: 'پایگاه داده تنظیم نشده است.' }, 503);
+  const session = await currentSession(c);
+  if (!session) return c.json({ message: 'برای ادامه وارد حساب شو.' }, 401);
+  const companyId = c.req.query('companyId') ?? '';
+  const membershipId = c.req.param('membershipId');
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  if (!uuidPattern.test(companyId) || !uuidPattern.test(membershipId)) return c.json({ message: 'شناسه مجموعه یا عضویت معتبر نیست.' }, 422);
+  const [actorRows] = await pool.execute('SELECT role FROM memberships WHERE user_id=? AND company_id=? AND active=TRUE LIMIT 1', [session.user.id, companyId]);
+  const actorRole = actorRows[0]?.role;
+  if (!actorRole || !['owner', 'admin'].includes(String(actorRole))) return c.json({ message: 'فقط مالک یا مدیر می‌تواند مجوزهای اعضا را مدیریت کند.' }, 403);
+  const [targetRows] = await pool.execute('SELECT id AS membership_id, role, active FROM memberships WHERE id=? AND company_id=? LIMIT 1', [membershipId, companyId]);
+  const target = targetRows[0];
+  if (!target || !Boolean(target.active)) return c.json({ message: 'عضویت فعال در این مجموعه پیدا نشد.' }, 404);
+  if (['owner', 'admin'].includes(String(target.role))) return c.json({ message: 'مجوزهای مالک و مدیر از این صفحه قابل محدودکردن نیستند.' }, 403);
+  const [savedRows] = await pool.execute('SELECT module_key, inherit_role_defaults, can_read, can_create, can_update, can_delete, can_approve FROM medar_membership_module_permissions WHERE company_id=? AND membership_id=?', [companyId, membershipId]);
+  const saved = new Map(savedRows.map((row) => [String(row.module_key), row]));
+  const modules = MEMBER_PERMISSION_CATALOG.map((module) => {
+    const row = saved.get(module.key);
+    const configured = Boolean(row && !Boolean(row.inherit_role_defaults));
+    return { key: module.key, label: module.label, configured,
+      can_read: configured ? Boolean(row.can_read) : true, can_create: configured ? Boolean(row.can_create) : true,
+      can_update: configured ? Boolean(row.can_update) : true, can_delete: configured ? Boolean(row.can_delete) : false,
+      can_approve: configured ? Boolean(row.can_approve) : false };
+  });
+  return c.json({ companyId, membership: { id: target.membership_id, role: target.role }, modules });
+});
+
+app.post('/api/workspace/members/:membershipId/permissions', async (c) => {
+  if (!pool) return c.json({ message: 'پایگاه داده تنظیم نشده است.' }, 503);
+  const session = await currentSession(c);
+  if (!session) return c.json({ message: 'برای ادامه وارد حساب شو.' }, 401);
+  const body = await c.req.json().catch(() => null);
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return c.json({ message: 'درخواست مجوزها معتبر نیست.' }, 400);
+  const companyId = typeof body.companyId === 'string' ? body.companyId : '';
+  const membershipId = c.req.param('membershipId');
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  if (!uuidPattern.test(companyId) || !uuidPattern.test(membershipId)) return c.json({ message: 'شناسه مجموعه یا عضویت معتبر نیست.' }, 422);
+  if (!Array.isArray(body.modules) || body.modules.length !== MEMBER_PERMISSION_CATALOG.length) return c.json({ message: 'همه ماژول‌ها باید در درخواست مجوز حضور داشته باشند.' }, 422);
+  const seen = new Set();
+  const modules = [];
+  for (const item of body.modules) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) return c.json({ message: 'ساختار یک مجوز معتبر نیست.' }, 422);
+    const key = typeof item.key === 'string' ? item.key : '';
+    if (!MEMBER_PERMISSION_KEYS.has(key) || seen.has(key)) return c.json({ message: 'کلید ماژول ناشناخته یا تکراری است.' }, 422);
+    if (['configured','can_read','can_create','can_update','can_delete','can_approve'].some((field) => typeof item[field] !== 'boolean')) return c.json({ message: 'تمام مجوزها باید مقدار روشن یا خاموش داشته باشند.' }, 422);
+    seen.add(key);
+    modules.push({ key, configured: item.configured, can_read: item.can_read, can_create: item.can_create, can_update: item.can_update, can_delete: item.can_delete, can_approve: item.can_approve });
+  }
+  if (seen.size !== MEMBER_PERMISSION_CATALOG.length) return c.json({ message: 'همه ماژول‌ها باید دقیقاً یک بار ارسال شوند.' }, 422);
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+    const [actorRows] = await connection.execute('SELECT role FROM memberships WHERE user_id=? AND company_id=? AND active=TRUE LIMIT 1 FOR UPDATE', [session.user.id, companyId]);
+    const actorRole = actorRows[0]?.role;
+    if (!actorRole || !['owner', 'admin'].includes(String(actorRole))) { await connection.rollback(); return c.json({ message: 'فقط مالک یا مدیر می‌تواند مجوزهای اعضا را مدیریت کند.' }, 403); }
+    const [targetRows] = await connection.execute('SELECT role, active FROM memberships WHERE id=? AND company_id=? LIMIT 1 FOR UPDATE', [membershipId, companyId]);
+    const target = targetRows[0];
+    if (!target || !Boolean(target.active)) { await connection.rollback(); return c.json({ message: 'عضویت فعال در این مجموعه پیدا نشد.' }, 404); }
+    if (['owner', 'admin'].includes(String(target.role))) { await connection.rollback(); return c.json({ message: 'مجوزهای مالک و مدیر از این صفحه قابل محدودکردن نیستند.' }, 403); }
+    for (const module of modules) {
+      await connection.execute(
+        'INSERT INTO medar_membership_module_permissions (company_id, membership_id, module_key, inherit_role_defaults, can_read, can_create, can_update, can_delete, can_approve, updated_by, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(3)) ' +
+        'ON DUPLICATE KEY UPDATE inherit_role_defaults=VALUES(inherit_role_defaults), can_read=VALUES(can_read), can_create=VALUES(can_create), can_update=VALUES(can_update), can_delete=VALUES(can_delete), can_approve=VALUES(can_approve), updated_by=VALUES(updated_by), updated_at=NOW(3)',
+        [companyId, membershipId, module.key, !module.configured, module.can_read, module.can_create, module.can_update, module.can_delete, module.can_approve, session.user.id],
+      );
+    }
+    await connection.execute('INSERT INTO medar_audit_log (actor_user_id, action, entity_type, entity_id, metadata) VALUES (?, ?, ?, ?, JSON_OBJECT(\'company_id\', ?, \'configured_modules\', ?))', [session.user.id, 'membership.permissions_updated', 'membership', membershipId, companyId, modules.filter((module) => module.configured).length]);
+    await connection.commit();
+    return c.json({ ok: true, configuredModules: modules.filter((module) => module.configured).length });
+  } catch (error) {
+    await connection.rollback().catch(() => undefined);
+    const code = error && typeof error === 'object' ? error.code : undefined;
+    console.error('Domestic member permission update failed', { code: typeof code === 'string' ? code : 'unknown' });
+    return c.json({ message: 'ذخیره مجوزهای عضو کامل نشد. دوباره تلاش کن.' }, 500);
+  } finally { connection.release(); }
+});
+
 const DATA_TABLES = new Set([
   'customers','suppliers','products','price_agreements','orders','order_items','capacity_commitments','lots',
   'shipments','delivery_evidence','invoices','settlements','notifications','farm_sites','partnership_agreements',
