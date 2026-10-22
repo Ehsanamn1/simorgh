@@ -47,7 +47,7 @@ try {
       throw new Error('MySQL migration statement ' + (index + 1) + '/' + statements.length + ' failed: ' + preview + String.fromCharCode(10) + error.message + diagnostic);
     }
   }
-  const required = ['medar_users','medar_sessions','medar_login_attempts','medar_rate_limits','medar_audit_log','companies','profiles','memberships','access_requests'];
+  const required = ['medar_users','medar_sessions','medar_login_attempts','medar_rate_limits','medar_audit_log','companies','profiles','memberships','company_owners','access_requests','pending_access_request_guards'];
   const [rows] = await db.query(
     'SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_TYPE = \'BASE TABLE\'',
   );
@@ -57,12 +57,15 @@ try {
     "SELECT TABLE_NAME, CONSTRAINT_NAME FROM information_schema.TABLE_CONSTRAINTS WHERE CONSTRAINT_SCHEMA = DATABASE() AND CONSTRAINT_TYPE = 'FOREIGN KEY'",
   );
   assert(constraints.length >= 10, 'Expected identity and tenant foreign keys to be installed.');
-  const [generated] = await db.query(
-    "SELECT TABLE_NAME, COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND EXTRA LIKE '%GENERATED%'",
+  const [ownerKeys] = await db.query(
+    "SELECT CONSTRAINT_NAME FROM information_schema.TABLE_CONSTRAINTS WHERE CONSTRAINT_SCHEMA = DATABASE() AND TABLE_NAME = 'company_owners' AND CONSTRAINT_TYPE IN ('PRIMARY KEY','UNIQUE')",
   );
-  assert(generated.some(row => row.COLUMN_NAME === 'active_owner_company_id'), 'Active-owner uniqueness guard missing.');
-  assert(generated.some(row => row.COLUMN_NAME === 'pending_company_id'), 'Pending access-request uniqueness guard missing.');
-  console.log('Medar MySQL foundation passed:', required.length, 'tables,', constraints.length, 'foreign keys,', generated.length, 'generated columns.');
+  assert(ownerKeys.length >= 2, 'Single-owner-per-company registry is missing its uniqueness guards.');
+  const [pendingKeys] = await db.query(
+    "SELECT CONSTRAINT_NAME FROM information_schema.TABLE_CONSTRAINTS WHERE CONSTRAINT_SCHEMA = DATABASE() AND TABLE_NAME = 'pending_access_request_guards' AND CONSTRAINT_TYPE IN ('PRIMARY KEY','UNIQUE')",
+  );
+  assert(pendingKeys.length >= 2, 'Pending-request concurrency guard is missing its uniqueness guards.');
+  console.log('Medar MySQL foundation passed:', required.length, 'tables,', constraints.length, 'foreign keys, owner uniqueness and pending-request guards.');
 } finally {
   await db.end();
 }
