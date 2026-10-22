@@ -846,6 +846,15 @@ app.post('/api/rpc/:name', async (c) => {
 const STORAGE_ROOT = resolve(process.env.MEDAR_STORAGE_DIR || './storage/medar');
 const STORAGE_BUCKETS = new Set(['delivery-evidence','operational-evidence','contract-documents','capacity-evidence']);
 const STORAGE_MIME_TYPES = new Set(['image/jpeg','image/png','image/webp','application/pdf','video/mp4','video/webm']);
+function matchesStorageMimeType(contentType, bytes) {
+  if (contentType === 'image/jpeg') return bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+  if (contentType === 'image/png') return bytes.length >= 8 && bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
+  if (contentType === 'image/webp') return bytes.length >= 12 && bytes.toString('ascii', 0, 4) === 'RIFF' && bytes.toString('ascii', 8, 12) === 'WEBP';
+  if (contentType === 'application/pdf') return bytes.length >= 5 && bytes.toString('ascii', 0, 5) === '%PDF-';
+  if (contentType === 'video/mp4') return bytes.length >= 12 && bytes.toString('ascii', 4, 8) === 'ftyp';
+  if (contentType === 'video/webm') return bytes.length >= 4 && bytes.subarray(0, 4).equals(Buffer.from([0x1a, 0x45, 0xdf, 0xa3]));
+  return false;
+}
 function storagePath(bucket, name) {
   if (!STORAGE_BUCKETS.has(bucket) || typeof name !== 'string' || name.length < 40 || name.length > 1000 ||
       name.includes('\\\\') || name.includes('\\0') || name.startsWith('/') || name.endsWith('/')) {
@@ -926,6 +935,7 @@ app.put('/api/storage/:bucket', async (c) => {
   if (!STORAGE_MIME_TYPES.has(contentType)) return c.json({ message: 'نوع فایل در فضای مدار مجاز نیست.' }, 415);
   const bytes = Buffer.from(await c.req.arrayBuffer());
   if (!bytes.length || bytes.length > 20 * 1024 * 1024) return c.json({ message: 'حجم فایل باید کمتر از ۲۰ مگابایت و بیشتر از صفر باشد.' }, 413);
+  if (!matchesStorageMimeType(contentType, bytes)) return c.json({ message: 'محتوای فایل با نوع اعلام‌شده مطابقت ندارد.' }, 415);
   let parsed;
   try { parsed = storagePath(bucket, name); } catch (error) { return c.json({ message: error.message }, 422); }
   if ((bucket === 'contract-documents' && contentType.startsWith('video/')) ||
