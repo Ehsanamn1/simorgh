@@ -18,6 +18,10 @@ export default tseslint.config(
     languageOptions: { globals: { ...globals.node } },
   },
   {
+    files: ['domestic-api/**/*.mjs'],
+    languageOptions: { globals: { ...globals.node } },
+  },
+  {
     files: ['public/sw.js'],
     languageOptions: {
       globals: {
