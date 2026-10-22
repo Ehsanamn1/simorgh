@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
 import mysql from 'mysql2/promise';
 
 const url = process.env.MEDAR_MYSQL_TEST_URL;
@@ -65,7 +66,29 @@ try {
     "SELECT CONSTRAINT_NAME FROM information_schema.TABLE_CONSTRAINTS WHERE CONSTRAINT_SCHEMA = DATABASE() AND TABLE_NAME = 'pending_access_request_guards' AND CONSTRAINT_TYPE IN ('PRIMARY KEY','UNIQUE')",
   );
   assert(pendingKeys.some(row => row.CONSTRAINT_NAME === 'PRIMARY'), 'Pending-request guard must have a primary key on (company_id, user_id).');
-  console.log('Medar MySQL foundation passed:', required.length, 'tables,', constraints.length, 'foreign keys, owner uniqueness and pending-request guards.');
+
+  const ownerId = randomUUID();
+  const secondOwnerId = randomUUID();
+  const companyA = randomUUID();
+  const companyB = randomUUID();
+  await db.execute(
+    'INSERT INTO medar_users (id,username,username_normalized,phone_e164,display_name,password_hash,requested_role,account_status) VALUES (?,?,?,?,?,?,?,?)',
+    [ownerId, 'mysql-owner-a', 'mysql-owner-a', '+15550000001', 'Owner One', 'ci-password-hash', 'owner', 'active'],
+  );
+  await db.execute(
+    'INSERT INTO medar_users (id,username,username_normalized,phone_e164,display_name,password_hash,requested_role,account_status) VALUES (?,?,?,?,?,?,?,?)',
+    [secondOwnerId, 'mysql-owner-b', 'mysql-owner-b', '+15550000002', 'Owner Two', 'ci-password-hash', 'owner', 'active'],
+  );
+  await db.execute('INSERT INTO companies (id,name,province) VALUES (?,?,?)', [companyA, 'CI Company A', 'Golestan']);
+  await db.execute('INSERT INTO companies (id,name,province) VALUES (?,?,?)', [companyB, 'CI Company B', 'Golestan']);
+  await db.execute('INSERT INTO company_owners (company_id,owner_user_id) VALUES (?,?)', [companyA, ownerId]);
+  await db.execute('INSERT INTO company_owners (company_id,owner_user_id) VALUES (?,?)', [companyB, ownerId]);
+  await assert.rejects(
+    db.execute('INSERT INTO company_owners (company_id,owner_user_id) VALUES (?,?)', [companyA, secondOwnerId]),
+    error => error?.code === 'ER_DUP_ENTRY',
+    'A company must not accept a second owner in the owner registry.',
+  );
+  console.log('Medar MySQL foundation passed:', required.length, 'tables,', constraints.length, 'foreign keys, one-owner-per-company semantics, and pending-request guards.');
 } finally {
   await db.end();
 }
