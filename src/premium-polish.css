@@ -1056,3 +1056,47 @@ html[data-theme="light"] .portal-signin-link:focus-visible { outline-color: #267
 @media (prefers-reduced-motion: reduce) {
   .medar-client-presence-row, .medar-system-metric { transition: none; }
 }
+
+
+/* Compact floating access tiles: less visual weight and faster scanning on phones. */
+.tower-quick-access {
+  position: relative;
+  overflow: clip;
+  box-shadow: 0 12px 32px rgb(0 0 0 / 12%), inset 0 1px rgb(255 255 255 / 3%);
+}
+.tower-quick-head { display: flex; align-items: center; justify-content: space-between; }
+.tower-quick-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; margin-top: 13px; }
+.tower-quick-grid > a {
+  min-width: 0;
+  min-height: 66px;
+  padding: 10px 11px;
+  grid-template-columns: 32px minmax(0,1fr) 12px;
+  column-gap: 8px;
+  border-radius: 12px;
+  background: linear-gradient(145deg, rgb(29 44 47 / 78%), rgb(13 21 23 / 76%));
+  box-shadow: 0 5px 14px rgb(0 0 0 / 9%), inset 0 1px rgb(255 255 255 / 3%);
+  -webkit-tap-highlight-color: transparent;
+}
+.tower-quick-grid > a:active { transform: scale(.985); }
+.tower-quick-grid > a > span { width: 32px; height: 32px; border-radius: 10px; }
+.tower-quick-grid > a > b { min-width: 0; overflow-wrap: anywhere; font-size: 11px; line-height: 1.55; }
+.tower-quick-grid > a > small { grid-column: 2; overflow-wrap: anywhere; font-size: 9px; line-height: 1.55; }
+.tower-quick-grid > a > svg { grid-column: 3; grid-row: 1 / span 2; width: 13px; }
+@media (max-width: 860px) {
+  .tower-quick-access { margin-bottom: 13px; padding: 13px; border-radius: 16px; }
+  .tower-quick-head h3 { font-size: 14px; }
+  .tower-quick-head p { font-size: 10px; line-height: 1.7; }
+  .tower-quick-grid { grid-template-columns: repeat(2, minmax(0,1fr)); gap: 7px; margin-top: 11px; }
+  .tower-quick-grid > a { min-height: 60px; padding: 9px; column-gap: 7px; }
+}
+@media (max-width: 390px) {
+  .tower-quick-grid { gap: 6px; }
+  .tower-quick-grid > a { grid-template-columns: 28px minmax(0,1fr) 10px; min-height: 57px; padding: 8px 7px; column-gap: 6px; }
+  .tower-quick-grid > a > span { width: 28px; height: 28px; }
+  .tower-quick-grid > a > b { font-size: 10px; }
+  .tower-quick-grid > a > small { font-size: 8px; }
+  .tower-quick-grid > a > svg { display: block; width: 11px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tower-quick-grid > a { transition: none !important; }
+}
