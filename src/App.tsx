@@ -403,7 +403,7 @@ function FarmMapPanel({sites,schemaWarning,membership}:{sites:Row[];schemaWarnin
         setFleetLastRefresh(new Date().toISOString());
         setFleetNotice('');
       }catch(caught){
-        if(!disposed){setFleetNotice(caught instanceof Error?caught.message:'دریافت موقعیت ناوگان ممکن نشد.');setFleetLastRefresh(new Date().toISOString());}
+        if(!disposed&&!document.hidden){setFleetNotice(caught instanceof Error?caught.message:'دریافت موقعیت ناوگان ممکن نشد.');setFleetLastRefresh(new Date().toISOString());}
       }
     };
     let timer:number|undefined;
@@ -415,10 +415,9 @@ function FarmMapPanel({sites,schemaWarning,membership}:{sites:Row[];schemaWarnin
     const onVisibilityChange=()=>{
       if(timer!==undefined)window.clearTimeout(timer);
       timer=undefined;
-      if(!document.hidden){void refreshFleet();schedule();}
+      if(!document.hidden)void refreshFleet().finally(schedule);
     };
-    void refreshFleet();
-    schedule();
+    void refreshFleet().finally(schedule);
     document.addEventListener('visibilitychange',onVisibilityChange);
     return ()=>{disposed=true;if(timer!==undefined)window.clearTimeout(timer);document.removeEventListener('visibilitychange',onVisibilityChange);};
   },[membership.company_id,membership.role,canViewFleet]);
