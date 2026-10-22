@@ -75,6 +75,21 @@ test('domestic API authenticates a provisioned MySQL user and revokes the sessio
     assert.equal(selected.count, 1);
     assert.equal(selected.data[0].name, 'Domestic CI Customer');
 
+    const projectedSelect = await app.request('http://localhost/api/data/customers', {
+      method: 'POST',
+      headers: { cookie, 'content-type': 'application/json' },
+      body: JSON.stringify({
+        action: 'select',
+        selection: 'id,name',
+        filters: [{ column: 'name', op: 'not_in', value: '(Nobody,Other)' }],
+        orFilters: [{ column: 'name', op: 'eq', value: 'Domestic CI Customer' }],
+      }),
+    });
+    assert.equal(projectedSelect.status, 200);
+    const projected = await projectedSelect.json();
+    assert.ok(projected.data.some((row) => row.name === 'Domestic CI Customer'));
+    assert.deepEqual(Object.keys(projected.data[0]).sort(), ['id','name']);
+
     const crossTenantInsert = await app.request('http://localhost/api/data/customers', {
       method: 'POST',
       headers: { cookie, 'content-type': 'application/json' },
