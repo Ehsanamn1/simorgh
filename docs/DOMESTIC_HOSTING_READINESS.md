@@ -4,7 +4,7 @@
 This branch documents and checks the existing web application while preparing a future Node.js + MySQL deployment. The workflow is CI-only: it does not deploy or claim that the operational backend has been migrated.
 
 ## CI
-`.github/workflows/domestic-ci.yml` runs typecheck, lint, unit/component tests and a frontend build, then uploads a review artifact. Passing this workflow only validates the current frontend source; it does not validate a MySQL backend or prove the application can operate on HostMizbanFa.
+`.github/workflows/domestic-ci.yml` runs typecheck, lint, unit/component tests and a frontend build, applies the initial identity/tenant MySQL foundation to disposable MySQL 8.4, then checks the guarded migration runner can re-run idempotently and uploads a review artifact. This validates only the first foundation migration; it does not validate the full operational backend or prove the application can operate on HostMizbanFa.
 
 ## Current architecture constraints
 - Frontend: React + TypeScript + Vite.
@@ -12,6 +12,13 @@ This branch documents and checks the existing web application while preparing a 
 - Data access: `@neondatabase/serverless` and PostgreSQL SQL.
 - Existing schema history: 31 numbered migrations under `worker/migrations/`.
 - Existing API depends on PostgreSQL UUID/JSONB/enums/timestamptz, casts, partial indexes, conflict clauses, CTEs, functions/triggers and row-locking patterns. Some paths depend on transactional/concurrency behavior.
+
+## Completed migration groundwork
+- `worker/migrations/mysql/0001_foundation.sql` now passes the disposable MySQL 8.4 integration test, including identity, sessions, companies, memberships, access requests and explicit owner/pending-request guard tables.
+- `scripts/apply-medar-mysql-foundation.mjs` adds a dry-run-by-default, staging-database-only runner with a checksum ledger and safe skipping of already installed foreign-key constraints on retries.
+- `mysql2` is a runtime dependency, ready for the Node adapter.
+
+These items are only the identity/tenant foundation; no production data or live API was switched.
 
 ## Required migration work
 1. Build a Node.js Hono server adapter compatible with the hosting process model, with graceful shutdown and request limits.
