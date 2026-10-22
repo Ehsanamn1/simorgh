@@ -297,4 +297,8 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   }
 }
 
+export async function closePool() {
+  if (pool) await pool.end();
+}
+
 export { app, normalizeUsername, verifyPassword, hashPassword };
