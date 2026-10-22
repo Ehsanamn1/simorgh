@@ -90,6 +90,23 @@ test('domestic API authenticates a provisioned MySQL user and revokes the sessio
     );
     assert.equal(Number(failedAttempt.succeeded), 0, 'Failed logins must be auditable without recording the submitted password.');
 
+    const limitedUsername = username + '-limit';
+    const limitedKey = createHash('sha256').update('username:' + limitedUsername).digest('hex');
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      const failed = await app.request('http://localhost/api/auth/login', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ username: limitedUsername, password: 'Incorrect-Domestic-Password' }),
+      });
+      assert.equal(failed.status, 401, 'Failed credentials should not reveal whether the username exists.');
+    }
+    const rateLimited = await app.request('http://localhost/api/auth/login', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ username: limitedUsername, password: 'Incorrect-Domestic-Password' }),
+    });
+    assert.equal(rateLimited.status, 429, 'Eight failed attempts must activate the fifteen-minute login limit.');
+
     const me = await app.request('http://localhost/api/auth/me', { headers: { cookie } });
     assert.equal(me.status, 200);
     const meBody = await me.json();
@@ -278,8 +295,8 @@ test('domestic API authenticates a provisioned MySQL user and revokes the sessio
     const afterLogout = await app.request('http://localhost/api/auth/me', { headers: { cookie } });
     assert.deepEqual(await afterLogout.json(), { user: null, memberships: [] });
   } finally {
-    await db.execute('DELETE FROM medar_rate_limits WHERE key_hash=?', [usernameKey]);
-    await db.execute('DELETE FROM medar_login_attempts WHERE username_normalized=?', [username]);
+    await db.execute('DELETE FROM medar_rate_limits WHERE key_hash IN (?,?)', [usernameKey, createHash('sha256').update('username:' + username + '-limit').digest('hex')]);
+    await db.execute('DELETE FROM medar_login_attempts WHERE username_normalized IN (?,?)', [username, username + '-limit']);
     await db.execute('DELETE FROM medar_files WHERE company_id=?', [companyId]);
     for (const bucket of ['delivery-evidence','operational-evidence','contract-documents','capacity-evidence']) {
       await rm(resolve(process.env.MEDAR_STORAGE_DIR || './storage/medar', bucket, companyId), { recursive: true, force: true });
