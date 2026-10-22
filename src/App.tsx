@@ -14,21 +14,20 @@ import { api, isApiConfigured } from './lib/apiClient';
 import { pageSectionLabel } from './lib/pageSections';
 import { goalProgressPercent, isGoalOverdue } from './lib/goals';
 import { evaluateSetupMilestones, summarizeSetupMilestones } from './lib/achievements';
-const OperationsWorkspacePage = lazy(() => import('./OperationsPages').then(module => ({ default: module.OperationsWorkspacePage })));
-const WorkspaceHome = lazy(() => import('./WorkspaceHome').then(module => ({ default: module.WorkspaceHome })));
-const MedarConnect = lazy(() => import('./MedarConnect').then(module => ({ default: module.MedarConnect })));
-const HelpGuide = lazy(() => import('./HelpGuide').then(module => ({ default: module.HelpGuide })));
 import { MedarLogo as Logo } from './MedarLogo';
 import { BankReconciliationPanel } from './BankReconciliationPanel';
 import { ContactImporter } from './ContactImporter';
 import { ContactsHub } from './ContactsHub';
-import { WorkspaceHome } from './WorkspaceHome';
 import { OperationsRoleExperience } from './OperationsRoleExperience';
-import { MedarConnect } from './MedarConnect';
 import { OperationalExceptionInbox } from './OperationalExceptionInbox';
 import type { AppRole, Membership, PageKey, Row } from './lib/types';
 import { dateFa, dateTimeFa, moneyFa, numberFa, orderLabel, roleLabel, statusLabel, statusTone } from './lib/format';
 import DemoWorkspace from './DemoWorkspace';
+
+const OperationsWorkspacePage = lazy(() => import('./OperationsPages').then(module => ({ default: module.OperationsWorkspacePage })));
+const WorkspaceHome = lazy(() => import('./WorkspaceHome').then(module => ({ default: module.WorkspaceHome })));
+const MedarConnect = lazy(() => import('./MedarConnect').then(module => ({ default: module.MedarConnect })));
+const HelpGuide = lazy(() => import('./HelpGuide').then(module => ({ default: module.HelpGuide })));
 
 const PAGE_PERMISSION_MODULE: Record<PageKey, string> = {
   home: 'home', settings: 'home', connect: 'operational-tasks', exceptions: 'operational-tasks', contacts: 'contacts', command: 'command', agents: 'agents',
