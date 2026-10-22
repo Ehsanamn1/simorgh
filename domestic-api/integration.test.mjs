@@ -54,6 +54,41 @@ test('domestic API authenticates a provisioned MySQL user and revokes the sessio
     assert.equal(meBody.user.id, userId);
     assert.equal(meBody.memberships[0].id, membershipId);
 
+    const insertCustomer = await app.request('http://localhost/api/data/customers', {
+      method: 'POST',
+      headers: { cookie, 'content-type': 'application/json' },
+      body: JSON.stringify({ action: 'insert', values: { company_id: companyId, name: 'Domestic CI Customer' } }),
+    });
+    assert.equal(insertCustomer.status, 200);
+    const inserted = await insertCustomer.json();
+    assert.equal(inserted.count, 1);
+    assert.match(inserted.data[0].id, /^[0-9a-f-]{36}$/i);
+    assert.equal(inserted.data[0].company_id, companyId);
+
+    const selectCustomers = await app.request('http://localhost/api/data/customers', {
+      method: 'POST',
+      headers: { cookie, 'content-type': 'application/json' },
+      body: JSON.stringify({ action: 'select', filters: [{ column: 'name', op: 'eq', value: 'Domestic CI Customer' }], count: true }),
+    });
+    assert.equal(selectCustomers.status, 200);
+    const selected = await selectCustomers.json();
+    assert.equal(selected.count, 1);
+    assert.equal(selected.data[0].name, 'Domestic CI Customer');
+
+    const crossTenantInsert = await app.request('http://localhost/api/data/customers', {
+      method: 'POST',
+      headers: { cookie, 'content-type': 'application/json' },
+      body: JSON.stringify({ action: 'insert', values: { company_id: randomUUID(), name: 'Cross Tenant Customer' } }),
+    });
+    assert.equal(crossTenantInsert.status, 403, 'Generic writes must not allow users to target a company they do not belong to.');
+
+    const deniedTable = await app.request('http://localhost/api/data/medar_users', {
+      method: 'POST',
+      headers: { cookie, 'content-type': 'application/json' },
+      body: JSON.stringify({ action: 'select' }),
+    });
+    assert.equal(deniedTable.status, 404, 'Authentication tables must not be exposed through the generic data API.');
+
     const logout = await app.request('http://localhost/api/auth/logout', { method: 'POST', headers: { cookie } });
     assert.equal(logout.status, 200);
     const afterLogout = await app.request('http://localhost/api/auth/me', { headers: { cookie } });
