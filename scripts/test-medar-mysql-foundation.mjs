@@ -146,7 +146,7 @@ try {
     .split(';').map(part => part.trim()).filter(Boolean);
   for (let pass = 0; pass < 2; pass += 1) {
     for (const statement of videoStatements) {
-      const constraintMatch = statement.match(/^ALTER\\s+TABLE\\s+`?([a-z_][a-z0-9_]*)`?\\s+ADD\\s+CONSTRAINT\\s+`?([a-z_][a-z0-9_]*)`?/i);
+      const constraintMatch = statement.match(/^ALTER\s+TABLE\s+`?([a-z_][a-z0-9_]*)`?\s+ADD\s+CONSTRAINT\s+`?([a-z_][a-z0-9_]*)`?/i);
       if (constraintMatch) {
         const [, tableName, constraintName] = constraintMatch;
         const [existing] = await db.execute(
