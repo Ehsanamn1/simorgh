@@ -173,6 +173,33 @@ try {
   assert.equal(videoConstraintRows.length, 1, 'Delivery video evidence constraint must exist after two migration passes.');
   assert.match(String(videoConstraintRows[0].CHECK_CLAUSE), /video/i, 'Delivery evidence check must allow video.');
 
+  const tenantFkSql = await readFile(new URL('../worker/migrations/mysql/0005_notification_tenant_fk.sql', import.meta.url), 'utf8');
+  const tenantFkStatements = tenantFkSql.split(String.fromCharCode(10))
+    .filter(line => !line.trim().startsWith('--'))
+    .join(String.fromCharCode(10))
+    .split(';').map(part => part.trim()).filter(Boolean);
+  for (let pass = 0; pass < 2; pass += 1) {
+    for (const statement of tenantFkStatements) {
+      const constraintMatch = statement.match(/^ALTER\s+TABLE\s+`?([a-z_][a-z0-9_]*)`?\s+ADD\s+CONSTRAINT\s+`?([a-z_][a-z0-9_]*)`?/i);
+      if (constraintMatch) {
+        const [, tableName, constraintName] = constraintMatch;
+        const [existing] = await db.execute(
+          'SELECT CONSTRAINT_NAME FROM information_schema.TABLE_CONSTRAINTS WHERE CONSTRAINT_SCHEMA = DATABASE() AND TABLE_NAME = ? AND CONSTRAINT_NAME = ? LIMIT 1',
+          [tableName, constraintName],
+        );
+        if (existing.length) continue;
+      }
+      await db.query(statement);
+    }
+  }
+  const [tenantFkRows] = await db.query(
+    "SELECT COLUMN_NAME, REFERENCED_TABLE_NAME, REFERENCED_COLUMN_NAME FROM information_schema.KEY_COLUMN_USAGE WHERE CONSTRAINT_SCHEMA=DATABASE() AND TABLE_NAME='medar_notification_outbox' AND CONSTRAINT_NAME='fk_medar_notification_outbox_company_notification' ORDER BY ORDINAL_POSITION",
+  );
+  assert.deepEqual(tenantFkRows.map(row => [row.COLUMN_NAME, row.REFERENCED_TABLE_NAME, row.REFERENCED_COLUMN_NAME]), [
+    ['company_id', 'notifications', 'company_id'],
+    ['notification_id', 'notifications', 'id'],
+  ], 'Notification outbox must reference notifications through the same company ID.');
+
   const required = ['medar_users','medar_sessions','medar_login_attempts','medar_rate_limits','medar_audit_log','companies','profiles','memberships','company_owners','access_requests','pending_access_request_guards'];
   const [rows] = await db.query(
     'SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_TYPE = \'BASE TABLE\'',
