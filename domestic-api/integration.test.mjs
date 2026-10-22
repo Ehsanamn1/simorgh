@@ -30,6 +30,19 @@ async function requestWithTimeout(input, init) {
   }
 }
 
+async function tracedCleanup(label, operation) {
+  const trace = process.env.MEDAR_TEST_TRACE === 'true';
+  if (trace) console.log('[medar-cleanup] -> ' + label);
+  try {
+    const result = await operation();
+    if (trace) console.log('[medar-cleanup] <- ' + label);
+    return result;
+  } catch (error) {
+    if (trace) console.error('[medar-cleanup] !! ' + label + ' ' + String(error));
+    throw error;
+  }
+}
+
 test('domestic API authenticates a provisioned MySQL user and revokes the session on logout', { skip: !process.env.MYSQL_URL, timeout: 120_000 }, async () => {
   const db = await mysql.createConnection(process.env.MYSQL_URL);
   const userId = randomUUID();
@@ -511,40 +524,40 @@ test('domestic API authenticates a provisioned MySQL user and revokes the sessio
     const afterLogout = await requestWithTimeout('http://localhost/api/auth/me', { headers: { cookie } });
     assert.deepEqual(await afterLogout.json(), { user: null, memberships: [] });
   } finally {
-    await db.execute('DELETE FROM medar_rate_limits WHERE key_hash IN (?,?)', [usernameKey, createHash('sha256').update('username:' + username + '-limit').digest('hex')]);
-    await db.execute('DELETE FROM medar_login_attempts WHERE username_normalized IN (?,?)', [username, username + '-limit']);
-    await db.execute('DELETE FROM medar_files WHERE company_id=?', [companyId]);
+    await tracedCleanup('db.execute 1', () => db.execute('DELETE FROM medar_rate_limits WHERE key_hash IN (?,?)', [usernameKey, createHash('sha256').update('username:' + username + '-limit').digest('hex')]));
+    await tracedCleanup('db.execute 2', () => db.execute('DELETE FROM medar_login_attempts WHERE username_normalized IN (?,?)', [username, username + '-limit']));
+    await tracedCleanup('db.execute 3', () => db.execute('DELETE FROM medar_files WHERE company_id=?', [companyId]));
     for (const bucket of ['delivery-evidence','operational-evidence','contract-documents','capacity-evidence']) {
-      await rm(resolve(process.env.MEDAR_STORAGE_DIR || './storage/medar', bucket, companyId), { recursive: true, force: true });
+      await tracedCleanup('filesystem rm 4', () => rm(resolve(process.env.MEDAR_STORAGE_DIR || './storage/medar', bucket, companyId), { recursive: true, force: true }));
     }
     if (supplierUserId) {
-      await db.execute('DELETE FROM medar_sessions WHERE user_id=?', [supplierUserId]);
-      await db.execute('DELETE FROM memberships WHERE id=?', [supplierMembershipId]);
-      await db.execute('DELETE FROM medar_login_attempts WHERE username_normalized=?', ['ci_supplier_' + suffix]);
-      await db.execute('DELETE FROM medar_users WHERE id=?', [supplierUserId]);
+      await tracedCleanup('db.execute 5', () => db.execute('DELETE FROM medar_sessions WHERE user_id=?', [supplierUserId]));
+      await tracedCleanup('db.execute 6', () => db.execute('DELETE FROM memberships WHERE id=?', [supplierMembershipId]));
+      await tracedCleanup('db.execute 7', () => db.execute('DELETE FROM medar_login_attempts WHERE username_normalized=?', ['ci_supplier_' + suffix]));
+      await tracedCleanup('db.execute 8', () => db.execute('DELETE FROM medar_users WHERE id=?', [supplierUserId]));
     }
     for (const provisionedMembershipId of provisionedMembershipIds) {
-      await db.execute('DELETE FROM medar_audit_log WHERE entity_id=?', [provisionedMembershipId]);
-      await db.execute('DELETE FROM medar_sessions WHERE user_id IN (SELECT user_id FROM memberships WHERE id=?)', [provisionedMembershipId]);
-      await db.execute('DELETE FROM memberships WHERE id=?', [provisionedMembershipId]);
+      await tracedCleanup('db.execute 9', () => db.execute('DELETE FROM medar_audit_log WHERE entity_id=?', [provisionedMembershipId]));
+      await tracedCleanup('db.execute 10', () => db.execute('DELETE FROM medar_sessions WHERE user_id IN (SELECT user_id FROM memberships WHERE id=?)', [provisionedMembershipId]));
+      await tracedCleanup('db.execute 11', () => db.execute('DELETE FROM memberships WHERE id=?', [provisionedMembershipId]));
     }
     for (const provisionedSupplierId of provisionedSupplierIds) {
-      await db.execute('DELETE FROM suppliers WHERE id=? AND company_id=?', [provisionedSupplierId, companyId]);
+      await tracedCleanup('db.execute 12', () => db.execute('DELETE FROM suppliers WHERE id=? AND company_id=?', [provisionedSupplierId, companyId]));
     }
     for (const provisionedUserId of provisionedUserIds) {
-      await db.execute('DELETE FROM medar_sessions WHERE user_id=?', [provisionedUserId]);
-      await db.execute('DELETE FROM profiles WHERE id=?', [provisionedUserId]);
-      await db.execute('DELETE FROM medar_users WHERE id=?', [provisionedUserId]);
+      await tracedCleanup('db.execute 13', () => db.execute('DELETE FROM medar_sessions WHERE user_id=?', [provisionedUserId]));
+      await tracedCleanup('db.execute 14', () => db.execute('DELETE FROM profiles WHERE id=?', [provisionedUserId]));
+      await tracedCleanup('db.execute 15', () => db.execute('DELETE FROM medar_users WHERE id=?', [provisionedUserId]));
     }
     for (const provisionedUsername of provisionedUsernames) {
-      await db.execute('DELETE FROM medar_rate_limits WHERE key_hash=?', [createHash('sha256').update('username:' + provisionedUsername).digest('hex')]);
-      await db.execute('DELETE FROM medar_login_attempts WHERE username_normalized=?', [provisionedUsername]);
+      await tracedCleanup('db.execute 16', () => db.execute('DELETE FROM medar_rate_limits WHERE key_hash=?', [createHash('sha256').update('username:' + provisionedUsername).digest('hex')]));
+      await tracedCleanup('db.execute 17', () => db.execute('DELETE FROM medar_login_attempts WHERE username_normalized=?', [provisionedUsername]));
     }
-    await db.execute('DELETE FROM medar_audit_log WHERE actor_user_id=? AND action=\'membership.account_created\'', [userId]);
-    await db.execute('DELETE FROM memberships WHERE id=?', [membershipId]);
-    await db.execute('DELETE FROM companies WHERE id=?', [companyId]);
-    await db.execute('DELETE FROM medar_users WHERE id=?', [userId]);
-    await db.end();
-    await closePool();
+    await tracedCleanup('db.execute 18', () => db.execute('DELETE FROM medar_audit_log WHERE actor_user_id=? AND action=\'membership.account_created\'', [userId]));
+    await tracedCleanup('db.execute 19', () => db.execute('DELETE FROM memberships WHERE id=?', [membershipId]));
+    await tracedCleanup('db.execute 20', () => db.execute('DELETE FROM companies WHERE id=?', [companyId]));
+    await tracedCleanup('db.execute 21', () => db.execute('DELETE FROM medar_users WHERE id=?', [userId]));
+    await tracedCleanup('db.end', () => db.end());
+    await tracedCleanup('closePool', () => closePool());
   }
 });
