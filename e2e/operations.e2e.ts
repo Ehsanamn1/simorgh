@@ -615,6 +615,17 @@ test('supplier directory remains readable from cache when offline', async ({ pag
   });
   await page.goto('/simorgh/app/suppliers', { waitUntil: 'domcontentloaded' });
   await expect(page.getByText('تأمین‌کننده آفلاین')).toBeVisible();
+  await page.evaluate(async () => {
+    await navigator.serviceWorker.ready;
+    const cacheNames = await caches.keys();
+    const shellName = cacheNames.find(name => name.startsWith('medar-shell-v7'));
+    if (!shellName) throw new Error('The active Medar offline shell cache is not ready.');
+    const cache = await caches.open(shellName);
+    const requests = await cache.keys();
+    if (!requests.some(request => new URL(request.url).pathname.includes('/assets/WorkspaceHome-'))) {
+      throw new Error('The WorkspaceHome route chunk was not precached before going offline.');
+    }
+  });
   apiReachable = false;
   await page.context().setOffline(true);
   await page.evaluate(() => window.dispatchEvent(new Event('offline')));
