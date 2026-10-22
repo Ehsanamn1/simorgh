@@ -106,6 +106,31 @@ try {
   );
   await db.execute('INSERT INTO companies (id,name,province) VALUES (?,?,?)', [companyA, 'CI Company A', 'Golestan']);
   await db.execute('INSERT INTO companies (id,name,province) VALUES (?,?,?)', [companyB, 'CI Company B', 'Golestan']);
+
+  const supplierA = randomUUID();
+  const customerA = randomUUID();
+  const productA = randomUUID();
+  const customerB = randomUUID();
+  const productB = randomUUID();
+  const orderA = randomUUID();
+  await db.execute('INSERT INTO suppliers (id,company_id,name) VALUES (?,?,?)', [supplierA, companyA, 'CI Supplier A']);
+  await db.execute('INSERT INTO customers (id,company_id,name) VALUES (?,?,?)', [customerA, companyA, 'CI Customer A']);
+  await db.execute('INSERT INTO customers (id,company_id,name) VALUES (?,?,?)', [customerB, companyB, 'CI Customer B']);
+  await db.execute('INSERT INTO products (id,company_id,sku,name,kind) VALUES (?,?,?,?,?)', [productA, companyA, 'CI-EGG-A', 'CI Quail Eggs A', 'eggs']);
+  await db.execute('INSERT INTO products (id,company_id,sku,name,kind) VALUES (?,?,?,?,?)', [productB, companyB, 'CI-EGG-B', 'CI Quail Eggs B', 'eggs']);
+  await db.execute('INSERT INTO orders (id,company_id,customer_id,reference,status) VALUES (?,?,?,?,?)', [orderA, companyA, customerA, 'SO-CI-001', 'draft']);
+  await db.execute('INSERT INTO order_items (id,company_id,order_id,product_id,quantity,unit_price) VALUES (?,?,?,?,?,?)', [randomUUID(), companyA, orderA, productA, 10, 100]);
+  await assert.rejects(
+    db.execute('INSERT INTO order_items (id,company_id,order_id,product_id,quantity,unit_price) VALUES (?,?,?,?,?,?)', [randomUUID(), companyA, orderA, productB, 10, 100]),
+    error => error?.code === 'ER_NO_REFERENCED_ROW_2',
+    'Operational composite foreign keys must prevent cross-company product references.',
+  );
+  await assert.rejects(
+    db.execute('INSERT INTO partnership_agreements (id,company_id,supplier_id,agreement_code,effective_from,company_profit_share_pct,partner_profit_share_pct) VALUES (?,?,?,?,?,?,?)', [randomUUID(), companyA, supplierA, 'CI-INVALID-SHARE', '2026-01-01', 70, 50]),
+    error => error?.code === 'ER_CHECK_CONSTRAINT_VIOLATED',
+    'Partnership share percentages must total exactly 100 percent.',
+  );
+
   await db.execute('INSERT INTO company_owners (company_id,owner_user_id) VALUES (?,?)', [companyA, ownerId]);
   await db.execute('INSERT INTO company_owners (company_id,owner_user_id) VALUES (?,?)', [companyB, ownerId]);
   await assert.rejects(
