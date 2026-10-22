@@ -75,6 +75,18 @@ test('domestic API authenticates a provisioned MySQL user and revokes the sessio
     assert.equal(selected.count, 1);
     assert.equal(selected.data[0].name, 'Domestic CI Customer');
 
+    const atomicInsert = await app.request('http://localhost/api/data/customers', {
+      method: 'POST',
+      headers: { cookie, 'content-type': 'application/json' },
+      body: JSON.stringify({ action: 'insert', values: [
+        { company_id: companyId, name: 'Atomic CI Customer' },
+        { company_id: companyId, name: 'Invalid Atomic Customer', unknown_column: 'must-fail' },
+      ] }),
+    });
+    assert.equal(atomicInsert.status, 422);
+    const [[atomicCount]] = await db.query('SELECT COUNT(*) AS count FROM customers WHERE company_id=? AND name=?', [companyId, 'Atomic CI Customer']);
+    assert.equal(Number(atomicCount.count), 0, 'A failed bulk insert must roll back all earlier rows in the same batch.');
+
     const projectedSelect = await app.request('http://localhost/api/data/customers', {
       method: 'POST',
       headers: { cookie, 'content-type': 'application/json' },
