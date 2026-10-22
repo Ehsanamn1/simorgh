@@ -8,6 +8,7 @@ This is a separate, forward-only MySQL schema chain for the planned domestic Nod
 - `0002_operational_schema.sql`: core business operations including customers, suppliers, products, orders, capacity, lots, quality, shipments, invoices, settlements, farm sites, production, tasks, partner finance, inventory and goals.
 - `0003_extended_schema.sql`: invites, private files, purchase orders, client presence, AI provider/usage/action records, module permissions, bank reconciliation, operational events/exceptions, messaging and push notifications.
 - `0004_delivery_video_evidence.sql`: restart-safe forward migration allowing private video delivery evidence without rewriting the earlier operational migration.
+- `0005_notification_tenant_fk.sql`: replaces the notification-outbox single-column reference with a composite `(company_id, notification_id)` foreign key, preventing cross-company notification references.
 
 The CI test applies the chain to a disposable MySQL 8.4 service, checks tenant-scoped foreign keys and accounting/quantity constraints, reruns migrations to check idempotency, and exercises the first Node/MySQL authentication slice.
 
