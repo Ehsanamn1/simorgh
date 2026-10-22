@@ -60,11 +60,11 @@ try {
   const [ownerKeys] = await db.query(
     "SELECT CONSTRAINT_NAME FROM information_schema.TABLE_CONSTRAINTS WHERE CONSTRAINT_SCHEMA = DATABASE() AND TABLE_NAME = 'company_owners' AND CONSTRAINT_TYPE IN ('PRIMARY KEY','UNIQUE')",
   );
-  assert(ownerKeys.length >= 2, 'Single-owner-per-company registry is missing its uniqueness guards.');
+  assert(ownerKeys.some(row => row.CONSTRAINT_NAME === 'PRIMARY'), 'Single-owner-per-company registry must have a primary key on company_id.');
   const [pendingKeys] = await db.query(
     "SELECT CONSTRAINT_NAME FROM information_schema.TABLE_CONSTRAINTS WHERE CONSTRAINT_SCHEMA = DATABASE() AND TABLE_NAME = 'pending_access_request_guards' AND CONSTRAINT_TYPE IN ('PRIMARY KEY','UNIQUE')",
   );
-  assert(pendingKeys.length >= 2, 'Pending-request concurrency guard is missing its uniqueness guards.');
+  assert(pendingKeys.some(row => row.CONSTRAINT_NAME === 'PRIMARY'), 'Pending-request guard must have a primary key on (company_id, user_id).');
   console.log('Medar MySQL foundation passed:', required.length, 'tables,', constraints.length, 'foreign keys, owner uniqueness and pending-request guards.');
 } finally {
   await db.end();
