@@ -105,6 +105,7 @@ CREATE TABLE IF NOT EXISTS memberships (
   created_by CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NULL,
   CONSTRAINT memberships_role_chk CHECK (role IN ('owner','admin','staff','customer','supplier','driver')),
   UNIQUE KEY memberships_company_user_role_unique (company_id, user_id, role),
+  UNIQUE KEY memberships_company_id_unique (company_id, id),
   KEY medar_memberships_user_active (user_id, active)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
