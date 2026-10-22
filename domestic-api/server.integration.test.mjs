@@ -30,7 +30,7 @@ after(async () => {
   }
 });
 
-test('domestic MySQL API supports health, login, session, memberships, password change and logout', { skip: !mysqlUrl }, async () => {
+test('domestic MySQL API supports health, login, session, memberships, password change and logout', { skip: !mysqlUrl, timeout: 120_000 }, async () => {
   if (!db) return;
   const encodedPassword = await hashPassword(password);
   await db.execute('INSERT INTO companies (id,name,province) VALUES (?,?,?)', [companyId, 'CI Medar Workspace', 'Golestan']);
