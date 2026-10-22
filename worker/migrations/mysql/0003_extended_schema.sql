@@ -116,11 +116,14 @@ CREATE TABLE IF NOT EXISTS medar_ai_provider_configs (
   updated_by CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
   created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-  UNIQUE (company_id, provider)
-  ,UNIQUE KEY medar_ai_provider_one_default_per_company (default_company_id),
-  CONSTRAINT fk_medar_ai_provider_configs_company_id FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE,
-  CONSTRAINT fk_medar_ai_provider_configs_updated_by FOREIGN KEY (updated_by) REFERENCES medar_users(id) ON DELETE RESTRICT
+  UNIQUE (company_id, provider),
+  UNIQUE KEY medar_ai_provider_one_default_per_company (default_company_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+ALTER TABLE medar_ai_provider_configs
+  ADD CONSTRAINT fk_medar_ai_provider_configs_company_id FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE;
+ALTER TABLE medar_ai_provider_configs
+  ADD CONSTRAINT fk_medar_ai_provider_configs_updated_by FOREIGN KEY (updated_by) REFERENCES medar_users(id) ON DELETE RESTRICT;
 
 CREATE TABLE IF NOT EXISTS medar_ai_usage_log (
   id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
