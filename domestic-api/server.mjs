@@ -211,6 +211,7 @@ app.post('/api/auth/login', async (c) => {
   const connection = await pool.getConnection();
   try {
     await connection.beginTransaction();
+    await connection.execute('UPDATE medar_users SET last_login_at=NOW(3), updated_at=NOW(3) WHERE id=?', [account.id]);
     await connection.execute(
       'INSERT INTO medar_sessions (user_id, token_hash, expires_at, last_seen_at, user_agent, ip_hash) VALUES (?, ?, DATE_ADD(NOW(3), INTERVAL 14 DAY), NOW(3), ?, ?)',
       [account.id, tokenHash, userAgent, ipHash],
