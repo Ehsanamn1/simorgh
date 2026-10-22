@@ -62,7 +62,7 @@ try {
       try {
         const [warnings] = await db.query('SHOW WARNINGS');
         if (warnings.length) diagnostics = String.fromCharCode(10) + JSON.stringify(warnings);
-      } catch {}
+      } catch (diagnosticError) { diagnostics = String.fromCharCode(10) + 'Could not retrieve MySQL warnings: ' + diagnosticError.message; }
       throw new Error('MySQL operational migration statement ' + (index + 1) + '/' + operationalStatements.length + ' failed: ' + preview + String.fromCharCode(10) + error.message + diagnostics);
     }
   }
