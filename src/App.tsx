@@ -388,13 +388,13 @@ function FarmMapPanel({sites,schemaWarning,membership}:{sites:Row[];schemaWarnin
         const shipmentResult=await dataApi.from('shipments').select('id,driver_user_id,stage,vehicle,planned_departure').eq('company_id',membership.company_id).in('stage',['loading','in_transit','arrived']).limit(200);
         if(shipmentResult.error)throw new Error(shipmentResult.error.message);
         const active=(shipmentResult.data??[]) as Row[];
-        if(disposed)return;
-        setFleetShipments(active);
+        if(disposed||document.hidden)return;
+         setFleetShipments(active);
         if(!active.length){setFleetLatest({});setFleetLastRefresh(new Date().toISOString());setFleetNotice('');return;}
         const pointResult=await dataApi.from('shipment_locations').select('id,shipment_id,latitude,longitude,accuracy_m,captured_at,driver_user_id').eq('company_id',membership.company_id).in('shipment_id',active.map(row=>String(row.id))).order('captured_at',{ascending:false}).limit(600);
         if(pointResult.error)throw new Error(pointResult.error.message);
-        if(disposed)return;
-        const latest:Record<string,Row>={};
+        if(disposed||document.hidden)return;
+         const latest:Record<string,Row>={};
         for(const point of (pointResult.data??[]) as Row[]){
           const key=String(point.shipment_id);
           if(!latest[key])latest[key]=point;
@@ -406,9 +406,21 @@ function FarmMapPanel({sites,schemaWarning,membership}:{sites:Row[];schemaWarnin
         if(!disposed){setFleetNotice(caught instanceof Error?caught.message:'دریافت موقعیت ناوگان ممکن نشد.');setFleetLastRefresh(new Date().toISOString());}
       }
     };
+    let timer:number|undefined;
+    const delay=window.matchMedia('(max-width: 720px)').matches?45000:20000;
+    const schedule=()=>{
+      if(disposed||document.hidden)return;
+      timer=window.setTimeout(async()=>{await refreshFleet();schedule();},delay);
+    };
+    const onVisibilityChange=()=>{
+      if(timer!==undefined)window.clearTimeout(timer);
+      timer=undefined;
+      if(!document.hidden){void refreshFleet();schedule();}
+    };
     void refreshFleet();
-    const timer=window.setInterval(()=>void refreshFleet(),15000);
-    return ()=>{disposed=true;window.clearInterval(timer);};
+    schedule();
+    document.addEventListener('visibilitychange',onVisibilityChange);
+    return ()=>{disposed=true;if(timer!==undefined)window.clearTimeout(timer);document.removeEventListener('visibilitychange',onVisibilityChange);};
   },[membership.company_id,membership.role,canViewFleet]);
   const freshFleetPoints = useMemo(() => Object.entries(fleetLatest).flatMap(([shipmentId, point]) => {
     const shipment = fleetShipments.find(item => String(item.id) === shipmentId);
