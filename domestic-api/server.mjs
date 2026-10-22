@@ -557,6 +557,11 @@ function validIsoDate(value) {
   return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value;
 }
 
+function dateText(value) {
+  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  return String(value ?? '').slice(0, 10);
+}
+
 function moneyInteger(value) {
   const text = String(value ?? '0');
   if (!/^-?\d+(?:\.\d+)?$/.test(text)) throw new Error('مبلغ مالی معتبر نیست.');
@@ -651,8 +656,8 @@ async function settlementSnapshot(connection, agreementId, periodStart, periodEn
   const [agreementRows] = await connection.execute('SELECT * FROM partnership_agreements WHERE id=? FOR UPDATE', [agreementId]);
   const agreement = agreementRows[0];
   if (!agreement) throw new Error('قرارداد مشارکت پیدا نشد.');
-  if (periodStart < String(agreement.effective_from).slice(0, 10) ||
-      (agreement.effective_to && periodEnd > String(agreement.effective_to).slice(0, 10))) {
+  if (periodStart < dateText(agreement.effective_from) ||
+      (agreement.effective_to && periodEnd > dateText(agreement.effective_to))) {
     throw new Error('دوره باید در بازه اعتبار قرارداد باشد.');
   }
   const [entries] = await connection.execute(
@@ -703,7 +708,7 @@ async function settlementSnapshot(connection, agreementId, periodStart, periodEn
   const lines=entries.filter((entry)=>['approved','posted'].includes(entry.status)).map((entry)=>({
     id:entry.id,type:entry.entry_type,status:entry.status,amount:String(entry.amount),paid_amount:String(entry.paid_amount),
     currency:entry.currency,category:entry.expense_category,shared_cost:Boolean(entry.is_shared_cost),paid_by:entry.paid_by,
-    date:String(entry.recognized_on).slice(0,10),reference:entry.external_reference,source_table:entry.source_table,
+    date:dateText(entry.recognized_on),reference:entry.external_reference,source_table:entry.source_table,
     source_record_id:entry.source_record_id,linked_entry_id:entry.linked_entry_id,adjustment_effect:entry.adjustment_effect,notes:entry.notes,
   }));
   const snapshot={
@@ -764,7 +769,7 @@ async function settlementRpc(connection, name, args, userId) {
   if(!await rpcManager(connection,period.company_id,userId,true)) throw new Error('این عملیات فقط برای مالک یا مدیر مجاز است.');
   if(name==='refresh_partner_settlement_period'||name==='approve_partner_settlement_period') {
     if(period.status!=='draft') throw new Error('فقط دوره پیش‌نویس قابل بازمحاسبه یا تأیید است.');
-    const {snapshot}=await settlementSnapshot(connection,period.agreement_id,String(period.period_start).slice(0,10),String(period.period_end).slice(0,10));
+    const {snapshot}=await settlementSnapshot(connection,period.agreement_id,dateText(period.period_start),dateText(period.period_end));
     await saveSettlementSnapshot(connection,period.id,snapshot);
     if(name==='approve_partner_settlement_period') {
       await connection.execute("UPDATE partner_settlement_periods SET status='approved',approved_by=?,approved_at=NOW(3),updated_at=NOW(3) WHERE id=?",[userId,period.id]);
