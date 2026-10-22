@@ -84,6 +84,15 @@ try {
     .join(String.fromCharCode(10))
     .split(';').map(part => part.trim()).filter(Boolean);
   for (let index = 0; index < extendedStatements.length; index += 1) {
+    const constraintMatch = extendedStatements[index].match(/^ALTER\\s+TABLE\\s+`?([a-z_][a-z0-9_]*)`?\\s+ADD\\s+CONSTRAINT\\s+`?([a-z_][a-z0-9_]*)`?/i);
+    if (constraintMatch) {
+      const [, tableName, constraintName] = constraintMatch;
+      const [existing] = await db.execute(
+        'SELECT CONSTRAINT_NAME FROM information_schema.TABLE_CONSTRAINTS WHERE CONSTRAINT_SCHEMA = DATABASE() AND TABLE_NAME = ? AND CONSTRAINT_NAME = ? LIMIT 1',
+        [tableName, constraintName],
+      );
+      if (existing.length) continue;
+    }
     try {
       await db.query(extendedStatements[index]);
     } catch (error) {
@@ -97,7 +106,7 @@ try {
         const [statusRows] = await db.query('SHOW ENGINE INNODB STATUS');
         const status = String(statusRows?.[0]?.Status || '');
         const foreignKeyError = status.slice(status.lastIndexOf('LATEST FOREIGN KEY ERROR'), status.lastIndexOf('LATEST FOREIGN KEY ERROR') + 3500);
-        if (foreignKeyError) diagnostics += String.fromCharCode(10) + 'InnoDB: ' + foreignKeyError;
+        diagnostics += String.fromCharCode(10) + 'InnoDB status length: ' + status.length + String.fromCharCode(10) + 'InnoDB: ' + (foreignKeyError || status.slice(0, 2500));
       } catch (diagnosticError) { diagnostics += String.fromCharCode(10) + 'InnoDB diagnostics unavailable: ' + diagnosticError.message; }
       throw new Error('MySQL extended migration statement ' + (index + 1) + '/' + extendedStatements.length + ' failed: ' + preview + String.fromCharCode(10) + error.message + diagnostics);
     }
