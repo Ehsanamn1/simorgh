@@ -274,6 +274,10 @@ test('domestic API authenticates a provisioned MySQL user and revokes the sessio
   } finally {
     await db.execute('DELETE FROM medar_rate_limits WHERE key_hash=?', [usernameKey]);
     await db.execute('DELETE FROM medar_login_attempts WHERE username_normalized=?', [username]);
+    await db.execute('DELETE FROM medar_files WHERE company_id=?', [companyId]);
+    for (const bucket of ['delivery-evidence','operational-evidence','contract-documents','capacity-evidence']) {
+      await rm(resolve(process.env.MEDAR_STORAGE_DIR || './storage/medar', bucket, companyId), { recursive: true, force: true });
+    }
     await db.execute('DELETE FROM memberships WHERE id=?', [membershipId]);
     await db.execute('DELETE FROM companies WHERE id=?', [companyId]);
     await db.execute('DELETE FROM medar_users WHERE id=?', [userId]);
