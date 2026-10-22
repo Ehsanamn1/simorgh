@@ -137,7 +137,7 @@ test('domestic API authenticates a provisioned MySQL user and revokes the sessio
     );
     await db.execute(
       "INSERT INTO partner_financial_entries (id,company_id,supplier_id,agreement_id,entry_type,status,direction,amount,paid_amount,currency,paid_by,payment_status,recognized_on,external_reference,created_by,submitted_by,submitted_at,approved_by,approved_at,posted_by,posted_at) VALUES (?,?,?,?,'sale_collection','posted','inflow_to_company',10000,10000,'TOMAN','customer','paid','2026-01-15',?,?,?,NOW(3),?,NOW(3),?,NOW(3))",
-      [randomUUID(), companyId, supplierId, agreementId, 'CI-SETTLEMENT-COLLECTION-' + username, userId, userId, userId, userId, userId],
+      [randomUUID(), companyId, supplierId, agreementId, 'CI-SETTLEMENT-COLLECTION-' + username, userId, userId, userId, userId],
     );
     const createPeriod = await rpc('create_partner_settlement_period', {
       _agreement: agreementId, _period_start: '2026-01-01', _period_end: '2026-01-31',
