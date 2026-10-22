@@ -2355,3 +2355,52 @@ html[data-theme="dark"] .guide-backdrop{background:transparent}
 .sidebar-brand-lockup{display:flex;flex-direction:column;align-items:flex-start;gap:6px;min-width:0}
 .sidebar-parent-brand{display:inline-flex;align-items:center;gap:7px;padding-inline:2px;color:var(--obs-muted,#aeb8c4);font-size:9px;font-weight:650;line-height:1.5;white-space:nowrap}
 .sidebar-parent-brand:before{content:"";width:15px;height:1px;flex:none;background:var(--obs-accent,#a7bbd3);opacity:.82}
+
+
+/* Mobile-first quick-access tiles: compact, tactile, and deliberately lighter than full dashboard panels. */
+.workspace-home-links {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.workspace-home-link {
+  position: relative;
+  min-height: 66px;
+  padding: 10px 11px;
+  border-radius: 14px;
+  background: linear-gradient(145deg, var(--obs-surface), var(--obs-surface-2));
+  box-shadow: 0 4px 12px rgb(13 28 22 / 4%), inset 0 1px rgb(255 255 255 / 48%);
+  will-change: transform;
+}
+.workspace-home-link:active { transform: scale(.985); }
+.workspace-home-link-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 11px;
+  box-shadow: 0 3px 8px rgb(13 28 22 / 5%);
+}
+.workspace-home-link b { font-size: 10px; line-height: 1.55; }
+.workspace-home-link small { font-size: 9px; line-height: 1.55; }
+.workspace-home-link-arrow { width: 14px; height: 14px; }
+.workspace-home-section { contain: layout style; }
+@media (max-width: 860px) {
+  .workspace-home-links { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .workspace-home-link { min-height: 62px; padding: 9px; gap: 8px; }
+  .workspace-home-link-icon { width: 32px; height: 32px; }
+  .workspace-home-link b { font-size: 10px; white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+  .workspace-home-link small { font-size: 8px; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+}
+@media (max-width: 380px) {
+  .workspace-home-links { gap: 7px; }
+  .workspace-home-link { min-height: 59px; padding: 8px 7px; gap: 7px; border-radius: 12px; }
+  .workspace-home-link-icon { width: 29px; height: 29px; border-radius: 9px; }
+  .workspace-home-link b { font-size: 9px; }
+  .workspace-home-link small { font-size: 7px; }
+  .workspace-home-link-arrow { width: 12px; height: 12px; }
+}
+@media (hover: hover) and (pointer: fine) {
+  .workspace-home-link:hover { transform: translateY(-2px); box-shadow: 0 9px 20px rgb(13 28 22 / 8%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .workspace-home-link { transition: none !important; will-change: auto; }
+  .workspace-home-link:hover, .workspace-home-link:active { transform: none; }
+}
