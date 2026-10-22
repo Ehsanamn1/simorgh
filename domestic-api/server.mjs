@@ -443,7 +443,7 @@ app.post('/api/workspace/members/deactivate', async (c) => {
     if (!actorRole || !['owner', 'admin'].includes(String(actorRole))) { await connection.rollback(); return c.json({ message: 'برای مدیریت اعضا دسترسی مالک یا مدیر لازم است.' }, 403); }
     const [targetRows] = await connection.execute('SELECT id, role, active FROM memberships WHERE id=? AND company_id=? LIMIT 1 FOR UPDATE', [membershipId, companyId]);
     const target = targetRows[0];
-    if (!target || !Boolean(target.active)) { await connection.rollback(); return c.json({ message: 'عضویت فعال در این مجموعه پیدا نشد.' }, 404); }
+    if (!target || !target.active) { await connection.rollback(); return c.json({ message: 'عضویت فعال در این مجموعه پیدا نشد.' }, 404); }
     if (String(target.role) === 'owner') { await connection.rollback(); return c.json({ message: 'دسترسی مالک را نمی‌توان از این صفحه غیرفعال کرد.' }, 403); }
     if (String(target.role) === 'admin' && actorRole !== 'owner') { await connection.rollback(); return c.json({ message: 'فقط مالک می‌تواند دسترسی مدیر را غیرفعال کند.' }, 403); }
     await connection.execute('UPDATE memberships SET active=FALSE WHERE id=? AND company_id=?', [membershipId, companyId]);
@@ -477,7 +477,7 @@ app.post('/api/workspace/members/reset-password', async (c) => {
     if (!actorRole || !['owner', 'admin'].includes(String(actorRole))) { await connection.rollback(); return c.json({ message: 'فقط مالک یا مدیر می‌تواند گذرواژه عضو را بازنشانی کند.' }, 403); }
     const [targetRows] = await connection.execute('SELECT user_id, role, active FROM memberships WHERE id=? AND company_id=? LIMIT 1 FOR UPDATE', [membershipId, companyId]);
     const target = targetRows[0];
-    if (!target || !Boolean(target.active)) { await connection.rollback(); return c.json({ message: 'عضویت فعال در این مجموعه پیدا نشد.' }, 404); }
+    if (!target || !target.active) { await connection.rollback(); return c.json({ message: 'عضویت فعال در این مجموعه پیدا نشد.' }, 404); }
     if (String(target.role) === 'owner') { await connection.rollback(); return c.json({ message: 'گذرواژه مالک از این مسیر بازنشانی نمی‌شود.' }, 403); }
     if (String(target.role) === 'admin' && actorRole !== 'owner') { await connection.rollback(); return c.json({ message: 'فقط مالک می‌تواند گذرواژه مدیر دیگری را بازنشانی کند.' }, 403); }
     const encoded = await hashPassword(newPassword);
@@ -507,13 +507,13 @@ app.get('/api/workspace/members/:membershipId/permissions', async (c) => {
   if (!actorRole || !['owner', 'admin'].includes(String(actorRole))) return c.json({ message: 'فقط مالک یا مدیر می‌تواند مجوزهای اعضا را مدیریت کند.' }, 403);
   const [targetRows] = await pool.execute('SELECT id AS membership_id, role, active FROM memberships WHERE id=? AND company_id=? LIMIT 1', [membershipId, companyId]);
   const target = targetRows[0];
-  if (!target || !Boolean(target.active)) return c.json({ message: 'عضویت فعال در این مجموعه پیدا نشد.' }, 404);
+  if (!target || !target.active) return c.json({ message: 'عضویت فعال در این مجموعه پیدا نشد.' }, 404);
   if (['owner', 'admin'].includes(String(target.role))) return c.json({ message: 'مجوزهای مالک و مدیر از این صفحه قابل محدودکردن نیستند.' }, 403);
   const [savedRows] = await pool.execute('SELECT module_key, inherit_role_defaults, can_read, can_create, can_update, can_delete, can_approve FROM medar_membership_module_permissions WHERE company_id=? AND membership_id=?', [companyId, membershipId]);
   const saved = new Map(savedRows.map((row) => [String(row.module_key), row]));
   const modules = MEMBER_PERMISSION_CATALOG.map((module) => {
     const row = saved.get(module.key);
-    const configured = Boolean(row && !Boolean(row.inherit_role_defaults));
+    const configured = Boolean(row && !row.inherit_role_defaults);
     return { key: module.key, label: module.label, configured,
       can_read: configured ? Boolean(row.can_read) : true, can_create: configured ? Boolean(row.can_create) : true,
       can_update: configured ? Boolean(row.can_update) : true, can_delete: configured ? Boolean(row.can_delete) : false,
@@ -552,7 +552,7 @@ app.post('/api/workspace/members/:membershipId/permissions', async (c) => {
     if (!actorRole || !['owner', 'admin'].includes(String(actorRole))) { await connection.rollback(); return c.json({ message: 'فقط مالک یا مدیر می‌تواند مجوزهای اعضا را مدیریت کند.' }, 403); }
     const [targetRows] = await connection.execute('SELECT role, active FROM memberships WHERE id=? AND company_id=? LIMIT 1 FOR UPDATE', [membershipId, companyId]);
     const target = targetRows[0];
-    if (!target || !Boolean(target.active)) { await connection.rollback(); return c.json({ message: 'عضویت فعال در این مجموعه پیدا نشد.' }, 404); }
+    if (!target || !target.active) { await connection.rollback(); return c.json({ message: 'عضویت فعال در این مجموعه پیدا نشد.' }, 404); }
     if (['owner', 'admin'].includes(String(target.role))) { await connection.rollback(); return c.json({ message: 'مجوزهای مالک و مدیر از این صفحه قابل محدودکردن نیستند.' }, 403); }
     for (const module of modules) {
       await connection.execute(
