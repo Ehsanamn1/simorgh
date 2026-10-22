@@ -103,12 +103,8 @@ CREATE TABLE IF NOT EXISTS memberships (
   active BOOLEAN NOT NULL DEFAULT TRUE,
   created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   created_by CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NULL,
-  active_owner_company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin GENERATED ALWAYS AS (
-    CASE WHEN active = TRUE AND role = 'owner' THEN company_id ELSE NULL END
-  ) STORED,
   CONSTRAINT memberships_role_chk CHECK (role IN ('owner','admin','staff','customer','supplier','driver')),
   UNIQUE KEY memberships_company_user_role_unique (company_id, user_id, role),
-  UNIQUE KEY memberships_one_active_owner_per_company_idx (active_owner_company_id),
   KEY medar_memberships_user_active (user_id, active)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
@@ -118,6 +114,11 @@ ALTER TABLE memberships
   ADD CONSTRAINT memberships_user_fk FOREIGN KEY (user_id) REFERENCES medar_users(id) ON DELETE CASCADE;
 ALTER TABLE memberships
   ADD CONSTRAINT memberships_created_by_fk FOREIGN KEY (created_by) REFERENCES medar_users(id) ON DELETE SET NULL;
+ALTER TABLE memberships
+  ADD COLUMN active_owner_company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin
+    GENERATED ALWAYS AS (CASE WHEN active = TRUE AND role = 'owner' THEN company_id ELSE NULL END) STORED;
+ALTER TABLE memberships
+  ADD UNIQUE KEY memberships_one_active_owner_per_company_idx (active_owner_company_id);
 
 CREATE TABLE IF NOT EXISTS access_requests (
   id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL DEFAULT (UUID()) PRIMARY KEY,
