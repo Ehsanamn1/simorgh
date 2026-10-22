@@ -541,6 +541,13 @@ test('domestic API authenticates a provisioned MySQL user and revokes the sessio
       await tracedCleanup('db.execute 10', () => db.execute('DELETE FROM medar_sessions WHERE user_id IN (SELECT user_id FROM memberships WHERE id=?)', [provisionedMembershipId]));
       await tracedCleanup('db.execute 11', () => db.execute('DELETE FROM memberships WHERE id=?', [provisionedMembershipId]));
     }
+    await tracedCleanup('delete settlement periods', () => db.execute('DELETE FROM partner_settlement_periods WHERE company_id=?', [companyId]));
+    await tracedCleanup('delete partner financial entries', () => db.execute('DELETE FROM partner_financial_entries WHERE company_id=?', [companyId]));
+    await tracedCleanup('delete partnership agreements', () => db.execute('DELETE FROM partnership_agreements WHERE company_id=?', [companyId]));
+    await tracedCleanup('delete operational tasks', () => db.execute('DELETE FROM operational_tasks WHERE company_id=?', [companyId]));
+    await tracedCleanup('delete orders before customers', () => db.execute('DELETE FROM orders WHERE company_id=?', [companyId]));
+    await tracedCleanup('delete customers', () => db.execute('DELETE FROM customers WHERE company_id=?', [companyId]));
+    await tracedCleanup('delete suppliers after agreements', () => db.execute('DELETE FROM suppliers WHERE company_id=?', [companyId]));
     for (const provisionedSupplierId of provisionedSupplierIds) {
       await tracedCleanup('db.execute 12', () => db.execute('DELETE FROM suppliers WHERE id=? AND company_id=?', [provisionedSupplierId, companyId]));
     }
