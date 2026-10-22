@@ -1100,3 +1100,12 @@ html[data-theme="light"] .portal-signin-link:focus-visible { outline-color: #267
 @media (prefers-reduced-motion: reduce) {
   .tower-quick-grid > a { transition: none !important; }
 }
+
+.tower-quick-grid > a:focus-visible {
+  outline: 2px solid var(--obs-accent);
+  outline-offset: 3px;
+  border-color: var(--obs-accent);
+}
+@media (hover: none) {
+  .tower-quick-grid > a:hover { transform: none; }
+}
