@@ -125,12 +125,14 @@ CREATE TABLE IF NOT EXISTS delivery_evidence (
 CREATE TABLE IF NOT EXISTS invoices (
   id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL PRIMARY KEY, company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
   order_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null, customer_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null, reference VARCHAR(120) not null, amount numeric(16,0) not null check(amount>=0),
-  paid_amount numeric(16,0) not null default 0 check(paid_amount>=0 and paid_amount<=amount), due_date date,
+  paid_amount numeric(16,0) NOT NULL DEFAULT 0 CHECK (paid_amount >= 0), due_date date,
   status VARCHAR(40) NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','issued','partially_paid','paid','overdue','void')), issued_at DATETIME(3), created_at DATETIME(3) not null DEFAULT CURRENT_TIMESTAMP(3),
   foreign key(company_id,order_id) references orders(company_id,id) on delete restrict,
   foreign key(company_id,customer_id) references customers(company_id,id) on delete restrict,
   unique(company_id,reference),
   CONSTRAINT fk_invoices_company_id FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
+,
+  CHECK (paid_amount <= amount)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS settlements (
@@ -256,7 +258,7 @@ CREATE TABLE IF NOT EXISTS production_batches (
   unit VARCHAR(64) not null default 'کیلوگرم',
   planned_quantity numeric(14,3) check (planned_quantity is null or planned_quantity >= 0),
   produced_quantity numeric(14,3) not null default 0 check (produced_quantity >= 0),
-  rejected_quantity numeric(14,3) not null default 0 check (rejected_quantity >= 0 and rejected_quantity <= produced_quantity),
+  rejected_quantity numeric(14,3) NOT NULL DEFAULT 0 CHECK (rejected_quantity >= 0),
   started_on date,
   expected_on date,
   completed_on date,
@@ -277,6 +279,8 @@ CREATE TABLE IF NOT EXISTS production_batches (
   check (completed_on is null or started_on is null or completed_on >= started_on),
   CONSTRAINT fk_production_batches_company_id FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE,
   CONSTRAINT fk_production_batches_created_by FOREIGN KEY (created_by) REFERENCES medar_users(id) ON DELETE SET NULL
+,
+  CHECK (rejected_quantity <= produced_quantity)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS daily_production_records (
@@ -288,7 +292,7 @@ CREATE TABLE IF NOT EXISTS daily_production_records (
   feed_consumed_kg numeric(14,3) not null default 0 check (feed_consumed_kg >= 0),
   mortality_count integer not null default 0 check (mortality_count >= 0),
   eggs_collected integer not null default 0 check (eggs_collected >= 0),
-  eggs_rejected integer not null default 0 check (eggs_rejected >= 0 and eggs_rejected <= eggs_collected),
+  eggs_rejected integer NOT NULL DEFAULT 0 CHECK (eggs_rejected >= 0),
   produced_quantity numeric(14,3) check (produced_quantity is null or produced_quantity >= 0),
   average_weight_grams numeric(10,2) check (average_weight_grams is null or average_weight_grams >= 0),
   note TEXT,
@@ -299,6 +303,8 @@ CREATE TABLE IF NOT EXISTS daily_production_records (
   foreign key(company_id,batch_id) references production_batches(company_id,id) on delete restrict,
   CONSTRAINT fk_daily_production_records_company_id FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE,
   CONSTRAINT fk_daily_production_records_recorded_by FOREIGN KEY (recorded_by) REFERENCES medar_users(id) ON DELETE SET NULL
+,
+  CHECK (eggs_rejected <= eggs_collected)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS task_templates (
@@ -425,7 +431,7 @@ CREATE TABLE IF NOT EXISTS partner_financial_entries (
   status VARCHAR(16) not null default 'draft' check (status in ('draft','submitted','approved','rejected','posted')),
   direction VARCHAR(32) not null default 'not_cash' check (direction in ('not_cash','inflow_to_company','outflow_from_company','company_to_partner','partner_to_company')),
   amount numeric(16,0) not null check (amount > 0),
-  paid_amount numeric(16,0) not null default 0 check (paid_amount >= 0 and paid_amount <= amount),
+  paid_amount numeric(16,0) NOT NULL DEFAULT 0 CHECK (paid_amount >= 0),
   currency VARCHAR(8) not null default 'TOMAN' check (currency in ('IRR','TOMAN')),
   expense_category TEXT,
   is_shared_cost boolean not null default false,
@@ -470,6 +476,8 @@ CREATE TABLE IF NOT EXISTS partner_financial_entries (
   CONSTRAINT fk_partner_financial_entries_approved_by FOREIGN KEY (approved_by) REFERENCES medar_users(id) ON DELETE SET NULL,
   CONSTRAINT fk_partner_financial_entries_posted_by FOREIGN KEY (posted_by) REFERENCES medar_users(id) ON DELETE SET NULL,
   CONSTRAINT fk_partner_financial_entries_created_by FOREIGN KEY (created_by) REFERENCES medar_users(id) ON DELETE SET NULL
+,
+  CHECK (paid_amount <= amount)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS partner_settlement_periods (
