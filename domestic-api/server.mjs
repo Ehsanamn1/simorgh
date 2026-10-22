@@ -293,6 +293,17 @@ const DATA_TABLES = new Set([
   'operational_incidents','partner_financial_entries','shipment_locations','company_goals',
 ]);
 const READ_ONLY_TABLES = new Set(['notifications','delivery_evidence','task_evidence']);
+const TABLE_PROTECTED_FIELDS = {
+  orders: new Set(['status']),
+  order_items: new Set(['allocated_quantity','fulfilled_quantity']),
+  capacity_commitments: new Set(['status','confirmed_qty','committed_qty','evidence_review_status','evidence_reviewed_by','evidence_reviewed_at','evidence_review_note']),
+  shipments: new Set(['stage','departed_at','delivered_at','failure_reason']),
+  invoices: new Set(['status','paid_amount','paid_at']),
+  settlements: new Set(['status','paid_at','posted_at']),
+  production_batches: new Set(['status','quality_status','produced_quantity','rejected_quantity','completed_on']),
+  operational_tasks: new Set(['status','started_at','submitted_at','reviewed_at','reviewed_by','review_note']),
+  partner_financial_entries: new Set(['status','submitted_by','submitted_at','approved_by','approved_at','posted_by','posted_at','paid_amount','paid_at']),
+};
 const INTERNAL_ROLES = new Set(['owner','admin','staff']);
 const PROTECTED_FIELDS = new Set([
   'id','company_id','user_id','password_hash','token_hash','created_by','updated_by','recorded_by',
@@ -458,6 +469,16 @@ app.post('/api/data/:table', async (c) => {
         row.company_id = companyId;
         if (columns.has('id') && !row.id) row.id = randomUUID();
         if (columns.has('created_by')) row.created_by = session.user.id;
+        const serverDefaults = {
+          orders: { status: 'draft' },
+          shipments: { stage: 'planned' },
+          operational_tasks: { status: 'pending' },
+          production_batches: { status: 'planned', quality_status: 'not_inspected', produced_quantity: 0, rejected_quantity: 0 },
+          invoices: { status: 'draft', paid_amount: 0 },
+          partner_financial_entries: { status: 'draft', submitted_by: null, submitted_at: null, approved_by: null, approved_at: null, posted_by: null, posted_at: null, paid_amount: 0 },
+          capacity_commitments: { status: 'declared', confirmed_qty: null, committed_qty: null, evidence_review_status: 'pending_review', evidence_reviewed_by: null, evidence_reviewed_at: null, evidence_review_note: null },
+        };
+        for (const [key, value] of Object.entries(serverDefaults[table] || {})) if (columns.has(key)) row[key] = value;
         if (!Object.keys(row).length) throw new Error('Empty insert');
         const keys = Object.keys(row);
         const [result] = await pool.execute(
@@ -479,7 +500,7 @@ app.post('/api/data/:table', async (c) => {
     const row = {};
     for (const [key, value] of Object.entries(original)) {
       if (!columns.has(key)) throw new Error('Unknown update field');
-      if (PROTECTED_FIELDS.has(key)) continue;
+      if (PROTECTED_FIELDS.has(key) || TABLE_PROTECTED_FIELDS[table]?.has(key)) continue;
       row[key] = value;
     }
     const keys = Object.keys(row);
