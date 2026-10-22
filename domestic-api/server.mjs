@@ -285,6 +285,218 @@ app.get('/api/workspace/memberships', async (c) => {
   return c.json({ memberships: await membershipsFor(session.user.id) });
 });
 
+
+const DATA_TABLES = new Set([
+  'customers','suppliers','products','price_agreements','orders','order_items','capacity_commitments','lots',
+  'shipments','delivery_evidence','invoices','settlements','notifications','farm_sites','partnership_agreements',
+  'flock_cycles','production_batches','daily_production_records','task_templates','operational_tasks','task_evidence',
+  'operational_incidents','partner_financial_entries','shipment_locations','company_goals',
+]);
+const READ_ONLY_TABLES = new Set(['notifications','delivery_evidence','task_evidence']);
+const INTERNAL_ROLES = new Set(['owner','admin','staff']);
+const PROTECTED_FIELDS = new Set([
+  'id','company_id','user_id','password_hash','token_hash','created_by','updated_by','recorded_by',
+  'captured_by','uploaded_by','reported_by','submitted_by','reviewed_by','approved_by','posted_by',
+  'paid_by','resolved_by','actor_id','assigned_by','read_at','approved_at','posted_at','paid_at',
+]);
+const COLUMN_CACHE = new Map();
+
+function sqlIdentifier(value) {
+  if (typeof value !== 'string' || !/^[a-z_][a-z0-9_]*$/i.test(value)) throw new Error('Invalid SQL identifier');
+  return '`' + value + '`';
+}
+
+async function tableColumns(table) {
+  if (COLUMN_CACHE.has(table)) return COLUMN_CACHE.get(table);
+  const [rows] = await pool.execute(
+    'SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=?',
+    [table],
+  );
+  const columns = new Set(rows.map((row) => String(row.COLUMN_NAME)));
+  if (!columns.size) throw new Error('Unknown database table');
+  COLUMN_CACHE.set(table, columns);
+  return columns;
+}
+
+function buildFilterSql(filters, columns, values, join = 'AND') {
+  if (!Array.isArray(filters) || filters.length > 40) throw new Error('Invalid filters');
+  const parts = [];
+  for (const filter of filters) {
+    if (!filter || typeof filter.column !== 'string' || !columns.has(filter.column)) throw new Error('Invalid filter column');
+    const column = sqlIdentifier(filter.column);
+    const op = String(filter.op || 'eq').toLowerCase();
+    const value = filter.value;
+    if (op === 'is' || op === 'not_is' || (value === null && ['eq','neq'].includes(op))) {
+      if (value !== null && value !== 'null') throw new Error('Only null checks are supported with is/not_is');
+      parts.push(column + ((op === 'not_is' || op === 'neq') ? ' IS NOT NULL' : ' IS NULL'));
+      continue;
+    }
+    if (op === 'in' || op === 'not_in') {
+      if (!Array.isArray(value) || value.length > 200) throw new Error('Invalid IN filter');
+      if (!value.length) { parts.push(op === 'in' ? '0=1' : '1=1'); continue; }
+      parts.push(column + (op === 'not_in' ? ' NOT IN (' : ' IN (') + value.map(() => '?').join(',') + ')');
+      values.push(...value);
+      continue;
+    }
+    const operators = { eq: '=', neq: '<>', gt: '>', gte: '>=', lt: '<', lte: '<=', like: 'LIKE', ilike: 'LIKE' };
+    if (!Object.hasOwn(operators, op)) throw new Error('Unsupported filter operator');
+    if (op === 'ilike') parts.push('LOWER(CAST(' + column + ' AS CHAR)) LIKE LOWER(?)');
+    else parts.push(column + ' ' + operators[op] + ' ?');
+    values.push(value);
+  }
+  return parts.length ? '(' + parts.join(' ' + join + ' ') + ')' : '';
+}
+
+async function scopedMemberships(session, table, columns) {
+  const memberships = await membershipsFor(session.user.id);
+  return memberships.filter((membership) => columns.has('company_id') && DATA_TABLES.has(table) &&
+    membership.active && typeof membership.company_id === 'string');
+}
+
+function membershipScope(table, columns, memberships, userId, values) {
+  const branches = [];
+  for (const membership of memberships) {
+    const role = String(membership.role);
+    const companyId = membership.company_id;
+    if (INTERNAL_ROLES.has(role)) {
+      branches.push('(' + sqlIdentifier('company_id') + ' = ?)');
+      values.push(companyId);
+    } else if (role === 'supplier' && membership.supplier_id) {
+      if (columns.has('supplier_id')) {
+        branches.push('(' + sqlIdentifier('company_id') + ' = ? AND ' + sqlIdentifier('supplier_id') + ' = ?)');
+        values.push(companyId, membership.supplier_id);
+      } else if (table === 'suppliers' && columns.has('id')) {
+        branches.push('(' + sqlIdentifier('company_id') + ' = ? AND ' + sqlIdentifier('id') + ' = ?)');
+        values.push(companyId, membership.supplier_id);
+      }
+    } else if (role === 'customer' && membership.customer_id) {
+      if (columns.has('customer_id')) {
+        branches.push('(' + sqlIdentifier('company_id') + ' = ? AND ' + sqlIdentifier('customer_id') + ' = ?)');
+        values.push(companyId, membership.customer_id);
+      } else if (table === 'customers' && columns.has('id')) {
+        branches.push('(' + sqlIdentifier('company_id') + ' = ? AND ' + sqlIdentifier('id') + ' = ?)');
+        values.push(companyId, membership.customer_id);
+      } else if (table === 'notifications' && columns.has('user_id')) {
+        branches.push('(' + sqlIdentifier('company_id') + ' = ? AND ' + sqlIdentifier('user_id') + ' = ?)');
+        values.push(companyId, userId);
+      }
+    } else if (role === 'driver' && table === 'shipments' && columns.has('driver_user_id')) {
+      branches.push('(' + sqlIdentifier('company_id') + ' = ? AND ' + sqlIdentifier('driver_user_id') + ' = ?)');
+      values.push(companyId, userId);
+    }
+  }
+  return branches.length ? '(' + branches.join(' OR ') + ')' : '0=1';
+}
+
+app.post('/api/data/:table', async (c) => {
+  if (!pool) return c.json({ message: 'پایگاه داده تنظیم نشده است.' }, 503);
+  const session = await currentSession(c);
+  if (!session) return c.json({ message: 'برای ادامه وارد حساب شو.' }, 401);
+  const table = c.req.param('table');
+  if (!DATA_TABLES.has(table)) return c.json({ message: 'جدول در API مجاز نیست.' }, 404);
+  const body = await c.req.json().catch(() => null);
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return c.json({ message: 'درخواست داده معتبر نیست.' }, 400);
+  const action = typeof body.action === 'string' ? body.action : 'select';
+  if (!['select','insert','update','delete'].includes(action)) return c.json({ message: 'عملیات داده مجاز نیست.' }, 422);
+  try {
+    const columns = await tableColumns(table);
+    if (!columns.has('company_id')) return c.json({ message: 'جدول فاقد محدوده شرکت است.' }, 403);
+    const memberships = await scopedMemberships(session, table, columns);
+    if (!memberships.length) return c.json({ message: 'این حساب به فضای کاری فعالی دسترسی ندارد.' }, 403);
+    const scopeValues = [];
+    const scope = membershipScope(table, columns, memberships, session.user.id, scopeValues);
+    const filterValues = [];
+    const filters = buildFilterSql(body.filters || [], columns, filterValues);
+    const orValues = [];
+    const orFilters = buildFilterSql(body.orFilters || [], columns, orValues, 'OR');
+    const clauses = [scope, filters, orFilters].filter(Boolean);
+    const where = clauses.length ? ' WHERE ' + clauses.map((part) => '(' + part + ')').join(' AND ') : '';
+    if (action === 'select') {
+      const countValues = [...scopeValues, ...filterValues, ...orValues];
+      let count = null;
+      if (body.count === true || body.head === true) {
+        const [countRows] = await pool.execute('SELECT COUNT(*) AS count FROM ' + sqlIdentifier(table) + where, countValues);
+        count = Number(countRows[0]?.count ?? 0);
+      }
+      if (body.head === true) return c.json({ data: [], count, error: null });
+      const params = [...scopeValues, ...filterValues, ...orValues];
+      let query = 'SELECT * FROM ' + sqlIdentifier(table) + where;
+      if (body.order && typeof body.order === 'object' && body.order.column) {
+        if (!columns.has(body.order.column)) throw new Error('Invalid order column');
+        query += ' ORDER BY ' + sqlIdentifier(body.order.column) + (body.order.ascending === true ? ' ASC' : ' DESC');
+      }
+      const limit = Math.max(1, Math.min(500, Number.isFinite(Number(body.limit)) ? Math.trunc(Number(body.limit)) : 200));
+      query += ' LIMIT ?';
+      params.push(limit);
+      const [rows] = await pool.execute(query, params);
+      return c.json({ data: rows, count: count ?? rows.length, error: null });
+    }
+    if (READ_ONLY_TABLES.has(table) || !memberships.every((m) => INTERNAL_ROLES.has(String(m.role)))) {
+      return c.json({ message: 'این عملیات برای نقش فعلی مجاز نیست یا باید از مسیر عملیاتی انجام شود.' }, 403);
+    }
+    if (action !== 'insert' && !(Array.isArray(body.filters) && body.filters.length)) {
+      return c.json({ message: 'برای ویرایش یا حذف باید فیلتر رکورد مشخص شود.' }, 422);
+    }
+    if (action === 'insert') {
+      const input = Array.isArray(body.values) ? body.values : [body.values];
+      if (!input.length || input.length > 100 || input.some((row) => !row || typeof row !== 'object' || Array.isArray(row))) {
+        return c.json({ message: 'رکورد ورودی معتبر نیست.' }, 422);
+      }
+      const inserted = [];
+      for (const original of input) {
+        const companyId = typeof original.company_id === 'string' ? original.company_id : '';
+        if (!memberships.some((m) => m.company_id === companyId && INTERNAL_ROLES.has(String(m.role)))) {
+          return c.json({ message: 'این شرکت به حساب فعلی تعلق ندارد.' }, 403);
+        }
+        const row = {};
+        for (const [key, value] of Object.entries(original)) {
+          if (!columns.has(key)) throw new Error('Unknown insert field');
+          if (key === 'company_id') continue;
+          if (PROTECTED_FIELDS.has(key)) continue;
+          row[key] = value;
+        }
+        row.company_id = companyId;
+        if (columns.has('created_by')) row.created_by = session.user.id;
+        if (!Object.keys(row).length) throw new Error('Empty insert');
+        const keys = Object.keys(row);
+        const [result] = await pool.execute(
+          'INSERT INTO ' + sqlIdentifier(table) + ' (' + keys.map(sqlIdentifier).join(',') + ') VALUES (' + keys.map(() => '?').join(',') + ')',
+          keys.map((key) => row[key]),
+        );
+        inserted.push({ id: result.insertId ?? null, ...row });
+      }
+      return c.json({ data: inserted, count: inserted.length, error: null });
+    }
+    const values = [...scopeValues, ...filterValues, ...orValues];
+    if (action === 'delete') {
+      if (!memberships.every((m) => ['owner','admin'].includes(String(m.role)))) return c.json({ message: 'حذف رکورد فقط برای مالک یا مدیر مجاز است.' }, 403);
+      const [result] = await pool.execute('DELETE FROM ' + sqlIdentifier(table) + where, values);
+      return c.json({ data: [], count: result.affectedRows, error: null });
+    }
+    const original = body.values;
+    if (!original || typeof original !== 'object' || Array.isArray(original)) return c.json({ message: 'مقادیر ویرایش معتبر نیست.' }, 422);
+    const row = {};
+    for (const [key, value] of Object.entries(original)) {
+      if (!columns.has(key)) throw new Error('Unknown update field');
+      if (PROTECTED_FIELDS.has(key)) continue;
+      row[key] = value;
+    }
+    const keys = Object.keys(row);
+    if (!keys.length) return c.json({ message: 'هیچ فیلد قابل ویرایشی ارسال نشده است.' }, 422);
+    const updateValues = [...keys.map((key) => row[key]), ...values];
+    const [result] = await pool.execute(
+      'UPDATE ' + sqlIdentifier(table) + ' SET ' + keys.map((key) => sqlIdentifier(key) + '=?').join(',') + where,
+      updateValues,
+    );
+    return c.json({ data: [], count: result.affectedRows, error: null });
+  } catch (error) {
+    const message = error instanceof Error && /Invalid|Unsupported|Unknown|Empty/.test(error.message)
+      ? 'فیلتر یا فیلد درخواست معتبر نیست.'
+      : 'ذخیره‌سازی داده ناموفق بود؛ ورودی‌ها و دسترسی شرکت را بررسی کن.';
+    return c.json({ message }, 422);
+  }
+});
+
 app.notFound((c) => c.json({ message: 'مسیر API در نسخه داخلی پیدا نشد.' }, 404));
 app.onError((error, c) => {
   const requestId = randomBytes(8).toString('hex');
