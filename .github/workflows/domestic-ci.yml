@@ -40,6 +40,12 @@ jobs:
           node-version: "22"
       - name: Install dependencies
         run: npm install --no-audit --no-fund
+      - name: Install domestic Node/MySQL API dependencies
+        working-directory: domestic-api
+        run: npm install --no-audit --no-fund
+      - name: Validate domestic API syntax and authentication primitives
+        working-directory: domestic-api
+        run: npm run check && npm test
       - name: TypeScript validation
         run: npm run typecheck
       - name: Validate MySQL migration test syntax
