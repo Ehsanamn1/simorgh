@@ -2369,7 +2369,6 @@ html[data-theme="dark"] .guide-backdrop{background:transparent}
   border-radius: 14px;
   background: linear-gradient(145deg, var(--obs-surface), var(--obs-surface-2));
   box-shadow: 0 4px 12px rgb(13 28 22 / 4%), inset 0 1px rgb(255 255 255 / 48%);
-  will-change: transform;
 }
 .workspace-home-link:active { transform: scale(.985); }
 .workspace-home-link-icon {
@@ -2401,6 +2400,6 @@ html[data-theme="dark"] .guide-backdrop{background:transparent}
   .workspace-home-link:hover { transform: translateY(-2px); box-shadow: 0 9px 20px rgb(13 28 22 / 8%); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .workspace-home-link { transition: none !important; will-change: auto; }
+  .workspace-home-link { transition: none !important; }
   .workspace-home-link:hover, .workspace-home-link:active { transform: none; }
 }
