@@ -725,7 +725,7 @@ html[data-theme="dark"] .ai-launcher-orb { background: linear-gradient(145deg, #
   overflow: hidden; border: 1px solid var(--obs-border); border-radius: 24px; color: var(--obs-text);
   background: var(--obs-surface); box-shadow: 0 28px 80px rgb(10 24 14 / 25%), inset 0 1px rgb(255 255 255 / 52%);
 }
-.ai-assistant-header { display: flex; align-items: center; gap: 10px; padding: 14px 15px; border-bottom: 1px solid var(--obs-border); background: linear-gradient(145deg, var(--obs-surface), var(--obs-surface-2)); }
+.ai-assistant-header { display: flex; align-items: center; gap: 10px; padding: 14px 15px; border-bottom: 1px solid var(--obs-border); background: linear-gradient(145deg, var(--obs-surface, #ffffff), var(--obs-surface-2, #f4f6f0)); }
 .ai-assistant-mark { width: 42px; height: 42px; display: grid; place-items: center; flex: none; border-radius: 15px; background: linear-gradient(145deg, #3b9164, #276749); color: #fff; box-shadow: inset 0 1px rgb(255 255 255 / 40%), 0 4px 0 #1f5137; }
 html[data-theme="dark"] .ai-assistant-mark { background: linear-gradient(145deg, #b9cbe2, #8fa6c5); color: #293343; box-shadow: inset 0 1px #fff, 0 4px 0 #697f9b; }
 .ai-assistant-title { display: grid; flex: 1; min-width: 0; gap: 4px; }
