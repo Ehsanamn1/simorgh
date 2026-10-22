@@ -383,7 +383,10 @@ function FarmMapPanel({sites,schemaWarning,membership}:{sites:Row[];schemaWarnin
   useEffect(()=>{
     if(!dataApi||!canViewFleet)return;
     let disposed=false;
+    let refreshing=false;
     const refreshFleet=async()=>{
+      if(disposed||document.hidden||refreshing)return;
+      refreshing=true;
       try{
         const shipmentResult=await dataApi.from('shipments').select('id,driver_user_id,stage,vehicle,planned_departure').eq('company_id',membership.company_id).in('stage',['loading','in_transit','arrived']).limit(200);
         if(shipmentResult.error)throw new Error(shipmentResult.error.message);
@@ -404,11 +407,15 @@ function FarmMapPanel({sites,schemaWarning,membership}:{sites:Row[];schemaWarnin
         setFleetNotice('');
       }catch(caught){
         if(!disposed&&!document.hidden){setFleetNotice(caught instanceof Error?caught.message:'دریافت موقعیت ناوگان ممکن نشد.');setFleetLastRefresh(new Date().toISOString());}
+      }finally{
+        refreshing=false;
       }
     };
     let timer:number|undefined;
     const delay=window.matchMedia('(max-width: 720px)').matches?45000:20000;
     const schedule=()=>{
+      if(timer!==undefined)window.clearTimeout(timer);
+      timer=undefined;
       if(disposed||document.hidden)return;
       timer=window.setTimeout(async()=>{await refreshFleet();schedule();},delay);
     };
