@@ -792,7 +792,7 @@ jobs:
         env:
           VITE_ENABLE_AUTH_UI: 'false'
       - name: Run public demo browser checks against the demo bundle
-        run: npm run test:e2e -- e2e/demo.e2e.ts
+        run: npm run test:e2e -- e2e/demo.e2e.ts e2e/mobile-acceptance.e2e.ts
       - name: Upload public demo browser reports and failure artifacts
         if: always()
         uses: actions/upload-artifact@v5
