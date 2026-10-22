@@ -63,9 +63,11 @@ jobs:
           node scripts/apply-medar-mysql-foundation.mjs --apply
       - name: Test domestic API against the migrated disposable MySQL database
         working-directory: domestic-api
+        timeout-minutes: 8
         env:
           MYSQL_URL: mysql://root:ci-root-password@127.0.0.1:3306/medar_ci
           NODE_ENV: test
+          MEDAR_TEST_TRACE: 'true'
         run: npm run test:integration
       - name: Test the isolated domestic Node/MySQL API
         working-directory: domestic-api
