@@ -78,6 +78,27 @@ try {
     await db.query(operationalStatements[index]);
   }
 
+  const extendedSql = await readFile(new URL('../worker/migrations/mysql/0003_extended_schema.sql', import.meta.url), 'utf8');
+  const extendedStatements = extendedSql.split(String.fromCharCode(10))
+    .filter(line => !line.trim().startsWith('--'))
+    .join(String.fromCharCode(10))
+    .split(';').map(part => part.trim()).filter(Boolean);
+  for (let index = 0; index < extendedStatements.length; index += 1) {
+    try {
+      await db.query(extendedStatements[index]);
+    } catch (error) {
+      const preview = extendedStatements[index].split(String.fromCharCode(10)).join(' ').slice(0, 180);
+      throw new Error('MySQL extended migration statement ' + (index + 1) + '/' + extendedStatements.length + ' failed: ' + preview + String.fromCharCode(10) + error.message);
+    }
+  }
+  const extendedRequired = ['company_invites','medar_files','purchase_orders','purchase_order_items','medar_client_presence','medar_ai_provider_configs','medar_ai_usage_log','medar_ai_action_runs','medar_membership_module_permissions','medar_bank_accounts','medar_bank_transactions','medar_operational_events','medar_exception_cases','medar_conversations','medar_conversation_participants','medar_messages','medar_push_subscriptions','medar_notification_outbox'];
+  const [extendedRows] = await db.query('SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_TYPE = \'BASE TABLE\'');
+  const extendedFound = new Set(extendedRows.map(row => String(row.TABLE_NAME).toLowerCase()));
+  for (const table of extendedRequired) assert(extendedFound.has(table), 'Missing MySQL extended table: ' + table);
+  for (let index = 0; index < extendedStatements.length; index += 1) {
+    await db.query(extendedStatements[index]);
+  }
+
   const required = ['medar_users','medar_sessions','medar_login_attempts','medar_rate_limits','medar_audit_log','companies','profiles','memberships','company_owners','access_requests','pending_access_request_guards'];
   const [rows] = await db.query(
     'SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_TYPE = \'BASE TABLE\'',
