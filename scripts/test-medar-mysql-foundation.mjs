@@ -77,6 +77,15 @@ try {
   const [[emailColumn]] = await db.query("SELECT COUNT(*) AS count FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'access_requests' AND COLUMN_NAME = 'email'");
   assert.equal(Number(emailColumn.count), 1, 'Access-request email field from the later PostgreSQL schema must be present.');
   for (let index = 0; index < operationalStatements.length; index += 1) {
+    const constraintMatch = operationalStatements[index].match(/^ALTER\\s+TABLE\\s+`?([a-z_][a-z0-9_]*)`?\\s+ADD\\s+CONSTRAINT\\s+`?([a-z_][a-z0-9_]*)`?/i);
+    if (constraintMatch) {
+      const [, tableName, constraintName] = constraintMatch;
+      const [existing] = await db.execute(
+        'SELECT CONSTRAINT_NAME FROM information_schema.TABLE_CONSTRAINTS WHERE CONSTRAINT_SCHEMA = DATABASE() AND TABLE_NAME = ? AND CONSTRAINT_NAME = ? LIMIT 1',
+        [tableName, constraintName],
+      );
+      if (existing.length) continue;
+    }
     await db.query(operationalStatements[index]);
   }
 
