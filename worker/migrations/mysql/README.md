@@ -1,15 +1,22 @@
 # Medar MySQL migration status
 
-This directory is the separate MySQL migration chain for domestic-hosting work. It does not replace or modify the current PostgreSQL migrations in `worker/migrations/`.
+This is a separate, forward-only MySQL schema chain for the planned domestic Node.js runtime. It does not replace or rewrite the existing PostgreSQL migrations in `worker/migrations/`.
 
-## Ported so far
+## MySQL schema migrations converted and covered by disposable-MySQL CI
 
-- `0001_foundation.sql`: identity, sessions, login attempts, rate limits, audit log, companies, profiles, memberships and access requests. PostgreSQL partial uniqueness is represented with generated columns and unique indexes.
+- `0001_foundation.sql`: users, sessions, login attempts, rate limits, audit log, companies, profiles, memberships, owner registry and access requests.
+- `0002_operational_schema.sql`: core business operations including customers, suppliers, products, orders, capacity, lots, quality, shipments, invoices, settlements, farm sites, production, tasks, partner finance, inventory and goals.
+- `0003_extended_schema.sql`: invites, private files, purchase orders, client presence, AI provider/usage/action records, module permissions, bank reconciliation, operational events/exceptions, messaging and push notifications.
+- `0004_delivery_video_evidence.sql`: restart-safe forward migration allowing private video delivery evidence without rewriting the earlier operational migration.
 
-## Not ready for production
+The CI test applies the chain to a disposable MySQL 8.4 service, checks tenant-scoped foreign keys and accounting/quantity constraints, reruns migrations to check idempotency, and exercises the first Node/MySQL authentication slice.
 
-The MySQL chain is incomplete. Migrations 0002–0031 have not been converted and tested, including operational tables, partner settlement functions, inventory concurrency controls, purchase-order lifecycle, AI approvals, notifications, private evidence storage, and event hooks. The Worker API still uses Neon/PostgreSQL SQL. Do not point the live app to MySQL or use this directory for production until the remaining migrations, API query port, data validation, and integration tests are complete.
+## Still not production-ready
+
+The full port is **not complete**. The live Worker API in `worker/index.ts` still uses Neon/PostgreSQL. PostgreSQL functions, triggers, RLS assumptions, concurrency locks and all operational API routes have not been fully ported to the Node/MySQL runtime. The MySQL data importer, production data reconciliation, domestic-hosting deployment and rollback rehearsal also remain outstanding.
+
+Do not point the live application at MySQL or run this migration chain on a production database until the API port, data migration, access-control review, financial reconciliation and rollback tests have passed.
 
 ## Required runtime
 
-MySQL 8.0.13+ (for expression defaults), InnoDB, utf8mb4, enforced CHECK constraints, generated columns, foreign keys, and transaction support. Verify the actual hosting provider's server version before applying this chain.
+MySQL 8.0.16+ is the minimum assumed by the current schema because it relies on enforced CHECK constraints; expression defaults require MySQL 8.0.13+. Use InnoDB, utf8mb4, foreign keys, generated columns and transaction support. The CI currently tests MySQL 8.4; verify the hosting provider's actual server version and capabilities before applying.
