@@ -67,6 +67,17 @@ jobs:
           MYSQL_URL: mysql://root:ci-root-password@127.0.0.1:3306/medar_ci
           NODE_ENV: test
         run: npm run test:integration
+      - name: Test the isolated domestic Node/MySQL API
+        working-directory: domestic-api
+        env:
+          MYSQL_URL: mysql://root:ci-root-password@127.0.0.1:3306/medar_ci
+          NODE_ENV: test
+          TRUST_PROXY_HEADERS: 'false'
+        run: |
+          npm install --no-audit --no-fund
+          npm run check
+          npm test
+          npm run test:integration
       - name: Lint
         run: npm run lint
       - name: Unit and component tests
