@@ -2371,6 +2371,31 @@ html[data-theme="dark"] .guide-backdrop{background:transparent}
   box-shadow: 0 4px 12px rgb(13 28 22 / 4%), inset 0 1px rgb(255 255 255 / 48%);
 }
 .workspace-home-link:active { transform: scale(.985); }
+.workspace-home-link:focus-visible {
+  outline: 2px solid var(--obs-accent, #8fa9c1);
+  outline-offset: 3px;
+  z-index: 2;
+}
+.workspace-home-link-icon { flex-shrink: 0; }
+.workspace-home-link > span:nth-child(2) { min-width: 0; }
+@media (max-width: 480px) {
+  .workspace-home-links { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  .workspace-home-link {
+    min-width: 0;
+    min-height: 60px;
+    padding: 9px 8px;
+    gap: 7px;
+    border-radius: 13px;
+    box-shadow: 0 3px 10px rgb(13 28 22 / 5%);
+  }
+  .workspace-home-link b { font-size: 10px; }
+  .workspace-home-link small { font-size: 8px; }
+}
+@media (max-width: 340px) {
+  .workspace-home-link { min-height: 56px; padding: 7px 6px; gap: 6px; }
+  .workspace-home-link-icon { width: 27px; height: 27px; }
+  .workspace-home-link-arrow { display: none; }
+}
 .workspace-home-link-icon {
   width: 34px;
   height: 34px;
