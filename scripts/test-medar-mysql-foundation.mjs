@@ -139,6 +139,31 @@ try {
     await db.query(extendedStatements[index]);
   }
 
+  const videoSql = await readFile(new URL('../worker/migrations/mysql/0004_delivery_video_evidence.sql', import.meta.url), 'utf8');
+  const videoStatements = videoSql.split(String.fromCharCode(10))
+    .filter(line => !line.trim().startsWith('--'))
+    .join(String.fromCharCode(10))
+    .split(';').map(part => part.trim()).filter(Boolean);
+  for (let pass = 0; pass < 2; pass += 1) {
+    for (const statement of videoStatements) {
+      const constraintMatch = statement.match(/^ALTER\\s+TABLE\\s+`?([a-z_][a-z0-9_]*)`?\\s+ADD\\s+CONSTRAINT\\s+`?([a-z_][a-z0-9_]*)`?/i);
+      if (constraintMatch) {
+        const [, tableName, constraintName] = constraintMatch;
+        const [existing] = await db.execute(
+          'SELECT CONSTRAINT_NAME FROM information_schema.TABLE_CONSTRAINTS WHERE CONSTRAINT_SCHEMA = DATABASE() AND TABLE_NAME = ? AND CONSTRAINT_NAME = ? LIMIT 1',
+          [tableName, constraintName],
+        );
+        if (existing.length) continue;
+      }
+      await db.query(statement);
+    }
+  }
+  const [videoConstraintRows] = await db.query(
+    "SELECT cc.CHECK_CLAUSE FROM information_schema.TABLE_CONSTRAINTS tc JOIN information_schema.CHECK_CONSTRAINTS cc ON cc.CONSTRAINT_SCHEMA=tc.CONSTRAINT_SCHEMA AND cc.CONSTRAINT_NAME=tc.CONSTRAINT_NAME WHERE tc.CONSTRAINT_SCHEMA=DATABASE() AND tc.TABLE_NAME='delivery_evidence' AND tc.CONSTRAINT_NAME='delivery_evidence_kind_check' LIMIT 1",
+  );
+  assert.equal(videoConstraintRows.length, 1, 'Delivery video evidence constraint must exist after two migration passes.');
+  assert.match(String(videoConstraintRows[0].CHECK_CLAUSE), /video/i, 'Delivery evidence check must allow video.');
+
   const required = ['medar_users','medar_sessions','medar_login_attempts','medar_rate_limits','medar_audit_log','companies','profiles','memberships','company_owners','access_requests','pending_access_request_guards'];
   const [rows] = await db.query(
     'SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_TYPE = \'BASE TABLE\'',
