@@ -7,7 +7,7 @@ import { resolve } from 'node:path';
 import mysql from 'mysql2/promise';
 import { app, hashPassword, closePool } from './server.mjs';
 
-test('domestic API authenticates a provisioned MySQL user and revokes the session on logout', { skip: !process.env.MYSQL_URL }, async () => {
+test('domestic API authenticates a provisioned MySQL user and revokes the session on logout', { skip: !process.env.MYSQL_URL, timeout: 120_000 }, async () => {
   const db = await mysql.createConnection(process.env.MYSQL_URL);
   const userId = randomUUID();
   const companyId = randomUUID();
