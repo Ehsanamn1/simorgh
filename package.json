@@ -18,7 +18,9 @@
     "build:hosted-web": "node scripts/build-hosted-web.mjs",
     "test:pwa:hosted": "node scripts/smoke-hosted-pwa.mjs",
     "test:mysql-foundation": "node scripts/test-medar-mysql-foundation.mjs",
-    "checkmysql": "node --check scripts/test-medar-mysql-foundation.mjs"
+    "checkmysql": "node --check scripts/test-medar-mysql-foundation.mjs && node --check scripts/apply-medar-mysql-foundation.mjs",
+    "migrate:mysql:foundation:dry-run": "node scripts/apply-medar-mysql-foundation.mjs",
+    "migrate:mysql:foundation:apply": "node scripts/apply-medar-mysql-foundation.mjs --apply"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.0",
