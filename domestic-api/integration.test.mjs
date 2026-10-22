@@ -405,7 +405,7 @@ test('domestic API authenticates a provisioned MySQL user and revokes the sessio
     assert.deepEqual(supplierRows.data.map((row) => row.id), [supplierId], 'A supplier membership must be scoped to its own supplier record.');
     const supplierWrite = await requestWithTimeout('http://localhost/api/data/customers', {
       method: 'POST',
-      headers: { cookie: supplierCookie, 'content-type': 'application/json' },
+      headers: { cookie: supplierCookieForDataApi, 'content-type': 'application/json' },
       body: JSON.stringify({ action: 'insert', values: { company_id: companyId, name: 'Supplier Must Not Create Customers' } }),
     });
     assert.equal(supplierWrite.status, 403, 'Supplier roles must not write internal customer records.');
