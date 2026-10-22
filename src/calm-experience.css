@@ -2428,3 +2428,57 @@ html[data-theme="dark"] .guide-backdrop{background:transparent}
   .workspace-home-link { transition: none !important; }
   .workspace-home-link:hover, .workspace-home-link:active { transform: none; }
 }
+
+
+/* Mobile performance budget: preserve the premium surfaces without expensive blur repainting. */
+@media (max-width: 860px) and (hover: none) {
+  .mobile-workspace-nav {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    background: #11191c !important;
+    box-shadow: 0 8px 22px rgb(0 0 0 / 28%);
+  }
+  .mobile-scrim,
+  .modal-backdrop {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+  .workspace-home-link,
+  .workspace-home-metric,
+  .workspace-home-action,
+  .panel,
+  .tower-stat-card {
+    transition-duration: 120ms;
+  }
+  .workspace-home-link:hover,
+  .workspace-home-metric:hover,
+  .workspace-home-action:hover {
+    transform: none;
+  }
+}
+@media (max-width: 480px) {
+  .workspace-home-links { gap: 7px !important; }
+  .workspace-home-link {
+    min-height: 58px;
+    padding: 8px 7px;
+    border-radius: 12px;
+    box-shadow: 0 2px 7px rgb(0 0 0 / 10%);
+  }
+  .workspace-home-link-icon {
+    width: 29px;
+    height: 29px;
+    border-radius: 9px;
+    box-shadow: none;
+  }
+  .workspace-home-link-arrow { width: 12px; height: 12px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mobile-workspace-nav,
+  .workspace-home-link,
+  .workspace-home-metric,
+  .workspace-home-action {
+    scroll-behavior: auto !important;
+    transition: none !important;
+    animation: none !important;
+  }
+}
