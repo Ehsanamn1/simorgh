@@ -123,7 +123,7 @@ CREATE TABLE IF NOT EXISTS company_owners (
   created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   CONSTRAINT company_owners_company_fk FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE,
   CONSTRAINT company_owners_user_fk FOREIGN KEY (owner_user_id) REFERENCES medar_users(id) ON DELETE RESTRICT,
-  UNIQUE KEY company_owners_user_unique (owner_user_id)
+  KEY company_owners_user_idx (owner_user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS access_requests (
