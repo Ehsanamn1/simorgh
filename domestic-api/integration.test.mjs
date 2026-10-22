@@ -203,6 +203,41 @@ test('domestic API authenticates a provisioned MySQL user and revokes the sessio
     const agreementId = randomUUID();
     await db.execute('INSERT INTO suppliers (id,company_id,name) VALUES (?,?,?)', [supplierId, companyId, 'Domestic CI Partner']);
 
+    supplierUserId = randomUUID();
+    supplierMembershipId = randomUUID();
+    const supplierUsername = 'ci_supplier_' + suffix;
+    const supplierPassword = 'Domestic-Supplier-Test-Password-1405!';
+    await db.execute(
+      'INSERT INTO medar_users (id,username,username_normalized,display_name,password_hash,requested_role,account_status) VALUES (?,?,?,?,?,?,?)',
+      [supplierUserId, supplierUsername, supplierUsername, 'CI Supplier User', await hashPassword(supplierPassword), 'supplier', 'active'],
+    );
+    await db.execute(
+      'INSERT INTO memberships (id,company_id,user_id,supplier_id,role,active,created_by) VALUES (?,?,?,?,?,TRUE,?)',
+      [supplierMembershipId, companyId, supplierUserId, supplierId, 'supplier', userId],
+    );
+    const supplierLogin = await app.request('http://localhost/api/auth/login', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ username: supplierUsername, password: supplierPassword }),
+    });
+    assert.equal(supplierLogin.status, 200);
+    const supplierCookie = String(supplierLogin.headers.get('set-cookie') || '').split(';')[0];
+    assert.match(supplierCookie, /^medar_session=[a-f0-9]{64}$/);
+    const supplierRead = await app.request('http://localhost/api/data/suppliers', {
+      method: 'POST',
+      headers: { cookie: supplierCookie, 'content-type': 'application/json' },
+      body: JSON.stringify({ action: 'select' }),
+    });
+    assert.equal(supplierRead.status, 200);
+    const supplierRows = await supplierRead.json();
+    assert.deepEqual(supplierRows.data.map((row) => row.id), [supplierId], 'A supplier membership must be scoped to its own supplier record.');
+    const supplierWrite = await app.request('http://localhost/api/data/customers', {
+      method: 'POST',
+      headers: { cookie: supplierCookie, 'content-type': 'application/json' },
+      body: JSON.stringify({ action: 'insert', values: { company_id: companyId, name: 'Supplier Must Not Create Customers' } }),
+    });
+    assert.equal(supplierWrite.status, 403, 'Supplier roles must not write internal customer records.');
+
     const fileName = 'capacity-ci-' + username + '.png';
     const evidencePath = companyId + '/' + supplierId + '/' + fileName;
     const imageBytes = Uint8Array.from([137, 80, 78, 71, 13, 10, 26, 10, 1, 2, 3, 4]);
@@ -300,6 +335,12 @@ test('domestic API authenticates a provisioned MySQL user and revokes the sessio
     await db.execute('DELETE FROM medar_files WHERE company_id=?', [companyId]);
     for (const bucket of ['delivery-evidence','operational-evidence','contract-documents','capacity-evidence']) {
       await rm(resolve(process.env.MEDAR_STORAGE_DIR || './storage/medar', bucket, companyId), { recursive: true, force: true });
+    }
+    if (supplierUserId) {
+      await db.execute('DELETE FROM medar_sessions WHERE user_id=?', [supplierUserId]);
+      await db.execute('DELETE FROM memberships WHERE id=?', [supplierMembershipId]);
+      await db.execute('DELETE FROM medar_login_attempts WHERE username_normalized=?', ['ci_supplier_' + suffix]);
+      await db.execute('DELETE FROM medar_users WHERE id=?', [supplierUserId]);
     }
     await db.execute('DELETE FROM memberships WHERE id=?', [membershipId]);
     await db.execute('DELETE FROM companies WHERE id=?', [companyId]);
