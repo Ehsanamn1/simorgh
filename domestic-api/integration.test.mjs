@@ -30,6 +30,10 @@ test('domestic API authenticates a provisioned MySQL user and revokes the sessio
   const suffix = randomBytes(5).toString('hex');
   let supplierUserId = null;
   let supplierMembershipId = null;
+  const provisionedUserIds = [];
+  const provisionedMembershipIds = [];
+  const provisionedUsernames = [];
+  const provisionedSupplierIds = [];
   const phone = '+989' + randomBytes(5).toString('hex').slice(0, 9);
   const password = 'Domestic-CI-Password-2026!';
   const passwordHash = await hashPassword(password);
@@ -131,6 +135,136 @@ test('domestic API authenticates a provisioned MySQL user and revokes the sessio
     const meBody = await me.json();
     assert.equal(meBody.user.id, userId);
     assert.equal(meBody.memberships[0].id, membershipId);
+
+    const provisionedPassword = 'Domestic-Provisioned-Supplier-1405!';
+    const provisionedUsername = 'ci_created_supplier_' + suffix;
+    const provisionedFullName = 'Domestic CI Provisioned Supplier ' + suffix;
+    const adminUsername = 'ci_created_admin_' + suffix;
+    const adminPassword = 'Domestic-Provisioned-Admin-1405!';
+    const escalationUsername = 'ci_forbidden_admin_' + suffix;
+    const invalidSupplierUsername = 'ci_invalid_supplier_' + suffix;
+    const customerRoleUsername = 'ci_customer_role_' + suffix;
+    provisionedUsernames.push(provisionedUsername, adminUsername, escalationUsername, invalidSupplierUsername, customerRoleUsername);
+    const memberRequest = (memberCookie, payload) => requestWithTimeout('http://localhost/api/workspace/members/create', {
+      method: 'POST',
+      headers: { ...(memberCookie ? { cookie: memberCookie } : {}), 'content-type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    const unauthenticatedMemberCreate = await memberRequest(null, {
+      companyId, username: 'ci_unauth_' + suffix, fullName: 'Unauthenticated Member',
+      password: provisionedPassword, role: 'staff',
+    });
+    assert.equal(unauthenticatedMemberCreate.status, 401, 'Only a valid session may provision a member account.');
+
+    const createdSupplierResponse = await memberRequest(cookie, {
+      companyId, username: provisionedUsername, fullName: provisionedFullName,
+      password: provisionedPassword, role: 'supplier',
+    });
+    assert.equal(createdSupplierResponse.status, 201, 'An owner can create a supplier and its linked account.');
+    const createdSupplierBody = await createdSupplierResponse.json();
+    const createdSupplier = createdSupplierBody.member;
+    assert.ok(createdSupplier?.id && createdSupplier?.membership_id && createdSupplier?.supplier_id);
+    assert.equal(createdSupplier.username, provisionedUsername);
+    assert.equal(createdSupplier.role, 'supplier');
+    assert.equal(createdSupplier.company_id, companyId);
+    provisionedUserIds.push(createdSupplier.id);
+    provisionedMembershipIds.push(createdSupplier.membership_id);
+    provisionedSupplierIds.push(createdSupplier.supplier_id);
+
+    const [[createdSupplierUser]] = await db.query(
+      'SELECT username, username_normalized, display_name, password_hash, account_status FROM medar_users WHERE id=?',
+      [createdSupplier.id],
+    );
+    assert.equal(createdSupplierUser.username, provisionedUsername);
+    assert.equal(createdSupplierUser.username_normalized, provisionedUsername);
+    assert.equal(createdSupplierUser.display_name, provisionedFullName);
+    assert.equal(createdSupplierUser.account_status, 'active');
+    assert.notEqual(createdSupplierUser.password_hash, provisionedPassword, 'Plaintext passwords must never be stored.');
+    assert.match(createdSupplierUser.password_hash, /^pbkdf2_sha256\\$100000\\$/);
+    const [[createdProfile]] = await db.query('SELECT full_name, phone FROM profiles WHERE id=?', [createdSupplier.id]);
+    assert.equal(createdProfile.full_name, provisionedFullName);
+    const [[createdMembership]] = await db.query(
+      'SELECT company_id, user_id, role, supplier_id, active, created_by FROM memberships WHERE id=?',
+      [createdSupplier.membership_id],
+    );
+    assert.equal(createdMembership.company_id, companyId);
+    assert.equal(createdMembership.user_id, createdSupplier.id);
+    assert.equal(createdMembership.role, 'supplier');
+    assert.equal(createdMembership.supplier_id, createdSupplier.supplier_id);
+    assert.equal(Number(createdMembership.active), 1);
+    assert.equal(createdMembership.created_by, userId);
+    const [[createdSupplierRow]] = await db.query('SELECT company_id, name FROM suppliers WHERE id=?', [createdSupplier.supplier_id]);
+    assert.equal(createdSupplierRow.company_id, companyId);
+    assert.equal(createdSupplierRow.name, provisionedFullName);
+    const [[createdAudit]] = await db.query(
+      `SELECT action, entity_id, JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.username')) AS username FROM medar_audit_log WHERE action='membership.account_created' AND entity_id=? LIMIT 1`,
+      [createdSupplier.membership_id],
+    );
+    assert.equal(createdAudit.action, 'membership.account_created');
+    assert.equal(createdAudit.username, provisionedUsername);
+
+    const duplicateMember = await memberRequest(cookie, {
+      companyId, username: provisionedUsername, fullName: provisionedFullName,
+      password: provisionedPassword, role: 'supplier',
+    });
+    assert.equal(duplicateMember.status, 409, 'Duplicate usernames must fail without partially creating another supplier or membership.');
+    const [[duplicateUserCount]] = await db.query('SELECT COUNT(*) AS count FROM medar_users WHERE username_normalized=?', [provisionedUsername]);
+    const [[duplicateProfileCount]] = await db.query('SELECT COUNT(*) AS count FROM profiles WHERE id=?', [createdSupplier.id]);
+    const [[duplicateMembershipCount]] = await db.query('SELECT COUNT(*) AS count FROM memberships WHERE user_id=? AND company_id=?', [createdSupplier.id, companyId]);
+    const [[duplicateSupplierCount]] = await db.query('SELECT COUNT(*) AS count FROM suppliers WHERE company_id=? AND name LIKE ?', [companyId, provisionedFullName + '%']);
+    assert.equal(Number(duplicateUserCount.count), 1);
+    assert.equal(Number(duplicateProfileCount.count), 1);
+    assert.equal(Number(duplicateMembershipCount.count), 1);
+    assert.equal(Number(duplicateSupplierCount.count), 1, 'A rolled-back duplicate must not leave an orphan supplier row.');
+
+    const invalidSupplierLink = await memberRequest(cookie, {
+      companyId, username: invalidSupplierUsername, fullName: 'Invalid Supplier Link',
+      password: provisionedPassword, role: 'supplier', supplierId: randomUUID(),
+    });
+    assert.equal(invalidSupplierLink.status, 422, 'A supplier from another company or a nonexistent supplier ID must be rejected.');
+    const invalidCustomerRole = await memberRequest(cookie, {
+      companyId, username: customerRoleUsername, fullName: 'Forbidden Customer Role',
+      password: provisionedPassword, role: 'customer',
+    });
+    assert.equal(invalidCustomerRole.status, 422, 'The private supply-chain release must not provision customer-ordering accounts.');
+
+    const adminCreate = await memberRequest(cookie, {
+      companyId, username: adminUsername, fullName: 'Domestic CI Admin', password: adminPassword, role: 'admin',
+    });
+    assert.equal(adminCreate.status, 201, 'The owner may create a manager/admin account.');
+    const adminCreatedMember = (await adminCreate.json()).member;
+    provisionedUserIds.push(adminCreatedMember.id);
+    provisionedMembershipIds.push(adminCreatedMember.membership_id);
+    assert.equal(adminCreatedMember.role, 'admin');
+
+    const supplierLogin = await requestWithTimeout('http://localhost/api/auth/login', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ username: provisionedUsername, password: provisionedPassword }),
+    });
+    assert.equal(supplierLogin.status, 200);
+    const supplierCookie = supplierLogin.headers.get('set-cookie')?.split(';')[0];
+    assert.ok(supplierCookie?.startsWith('medar_session='));
+    const supplierCannotCreateStaff = await memberRequest(supplierCookie, {
+      companyId, username: 'ci_supplier_forbidden_' + suffix, fullName: 'Forbidden Staff',
+      password: provisionedPassword, role: 'staff',
+    });
+    assert.equal(supplierCannotCreateStaff.status, 403, 'A supplier cannot provision users.');
+
+    const adminLogin = await requestWithTimeout('http://localhost/api/auth/login', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ username: adminUsername, password: adminPassword }),
+    });
+    assert.equal(adminLogin.status, 200);
+    const adminCookie = adminLogin.headers.get('set-cookie')?.split(';')[0];
+    assert.ok(adminCookie?.startsWith('medar_session='));
+    const adminEscalation = await memberRequest(adminCookie, {
+      companyId, username: escalationUsername, fullName: 'Forbidden Second Admin',
+      password: adminPassword, role: 'admin',
+    });
+    assert.equal(adminEscalation.status, 403, 'Only the owner may provision an admin account.');
+    const [[escalatedCount]] = await db.query('SELECT COUNT(*) AS count FROM medar_users WHERE username_normalized=?', [escalationUsername]);
+    assert.equal(Number(escalatedCount.count), 0, 'A denied role escalation must leave no user row.');
 
     const insertCustomer = await requestWithTimeout('http://localhost/api/data/customers', {
       method: 'POST',
@@ -380,6 +514,24 @@ test('domestic API authenticates a provisioned MySQL user and revokes the sessio
       await db.execute('DELETE FROM medar_login_attempts WHERE username_normalized=?', ['ci_supplier_' + suffix]);
       await db.execute('DELETE FROM medar_users WHERE id=?', [supplierUserId]);
     }
+    for (const provisionedMembershipId of provisionedMembershipIds) {
+      await db.execute('DELETE FROM medar_audit_log WHERE entity_id=?', [provisionedMembershipId]);
+      await db.execute('DELETE FROM medar_sessions WHERE user_id IN (SELECT user_id FROM memberships WHERE id=?)', [provisionedMembershipId]);
+      await db.execute('DELETE FROM memberships WHERE id=?', [provisionedMembershipId]);
+    }
+    for (const provisionedSupplierId of provisionedSupplierIds) {
+      await db.execute('DELETE FROM suppliers WHERE id=? AND company_id=?', [provisionedSupplierId, companyId]);
+    }
+    for (const provisionedUserId of provisionedUserIds) {
+      await db.execute('DELETE FROM medar_sessions WHERE user_id=?', [provisionedUserId]);
+      await db.execute('DELETE FROM profiles WHERE id=?', [provisionedUserId]);
+      await db.execute('DELETE FROM medar_users WHERE id=?', [provisionedUserId]);
+    }
+    for (const provisionedUsername of provisionedUsernames) {
+      await db.execute('DELETE FROM medar_rate_limits WHERE key_hash=?', [createHash('sha256').update('username:' + provisionedUsername).digest('hex')]);
+      await db.execute('DELETE FROM medar_login_attempts WHERE username_normalized=?', [provisionedUsername]);
+    }
+    await db.execute('DELETE FROM medar_audit_log WHERE actor_user_id=? AND action=\'membership.account_created\'', [userId]);
     await db.execute('DELETE FROM memberships WHERE id=?', [membershipId]);
     await db.execute('DELETE FROM companies WHERE id=?', [companyId]);
     await db.execute('DELETE FROM medar_users WHERE id=?', [userId]);
