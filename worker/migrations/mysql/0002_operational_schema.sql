@@ -620,25 +620,3 @@ ALTER TABLE memberships
 ALTER TABLE memberships
   ADD CONSTRAINT memberships_supplier_fk
   FOREIGN KEY (company_id, supplier_id) REFERENCES suppliers(company_id, id) ON DELETE RESTRICT;
-
--- Local-disk file metadata for the domestic Node runtime. File bytes live under
--- MEDAR_STORAGE_DIR; this table tracks authorization, content type and ownership.
-CREATE TABLE IF NOT EXISTS medar_files (
-  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL DEFAULT (UUID()) PRIMARY KEY,
-  bucket_id VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-  name VARCHAR(1000) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-  company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-  content_type VARCHAR(128) NOT NULL,
-  size_bytes BIGINT UNSIGNED NOT NULL,
-  uploaded_by CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-  content_base64 MEDIUMTEXT NULL,
-  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-  updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
-  CONSTRAINT medar_files_bucket_chk CHECK (bucket_id IN ('delivery-evidence','operational-evidence','contract-documents','capacity-evidence')),
-  CONSTRAINT medar_files_size_chk CHECK (size_bytes > 0 AND size_bytes <= 20971520),
-  CONSTRAINT medar_files_company_fk FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE,
-  CONSTRAINT medar_files_uploaded_by_fk FOREIGN KEY (uploaded_by) REFERENCES medar_users(id) ON DELETE RESTRICT,
-  UNIQUE KEY medar_files_bucket_name_unique (bucket_id, name),
-  KEY medar_files_company_bucket_created_idx (company_id, bucket_id, created_at),
-  KEY medar_files_uploader_idx (uploaded_by, created_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
