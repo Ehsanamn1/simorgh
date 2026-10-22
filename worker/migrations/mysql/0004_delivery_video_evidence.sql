@@ -10,6 +10,7 @@ SET @medar_drop_delivery_kind_check = COALESCE((
   WHERE tc.CONSTRAINT_SCHEMA = DATABASE()
     AND tc.TABLE_NAME = 'delivery_evidence'
     AND tc.CONSTRAINT_TYPE = 'CHECK'
+    AND tc.CONSTRAINT_NAME <> 'delivery_evidence_kind_check'
     AND cc.CHECK_CLAUSE LIKE '%photo%'
     AND cc.CHECK_CLAUSE LIKE '%temperature_reading%'
   ORDER BY tc.CONSTRAINT_NAME
