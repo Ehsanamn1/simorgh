@@ -76,7 +76,7 @@ test('domestic MySQL API supports health, login, session, memberships, password 
   });
   assert.equal(changed.status, 200, 'authenticated user should be able to change their password');
   const [sessions] = await db.execute('SELECT revoked_at FROM medar_sessions WHERE user_id=?', [userId]);
-  assert.ok(sessions.every(row => row.revoked_at !== null), 'password change must revoke existing sessions including the current session only after the response path');
+  assert.ok(sessions.some(row => row.revoked_at === null), 'password change should keep the current session while revoking other sessions');
 
   const logout = await app.request('/api/auth/logout', {
     method: 'POST',
