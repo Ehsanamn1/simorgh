@@ -18,6 +18,7 @@ function offlineCorePrecachePlugin() {
       const manifest = JSON.parse(await readFile(manifestPath, 'utf8')) as Record<string, {
         file?: string;
         imports?: string[];
+        dynamicImports?: string[];
         css?: string[];
         assets?: string[];
       }>;
@@ -37,6 +38,7 @@ function offlineCorePrecachePlugin() {
         for (const file of entry.css ?? []) addAsset(file);
         for (const file of entry.assets ?? []) addAsset(file);
         for (const dependency of entry.imports ?? []) visit(dependency);
+        for (const dependency of entry.dynamicImports ?? []) visit(dependency);
       };
       visit(homeEntry);
       const serviceWorker = await readFile(serviceWorkerPath, 'utf8');
