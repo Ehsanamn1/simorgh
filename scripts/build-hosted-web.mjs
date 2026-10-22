@@ -6,7 +6,7 @@ const root = process.cwd();
 const pkg = JSON.parse(await readFile(resolve(root, 'package.json'), 'utf8'));
 const rawApi = process.env.MEDAR_WEB_API_BASE_URL?.trim() || process.env.VITE_API_BASE_URL?.trim();
 if (!rawApi) {
-  throw new Error('Set MEDAR_WEB_API_BASE_URL to the HTTPS origin of the authenticated Medar API. Static hosting without an API is only a showcase.');
+  throw new Error('Set MEDAR_WEB_API_BASE_URL to the HTTPS origin of the authenticated Medar API or the same-origin /api/medar proxy base. Static hosting without an API is only a showcase.');
 }
 
 let parsedApi;
@@ -14,7 +14,7 @@ try { parsedApi = new URL(rawApi); } catch { throw new Error('MEDAR_WEB_API_BASE
 if (parsedApi.protocol !== 'https:' && !['localhost', '127.0.0.1'].includes(parsedApi.hostname)) {
   throw new Error('The hosted operational app requires an HTTPS API base.');
 }
-const apiPath = parsedApi.pathname.replace(/\\/+$/, '') || '';
+const apiPath = parsedApi.pathname.replace(/\/+$/, '') || '';
 if (!['', '/api/medar'].includes(apiPath) || parsedApi.username || parsedApi.password || parsedApi.search || parsedApi.hash) {
   throw new Error('Configure an API origin or the same-origin proxy base ending in /api/medar; credentials, query strings and fragments are forbidden.');
 }
