@@ -125,11 +125,14 @@ CREATE TABLE IF NOT EXISTS delivery_evidence (
 CREATE TABLE IF NOT EXISTS invoices (
   id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL DEFAULT (UUID()) PRIMARY KEY, company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
   order_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null, customer_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null, reference VARCHAR(120) not null, amount numeric(16,0) not null check(amount>=0),
-  paid_amount numeric(16,0) NOT NULL DEFAULT 0 CHECK (paid_amount >= 0), due_date date,
+  paid_amount numeric(16,0) NOT NULL DEFAULT 0 CHECK (paid_amount >= 0),
+  payment_reference VARCHAR(160) NULL, paid_at DATETIME(3) NULL, paid_by CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NULL, due_date date,
   status VARCHAR(40) NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','issued','partially_paid','paid','overdue','void')), issued_at DATETIME(3), created_at DATETIME(3) not null DEFAULT CURRENT_TIMESTAMP(3),
   foreign key(company_id,order_id) references orders(company_id,id) on delete restrict,
   foreign key(company_id,customer_id) references customers(company_id,id) on delete restrict,
   unique(company_id,reference),
+  CONSTRAINT fk_invoices_paid_by FOREIGN KEY (paid_by) REFERENCES medar_users(id) ON DELETE RESTRICT,
+  CHECK (status <> 'paid' OR (paid_amount >= amount AND payment_reference IS NOT NULL AND CHAR_LENGTH(TRIM(payment_reference)) > 0 AND paid_at IS NOT NULL AND paid_by IS NOT NULL)),
   CONSTRAINT fk_invoices_company_id FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
 ,
   CHECK (paid_amount <= amount)
@@ -138,8 +141,12 @@ CREATE TABLE IF NOT EXISTS invoices (
 CREATE TABLE IF NOT EXISTS settlements (
   id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL DEFAULT (UUID()) PRIMARY KEY, company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
   supplier_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null, invoice_ref TEXT, amount numeric(16,0) not null check(amount>=0), due_date date,
-  status VARCHAR(40) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','approved','paid','disputed')), note TEXT, created_at DATETIME(3) not null DEFAULT CURRENT_TIMESTAMP(3), updated_at DATETIME(3) not null DEFAULT CURRENT_TIMESTAMP(3),
+  status VARCHAR(40) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','approved','paid','disputed')),
+  payment_reference VARCHAR(160) NULL, paid_at DATETIME(3) NULL, paid_by CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NULL,
+  note TEXT, created_at DATETIME(3) not null DEFAULT CURRENT_TIMESTAMP(3), updated_at DATETIME(3) not null DEFAULT CURRENT_TIMESTAMP(3),
   foreign key(company_id,supplier_id) references suppliers(company_id,id) on delete restrict,
+  CONSTRAINT fk_settlements_paid_by FOREIGN KEY (paid_by) REFERENCES medar_users(id) ON DELETE RESTRICT,
+  CHECK (status <> 'paid' OR (payment_reference IS NOT NULL AND CHAR_LENGTH(TRIM(payment_reference)) > 0 AND paid_at IS NOT NULL AND paid_by IS NOT NULL)),
   CONSTRAINT fk_settlements_company_id FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
@@ -189,6 +196,7 @@ CREATE TABLE IF NOT EXISTS partnership_agreements (
   agreement_code VARCHAR(60) not null check (length(trim(agreement_code)) between 2 and 60),
   version integer not null default 1 check (version > 0),
   status VARCHAR(32) not null default 'draft' check (status in ('draft','pending_signature','active','suspended','expired','terminated')),
+  active_supplier_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin GENERATED ALWAYS AS (CASE WHEN status = 'active' THEN supplier_id ELSE NULL END) STORED,
   effective_from date not null,
   effective_to date,
   company_profit_share_pct numeric(5,2) not null default 50 check (company_profit_share_pct between 0 and 100),
@@ -208,6 +216,7 @@ CREATE TABLE IF NOT EXISTS partnership_agreements (
   unique(company_id,id),
   unique(company_id,supplier_id,id),
   unique(company_id,agreement_code,version),
+  UNIQUE KEY partnership_agreements_one_active_per_supplier_unique (company_id, active_supplier_id),
   foreign key(company_id,supplier_id) references suppliers(company_id,id) on delete restrict,
   foreign key(company_id,supplier_id,supersedes_agreement_id) references partnership_agreements(company_id,supplier_id,id) on delete restrict,
   check (company_profit_share_pct + partner_profit_share_pct = 100),
@@ -586,6 +595,7 @@ CREATE TABLE IF NOT EXISTS company_goals (
   updated_at DATETIME(3) not null DEFAULT CURRENT_TIMESTAMP(3),
   check (due_date is null or period_start is null or due_date >= period_start),
   check (target_value >= 0),
+  CHECK (target_value > baseline_value),
   CONSTRAINT fk_company_goals_company_id FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE,
   CONSTRAINT fk_company_goals_owner_user_id FOREIGN KEY (owner_user_id) REFERENCES medar_users(id) ON DELETE SET NULL,
   CONSTRAINT fk_company_goals_created_by FOREIGN KEY (created_by) REFERENCES medar_users(id) ON DELETE SET NULL,
