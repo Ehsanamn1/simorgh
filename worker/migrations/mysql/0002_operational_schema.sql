@@ -365,7 +365,7 @@ CREATE TABLE IF NOT EXISTS operational_tasks (
   check (status <> 'approved' or (reviewed_by is not null and reviewed_at is not null)),
   check (status <> 'submitted' or submitted_at is not null),
   CONSTRAINT fk_operational_tasks_company_id FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE,
-  CONSTRAINT fk_operational_tasks_assignee_user_id FOREIGN KEY (assignee_user_id) REFERENCES medar_users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_operational_tasks_assignee_user_id FOREIGN KEY (assignee_user_id) REFERENCES medar_users(id) ON DELETE RESTRICT,
   CONSTRAINT fk_operational_tasks_assigned_by FOREIGN KEY (assigned_by) REFERENCES medar_users(id) ON DELETE SET NULL,
   CONSTRAINT fk_operational_tasks_reviewed_by FOREIGN KEY (reviewed_by) REFERENCES medar_users(id) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
