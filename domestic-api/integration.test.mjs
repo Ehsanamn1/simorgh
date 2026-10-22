@@ -3,7 +3,7 @@ import process from 'node:process';
 import assert from 'node:assert/strict';
 import { randomUUID, randomBytes, createHash } from 'node:crypto';
 import mysql from 'mysql2/promise';
-import { app, hashPassword } from './server.mjs';
+import { app, hashPassword, closePool } from './server.mjs';
 
 test('domestic API authenticates a provisioned MySQL user and revokes the session on logout', { skip: !process.env.MYSQL_URL }, async () => {
   const db = await mysql.createConnection(process.env.MYSQL_URL);
@@ -65,5 +65,6 @@ test('domestic API authenticates a provisioned MySQL user and revokes the sessio
     await db.execute('DELETE FROM companies WHERE id=?', [companyId]);
     await db.execute('DELETE FROM medar_users WHERE id=?', [userId]);
     await db.end();
+    await closePool();
   }
 });
