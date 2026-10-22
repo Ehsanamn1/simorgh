@@ -84,7 +84,7 @@ try {
     .join(String.fromCharCode(10))
     .split(';').map(part => part.trim()).filter(Boolean);
   for (let index = 0; index < extendedStatements.length; index += 1) {
-    const constraintMatch = extendedStatements[index].match(/^ALTER\\s+TABLE\\s+`?([a-z_][a-z0-9_]*)`?\\s+ADD\\s+CONSTRAINT\\s+`?([a-z_][a-z0-9_]*)`?/i);
+    const constraintMatch = extendedStatements[index].match(/^ALTER\s+TABLE\s+`?([a-z_][a-z0-9_]*)`?\s+ADD\s+CONSTRAINT\s+`?([a-z_][a-z0-9_]*)`?/i);
     if (constraintMatch) {
       const [, tableName, constraintName] = constraintMatch;
       const [existing] = await db.execute(
