@@ -6,7 +6,7 @@ SET NAMES utf8mb4;
 SET time_zone = '+00:00';
 
 CREATE TABLE IF NOT EXISTS medar_users (
-  id CHAR(36) NOT NULL DEFAULT (UUID()) PRIMARY KEY,
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL DEFAULT (UUID()) PRIMARY KEY,
   username VARCHAR(32) NOT NULL,
   username_normalized VARCHAR(32) NOT NULL,
   phone_e164 VARCHAR(40) NOT NULL,
@@ -27,8 +27,8 @@ CREATE TABLE IF NOT EXISTS medar_users (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS medar_sessions (
-  id CHAR(36) NOT NULL DEFAULT (UUID()) PRIMARY KEY,
-  user_id CHAR(36) NOT NULL,
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL DEFAULT (UUID()) PRIMARY KEY,
+  user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
   token_hash CHAR(64) NOT NULL,
   created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   expires_at DATETIME(3) NOT NULL,
@@ -63,7 +63,7 @@ CREATE TABLE IF NOT EXISTS medar_rate_limits (
 
 CREATE TABLE IF NOT EXISTS medar_audit_log (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  actor_user_id CHAR(36) NULL,
+  actor_user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NULL,
   action VARCHAR(160) NOT NULL,
   entity_type VARCHAR(120) NOT NULL,
   entity_id VARCHAR(160) NULL,
@@ -75,7 +75,7 @@ CREATE TABLE IF NOT EXISTS medar_audit_log (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS companies (
-  id CHAR(36) NOT NULL DEFAULT (UUID()) PRIMARY KEY,
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL DEFAULT (UUID()) PRIMARY KEY,
   name VARCHAR(160) NOT NULL,
   legal_name VARCHAR(240) NULL,
   province VARCHAR(120) NOT NULL DEFAULT 'نامشخص',
@@ -87,7 +87,7 @@ CREATE TABLE IF NOT EXISTS companies (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS profiles (
-  id CHAR(36) NOT NULL PRIMARY KEY,
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL PRIMARY KEY,
   full_name VARCHAR(160) NOT NULL,
   phone VARCHAR(60) NOT NULL,
   created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
@@ -96,14 +96,14 @@ CREATE TABLE IF NOT EXISTS profiles (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS memberships (
-  id CHAR(36) NOT NULL DEFAULT (UUID()) PRIMARY KEY,
-  company_id CHAR(36) NOT NULL,
-  user_id CHAR(36) NOT NULL,
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL DEFAULT (UUID()) PRIMARY KEY,
+  company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
   role VARCHAR(16) NOT NULL,
   active BOOLEAN NOT NULL DEFAULT TRUE,
   created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-  created_by CHAR(36) NULL,
-  active_owner_company_id CHAR(36) GENERATED ALWAYS AS (
+  created_by CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NULL,
+  active_owner_company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin GENERATED ALWAYS AS (
     CASE WHEN active = TRUE AND role = 'owner' THEN company_id ELSE NULL END
   ) STORED,
   CONSTRAINT memberships_role_chk CHECK (role IN ('owner','admin','staff','customer','supplier','driver')),
@@ -120,20 +120,20 @@ ALTER TABLE memberships
   ADD CONSTRAINT memberships_created_by_fk FOREIGN KEY (created_by) REFERENCES medar_users(id) ON DELETE SET NULL;
 
 CREATE TABLE IF NOT EXISTS access_requests (
-  id CHAR(36) NOT NULL DEFAULT (UUID()) PRIMARY KEY,
-  company_id CHAR(36) NULL,
-  user_id CHAR(36) NOT NULL,
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL DEFAULT (UUID()) PRIMARY KEY,
+  company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NULL,
+  user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
   requested_role VARCHAR(16) NOT NULL,
   full_name VARCHAR(160) NOT NULL,
   organization_name VARCHAR(240) NULL,
   phone VARCHAR(60) NULL,
   notes TEXT NULL,
   status VARCHAR(16) NOT NULL DEFAULT 'pending',
-  reviewed_by CHAR(36) NULL,
+  reviewed_by CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NULL,
   reviewed_at DATETIME(3) NULL,
   created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
-  pending_company_id CHAR(36) GENERATED ALWAYS AS (
+  pending_company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin GENERATED ALWAYS AS (
     CASE WHEN status = 'pending' THEN company_id ELSE NULL END
   ) STORED,
   CONSTRAINT access_requests_role_chk CHECK (requested_role IN ('customer','supplier','driver','staff')),
