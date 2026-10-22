@@ -28,6 +28,12 @@ const migrations = [
     file: '../worker/migrations/mysql/0003_extended_schema.sql',
     required: ['company_invites','medar_files','purchase_orders','purchase_order_items','medar_client_presence','medar_ai_provider_configs','medar_ai_usage_log','medar_ai_action_runs','medar_membership_module_permissions','medar_bank_accounts','medar_bank_transactions','medar_operational_events','medar_exception_cases','medar_conversations','medar_conversation_participants','medar_messages','medar_push_subscriptions','medar_notification_outbox'],
   },
+  {
+    version: '0004_delivery_video_evidence',
+    file: '../worker/migrations/mysql/0004_delivery_video_evidence.sql',
+    required: ['delivery_evidence'],
+    requiredConstraints: ['delivery_evidence_kind_check'],
+  },
 ];
 
 function statementsOf(raw) {
@@ -39,6 +45,13 @@ async function verifyTables(db, required, version) {
   const found = new Set(rows.map(row => String(row.TABLE_NAME).toLowerCase()));
   const missing = required.filter(table => !found.has(table));
   if (missing.length) throw new Error(version + ' verification failed; missing tables: ' + missing.join(', '));
+}
+async function verifyConstraints(db, required, version) {
+  if (!required?.length) return;
+  const [rows] = await db.query("SELECT CONSTRAINT_NAME FROM information_schema.TABLE_CONSTRAINTS WHERE CONSTRAINT_SCHEMA = DATABASE() AND TABLE_NAME = 'delivery_evidence' AND CONSTRAINT_TYPE = 'CHECK'");
+  const found = new Set(rows.map(row => String(row.CONSTRAINT_NAME).toLowerCase()));
+  const missing = required.filter(name => !found.has(name.toLowerCase()));
+  if (missing.length) throw new Error(version + ' verification failed; missing constraints: ' + missing.join(', '));
 }
 const loaded = [];
 for (const migration of migrations) {
@@ -63,6 +76,7 @@ try {
       if (applied.length) {
         if (applied[0].checksum !== migration.checksum) throw new Error('Migration ' + migration.version + ' checksum differs from the applied ledger. Never overwrite an applied migration; create a new version.');
         await verifyTables(db, migration.required, migration.version);
+        await verifyConstraints(db, migration.requiredConstraints, migration.version);
         console.log('Already applied and verified:', migration.version);
         continue;
       }
@@ -85,6 +99,7 @@ try {
         }
       }
       await verifyTables(db, migration.required, migration.version);
+      await verifyConstraints(db, migration.requiredConstraints, migration.version);
       const [fks] = await db.query("SELECT CONSTRAINT_NAME FROM information_schema.TABLE_CONSTRAINTS WHERE CONSTRAINT_SCHEMA = DATABASE() AND CONSTRAINT_TYPE = 'FOREIGN KEY'");
       if (fks.length < 10) throw new Error('Post-migration verification failed; only ' + fks.length + ' foreign keys found.');
       await db.execute('INSERT INTO medar_schema_migrations (version, checksum) VALUES (?, ?)', [migration.version, migration.checksum]);
