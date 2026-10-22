@@ -287,6 +287,92 @@ app.get('/api/workspace/memberships', async (c) => {
   return c.json({ memberships: await membershipsFor(session.user.id) });
 });
 
+app.post('/api/workspace/members/create', async (c) => {
+  if (!pool) return c.json({ message: 'پایگاه داده تنظیم نشده است.' }, 503);
+  const session = await currentSession(c);
+  if (!session) return c.json({ message: 'برای ادامه وارد حساب شو.' }, 401);
+  const body = await c.req.json().catch(() => null);
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return c.json({ message: 'اطلاعات حساب معتبر نیست.' }, 400);
+  const companyId = typeof body.companyId === 'string' ? body.companyId.trim() : '';
+  const username = normalizeUsername(body.username);
+  const requestedName = typeof body.fullName === 'string' ? body.fullName.normalize('NFKC').trim() : '';
+  const fullName = requestedName || username || '';
+  const password = typeof body.password === 'string' ? body.password : '';
+  const role = typeof body.role === 'string' ? body.role : '';
+  const supplierIdInput = typeof body.supplierId === 'string' && body.supplierId.trim() ? body.supplierId.trim() : null;
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  const allowedRoles = new Set(['admin', 'staff', 'supplier', 'driver']);
+  if (!uuidPattern.test(companyId) || !username || !allowedRoles.has(role)) return c.json({ message: 'شناسه مجموعه، نام کاربری یا نقش معتبر نیست.' }, 422);
+  if (Array.from(requestedName).length > 100 || Array.from(requestedName).some((char) => char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127)) {
+    return c.json({ message: 'نام و نام خانوادگی نباید بیشتر از ۱۰۰ نویسه باشد یا شامل نویسه کنترلی باشد.' }, 422);
+  }
+  if (password.length < 12 || password.length > 128) return c.json({ message: 'رمز عبور اولیه باید بین ۱۲ تا ۱۲۸ نویسه باشد.' }, 422);
+  if ((role !== 'supplier' && supplierIdInput) || (supplierIdInput && !uuidPattern.test(supplierIdInput)) || body.customerId) {
+    return c.json({ message: 'پیوند پرونده فقط برای تأمین‌کننده و در قالب شناسه معتبر مجاز است.' }, 422);
+  }
+  const userId = randomUUID();
+  const membershipId = randomUUID();
+  const passwordHash = await hashPassword(password);
+  const connection = await pool.getConnection();
+  let supplierId = null;
+  try {
+    await connection.beginTransaction();
+    const [actorRows] = await connection.execute(
+      'SELECT role FROM memberships WHERE user_id=? AND company_id=? AND active=TRUE LIMIT 1 FOR UPDATE',
+      [session.user.id, companyId],
+    );
+    const actorRole = actorRows[0]?.role;
+    if (!actorRole || !['owner', 'admin'].includes(String(actorRole))) {
+      await connection.rollback();
+      return c.json({ message: 'فقط مالک یا مدیر می‌تواند حساب بسازد.' }, 403);
+    }
+    if (role === 'admin' && actorRole !== 'owner') {
+      await connection.rollback();
+      return c.json({ message: 'فقط مالک می‌تواند حساب مدیر بسازد.' }, 403);
+    }
+    if (role === 'supplier') {
+      if (supplierIdInput) {
+        const [supplierRows] = await connection.execute('SELECT id FROM suppliers WHERE id=? AND company_id=? LIMIT 1 FOR UPDATE', [supplierIdInput, companyId]);
+        if (!supplierRows.length) {
+          await connection.rollback();
+          return c.json({ message: 'پرونده تأمین‌کننده به این مجموعه تعلق ندارد.' }, 422);
+        }
+        supplierId = supplierIdInput;
+      } else {
+        supplierId = randomUUID();
+        const [sameName] = await connection.execute('SELECT id FROM suppliers WHERE company_id=? AND LOWER(name)=LOWER(?) LIMIT 1', [companyId, fullName]);
+        const supplierName = sameName.length ? fullName.slice(0, 108) + ' (' + supplierId.slice(0, 8) + ')' : fullName;
+        await connection.execute('INSERT INTO suppliers (id, company_id, name, active) VALUES (?, ?, ?, TRUE)', [supplierId, companyId, supplierName]);
+      }
+    }
+    await connection.execute(
+      'INSERT INTO medar_users (id, username, username_normalized, phone_e164, display_name, password_hash, requested_role, account_status) VALUES (?, ?, ?, NULL, ?, ?, ?, \'active\')',
+      [userId, username, username, fullName, passwordHash, role],
+    );
+    await connection.execute('INSERT INTO profiles (id, full_name, phone) VALUES (?, ?, NULL)', [userId, fullName]);
+    await connection.execute(
+      'INSERT INTO memberships (id, company_id, user_id, supplier_id, role, active, created_by) VALUES (?, ?, ?, ?, ?, TRUE, ?)',
+      [membershipId, companyId, userId, supplierId, role, session.user.id],
+    );
+    await connection.execute(
+      'INSERT INTO medar_audit_log (actor_user_id, action, entity_type, entity_id, metadata) VALUES (?, ?, ?, ?, JSON_OBJECT(\'company_id\', ?, \'role\', ?, \'username\', ?))',
+      [session.user.id, 'membership.account_created', 'membership', membershipId, companyId, role, username],
+    );
+    await connection.commit();
+    return c.json({ member: { id: userId, username, full_name: fullName, membership_id: membershipId, company_id: companyId, role, supplier_id: supplierId, customer_id: null } }, 201);
+  } catch (error) {
+    await connection.rollback().catch(() => undefined);
+    const code = error && typeof error === 'object' ? error.code : undefined;
+    console.error('Domestic member provisioning failed', { code: typeof code === 'string' ? code : 'unknown' });
+    if (code === 'ER_DUP_ENTRY') return c.json({ message: 'این نام کاربری یا عضویت قبلاً ثبت شده است.' }, 409);
+    if (['ER_NO_REFERENCED_ROW_2', 'ER_NO_REFERENCED_ROW', 'ER_CHECK_CONSTRAINT_VIOLATED', 'ER_BAD_NULL_ERROR'].includes(String(code))) {
+      return c.json({ message: 'اطلاعات حساب یا پرونده مرتبط معتبر نیست؛ فهرست را تازه‌سازی کن و دوباره تلاش کن.' }, 422);
+    }
+    return c.json({ message: 'ساخت حساب کامل نشد؛ هیچ حساب ناقصی ثبت نشده است. چند لحظه بعد دوباره تلاش کن.' }, 500);
+  } finally {
+    connection.release();
+  }
+});
 
 const DATA_TABLES = new Set([
   'customers','suppliers','products','price_agreements','orders','order_items','capacity_commitments','lots',
