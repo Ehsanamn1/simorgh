@@ -36,7 +36,7 @@ try {
       } catch (warningError) {
         diagnostic += ' (could not retrieve SQL warnings: ' + warningError.message + ')';
       }
-      for (const table of ['companies', 'medar_users']) {
+      for (const table of ['memberships', 'companies', 'medar_users']) {
         try {
           const [ddl] = await db.query('SHOW CREATE TABLE `' + table + '`');
           diagnostic += String.fromCharCode(10) + 'SHOW CREATE ' + table + ': ' + ddl[0]['Create Table'];
