@@ -1,4 +1,6 @@
 import process from 'node:process';
+import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { dirname, resolve, sep } from 'node:path';
 import console from 'node:console';
 import { Buffer } from 'node:buffer';
 import { URL } from 'node:url';
@@ -835,6 +837,242 @@ app.post('/api/rpc/:name', async (c) => {
     await connection.rollback().catch(()=>undefined);
     const message=error instanceof Error?error.message:'اجرای عملیات ناموفق بود.';
     return c.json({ message, error: { message } }, 422);
+  } finally {
+    connection.release();
+  }
+});
+
+
+const STORAGE_ROOT = resolve(process.env.MEDAR_STORAGE_DIR || './storage/medar');
+const STORAGE_BUCKETS = new Set(['delivery-evidence','operational-evidence','contract-documents','capacity-evidence']);
+const STORAGE_MIME_TYPES = new Set(['image/jpeg','image/png','image/webp','application/pdf','video/mp4','video/webm']);
+function storagePath(bucket, name) {
+  if (!STORAGE_BUCKETS.has(bucket) || typeof name !== 'string' || name.length < 40 || name.length > 1000 ||
+      name.includes('\\\\') || name.includes('\\0') || name.startsWith('/') || name.endsWith('/')) {
+    throw new Error('مسیر فایل معتبر نیست.');
+  }
+  const segments = name.split('/');
+  if (segments.length < 2 || segments.some((part) => !part || part === '.' || part === '..' || !/^[a-zA-Z0-9._-]+$/.test(part))) {
+    throw new Error('مسیر فایل معتبر نیست.');
+  }
+  if (!RPC_UUID.test(segments[0])) throw new Error('مسیر فایل باید با شناسه شرکت شروع شود.');
+  const file = resolve(STORAGE_ROOT, bucket, ...segments);
+  if (file !== STORAGE_ROOT && !file.startsWith(STORAGE_ROOT + sep)) throw new Error('مسیر فایل خارج از فضای مجاز است.');
+  return { segments, companyId: segments[0], file };
+}
+
+async function storageAccess(connection, session, bucket, parsed, mode) {
+  const memberships = await membershipsFor(session.user.id);
+  const membership = memberships.find((item) => String(item.company_id) === parsed.companyId && item.active);
+  if (!membership) return { allowed: false, manager: false, membership: null };
+  const role = String(membership.role);
+  const manager = ['owner','admin','staff'].includes(role);
+  if (manager) {
+    if (bucket === 'delivery-evidence') {
+      const [rows] = await connection.execute('SELECT id FROM shipments WHERE company_id=? AND id=? LIMIT 1', [parsed.companyId, parsed.segments[1]]);
+      if (!rows.length) return { allowed: false, manager, membership };
+    } else if (bucket === 'operational-evidence') {
+      const [rows] = await connection.execute('SELECT id FROM operational_tasks WHERE company_id=? AND id=? LIMIT 1', [parsed.companyId, parsed.segments[1]]);
+      if (!rows.length) return { allowed: false, manager, membership };
+    } else if (bucket === 'capacity-evidence') {
+      const [rows] = await connection.execute('SELECT id FROM suppliers WHERE company_id=? AND id=? LIMIT 1', [parsed.companyId, parsed.segments[1]]);
+      if (!rows.length) return { allowed: false, manager, membership };
+    }
+    return { allowed: true, manager, membership };
+  }
+  if (bucket === 'capacity-evidence' && role === 'supplier' &&
+      String(membership.supplier_id || '') === parsed.segments[1] &&
+      parsed.segments[2]?.startsWith('capacity-')) {
+    return { allowed: true, manager, membership };
+  }
+  if (bucket === 'operational-evidence') {
+    const [rows] = await connection.execute('SELECT assignee_user_id,assignee_supplier_id FROM operational_tasks WHERE company_id=? AND id=? LIMIT 1', [parsed.companyId, parsed.segments[1]]);
+    const task = rows[0];
+    if (task && (String(task.assignee_user_id || '') === String(session.user.id) ||
+      (role === 'supplier' && String(task.assignee_supplier_id || '') === String(membership.supplier_id || '')))) {
+      return { allowed: true, manager, membership };
+    }
+  }
+  if (bucket === 'delivery-evidence' && role === 'driver') {
+    const [rows] = await connection.execute('SELECT id FROM shipments WHERE company_id=? AND id=? AND driver_user_id=? LIMIT 1', [parsed.companyId, parsed.segments[1], session.user.id]);
+    if (rows.length) return { allowed: true, manager, membership };
+  }
+  return { allowed: false, manager, membership };
+}
+
+async function fileReferenceExists(connection, bucket, companyId, name) {
+  const checks = {
+    'delivery-evidence': ['delivery_evidence','storage_path'],
+    'operational-evidence': ['task_evidence','storage_path'],
+    'capacity-evidence': ['capacity_commitments','evidence_path'],
+    'contract-documents': ['partnership_agreements','signed_document_path'],
+  };
+  const [table, column] = checks[bucket] || [];
+  if (!table) return false;
+  const [rows] = await connection.execute(
+    'SELECT id FROM ' + sqlIdentifier(table) + ' WHERE company_id=? AND ' + sqlIdentifier(column) + '=? LIMIT 1',
+    [companyId, name],
+  );
+  return rows.length > 0;
+}
+
+app.put('/api/storage/:bucket', async (c) => {
+  if (!pool) return c.json({ message: 'پایگاه داده تنظیم نشده است.' }, 503);
+  const session = await currentSession(c);
+  if (!session) return c.json({ message: 'برای بارگذاری فایل وارد حساب شو.' }, 401);
+  const bucket = c.req.param('bucket');
+  const name = c.req.query('path') || '';
+  const contentType = (c.req.header('content-type') || 'application/octet-stream').split(';')[0].trim().toLowerCase();
+  if (!STORAGE_MIME_TYPES.has(contentType)) return c.json({ message: 'نوع فایل در فضای مدار مجاز نیست.' }, 415);
+  const bytes = Buffer.from(await c.req.arrayBuffer());
+  if (!bytes.length || bytes.length > 20 * 1024 * 1024) return c.json({ message: 'حجم فایل باید کمتر از ۲۰ مگابایت و بیشتر از صفر باشد.' }, 413);
+  let parsed;
+  try { parsed = storagePath(bucket, name); } catch (error) { return c.json({ message: error.message }, 422); }
+  if ((bucket === 'contract-documents' && contentType.startsWith('video/')) ||
+      (bucket === 'capacity-evidence' && contentType.startsWith('video/'))) {
+    return c.json({ message: 'ویدئو برای این نوع مدرک مجاز نیست.' }, 415);
+  }
+  const connection = await pool.getConnection();
+  const lockName = 'medar:' + sha256(bucket + ':' + name).slice(0, 58);
+  let tempFile = '';
+  let backupFile = '';
+  let finalFile = parsed.file;
+  let movedOriginal = false;
+  let movedNew = false;
+  let lockAcquired = false;
+  try {
+    const [locks] = await connection.execute('SELECT GET_LOCK(?,5) AS acquired', [lockName]);
+    lockAcquired = Number(locks[0]?.acquired) === 1;
+    if (!lockAcquired) return c.json({ message: 'این فایل هم‌زمان در حال تغییر است؛ دوباره تلاش کن.' }, 409);
+    const access = await storageAccess(connection, session, bucket, parsed, 'upload');
+    if (!access.allowed) return c.json({ message: 'برای این مسیر فایل دسترسی نداری.' }, 403);
+    await mkdir(dirname(finalFile), { recursive: true });
+    tempFile = finalFile + '.' + randomUUID() + '.tmp';
+    backupFile = finalFile + '.' + randomUUID() + '.bak';
+    await writeFile(tempFile, bytes, { flag: 'wx', mode: 0o600 });
+    await connection.beginTransaction();
+    const [existing] = await connection.execute('SELECT id FROM medar_files WHERE bucket_id=? AND name=? FOR UPDATE', [bucket, name]);
+    const upsert = c.req.header('x-upsert') === 'true';
+    if (existing.length && !upsert) {
+      await connection.rollback();
+      await rm(tempFile, { force: true });
+      return c.json({ message: 'فایلی با همین مسیر از قبل وجود دارد.' }, 409);
+    }
+    try {
+      await rename(finalFile, backupFile);
+      movedOriginal = true;
+    } catch (error) {
+      if (error?.code !== 'ENOENT') throw error;
+    }
+    await rename(tempFile, finalFile);
+    movedNew = true;
+    await connection.execute(
+      'INSERT INTO medar_files (id,bucket_id,name,company_id,content_type,size_bytes,uploaded_by,content_base64) VALUES (?,?,?,?,?,?,?,NULL) ' +
+      'ON DUPLICATE KEY UPDATE content_type=VALUES(content_type),size_bytes=VALUES(size_bytes),uploaded_by=VALUES(uploaded_by),created_at=NOW(3),content_base64=NULL',
+      [randomUUID(), bucket, name, parsed.companyId, contentType, bytes.length, session.user.id],
+    );
+    await connection.commit();
+    if (movedOriginal) await rm(backupFile, { force: true });
+    return c.json({ data: { path: name, size: bytes.length, contentType }, error: null });
+  } catch (error) {
+    await connection.rollback().catch(() => undefined);
+    if (movedNew) await rm(finalFile, { force: true }).catch(() => undefined);
+    if (movedOriginal) await rename(backupFile, finalFile).catch(() => undefined);
+    if (tempFile) await rm(tempFile, { force: true }).catch(() => undefined);
+    console.error('[medar-storage] upload failed: ' + (error instanceof Error ? error.message : 'unknown error'));
+    return c.json({ message: 'ذخیره فایل انجام نشد؛ فضای دیسک و پایگاه داده را بررسی کن.' }, 500);
+  } finally {
+    if (lockAcquired) await connection.execute('SELECT RELEASE_LOCK(?)', [lockName]).catch(() => undefined);
+    connection.release();
+  }
+});
+
+app.get('/api/storage/:bucket', async (c) => {
+  if (!pool) return c.json({ message: 'پایگاه داده تنظیم نشده است.' }, 503);
+  const session = await currentSession(c);
+  if (!session) return c.json({ message: 'برای مشاهده فایل وارد حساب شو.' }, 401);
+  const bucket = c.req.param('bucket');
+  const name = c.req.query('path') || '';
+  let parsed;
+  try { parsed = storagePath(bucket, name); } catch { return c.json({ message: 'مسیر فایل معتبر نیست.' }, 422); }
+  const connection = await pool.getConnection();
+  try {
+    const access = await storageAccess(connection, session, bucket, parsed, 'read');
+    if (!access.allowed) return c.json({ message: 'برای مشاهده این فایل دسترسی نداری.' }, 403);
+    const [rows] = await connection.execute('SELECT content_type,size_bytes,content_base64 FROM medar_files WHERE bucket_id=? AND name=? AND company_id=? LIMIT 1', [bucket, name, parsed.companyId]);
+    const metadata = rows[0];
+    if (!metadata) return c.json({ message: 'فایل پیدا نشد.' }, 404);
+    let bytes;
+    if (metadata.content_base64) bytes = Buffer.from(metadata.content_base64, 'base64');
+    else {
+      try { bytes = await readFile(parsed.file); }
+      catch { return c.json({ message: 'فایل ثبت شده اما محتوای آن روی فضای ذخیره‌سازی پیدا نشد.' }, 404); }
+    }
+    const headers = {
+      'content-type': metadata.content_type,
+      'content-length': String(bytes.length),
+      'cache-control': 'private, no-store',
+      'accept-ranges': 'bytes',
+      'content-disposition': 'inline',
+      'x-content-type-options': 'nosniff',
+      'content-security-policy': "default-src 'none'; sandbox",
+    };
+    const range = c.req.header('range');
+    if (range && /^bytes=\d*-\d*$/.test(range)) {
+      const match = range.match(/^bytes=(\d*)-(\d*)$/);
+      const start = match[1] ? Number(match[1]) : Math.max(0, bytes.length - Number(match[2] || 0));
+      const end = match[2] ? Math.min(bytes.length - 1, Number(match[2])) : bytes.length - 1;
+      if (start < 0 || end < start || start >= bytes.length) {
+        return new Response(null, { status: 416, headers: { ...headers, 'content-range': 'bytes */' + bytes.length } });
+      }
+      const slice = bytes.subarray(start, end + 1);
+      headers['content-length'] = String(slice.length);
+      headers['content-range'] = 'bytes ' + start + '-' + end + '/' + bytes.length;
+      return c.body(slice, 206, headers);
+    }
+    return c.body(bytes, 200, headers);
+  } finally {
+    connection.release();
+  }
+});
+
+app.post('/api/storage/:bucket/remove', async (c) => {
+  if (!pool) return c.json({ message: 'پایگاه داده تنظیم نشده است.' }, 503);
+  const session = await currentSession(c);
+  if (!session) return c.json({ message: 'برای حذف فایل وارد حساب شو.' }, 401);
+  const bucket = c.req.param('bucket');
+  if (!STORAGE_BUCKETS.has(bucket)) return c.json({ message: 'مخزن فایل معتبر نیست.' }, 404);
+  const body = await c.req.json().catch(() => null);
+  const paths = Array.isArray(body?.paths) ? body.paths : [];
+  if (!paths.length || paths.length > 100 || paths.some((path) => typeof path !== 'string')) return c.json({ message: 'فهرست فایل‌ها معتبر نیست.' }, 422);
+  const connection = await pool.getConnection();
+  const removed = [];
+  const filesToRemove = [];
+  try {
+    await connection.beginTransaction();
+    for (const name of paths) {
+      let parsed;
+      try { parsed = storagePath(bucket, name); } catch { throw new Error('مسیر فایل معتبر نیست.'); }
+      const access = await storageAccess(connection, session, bucket, parsed, 'remove');
+      const [rows] = await connection.execute('SELECT id,uploaded_by FROM medar_files WHERE bucket_id=? AND name=? AND company_id=? FOR UPDATE', [bucket, name, parsed.companyId]);
+      if (!rows.length) continue;
+      const file = rows[0];
+      if (!access.allowed || (!access.manager && String(file.uploaded_by || '') !== String(session.user.id))) {
+        throw new Error('برای حذف این فایل دسترسی نداری.');
+      }
+      if (!access.manager && await fileReferenceExists(connection, bucket, parsed.companyId, name)) {
+        throw new Error('فایل متصل به یک رکورد عملیاتی است و باید از مسیر مدیریتی حذف شود.');
+      }
+      await connection.execute('DELETE FROM medar_files WHERE id=?', [file.id]);
+      filesToRemove.push(parsed.file);
+      removed.push(name);
+    }
+    await connection.commit();
+    for (const file of filesToRemove) await rm(file, { force: true }).catch(() => undefined);
+    return c.json({ data: removed, error: null });
+  } catch (error) {
+    await connection.rollback().catch(() => undefined);
+    return c.json({ message: error instanceof Error ? error.message : 'حذف فایل ناموفق بود.' }, 422);
   } finally {
     connection.release();
   }
