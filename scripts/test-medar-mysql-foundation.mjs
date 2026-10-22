@@ -124,6 +124,11 @@ try {
   await db.execute('INSERT INTO orders (id,company_id,customer_id,reference,status) VALUES (?,?,?,?,?)', [orderA, companyA, customerA, 'SO-CI-001', 'draft']);
   await db.execute('INSERT INTO order_items (id,company_id,order_id,product_id,quantity,unit_price) VALUES (?,?,?,?,?,?)', [randomUUID(), companyA, orderA, productA, 10, 100]);
   await assert.rejects(
+    db.execute('INSERT INTO invoices (id,company_id,order_id,customer_id,reference,amount,paid_amount) VALUES (?,?,?,?,?,?,?)', [randomUUID(), companyA, orderA, customerA, 'INV-CI-OVERPAY', 100, 101]),
+    error => error?.code === 'ER_CHECK_CONSTRAINT_VIOLATED',
+    'An invoice must not record paid_amount above its amount.',
+  );
+  await assert.rejects(
     db.execute('INSERT INTO order_items (id,company_id,order_id,product_id,quantity,unit_price) VALUES (?,?,?,?,?,?)', [randomUUID(), companyA, orderA, productB, 10, 100]),
     error => error?.code === 'ER_NO_REFERENCED_ROW_2',
     'Operational composite foreign keys must prevent cross-company product references.',
