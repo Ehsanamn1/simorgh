@@ -5,7 +5,7 @@ import { URL } from 'node:url';
 import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import mysql from 'mysql2/promise';
-import { createHash, pbkdf2 as pbkdf2Callback, randomBytes, timingSafeEqual } from 'node:crypto';
+import { createHash, pbkdf2 as pbkdf2Callback, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
 
 const pbkdf2 = promisify(pbkdf2Callback);
@@ -456,6 +456,7 @@ app.post('/api/data/:table', async (c) => {
           row[key] = value;
         }
         row.company_id = companyId;
+        if (columns.has('id') && !row.id) row.id = randomUUID();
         if (columns.has('created_by')) row.created_by = session.user.id;
         if (!Object.keys(row).length) throw new Error('Empty insert');
         const keys = Object.keys(row);
