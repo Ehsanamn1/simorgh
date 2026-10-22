@@ -238,7 +238,7 @@ test('domestic API authenticates a provisioned MySQL user and revokes the sessio
     provisionedMembershipIds.push(adminCreatedMember.membership_id);
     assert.equal(adminCreatedMember.role, 'admin');
 
-    const supplierLoginForDataApi = await requestWithTimeout('http://localhost/api/auth/login', {
+    const supplierLogin = await requestWithTimeout('http://localhost/api/auth/login', {
       method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ username: provisionedUsername, password: provisionedPassword }),
     });
@@ -387,7 +387,7 @@ test('domestic API authenticates a provisioned MySQL user and revokes the sessio
       'INSERT INTO memberships (id,company_id,user_id,supplier_id,role,active,created_by) VALUES (?,?,?,?,?,TRUE,?)',
       [supplierMembershipId, companyId, supplierUserId, supplierId, 'supplier', userId],
     );
-    const supplierLogin = await requestWithTimeout('http://localhost/api/auth/login', {
+    const supplierLoginForDataApi = await requestWithTimeout('http://localhost/api/auth/login', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ username: supplierUsername, password: supplierPassword }),
