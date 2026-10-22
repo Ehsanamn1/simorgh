@@ -121,7 +121,7 @@ CREATE TABLE IF NOT EXISTS medar_ai_provider_configs (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 ALTER TABLE medar_ai_provider_configs
-  ADD CONSTRAINT fk_medar_ai_provider_configs_company_id FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE;
+  ADD CONSTRAINT fk_medar_ai_provider_configs_company_id FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE RESTRICT;
 ALTER TABLE medar_ai_provider_configs
   ADD CONSTRAINT fk_medar_ai_provider_configs_updated_by FOREIGN KEY (updated_by) REFERENCES medar_users(id) ON DELETE RESTRICT;
 
