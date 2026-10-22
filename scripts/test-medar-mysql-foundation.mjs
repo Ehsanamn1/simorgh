@@ -27,7 +27,9 @@ try {
         const [statusRows] = await db.query('SHOW ENGINE INNODB STATUS');
         const status = String(statusRows?.[0]?.Status || '');
         const marker = status.indexOf('LATEST FOREIGN KEY ERROR');
-        if (marker >= 0) diagnostic = String.fromCharCode(10) + status.slice(marker, marker + 1600);
+        diagnostic = marker >= 0
+          ? String.fromCharCode(10) + status.slice(marker, marker + 2200)
+          : String.fromCharCode(10) + 'InnoDB diagnostic tail: ' + status.slice(-2400);
       } catch (diagnosticError) {
         diagnostic = ' (could not retrieve InnoDB diagnostics: ' + diagnosticError.message + ')';
       }
