@@ -442,7 +442,7 @@ app.post('/api/data/:table', async (c) => {
       if (body.head === true) return c.json({ data: [], count, error: null });
       const params = [...scopeValues, ...filterValues, ...orValues];
       const requested = typeof body.selection === 'string' ? body.selection.split(',').map((part) => part.trim()) : ['*'];
-      const projection = requested.length && requested.every((field) => field === '*' || (/^[a-z_][a-z0-9_]*$/i.test(field) && columns.has(field)))
+      const projection = requested.includes('*') ? '*' : requested.length && requested.every((field) => /^[a-z_][a-z0-9_]*$/i.test(field) && columns.has(field))
         ? [...new Set(requested)].map(sqlIdentifier).join(', ')
         : '*';
       let query = 'SELECT ' + projection + ' FROM ' + sqlIdentifier(table) + where;
