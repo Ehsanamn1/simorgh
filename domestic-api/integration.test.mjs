@@ -13,6 +13,9 @@ test('domestic API authenticates a provisioned MySQL user and revokes the sessio
   const companyId = randomUUID();
   const membershipId = randomUUID();
   const username = 'ci_' + randomBytes(5).toString('hex');
+  const suffix = randomBytes(5).toString('hex');
+  let supplierUserId = null;
+  let supplierMembershipId = null;
   const phone = '+989' + randomBytes(5).toString('hex').slice(0, 9);
   const password = 'Domestic-CI-Password-2026!';
   const passwordHash = await hashPassword(password);
@@ -106,6 +109,8 @@ test('domestic API authenticates a provisioned MySQL user and revokes the sessio
       body: JSON.stringify({ username: limitedUsername, password: 'Incorrect-Domestic-Password' }),
     });
     assert.equal(rateLimited.status, 429, 'Eight failed attempts must activate the fifteen-minute login limit.');
+    const [[limitedRecord]] = await db.query('SELECT attempts FROM medar_rate_limits WHERE key_hash=?', [limitedKey]);
+    assert.ok(Number(limitedRecord?.attempts) >= 8, 'The rate limit must be persisted for the normalized username key.');
 
     const me = await app.request('http://localhost/api/auth/me', { headers: { cookie } });
     assert.equal(me.status, 200);
