@@ -32,6 +32,27 @@ test('domestic API authenticates a provisioned MySQL user and revokes the sessio
     const health = await app.request('http://localhost/api/health');
     assert.equal(health.status, 200);
     assert.deepEqual(await health.json(), { ok: true, service: 'medar-domestic-api', database: true, auth: 'mysql' });
+    assert.equal(health.headers.get('x-content-type-options'), 'nosniff');
+    assert.equal(health.headers.get('x-frame-options'), 'DENY');
+    assert.equal(health.headers.get('cache-control'), 'no-store');
+
+    const rejectedOrigin = await app.request('http://localhost/api/auth/logout', {
+      method: 'POST',
+      headers: { origin: 'https://untrusted.example' },
+    });
+    assert.equal(rejectedOrigin.status, 403, 'Unsafe requests from an untrusted origin must be rejected before route handling.');
+    const disabledSignup = await app.request('http://localhost/api/auth/signup', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ username, password }),
+    });
+    assert.equal(disabledSignup.status, 403, 'Public signup must remain disabled on the domestic API.');
+    const disabledInvite = await app.request('http://localhost/api/auth/signup-with-invite', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ inviteCode: 'invalid' }),
+    });
+    assert.equal(disabledInvite.status, 410, 'Invite-based signup must not accidentally become active.');
 
     const login = await app.request('http://localhost/api/auth/login', {
       method: 'POST',
@@ -47,6 +68,25 @@ test('domestic API authenticates a provisioned MySQL user and revokes the sessio
     const setCookie = login.headers.get('set-cookie');
     assert.ok(setCookie?.startsWith('medar_session='));
     const cookie = setCookie.split(';')[0];
+    const sessionToken = cookie.slice('medar_session='.length);
+    assert.match(sessionToken, /^[a-f0-9]{64}$/);
+    const [[storedSession]] = await db.query('SELECT token_hash FROM medar_sessions WHERE user_id=? ORDER BY created_at DESC LIMIT 1', [userId]);
+    assert.ok(storedSession);
+    assert.notEqual(storedSession.token_hash, sessionToken, 'The raw session token must never be stored in MySQL.');
+    assert.match(storedSession.token_hash, /^[a-f0-9]{64}$/);
+
+    const badLogin = await app.request('http://localhost/api/auth/login', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ username, password: password + '-wrong' }),
+    });
+    assert.equal(badLogin.status, 401, 'Invalid credentials must use the same generic authentication failure response.');
+    assert.equal(badLogin.headers.get('set-cookie'), null, 'Failed authentication must not issue a session cookie.');
+    const [[failedAttempt]] = await db.query(
+      'SELECT succeeded FROM medar_login_attempts WHERE username_normalized=? ORDER BY attempted_at DESC LIMIT 1',
+      [username],
+    );
+    assert.equal(Number(failedAttempt.succeeded), 0, 'Failed logins must be auditable without recording the submitted password.');
 
     const me = await app.request('http://localhost/api/auth/me', { headers: { cookie } });
     assert.equal(me.status, 200);
