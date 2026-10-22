@@ -186,7 +186,7 @@ test('domestic API authenticates a provisioned MySQL user and revokes the sessio
     const agreementId = randomUUID();
     await db.execute('INSERT INTO suppliers (id,company_id,name) VALUES (?,?,?)', [supplierId, companyId, 'Domestic CI Partner']);
 
-    const fileName = 'capacity-ci-' + suffix + '.png';
+    const fileName = 'capacity-ci-' + username + '.png';
     const evidencePath = companyId + '/' + supplierId + '/' + fileName;
     const imageBytes = Uint8Array.from([137, 80, 78, 71, 13, 10, 26, 10, 1, 2, 3, 4]);
     const uploadFile = await app.request('http://localhost/api/storage/capacity-evidence?path=' + encodeURIComponent(evidencePath), {
