@@ -123,6 +123,10 @@ try {
   await db.execute('INSERT INTO products (id,company_id,sku,name,kind) VALUES (?,?,?,?,?)', [productB, companyB, 'CI-EGG-B', 'CI Quail Eggs B', 'eggs']);
   await db.execute('INSERT INTO orders (id,company_id,customer_id,reference,status) VALUES (?,?,?,?,?)', [orderA, companyA, customerA, 'SO-CI-001', 'draft']);
   await db.execute('INSERT INTO order_items (id,company_id,order_id,product_id,quantity,unit_price) VALUES (?,?,?,?,?,?)', [randomUUID(), companyA, orderA, productA, 10, 100]);
+  await db.execute('INSERT INTO orders (company_id,customer_id,status,notes) VALUES (?,?,?,?)', [companyA, customerA, 'draft', 'CI AUTO DEFAULTS']);
+  const [[autoOrder]] = await db.query('SELECT id,reference FROM orders WHERE company_id=? AND customer_id=? AND notes=?', [companyA, customerA, 'CI AUTO DEFAULTS']);
+  assert.match(autoOrder.id, /^[0-9a-f-]{36}$/i, 'Operational primary keys must retain generated UUID defaults.');
+  assert.match(autoOrder.reference, /^SO-\d{6}-[0-9A-F]{6}$/, 'Sales-order references must retain the generated reference default.');
   await assert.rejects(
     db.execute('INSERT INTO invoices (id,company_id,order_id,customer_id,reference,amount,paid_amount) VALUES (?,?,?,?,?,?,?)', [randomUUID(), companyA, orderA, customerA, 'INV-CI-OVERPAY', 100, 101]),
     error => error?.code === 'ER_CHECK_CONSTRAINT_VIOLATED',
