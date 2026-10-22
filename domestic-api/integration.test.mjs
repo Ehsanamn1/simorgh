@@ -181,7 +181,7 @@ test('domestic API authenticates a provisioned MySQL user and revokes the sessio
     assert.equal(createdSupplierUser.display_name, provisionedFullName);
     assert.equal(createdSupplierUser.account_status, 'active');
     assert.notEqual(createdSupplierUser.password_hash, provisionedPassword, 'Plaintext passwords must never be stored.');
-    assert.match(createdSupplierUser.password_hash, /^pbkdf2_sha256\\$100000\\$/);
+    assert.match(createdSupplierUser.password_hash, /^pbkdf2_sha256\$100000\$/);
     const [[createdProfile]] = await db.query('SELECT full_name, phone FROM profiles WHERE id=?', [createdSupplier.id]);
     assert.equal(createdProfile.full_name, provisionedFullName);
     const [[createdMembership]] = await db.query(
