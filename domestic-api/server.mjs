@@ -343,10 +343,20 @@ function buildFilterSql(filters, columns, values, join = 'AND') {
       continue;
     }
     if (op === 'in' || op === 'not_in') {
-      if (!Array.isArray(value) || value.length > 200) throw new Error('Invalid IN filter');
-      if (!value.length) { parts.push(op === 'in' ? '0=1' : '1=1'); continue; }
-      parts.push(column + (op === 'not_in' ? ' NOT IN (' : ' IN (') + value.map(() => '?').join(',') + ')');
-      values.push(...value);
+      let list = value;
+      if (typeof value === 'string' && value.startsWith('(') && value.endsWith(')')) {
+        const raw = value.slice(1, -1);
+        list = raw ? raw.split(',').map((item) => {
+          const trimmed = item.trim();
+          return trimmed.length >= 2 && trimmed.startsWith("'") && trimmed.endsWith("'")
+            ? trimmed.slice(1, -1).replace(/''/g, "'")
+            : trimmed;
+        }) : [];
+      }
+      if (!Array.isArray(list) || list.length > 200) throw new Error('Invalid IN filter');
+      if (!list.length) { parts.push(op === 'in' ? '0=1' : '1=1'); continue; }
+      parts.push(column + (op === 'not_in' ? ' NOT IN (' : ' IN (') + list.map(() => '?').join(',') + ')');
+      values.push(...list);
       continue;
     }
     const operators = { eq: '=', neq: '<>', gt: '>', gte: '>=', lt: '<', lte: '<=', like: 'LIKE', ilike: 'LIKE' };
@@ -431,7 +441,11 @@ app.post('/api/data/:table', async (c) => {
       }
       if (body.head === true) return c.json({ data: [], count, error: null });
       const params = [...scopeValues, ...filterValues, ...orValues];
-      let query = 'SELECT * FROM ' + sqlIdentifier(table) + where;
+      const requested = typeof body.selection === 'string' ? body.selection.split(',').map((part) => part.trim()) : ['*'];
+      const projection = requested.length && requested.every((field) => field === '*' || (/^[a-z_][a-z0-9_]*$/i.test(field) && columns.has(field)))
+        ? [...new Set(requested)].map(sqlIdentifier).join(', ')
+        : '*';
+      let query = 'SELECT ' + projection + ' FROM ' + sqlIdentifier(table) + where;
       if (body.order && typeof body.order === 'object' && body.order.column) {
         if (!columns.has(body.order.column)) throw new Error('Invalid order column');
         query += ' ORDER BY ' + sqlIdentifier(body.order.column) + (body.order.ascending === true ? ' ASC' : ' DESC');
