@@ -88,7 +88,27 @@ try {
     error => error?.code === 'ER_DUP_ENTRY',
     'A company must not accept a second owner in the owner registry.',
   );
-  console.log('Medar MySQL foundation passed:', required.length, 'tables,', constraints.length, 'foreign keys, one-owner-per-company semantics, and pending-request guards.');
+
+  const requestA = randomUUID();
+  const requestB = randomUUID();
+  await db.execute(
+    'INSERT INTO access_requests (id,company_id,user_id,requested_role,full_name,status) VALUES (?,?,?,?,?,?)',
+    [requestA, companyA, ownerId, 'supplier', 'CI Access Request A', 'pending'],
+  );
+  await db.execute(
+    'INSERT INTO access_requests (id,company_id,user_id,requested_role,full_name,status) VALUES (?,?,?,?,?,?)',
+    [requestB, companyA, ownerId, 'supplier', 'CI Access Request B', 'pending'],
+  );
+  await db.execute(
+    'INSERT INTO pending_access_request_guards (company_id,user_id,access_request_id) VALUES (?,?,?)',
+    [companyA, ownerId, requestA],
+  );
+  await assert.rejects(
+    db.execute('INSERT INTO pending_access_request_guards (company_id,user_id,access_request_id) VALUES (?,?,?)', [companyA, ownerId, requestB]),
+    error => error?.code === 'ER_DUP_ENTRY',
+    'Only one pending request per company/user may be guarded at once.',
+  );
+  console.log('Medar MySQL foundation passed:', required.length, 'tables,', constraints.length, 'foreign keys, owner and pending-request uniqueness semantics.');
 } finally {
   await db.end();
 }
