@@ -9,7 +9,7 @@
     "start": "node server.mjs",
     "check": "node --check server.mjs && node --check server.test.mjs && node --check server.integration.test.mjs",
     "test": "node --test server.test.mjs",
-    "test:integration": "node --test server.integration.test.mjs"
+    "test:integration": "node --test integration.test.mjs server.integration.test.mjs"
   },
   "dependencies": {
     "@hono/node-server": "^1.19.1",
