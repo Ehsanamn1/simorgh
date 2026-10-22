@@ -1,4 +1,3 @@
-import { serve } from '@hono/node-server';
 import process from 'node:process';
 import console from 'node:console';
 import { Buffer } from 'node:buffer';
@@ -298,6 +297,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     console.error('MYSQL_URL is required. Do not start the domestic API without a database.');
     process.exitCode = 1;
   } else {
+    const { serve } = await import('@hono/node-server');
     serve({ fetch: app.fetch, port: PORT, hostname: process.env.HOST || '127.0.0.1' }, (info) => {
       console.log('Medar domestic API listening on ' + info.address + ':' + info.port);
     });
