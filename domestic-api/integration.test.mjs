@@ -9,13 +9,22 @@ import { app, hashPassword, closePool } from './server.mjs';
 
 async function requestWithTimeout(input, init) {
   let timer;
+  const method = String(init?.method || 'GET').toUpperCase();
+  const label = method + ' ' + String(input);
+  const trace = process.env.MEDAR_TEST_TRACE === 'true';
+  if (trace) console.log('[medar-integration] -> ' + label);
   try {
-    return await Promise.race([
+    const response = await Promise.race([
       app.request(input, init),
       new Promise((_, reject) => {
-        timer = setTimeout(() => reject(new Error('Domestic API request timed out: ' + String(input))), 15_000);
+        timer = setTimeout(() => reject(new Error('Domestic API request timed out: ' + label)), 15_000);
       }),
     ]);
+    if (trace) console.log('[medar-integration] <- ' + label + ' ' + response.status);
+    return response;
+  } catch (error) {
+    if (trace) console.error('[medar-integration] !! ' + label + ' ' + String(error));
+    throw error;
   } finally {
     clearTimeout(timer);
   }
