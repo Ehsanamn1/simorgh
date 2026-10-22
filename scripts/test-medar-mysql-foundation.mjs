@@ -88,7 +88,18 @@ try {
       await db.query(extendedStatements[index]);
     } catch (error) {
       const preview = extendedStatements[index].split(String.fromCharCode(10)).join(' ').slice(0, 180);
-      throw new Error('MySQL extended migration statement ' + (index + 1) + '/' + extendedStatements.length + ' failed: ' + preview + String.fromCharCode(10) + error.message);
+      let diagnostics = '';
+      try {
+        const [warnings] = await db.query('SHOW WARNINGS');
+        if (warnings.length) diagnostics += String.fromCharCode(10) + 'Warnings: ' + JSON.stringify(warnings);
+      } catch (diagnosticError) { diagnostics += String.fromCharCode(10) + 'Warnings unavailable: ' + diagnosticError.message; }
+      try {
+        const [statusRows] = await db.query('SHOW ENGINE INNODB STATUS');
+        const status = String(statusRows?.[0]?.Status || '');
+        const foreignKeyError = status.slice(status.lastIndexOf('LATEST FOREIGN KEY ERROR'), status.lastIndexOf('LATEST FOREIGN KEY ERROR') + 3500);
+        if (foreignKeyError) diagnostics += String.fromCharCode(10) + 'InnoDB: ' + foreignKeyError;
+      } catch (diagnosticError) { diagnostics += String.fromCharCode(10) + 'InnoDB diagnostics unavailable: ' + diagnosticError.message; }
+      throw new Error('MySQL extended migration statement ' + (index + 1) + '/' + extendedStatements.length + ' failed: ' + preview + String.fromCharCode(10) + error.message + diagnostics);
     }
   }
   const extendedRequired = ['company_invites','medar_files','purchase_orders','purchase_order_items','medar_client_presence','medar_ai_provider_configs','medar_ai_usage_log','medar_ai_action_runs','medar_membership_module_permissions','medar_bank_accounts','medar_bank_transactions','medar_operational_events','medar_exception_cases','medar_conversations','medar_conversation_participants','medar_messages','medar_push_subscriptions','medar_notification_outbox'];
