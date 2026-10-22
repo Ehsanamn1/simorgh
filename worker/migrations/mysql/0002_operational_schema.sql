@@ -7,7 +7,9 @@ SET time_zone = '+00:00';
 
 CREATE TABLE IF NOT EXISTS customers (
   id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL DEFAULT (UUID()) PRIMARY KEY, company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
-  name VARCHAR(160) not null check(length(trim(name)) between 2 and 160), segment TEXT, city TEXT, phone TEXT, address TEXT,
+  name VARCHAR(160) not null check(length(trim(name)) between 2 and 160), segment VARCHAR(60), city VARCHAR(120), phone VARCHAR(60), address VARCHAR(1000),
+  email VARCHAR(320), organization_name VARCHAR(240), contact_notes TEXT,
+  contact_tags JSON NOT NULL DEFAULT (JSON_ARRAY()), contact_source VARCHAR(40) NOT NULL DEFAULT 'manual',
   credit_limit numeric(16,0) check(credit_limit is null or credit_limit >= 0), active boolean not null default true,
   created_at DATETIME(3) not null DEFAULT CURRENT_TIMESTAMP(3), updated_at DATETIME(3) not null DEFAULT CURRENT_TIMESTAMP(3),
   unique(company_id,id), unique(company_id,name),
@@ -16,7 +18,10 @@ CREATE TABLE IF NOT EXISTS customers (
 
 CREATE TABLE IF NOT EXISTS suppliers (
   id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL DEFAULT (UUID()) PRIMARY KEY, company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
-  name VARCHAR(160) not null check(length(trim(name)) between 2 and 160), city TEXT, phone TEXT, farm_registration TEXT,
+  name VARCHAR(160) not null check(length(trim(name)) between 2 and 160), city VARCHAR(120), phone VARCHAR(60), farm_registration VARCHAR(160),
+  province VARCHAR(120), address VARCHAR(1000), email VARCHAR(320), organization_name VARCHAR(240), contact_notes TEXT,
+  contact_tags JSON NOT NULL DEFAULT (JSON_ARRAY()), contact_source VARCHAR(40) NOT NULL DEFAULT 'manual', latitude DOUBLE, longitude DOUBLE,
+  CHECK ((latitude IS NULL AND longitude IS NULL) OR (latitude IS NOT NULL AND longitude IS NOT NULL AND latitude BETWEEN -90 AND 90 AND longitude BETWEEN -180 AND 180)),
   active boolean not null default true, created_at DATETIME(3) not null DEFAULT CURRENT_TIMESTAMP(3), updated_at DATETIME(3) not null DEFAULT CURRENT_TIMESTAMP(3),
   unique(company_id,id), unique(company_id,name),
   CONSTRAINT fk_suppliers_company_id FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
@@ -73,13 +78,17 @@ CREATE TABLE IF NOT EXISTS capacity_commitments (
   declared_qty numeric(14,3) not null check(declared_qty>=0), confirmed_qty numeric(14,3) check(confirmed_qty is null or confirmed_qty>=0),
   committed_qty numeric(14,3) check(committed_qty is null or committed_qty>=0), status VARCHAR(40) NOT NULL DEFAULT 'declared' CHECK (status IN ('declared','confirmed','committed','released','cancelled')), note TEXT,
   created_at DATETIME(3) not null DEFAULT CURRENT_TIMESTAMP(3), updated_at DATETIME(3) not null DEFAULT CURRENT_TIMESTAMP(3), created_by CHAR(36) CHARACTER SET ascii COLLATE ascii_bin,
+  evidence_path VARCHAR(1000), evidence_name VARCHAR(255), evidence_mime_type VARCHAR(160), evidence_uploaded_at DATETIME(3),
+  evidence_review_status VARCHAR(24) NOT NULL DEFAULT 'missing' CHECK (evidence_review_status IN ('missing','pending_review','approved','rejected')),
+  evidence_reviewed_by CHAR(36) CHARACTER SET ascii COLLATE ascii_bin, evidence_reviewed_at DATETIME(3), evidence_review_note VARCHAR(1000),
   foreign key(company_id,supplier_id) references suppliers(company_id,id) on delete cascade,
   foreign key(company_id,product_id) references products(company_id,id) on delete restrict,
   unique(company_id,id),
   check(period_end>=period_start), check(confirmed_qty is null or confirmed_qty<=declared_qty),
   check(committed_qty is null or confirmed_qty is null or committed_qty<=confirmed_qty),
   CONSTRAINT fk_capacity_commitments_company_id FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE,
-  CONSTRAINT fk_capacity_commitments_created_by FOREIGN KEY (created_by) REFERENCES medar_users(id) ON DELETE RESTRICT
+  CONSTRAINT fk_capacity_commitments_created_by FOREIGN KEY (created_by) REFERENCES medar_users(id) ON DELETE RESTRICT,
+  CONSTRAINT fk_capacity_commitments_evidence_reviewed_by FOREIGN KEY (evidence_reviewed_by) REFERENCES medar_users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS lots (
@@ -152,8 +161,9 @@ CREATE TABLE IF NOT EXISTS settlements (
 
 CREATE TABLE IF NOT EXISTS notifications (
   id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL DEFAULT (UUID()) PRIMARY KEY, company_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null,
-  user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null, title TEXT not null, body TEXT, href TEXT,
+  user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin not null, title VARCHAR(180) NOT NULL, body VARCHAR(4000), href VARCHAR(1000), dedupe_key VARCHAR(240),
   read_at DATETIME(3), created_at DATETIME(3) not null DEFAULT CURRENT_TIMESTAMP(3),
+  UNIQUE KEY notifications_dedupe_uq (company_id,user_id,dedupe_key),
   CONSTRAINT fk_notifications_company_id FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE,
   CONSTRAINT fk_notifications_user_id FOREIGN KEY (user_id) REFERENCES medar_users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
