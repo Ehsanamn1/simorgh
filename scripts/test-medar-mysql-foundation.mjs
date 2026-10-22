@@ -318,6 +318,14 @@ try {
   );
 
   await db.execute('INSERT INTO orders (id,company_id,customer_id,reference,status) VALUES (?,?,?,?,?)', [orderA, companyA, customerA, 'SO-CI-001', 'draft']);
+  const shipmentA = randomUUID();
+  await db.execute("INSERT INTO shipments (id,company_id,order_id,stage) VALUES (?,?,?,'planned')", [shipmentA, companyA, orderA]);
+  await db.execute("INSERT INTO delivery_evidence (id,company_id,shipment_id,kind,storage_path) VALUES (?,?,?,'video',?)", [randomUUID(), companyA, shipmentA, companyA + '/delivery-evidence/' + randomUUID() + '.mp4']);
+  await assert.rejects(
+    db.execute("INSERT INTO delivery_evidence (id,company_id,shipment_id,kind) VALUES (?,?,?,'animation')", [randomUUID(), companyA, shipmentA]),
+    error => error?.code === 'ER_CHECK_CONSTRAINT_VIOLATED',
+    'Delivery evidence must reject unsupported media kinds.',
+  );
   await db.execute('INSERT INTO order_items (id,company_id,order_id,product_id,quantity,unit_price) VALUES (?,?,?,?,?,?)', [randomUUID(), companyA, orderA, productA, 10, 100]);
   await db.execute('INSERT INTO orders (company_id,customer_id,status,notes) VALUES (?,?,?,?)', [companyA, customerA, 'draft', 'CI AUTO DEFAULTS']);
   const [[autoOrder]] = await db.query('SELECT id,reference FROM orders WHERE company_id=? AND customer_id=? AND notes=?', [companyA, customerA, 'CI AUTO DEFAULTS']);
