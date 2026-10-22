@@ -252,7 +252,7 @@ app.post('/api/auth/password/change', async (c) => {
   const body = await c.req.json().catch(() => null);
   const oldPassword = typeof body?.currentPassword === 'string' ? body.currentPassword : '';
   const newPassword = typeof body?.newPassword === 'string' ? body.newPassword : '';
-  if (newPassword.length < 12 || newPassword.length > 128) return c.json({ message: 'رمز جدید باید بین ۱۲ تا ۱۲۸ نویسه باشد.' }, 422);
+  if (newPassword.length < 8 || newPassword.length > 128) return c.json({ message: 'گذرواژه جدید باید بین ۸ تا ۱۲۸ نویسه باشد.' }, 422);
   const [rows] = await pool.execute('SELECT password_hash FROM medar_users WHERE id=? LIMIT 1', [session.user.id]);
   if (!rows.length || !await verifyPassword(oldPassword, rows[0].password_hash)) return c.json({ message: 'رمز فعلی نادرست است.' }, 401);
   const encoded = await hashPassword(newPassword);
@@ -276,7 +276,7 @@ app.get('/api/workspace/memberships', async (c) => {
   if (!pool) return c.json({ message: 'پایگاه داده تنظیم نشده است.' }, 503);
   const session = await currentSession(c);
   if (!session) return c.json({ message: 'برای ادامه وارد حساب شو.' }, 401);
-  return c.json({ data: await membershipsFor(session.user.id), error: null });
+  return c.json({ memberships: await membershipsFor(session.user.id) });
 });
 
 app.notFound((c) => c.json({ message: 'مسیر API در نسخه داخلی پیدا نشد.' }, 404));
