@@ -2076,7 +2076,7 @@ app.post('/api/profile/complete', async (c) => {
         [supplierId,companyId,supplierName,phone,province,city,address],
       );
       const [linked] = await connection.execute(
-        'UPDATE memberships SET supplier_id=? WHERE id=? AND company_id=? AND user_id=? AND role=\\'supplier\\' AND active=TRUE AND supplier_id IS NULL',
+        "UPDATE memberships SET supplier_id=? WHERE id=? AND company_id=? AND user_id=? AND role='supplier' AND active=TRUE AND supplier_id IS NULL",
         [supplierId,membership.id,companyId,session.user.id],
       );
       if (!linked.affectedRows) throw new Error('Supplier membership could not be linked');
