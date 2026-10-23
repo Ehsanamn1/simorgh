@@ -2401,6 +2401,145 @@ app.post('/api/finance/bank-transactions/:id/ignore', async (c) => {
 });
 
 
+
+app.post('/api/contacts/import', async (c) => {
+  if (!pool) return c.json({ message: 'پایگاه داده تنظیم نشده است.' }, 503);
+  const session = await currentSession(c);
+  if (!session) return c.json({ message: 'برای ادامه وارد حساب شو.' }, 401);
+  const body = await c.req.json().catch(() => null);
+  if (!body) return c.json({ message: 'داده واردسازی معتبر نیست.' }, 400);
+  const companyId = typeof body.companyId === 'string' ? body.companyId : '';
+  const defaultKind = body.kind === 'customers' || body.kind === 'suppliers' ? body.kind : null;
+  if (!DOMESTIC_UUID_RE.test(companyId)) return c.json({ message: 'شناسه مجموعه معتبر نیست.' }, 422);
+  const membership = await domesticMembership(session.user.id,companyId);
+  if (!membership) return c.json({ message: 'به این فضای کاری دسترسی فعال نداری.' }, 403);
+  if (!['owner','admin'].includes(String(membership.role))) return c.json({ message: 'فقط مالک یا مدیر می‌تواند مخاطبین مجموعه را وارد کند.' }, 403);
+  if (!Array.isArray(body.contacts) || body.contacts.length < 1 || body.contacts.length > 1000) return c.json({ message: 'تعداد مخاطبین باید بین ۱ تا ۱۰۰۰ باشد.' }, 422);
+  const contacts = [];
+  const seenNames = new Set();
+  const seenPhones = new Set();
+  for (const raw of body.contacts) {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) continue;
+    const item = raw;
+    const name = typeof item.name === 'string' ? item.name.normalize('NFKC').trim().replace(/\s+/g,' ') : '';
+    const phone = typeof item.phone === 'string' ? item.phone.normalize('NFKC').trim().replace(/[۰-۹٠-٩]/g,digit => {
+      const code=digit.charCodeAt(0); return String(code >= 0x06f0 && code <= 0x06f9 ? code-0x06f0 : code-0x0660);
+    }).slice(0,40) : '';
+    const city = typeof item.city === 'string' ? item.city.trim().slice(0,100) : '';
+    const address = typeof item.address === 'string' ? item.address.trim().slice(0,500) : '';
+    const email = typeof item.email === 'string' ? item.email.trim().slice(0,254) : '';
+    const organization = typeof item.organization === 'string' ? item.organization.trim().replace(/\s+/g,' ').slice(0,160) : '';
+    const notes = typeof item.notes === 'string' ? item.notes.trim().slice(0,2000) : '';
+    const tags = Array.isArray(item.tags)
+      ? item.tags.filter(tag=>typeof tag==='string').map(tag=>tag.trim().replace(/[\r\n,;]/g,'').slice(0,40)).filter(Boolean).slice(0,12)
+      : [];
+    const kind = item.kind === 'customers' || item.kind === 'suppliers' ? item.kind : defaultKind;
+    if (!kind || name.length < 2 || name.length > 160) continue;
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) continue;
+    const category = kind + ':';
+    const nameKey = category + name.toLocaleLowerCase('fa-IR');
+    const phoneNumber = phone.replace(/\D/g,'');
+    const phoneKey = phoneNumber ? category + phoneNumber : '';
+    if (seenNames.has(nameKey) || (phoneKey && seenPhones.has(phoneKey))) continue;
+    seenNames.add(nameKey);
+    if (phoneKey) seenPhones.add(phoneKey);
+    contacts.push({kind,name,phone,city,address,email,organization,notes,tags});
+  }
+  if (!contacts.length) return c.json({ message: 'مخاطب معتبر با دسته مقصد مشخص برای واردسازی باقی نمانده است.' }, 422);
+  const summary = {customers:{imported:0,updated:0},suppliers:{imported:0,updated:0}};
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+    for (const kind of ['customers','suppliers']) {
+      const categorized = contacts.filter(contact=>contact.kind===kind);
+      for (let start=0;start<categorized.length;start+=100) {
+        const batch=categorized.slice(start,start+100);
+        const namePlaceholders=batch.map(()=>'?').join(',');
+        const [existingRows]=await connection.execute(
+          'SELECT name FROM '+kind+' WHERE company_id=? AND name IN ('+namePlaceholders+') FOR UPDATE',
+          [companyId,...batch.map(item=>item.name)],
+        );
+        const existingNames=new Set(existingRows.map(row=>String(row.name).toLocaleLowerCase('fa-IR')));
+        const params=[];
+        const values=batch.map(item=>{
+          params.push(companyId,item.name,item.phone||'',item.city||'',item.address||'',item.email||'',item.organization||'',item.notes||'',JSON.stringify(item.tags),'phone_import');
+          return '(?,?,?,?,?,?,?,?,?,?)';
+        });
+        const query = kind==='customers'
+          ? "INSERT INTO customers(company_id,name,phone,city,address,email,organization_name,contact_notes,contact_tags,contact_source) VALUES "+values.join(',')+
+            " ON DUPLICATE KEY UPDATE phone=COALESCE(NULLIF(VALUES(phone),''),phone),city=COALESCE(NULLIF(VALUES(city),''),city),address=COALESCE(NULLIF(VALUES(address),''),address),email=COALESCE(NULLIF(VALUES(email),''),email),organization_name=COALESCE(NULLIF(VALUES(organization_name),''),organization_name),contact_notes=COALESCE(NULLIF(VALUES(contact_notes),''),contact_notes),contact_tags=IF(JSON_LENGTH(VALUES(contact_tags))>0,VALUES(contact_tags),contact_tags),contact_source='phone_import',updated_at=NOW(3)"
+          : "INSERT INTO suppliers(company_id,name,phone,city,address,email,organization_name,contact_notes,contact_tags,contact_source) VALUES "+values.join(',')+
+            " ON DUPLICATE KEY UPDATE phone=COALESCE(NULLIF(VALUES(phone),''),phone),city=COALESCE(NULLIF(VALUES(city),''),city),address=COALESCE(NULLIF(VALUES(address),''),address),email=COALESCE(NULLIF(VALUES(email),''),email),organization_name=COALESCE(NULLIF(VALUES(organization_name),''),organization_name),contact_notes=COALESCE(NULLIF(VALUES(contact_notes),''),contact_notes),contact_tags=IF(JSON_LENGTH(VALUES(contact_tags))>0,VALUES(contact_tags),contact_tags),contact_source='phone_import',updated_at=NOW(3)";
+        await connection.execute(query,params);
+        for (const item of batch) {
+          if (existingNames.has(item.name.toLocaleLowerCase('fa-IR'))) summary[kind].updated += 1;
+          else summary[kind].imported += 1;
+        }
+      }
+    }
+    const imported=summary.customers.imported+summary.suppliers.imported;
+    const updated=summary.customers.updated+summary.suppliers.updated;
+    await connection.execute(
+      'INSERT INTO medar_audit_log(actor_user_id,action,entity_type,entity_id,metadata) VALUES(?,?,?,?,?)',
+      [session.user.id,'contacts.imported','contact_batch',companyId,JSON.stringify({company_id:companyId,imported,updated,skipped:Number(body.contacts.length)-contacts.length})],
+    );
+    await connection.commit();
+    return c.json({imported,updated,skipped:Number(body.contacts.length)-contacts.length,byKind:summary});
+  } catch (error) {
+    await connection.rollback().catch(()=>undefined);
+    console.error('Domestic contacts import failed',{code:typeof error?.code==='string'?error.code:'unknown'});
+    return c.json({message:'واردسازی مخاطبین انجام نشد؛ تغییر ناقص ذخیره نشد.'},500);
+  } finally { connection.release(); }
+});
+
+app.post('/api/contacts/classify', async (c) => {
+  if (!pool) return c.json({ message: 'پایگاه داده تنظیم نشده است.' }, 503);
+  const session = await currentSession(c);
+  if (!session) return c.json({ message: 'برای ادامه وارد حساب شو.' }, 401);
+  const body = await c.req.json().catch(()=>null);
+  const companyId = typeof body?.companyId === 'string' ? body.companyId : '';
+  if (!DOMESTIC_UUID_RE.test(companyId)) return c.json({message:'شناسه مجموعه معتبر نیست.'},422);
+  const membership = await domesticMembership(session.user.id,companyId);
+  if (!membership || !['owner','admin','staff'].includes(String(membership.role)) || !(await domesticModuleAllowed(membership,'agents','can_create'))) {
+    return c.json({message:'برای پیشنهاد دسته مخاطب دسترسی لازم را نداری.'},403);
+  }
+  return c.json({message:'دسته‌بندی هوشمند مخاطبین در نسخه داخلی به ارائه‌دهنده AI بیرونی وابسته است و تا پیکربندی امن سرویس محلی فعال نشده، اجرا نمی‌شود.'},503);
+});
+
+app.post('/api/workspace/invites', async (c) => {
+  const session = await currentSession(c);
+  if (!session) return c.json({message:'برای ادامه وارد حساب شو.'},401);
+  const body = await c.req.json().catch(()=>null);
+  const companyId = typeof body?.companyId === 'string' ? body.companyId : '';
+  if (!DOMESTIC_UUID_RE.test(companyId)) return c.json({message:'شناسه مجموعه معتبر نیست.'},422);
+  const membership = await domesticMembership(session.user.id,companyId);
+  if (!membership || !['owner','admin'].includes(String(membership.role))) return c.json({message:'فقط مالک یا مدیر مجاز است.'},403);
+  return c.json({message:'دعوت‌نامه در این نسخه غیرفعال است؛ حساب را مستقیماً از بخش افراد و دسترسی‌ها بساز.'},410);
+});
+
+app.post('/api/workspace/join', async (c) => {
+  const session = await currentSession(c);
+  if (!session) return c.json({message:'برای ادامه وارد حساب شو.'},401);
+  return c.json({message:'پیوستن با کد دعوت غیرفعال است؛ از مالک مجموعه بخواه حساب اختصاصی بسازد.'},410);
+});
+
+app.post('/api/access-requests', async (c) => {
+  const session = await currentSession(c);
+  if (!session) return c.json({message:'برای ادامه وارد حساب شو.'},401);
+  return c.json({message:'درخواست نقش عمومی فعال نیست؛ حساب‌های عملیاتی باید توسط مالک یا مدیر ساخته شوند.',account:session.user.username},410);
+});
+
+app.get('/api/push/config', async (c) => {
+  if (!pool) return c.json({message:'پایگاه داده تنظیم نشده است.'},503);
+  const session = await currentSession(c);
+  if (!session) return c.json({message:'برای ادامه وارد حساب شو.'},401);
+  const companyId=c.req.query('companyId')||'';
+  if (!DOMESTIC_UUID_RE.test(companyId)) return c.json({message:'شناسه مجموعه معتبر نیست.'},422);
+  if (!(await domesticMembership(session.user.id,companyId))) return c.json({message:'به این فضای کاری دسترسی فعال نداری.'},403);
+  return c.json({enabled:false,publicKey:null,reason:'VAPID delivery is not configured for the domestic runtime.'});
+});
+
+
 app.notFound((c) => c.json({ message: 'مسیر API در نسخه داخلی پیدا نشد.' }, 404));
 app.onError((error, c) => {
   const requestId = randomBytes(8).toString('hex');
