@@ -2540,6 +2540,143 @@ app.get('/api/push/config', async (c) => {
 });
 
 
+
+app.get('/api/ai/actions', async (c) => {
+  if (!pool) return c.json({message:'پایگاه داده تنظیم نشده است.'},503);
+  const session=await currentSession(c);
+  if (!session) return c.json({message:'برای ادامه وارد حساب شو.'},401);
+  const companyId=c.req.query('companyId')||'';
+  const status=c.req.query('status')||'all';
+  if(!DOMESTIC_UUID_RE.test(companyId)||!['all','proposed','executed','cancelled','failed'].includes(status)) return c.json({message:'شناسه مجموعه یا فیلتر وضعیت معتبر نیست.'},422);
+  const membership=await domesticMembership(session.user.id,companyId);
+  if(!membership||!['owner','admin','staff'].includes(String(membership.role))||!(await domesticModuleAllowed(membership,'agents','can_read'))) return c.json({message:'برای مشاهده پیشنهادهای اقدام مجوز نداری.'},403);
+  const where=status==='all'?'company_id=?':'company_id=? AND status=?';
+  const params=status==='all'?[companyId]:[companyId,status];
+  const [rows]=await pool.execute(
+    'SELECT id,company_id AS companyId,requested_by AS requestedBy,tool_key AS toolKey,status,arguments,result,executed_by AS executedBy,executed_at AS executedAt,created_at AS createdAt,updated_at AS updatedAt FROM medar_ai_action_runs WHERE '+where+' ORDER BY created_at DESC LIMIT 100',
+    params,
+  );
+  return c.json({actions:rows.map(row=>({...row,id:String(row.id),companyId:String(row.companyId),requestedBy:String(row.requestedBy),executedBy:row.executedBy?String(row.executedBy):null,arguments:domesticJson(row.arguments),result:row.result?domesticJson(row.result,null):null}))});
+});
+
+app.post('/api/ai/actions/propose', async (c) => {
+  if (!pool) return c.json({message:'پایگاه داده تنظیم نشده است.'},503);
+  const session=await currentSession(c);
+  if (!session) return c.json({message:'برای ادامه وارد حساب شو.'},401);
+  const body=await c.req.json().catch(()=>null);
+  if(!body||typeof body!=='object'||Array.isArray(body))return c.json({message:'درخواست پیشنهاد اقدام معتبر نیست.'},400);
+  const companyId=typeof body.companyId==='string'?body.companyId:'';
+  if(!DOMESTIC_UUID_RE.test(companyId))return c.json({message:'شناسه مجموعه معتبر نیست.'},422);
+  const membership=await domesticMembership(session.user.id,companyId);
+  if(!membership||!['owner','admin','staff'].includes(String(membership.role)))return c.json({message:'فقط اعضای داخلی مجموعه می‌توانند اقدام عملیاتی پیشنهاد کنند.'},403);
+  if(!(await domesticModuleAllowed(membership,'agents','can_create'))||!(await domesticModuleAllowed(membership,'operational-tasks','can_create')))return c.json({message:'برای پیشنهاد وظیفه در این مجموعه مجوز ایجاد نداری.'},403);
+  const toolKey=typeof body.toolKey==='string'?body.toolKey:'create_operational_task';
+  if(toolKey!=='create_operational_task')return c.json({message:'این نوع اقدام هنوز پشتیبانی نمی‌شود.'},422);
+  const args=body.arguments&&typeof body.arguments==='object'&&!Array.isArray(body.arguments)?body.arguments:{};
+  const title=typeof args.title==='string'?args.title.trim():'';
+  const instructions=typeof args.instructions==='string'?args.instructions.trim():'';
+  const priority=typeof args.priority==='string'?args.priority:'normal';
+  const dueAtRaw=typeof args.dueAt==='string'?args.dueAt.trim():'';
+  const assigneeUserRaw=typeof args.assigneeUserId==='string'?args.assigneeUserId.trim():'';
+  const assigneeSupplierRaw=typeof args.assigneeSupplierId==='string'?args.assigneeSupplierId.trim():'';
+  if(title.length<2||title.length>180||instructions.length>2048)return c.json({message:'عنوان باید بین ۲ تا ۱۸۰ نویسه و شرح حداکثر ۲۰۴۸ نویسه باشد.'},422);
+  if(!['low','normal','high','critical'].includes(priority))return c.json({message:'اولویت وظیفه معتبر نیست.'},422);
+  if(dueAtRaw&&(!Number.isFinite(Date.parse(dueAtRaw))||dueAtRaw.length>80))return c.json({message:'زمان سررسید معتبر نیست.'},422);
+  if((assigneeUserRaw&&!DOMESTIC_UUID_RE.test(assigneeUserRaw))||(assigneeSupplierRaw&&!DOMESTIC_UUID_RE.test(assigneeSupplierRaw)))return c.json({message:'شناسه مسئول وظیفه معتبر نیست.'},422);
+  if(assigneeUserRaw&&assigneeSupplierRaw)return c.json({message:'وظیفه فقط می‌تواند یک مسئول داشته باشد.'},422);
+  const assigneeUserId=assigneeUserRaw||(!assigneeSupplierRaw?String(session.user.id):'');
+  if(assigneeUserId){
+    const [assignees]=await pool.execute("SELECT 1 FROM memberships WHERE user_id=? AND company_id=? AND active=TRUE AND role IN ('owner','admin','staff','driver') LIMIT 1",[assigneeUserId,companyId]);
+    if(!assignees.length)return c.json({message:'مسئول انتخاب‌شده عضو فعال و مجاز این مجموعه نیست.'},422);
+  }
+  if(assigneeSupplierRaw){
+    const [suppliers]=await pool.execute('SELECT 1 FROM suppliers WHERE id=? AND company_id=? AND active=TRUE LIMIT 1',[assigneeSupplierRaw,companyId]);
+    if(!suppliers.length)return c.json({message:'تأمین‌کننده انتخاب‌شده فعال نیست یا به این مجموعه تعلق ندارد.'},422);
+  }
+  const argsJson={title,instructions,priority,...(dueAtRaw?{dueAt:new Date(dueAtRaw).toISOString()}:{}),...(assigneeUserId?{assigneeUserId}:{}),...(assigneeSupplierRaw?{assigneeSupplierId:assigneeSupplierRaw}:{})};
+  const id=randomUUID();
+  try {
+    await pool.execute("INSERT INTO medar_ai_action_runs(id,company_id,requested_by,tool_key,status,arguments) VALUES(?,?,?,'create_operational_task','proposed',?)",[id,companyId,session.user.id,JSON.stringify(argsJson)]);
+    await pool.execute("INSERT INTO medar_audit_log(actor_user_id,action,entity_type,entity_id,metadata) VALUES(?,?,?,?,?)",[session.user.id,'ai_action.proposed','ai_action_run',id,JSON.stringify({company_id:companyId,tool_key:'create_operational_task'})]);
+    return c.json({action:{id,companyId,requestedBy:String(session.user.id),toolKey:'create_operational_task',status:'proposed',arguments:argsJson,createdAt:new Date().toISOString()},requiresConfirmation:true},201);
+  } catch(error) {
+    console.error('Domestic AI action proposal failed',{code:typeof error?.code==='string'?error.code:'unknown'});
+    return c.json({message:'پیشنهاد اقدام ذخیره نشد. تغییری در وظایف کسب‌وکار ایجاد نشده است.'},500);
+  }
+});
+
+app.post('/api/ai/actions/:id/cancel', async (c) => {
+  if (!pool) return c.json({message:'پایگاه داده تنظیم نشده است.'},503);
+  const session=await currentSession(c);
+  if (!session) return c.json({message:'برای ادامه وارد حساب شو.'},401);
+  const actionId=c.req.param('id');
+  const body=await c.req.json().catch(()=>null);
+  const companyId=typeof body?.companyId==='string'?body.companyId:'';
+  if(!DOMESTIC_UUID_RE.test(actionId)||!DOMESTIC_UUID_RE.test(companyId))return c.json({message:'شناسه اقدام یا مجموعه معتبر نیست.'},422);
+  const membership=await domesticMembership(session.user.id,companyId);
+  if(!membership||!['owner','admin','staff'].includes(String(membership.role)))return c.json({message:'دسترسی لغو پیشنهاد را نداری.'},403);
+  if(!(await domesticModuleAllowed(membership,'agents','can_update')))return c.json({message:'برای لغو پیشنهاد مجوز ویرایش نداری.'},403);
+  const [result]=await pool.execute("UPDATE medar_ai_action_runs SET status='cancelled',updated_at=NOW(3) WHERE id=? AND company_id=? AND status='proposed' AND (requested_by=? OR ? IN ('owner','admin'))",[actionId,companyId,session.user.id,membership.role]);
+  if(!result.affectedRows)return c.json({message:'پیشنهاد پیدا نشد یا دیگر قابل لغو نیست.'},409);
+  await pool.execute("INSERT INTO medar_audit_log(actor_user_id,action,entity_type,entity_id,metadata) VALUES(?,?,?,?,?)",[session.user.id,'ai_action.cancelled','ai_action_run',actionId,JSON.stringify({company_id:companyId})]);
+  return c.json({ok:true});
+});
+
+app.post('/api/ai/actions/:id/execute', async (c) => {
+  if (!pool) return c.json({message:'پایگاه داده تنظیم نشده است.'},503);
+  const session=await currentSession(c);
+  if (!session) return c.json({message:'برای ادامه وارد حساب شو.'},401);
+  const actionId=c.req.param('id');
+  const body=await c.req.json().catch(()=>null);
+  const companyId=typeof body?.companyId==='string'?body.companyId:'';
+  if(!DOMESTIC_UUID_RE.test(actionId)||!DOMESTIC_UUID_RE.test(companyId))return c.json({message:'شناسه اقدام یا مجموعه معتبر نیست.'},422);
+  if(body?.confirmed!==true)return c.json({message:'برای اجرای اقدام باید تأیید صریح ارسال شود.'},422);
+  const membership=await domesticMembership(session.user.id,companyId);
+  if(!membership||!['owner','admin','staff'].includes(String(membership.role)))return c.json({message:'برای اجرای اقدام عملیاتی دسترسی لازم وجود ندارد.'},403);
+  if(!(await domesticModuleAllowed(membership,'agents','can_approve'))||!(await domesticModuleAllowed(membership,'operational-tasks','can_create')))return c.json({message:'برای تأیید این اقدام یا ایجاد وظیفه مجوز نداری.'},403);
+  const connection=await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+    const [actions]=await connection.execute("SELECT id,requested_by,tool_key,status,arguments FROM medar_ai_action_runs WHERE id=? AND company_id=? FOR UPDATE",[actionId,companyId]);
+    if(!actions.length||actions[0].status!=='proposed'||actions[0].tool_key!=='create_operational_task') {
+      await connection.rollback(); return c.json({message:'پیشنهاد پیدا نشد یا دیگر قابل اجرا نیست.'},409);
+    }
+    const args=domesticJson(actions[0].arguments,{});
+    const title=typeof args.title==='string'?args.title.trim():'';
+    const instructions=typeof args.instructions==='string'?args.instructions:'';
+    const priority=typeof args.priority==='string'?args.priority:'normal';
+    const dueAt=typeof args.dueAt==='string'&&Number.isFinite(Date.parse(args.dueAt))?new Date(args.dueAt):null;
+    const assigneeUserId=typeof args.assigneeUserId==='string'?args.assigneeUserId:'';
+    const assigneeSupplierId=typeof args.assigneeSupplierId==='string'?args.assigneeSupplierId:'';
+    if(title.length<2||title.length>180||instructions.length>2048||!['low','normal','high','critical'].includes(priority)||(assigneeUserId&&assigneeSupplierId)||(!assigneeUserId&&!assigneeSupplierId)) {
+      await connection.rollback(); return c.json({message:'اطلاعات پیشنهاد برای اجرا معتبر نیست.'},409);
+    }
+    if(assigneeUserId) {
+      const [assignees]=await connection.execute("SELECT 1 FROM memberships WHERE user_id=? AND company_id=? AND active=TRUE AND role IN ('owner','admin','staff','driver') LIMIT 1",[assigneeUserId,companyId]);
+      if(!assignees.length){await connection.rollback();return c.json({message:'مسئول فعال در این مجموعه نیست.'},409);}
+    }
+    if(assigneeSupplierId) {
+      const [suppliers]=await connection.execute('SELECT 1 FROM suppliers WHERE id=? AND company_id=? AND active=TRUE LIMIT 1',[assigneeSupplierId,companyId]);
+      if(!suppliers.length){await connection.rollback();return c.json({message:'تأمین‌کننده فعال در این مجموعه نیست.'},409);}
+    }
+    const taskId=randomUUID();
+    await connection.execute(
+      'INSERT INTO operational_tasks(id,company_id,assignee_user_id,assignee_supplier_id,assigned_by,title,instructions_snapshot,category,priority,due_at) VALUES(?,?,?,?,?,?,?,?,?,?)',
+      [taskId,companyId,assigneeUserId||null,assigneeSupplierId||null,session.user.id,title,instructions,'operations',priority,dueAt],
+    );
+    const resultPayload={taskId,status:'pending'};
+    await connection.execute("UPDATE medar_ai_action_runs SET status='executed',result=?,executed_by=?,executed_at=NOW(3),updated_at=NOW(3) WHERE id=? AND company_id=? AND status='proposed'",[JSON.stringify(resultPayload),session.user.id,actionId,companyId]);
+    await connection.execute("INSERT INTO medar_audit_log(actor_user_id,action,entity_type,entity_id,metadata) VALUES(?,?,?,?,?)",[session.user.id,'ai_action.executed','ai_action_run',actionId,JSON.stringify({company_id:companyId,task_id:taskId})]);
+    await connection.commit();
+    return c.json({ok:true,result:resultPayload});
+  } catch(error) {
+    await connection.rollback().catch(()=>undefined);
+    console.error('Domestic AI action execution failed',{code:typeof error?.code==='string'?error.code:'unknown'});
+    return c.json({message:'اقدام اجرا نشد؛ هیچ تغییر ناقصی ذخیره نشد.'},409);
+  } finally { connection.release(); }
+});
+
+
 app.notFound((c) => c.json({ message: 'مسیر API در نسخه داخلی پیدا نشد.' }, 404));
 app.onError((error, c) => {
   const requestId = randomBytes(8).toString('hex');
