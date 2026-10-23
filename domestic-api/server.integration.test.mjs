@@ -22,6 +22,9 @@ after(async () => {
     console.log('[medar-integration] cleanup:sessions');
     console.log('[medar-integration] cleanup:operational-records');
     console.log('[medar-integration] cleanup:conversations');
+    console.log('[medar-integration] cleanup:bank-records');
+    await db.execute('DELETE FROM medar_bank_transactions WHERE company_id=?', [companyId]);
+    await db.execute('DELETE FROM medar_bank_accounts WHERE company_id=?', [companyId]);
     await db.execute('DELETE FROM medar_messages WHERE company_id=?', [companyId]);
     await db.execute('DELETE FROM medar_conversation_participants WHERE company_id=?', [companyId]);
     await db.execute('DELETE FROM medar_conversations WHERE company_id=?', [companyId]);
@@ -283,6 +286,83 @@ test('domestic MySQL API supports health, login, session, memberships, password 
   const messagePayload = await messagesResponse.json();
   assert.equal(messagePayload.messages.length, 1);
   assert.equal(messagePayload.messages[0].id, firstMessagePayload.id);
+
+  console.log('[medar-integration] request:bank-account-and-import');
+  const bankAccountResponse = await app.request('/api/finance/bank-accounts', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', cookie: sessionCookie },
+    body: JSON.stringify({ companyId, label: 'CI operating account', bankName: 'Test Bank', maskedAccount: '۱۲۳۴', currency: 'IRR' }),
+  });
+  assert.equal(bankAccountResponse.status, 201);
+  const bankAccount = (await bankAccountResponse.json()).account;
+  assert.ok(bankAccount.id);
+  assert.equal(bankAccount.maskedAccount, '۱۲۳۴');
+
+  const invalidBankAccount = await app.request('/api/finance/bank-accounts', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', cookie: sessionCookie },
+    body: JSON.stringify({ companyId, label: 'Invalid account', bankName: 'Test Bank', maskedAccount: '1234567890123456', currency: 'IRR' }),
+  });
+  assert.equal(invalidBankAccount.status, 422, 'full bank account numbers must not be stored');
+
+  const externalTransactionId = 'ci-bank-txn-' + suffix;
+  const transactionInput = {
+    externalTransactionId, bookedAt: '2026-10-23T10:30:00.000Z', amount: 125000000,
+    currency: 'IRR', description: 'CI import record', counterparty: 'Test counterparty', reference: 'CI-' + suffix,
+  };
+  const importResponse = await app.request('/api/finance/bank-transactions/import', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', cookie: sessionCookie },
+    body: JSON.stringify({ companyId, accountId: bankAccount.id, transactions: [transactionInput] }),
+  });
+  assert.equal(importResponse.status, 200);
+  assert.deepEqual(await importResponse.json(), { inserted: 1, skippedDuplicates: 0, submitted: 1 });
+
+  const importDuplicate = await app.request('/api/finance/bank-transactions/import', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', cookie: sessionCookie },
+    body: JSON.stringify({ companyId, accountId: bankAccount.id, transactions: [transactionInput] }),
+  });
+  assert.equal(importDuplicate.status, 200);
+  assert.deepEqual(await importDuplicate.json(), { inserted: 0, skippedDuplicates: 1, submitted: 1 });
+
+  const transactionList = await app.request('/api/finance/bank-transactions?companyId='+companyId+'&accountId='+bankAccount.id+'&status=unmatched', {
+    headers: { cookie: sessionCookie },
+  });
+  assert.equal(transactionList.status, 200);
+  const listedTransactions = (await transactionList.json()).transactions;
+  assert.equal(listedTransactions.length, 1);
+  const bankTransactionId = listedTransactions[0].id;
+  assert.equal(listedTransactions[0].externalTransactionId, externalTransactionId);
+  assert.equal(listedTransactions[0].reconciliationStatus, 'unmatched');
+
+  const candidates = await app.request('/api/finance/bank-transactions/'+bankTransactionId+'/candidates?companyId='+companyId, {
+    headers: { cookie: sessionCookie },
+  });
+  assert.equal(candidates.status, 200);
+  assert.equal((await candidates.json()).transaction.direction, 'incoming');
+
+  const ignore = await app.request('/api/finance/bank-transactions/'+bankTransactionId+'/ignore', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', cookie: sessionCookie },
+    body: JSON.stringify({ companyId }),
+  });
+  assert.equal(ignore.status, 200);
+  assert.equal((await ignore.json()).status, 'ignored');
+
+  const ignoreAgain = await app.request('/api/finance/bank-transactions/'+bankTransactionId+'/ignore', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', cookie: sessionCookie },
+    body: JSON.stringify({ companyId }),
+  });
+  assert.equal(ignoreAgain.status, 409, 'terminal transaction status must not be silently changed twice');
+
+  const bankAccountList = await app.request('/api/finance/bank-accounts?companyId='+companyId, { headers: { cookie: sessionCookie } });
+  assert.equal(bankAccountList.status, 200);
+  const listedAccounts = await bankAccountList.json();
+  assert.equal(listedAccounts.accounts.length, 1);
+  assert.equal(listedAccounts.accounts[0].transactionCount, 1);
+  assert.equal(listedAccounts.accounts[0].unmatchedCount, 0);
 
   console.log('[medar-integration] request:profile-complete');
   const profileComplete = await app.request('/api/profile/complete', {
