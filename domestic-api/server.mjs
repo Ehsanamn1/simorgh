@@ -2342,7 +2342,7 @@ app.post('/api/finance/bank-transactions/:id/reconcile', async (c) => {
   const entityId=typeof body?.entityId==='string'?body.entityId:'';
   if(!DOMESTIC_UUID_RE.test(transactionId)||!DOMESTIC_UUID_RE.test(companyId)||!DOMESTIC_UUID_RE.test(entityId))return c.json({message:'شناسه تراکنش، مجموعه یا سند معتبر نیست.'},422);
   const targetTables={invoice:'invoices',purchase_order:'purchase_orders',settlement:'settlements',partner_financial_entry:'partner_financial_entries'};
-  if(!targetTables[entityType])return c.json({message:'نوع سند برای تطبیق پشتیبانی نمی‌شود.'},422);
+  if(!Object.prototype.hasOwnProperty.call(targetTables,entityType))return c.json({message:'نوع سند برای تطبیق پشتیبانی نمی‌شود.'},422);
   const membership=await domesticFinanceMembership(session.user.id,companyId,true);
   if(!membership||!(await domesticModuleAllowed(membership,'finance','can_approve')))return c.json({message:'مجوز تأیید تطبیق مالی نداری.'},403);
   const connection=await pool.getConnection();
