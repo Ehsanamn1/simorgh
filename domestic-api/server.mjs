@@ -1382,7 +1382,7 @@ const DOMESTIC_EVENT_SOURCE_TABLES = {
 
 async function domesticMembership(userId, companyId) {
   const [rows] = await pool.execute(
-    'SELECT id, company_id, user_id, role, active FROM memberships WHERE user_id=? AND company_id=? AND active=TRUE LIMIT 1',
+    "SELECT id, company_id, user_id, role, active FROM memberships WHERE user_id=? AND company_id=? AND active=TRUE ORDER BY CASE role WHEN 'owner' THEN 0 WHEN 'admin' THEN 1 WHEN 'staff' THEN 2 WHEN 'supplier' THEN 3 WHEN 'driver' THEN 4 ELSE 5 END,created_at,id LIMIT 1",
     [userId, companyId],
   );
   return rows[0] || null;
@@ -1493,15 +1493,16 @@ app.post('/api/notifications/:id/read', async (c) => {
   if (!membership || !(await domesticModuleAllowed(membership, 'home', 'can_update'))) {
     return c.json({ message: 'مجوز ثبت وضعیت خوانده‌شدن اعلان را نداری.' }, 403);
   }
-  const [result] = await pool.execute(
+  await pool.execute(
     'UPDATE notifications SET read_at=COALESCE(read_at,NOW(3)) WHERE id=? AND company_id=? AND user_id=?',
     [notificationId, companyId, session.user.id],
   );
-  if (!result.affectedRows) return c.json({ message: 'اعلان در حساب فعلی پیدا نشد.' }, 404);
-  const [[row]] = await pool.execute(
+  const [rows] = await pool.execute(
     'SELECT id,read_at FROM notifications WHERE id=? AND company_id=? AND user_id=? LIMIT 1',
     [notificationId, companyId, session.user.id],
   );
+  if (!rows.length) return c.json({ message: 'اعلان در حساب فعلی پیدا نشد.' }, 404);
+  const row = rows[0];
   return c.json({ ok: true, notification: { id: String(row.id), readAt: row.read_at } });
 });
 
@@ -1995,6 +1996,107 @@ app.post('/api/connect/conversations/:id/messages', async (c) => {
   const message = rows[0];
   await pool.execute('UPDATE medar_conversations SET updated_at=NOW(3) WHERE company_id=? AND id=?', [companyId,conversationId]);
   return c.json({ ok: true, message: { id: String(message.id), companyId: String(message.company_id), conversationId: String(message.conversation_id), senderUserId: String(message.sender_user_id), body: message.body, createdAt: message.created_at } }, 201);
+});
+
+
+
+app.post('/api/profile/complete', async (c) => {
+  if (!pool) return c.json({ message: 'پایگاه داده تنظیم نشده است.' }, 503);
+  const session = await currentSession(c);
+  if (!session) return c.json({ message: 'برای ادامه وارد حساب شو.' }, 401);
+  const body = await c.req.json().catch(() => null);
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return c.json({ message: 'اطلاعات پروفایل معتبر نیست.' }, 400);
+  const companyId = typeof body.companyId === 'string' ? body.companyId : '';
+  if (!DOMESTIC_UUID_RE.test(companyId)) return c.json({ message: 'فضای کاری انتخاب‌شده معتبر نیست.' }, 422);
+  const firstName = typeof body.firstName === 'string' ? body.firstName.normalize('NFKC').trim() : '';
+  const lastName = typeof body.lastName === 'string' ? body.lastName.normalize('NFKC').trim() : '';
+  const rawPhone = typeof body.phone === 'string' ? body.phone.normalize('NFKC').trim() : '';
+  const province = typeof body.province === 'string' ? body.province.normalize('NFKC').trim() : '';
+  const city = typeof body.city === 'string' ? body.city.normalize('NFKC').trim() : '';
+  const address = typeof body.address === 'string' ? body.address.normalize('NFKC').trim() : '';
+  const digitsMap = { '۰':'0','۱':'1','۲':'2','۳':'3','۴':'4','۵':'5','۶':'6','۷':'7','۸':'8','۹':'9','٠':'0','١':'1','٢':'2','٣':'3','٤':'4','٥':'5','٦':'6','٧':'7','٨':'8','٩':'9' };
+  const asciiPhone = rawPhone.replace(/[۰-۹٠-٩]/g, digit => digitsMap[digit] || digit);
+  let phone = asciiPhone.replace(/[\s()-]/g, '');
+  if (/^09\d{9}$/.test(phone)) phone = '+98' + phone.slice(1);
+  else if (/^98\d{10}$/.test(phone)) phone = '+' + phone;
+  const phoneDigits = phone.replace(/\D/g, '');
+  const fullName = [firstName,lastName].filter(Boolean).join(' ').trim();
+  if (!firstName || firstName.length > 60 || !lastName || lastName.length > 80 ||
+      Array.from(fullName).some(char => char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127)) {
+    return c.json({ message: 'نام و نام خانوادگی را با حداکثر طول مجاز وارد کن.' }, 422);
+  }
+  if (!/^\+?[0-9]{7,15}$/.test(phone) || phoneDigits.length < 7 || phoneDigits.length > 15) {
+    return c.json({ message: 'شماره تلفن معتبر وارد کن؛ برای ایران می‌توانی ۰۹۱۲… یا +98912… بنویسی.' }, 422);
+  }
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+    const [memberships] = await connection.execute(
+      "SELECT id,role,supplier_id FROM memberships WHERE user_id=? AND company_id=? AND active=TRUE ORDER BY CASE role WHEN 'owner' THEN 0 WHEN 'admin' THEN 1 WHEN 'staff' THEN 2 WHEN 'supplier' THEN 3 WHEN 'driver' THEN 4 ELSE 5 END,created_at,id LIMIT 1 FOR UPDATE",
+      [session.user.id,companyId],
+    );
+    const membership = memberships[0];
+    if (!membership) {
+      await connection.rollback();
+      return c.json({ message: 'این حساب عضو فضای کاری انتخاب‌شده نیست.' }, 403);
+    }
+    const isSupplier = String(membership.role) === 'supplier';
+    if (isSupplier && (province.length < 2 || province.length > 80 || city.length < 2 || city.length > 80 || address.length < 5 || address.length > 240)) {
+      await connection.rollback();
+      return c.json({ message: 'برای حساب تأمین‌کننده، استان، شهر و نشانی دقیق محل فعالیت الزامی است.' }, 422);
+    }
+    await connection.execute(
+      'UPDATE medar_users SET display_name=?,phone_e164=?,updated_at=NOW(3) WHERE id=?',
+      [fullName,phone,session.user.id],
+    );
+    await connection.execute(
+      'INSERT INTO profiles(id,full_name,phone) VALUES(?,?,?) ON DUPLICATE KEY UPDATE full_name=VALUES(full_name),phone=VALUES(phone),updated_at=NOW(3)',
+      [session.user.id,fullName,phone],
+    );
+    if (isSupplier && membership.supplier_id) {
+      const [supplierRows] = await connection.execute(
+        'SELECT id,name FROM suppliers WHERE id=? AND company_id=? LIMIT 1 FOR UPDATE',
+        [membership.supplier_id,companyId],
+      );
+      if (!supplierRows.length) throw new Error('Supplier membership link is invalid');
+      await connection.execute(
+        'UPDATE suppliers SET name=CASE WHEN LOWER(name)=LOWER(?) THEN ? ELSE name END,phone=?,province=?,city=?,address=?,updated_at=NOW(3) WHERE id=? AND company_id=?',
+        [session.user.username,fullName.slice(0,160),phone,province,city,address,membership.supplier_id,companyId],
+      );
+    } else if (isSupplier && !membership.supplier_id) {
+      const [nameCollisions] = await connection.execute(
+        'SELECT id FROM suppliers WHERE company_id=? AND LOWER(name)=LOWER(?) LIMIT 1',
+        [companyId,fullName],
+      );
+      let supplierName = fullName.slice(0,160);
+      if (nameCollisions.length) supplierName = fullName.slice(0,120) + ' (' + String(session.user.id).slice(0,8) + ')';
+      const supplierId = randomUUID();
+      await connection.execute(
+        'INSERT INTO suppliers(id,company_id,name,phone,province,city,address,active) VALUES(?,?,?,?,?,?,?,TRUE)',
+        [supplierId,companyId,supplierName,phone,province,city,address],
+      );
+      const [linked] = await connection.execute(
+        'UPDATE memberships SET supplier_id=? WHERE id=? AND company_id=? AND user_id=? AND role=\\'supplier\\' AND active=TRUE AND supplier_id IS NULL',
+        [supplierId,membership.id,companyId,session.user.id],
+      );
+      if (!linked.affectedRows) throw new Error('Supplier membership could not be linked');
+    }
+    const [updatedUsers] = await connection.execute(
+      'SELECT id,COALESCE(username_normalized,username) AS username,display_name AS full_name,phone_e164 AS phone FROM medar_users WHERE id=? LIMIT 1',
+      [session.user.id],
+    );
+    if (!updatedUsers.length) throw new Error('Profile update did not return user');
+    await connection.commit();
+    return c.json({
+      ok: true,
+      user: { id: String(updatedUsers[0].id), username: updatedUsers[0].username, phone: updatedUsers[0].phone, full_name: updatedUsers[0].full_name },
+      message: 'مشخصات حساب ذخیره شد.',
+    });
+  } catch (error) {
+    await connection.rollback().catch(() => undefined);
+    console.error('Domestic profile completion failed', { code: typeof error?.code === 'string' ? error.code : 'unknown' });
+    return c.json({ message: 'ذخیره مشخصات حساب انجام نشد.' }, 500);
+  } finally { connection.release(); }
 });
 
 
