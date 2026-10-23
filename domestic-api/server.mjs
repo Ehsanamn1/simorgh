@@ -1634,7 +1634,7 @@ app.get('/api/operational/exceptions', async (c) => {
     return c.json({ message: 'وضعیت مسئله معتبر نیست.' }, 422);
   }
   const [rows] = await pool.execute(
-    'SELECT x.id,x.event_id,x.title,x.details,x.severity,x.status,x.assigned_user_id,u.username AS assigned_username,x.due_at,x.acknowledged_at,x.resolved_at,x.resolved_by,x.resolution_note,x.created_at,x.updated_at FROM medar_exception_cases x LEFT JOIN medar_users u ON u.id=x.assigned_user_id WHERE x.company_id=? AND (? = \\'\\' OR x.status=?) ORDER BY CASE x.severity WHEN \\'critical\\' THEN 0 ELSE 1 END,(x.due_at IS NULL) ASC,x.due_at ASC,x.created_at DESC LIMIT 100',
+    "SELECT x.id,x.event_id,x.title,x.details,x.severity,x.status,x.assigned_user_id,u.username AS assigned_username,x.due_at,x.acknowledged_at,x.resolved_at,x.resolved_by,x.resolution_note,x.created_at,x.updated_at FROM medar_exception_cases x LEFT JOIN medar_users u ON u.id=x.assigned_user_id WHERE x.company_id=? AND (? = '' OR x.status=?) ORDER BY CASE x.severity WHEN 'critical' THEN 0 ELSE 1 END,(x.due_at IS NULL) ASC,x.due_at ASC,x.created_at DESC LIMIT 100",
     [companyId,status,status],
   );
   return c.json({ exceptions: rows.map(domesticExceptionRow) });
@@ -1725,7 +1725,7 @@ for (const [action, fromStates, toState] of [
         return c.json({ message: 'مسئله پیدا نشد یا وضعیت فعلی اجازه این عملیات را نمی‌دهد.' }, 409);
       }
       const [result] = await connection.execute(
-        'UPDATE medar_exception_cases SET status=?,acknowledged_at=CASE WHEN ?=\\'acknowledged\\' THEN COALESCE(acknowledged_at,NOW(3)) ELSE acknowledged_at END,updated_at=NOW(3) WHERE id=? AND company_id=?',
+        "UPDATE medar_exception_cases SET status=?,acknowledged_at=CASE WHEN ?='acknowledged' THEN COALESCE(acknowledged_at,NOW(3)) ELSE acknowledged_at END,updated_at=NOW(3) WHERE id=? AND company_id=?",
         [toState,toState,id,companyId],
       );
       const [updated] = await connection.execute(
