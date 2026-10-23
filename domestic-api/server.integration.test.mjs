@@ -24,6 +24,9 @@ after(async () => {
     console.log('[medar-integration] cleanup:conversations');
     console.log('[medar-integration] cleanup:bank-records');
     console.log('[medar-integration] cleanup:contact-import');
+    console.log('[medar-integration] cleanup:ai-actions-and-tasks');
+    await db.execute('DELETE FROM medar_ai_action_runs WHERE company_id=?', [companyId]);
+    await db.execute('DELETE FROM operational_tasks WHERE company_id=? AND title IN (?,?)', [companyId,'CI domestic AI action task execute '+suffix,'CI domestic AI action task cancel '+suffix]);
     await db.execute('DELETE FROM suppliers WHERE company_id=? AND name IN (?,?)', [companyId,'CI Domestic Supplier '+suffix,'CI Domestic Supplier '+suffix+' ('+userId.slice(0,8)+')']);
     await db.execute('DELETE FROM customers WHERE company_id=? AND name=?', [companyId,'CI Domestic Customer '+suffix]);
     await db.execute('DELETE FROM medar_bank_transactions WHERE company_id=?', [companyId]);
@@ -289,6 +292,66 @@ test('domestic MySQL API supports health, login, session, memberships, password 
   const messagePayload = await messagesResponse.json();
   assert.equal(messagePayload.messages.length, 1);
   assert.equal(messagePayload.messages[0].id, firstMessagePayload.id);
+
+  console.log('[medar-integration] request:ai-action-lifecycle');
+  const proposeAction = await app.request('/api/ai/actions/propose', {
+    method:'POST',
+    headers:{'content-type':'application/json',cookie:sessionCookie},
+    body:JSON.stringify({
+      companyId,
+      toolKey:'create_operational_task',
+      arguments:{title:'CI domestic AI action task execute '+suffix,instructions:'Create a task only after explicit owner confirmation.',priority:'high',assigneeUserId:userId},
+    }),
+  });
+  assert.equal(proposeAction.status,201);
+  const proposedAction=(await proposeAction.json()).action;
+  assert.equal(proposedAction.status,'proposed');
+  assert.equal(proposedAction.requiresConfirmation,undefined);
+
+  const actionList = await app.request('/api/ai/actions?companyId='+companyId+'&status=proposed',{headers:{cookie:sessionCookie}});
+  assert.equal(actionList.status,200);
+  assert.ok((await actionList.json()).actions.some(action=>action.id===proposedAction.id));
+
+  const noConfirmation = await app.request('/api/ai/actions/'+proposedAction.id+'/execute',{
+    method:'POST',headers:{'content-type':'application/json',cookie:sessionCookie},
+    body:JSON.stringify({companyId,confirmed:false}),
+  });
+  assert.equal(noConfirmation.status,422);
+
+  const executeAction = await app.request('/api/ai/actions/'+proposedAction.id+'/execute',{
+    method:'POST',headers:{'content-type':'application/json',cookie:sessionCookie},
+    body:JSON.stringify({companyId,confirmed:true}),
+  });
+  assert.equal(executeAction.status,200);
+  const executedResult=(await executeAction.json()).result;
+  assert.ok(executedResult.taskId);
+  assert.equal(executedResult.status,'pending');
+  const [executedTasks]=await db.execute('SELECT title,status,priority,assignee_user_id FROM operational_tasks WHERE id=? AND company_id=?',[executedResult.taskId,companyId]);
+  assert.equal(executedTasks.length,1);
+  assert.equal(executedTasks[0].title,'CI domestic AI action task execute '+suffix);
+  assert.equal(executedTasks[0].status,'pending');
+  assert.equal(executedTasks[0].priority,'high');
+  assert.equal(executedTasks[0].assignee_user_id,userId);
+
+  const executeAgain=await app.request('/api/ai/actions/'+proposedAction.id+'/execute',{
+    method:'POST',headers:{'content-type':'application/json',cookie:sessionCookie},
+    body:JSON.stringify({companyId,confirmed:true}),
+  });
+  assert.equal(executeAgain.status,409,'an AI action must not execute more than once');
+
+  const proposeCancel=await app.request('/api/ai/actions/propose',{
+    method:'POST',headers:{'content-type':'application/json',cookie:sessionCookie},
+    body:JSON.stringify({companyId,toolKey:'create_operational_task',arguments:{title:'CI domestic AI action task cancel '+suffix,assigneeUserId:userId}}),
+  });
+  assert.equal(proposeCancel.status,201);
+  const cancelId=(await proposeCancel.json()).action.id;
+  const cancel=await app.request('/api/ai/actions/'+cancelId+'/cancel',{
+    method:'POST',headers:{'content-type':'application/json',cookie:sessionCookie},
+    body:JSON.stringify({companyId}),
+  });
+  assert.equal(cancel.status,200);
+  const actionStates=await db.execute('SELECT id,status FROM medar_ai_action_runs WHERE company_id=? AND id IN (?,?)',[companyId,proposedAction.id,cancelId]);
+  assert.deepEqual(new Set(actionStates[0].map(row=>row.status)),new Set(['executed','cancelled']));
 
   console.log('[medar-integration] request:contacts-import');
   const customerName = 'CI Domestic Customer ' + suffix;
