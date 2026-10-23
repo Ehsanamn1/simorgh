@@ -23,6 +23,9 @@ after(async () => {
     console.log('[medar-integration] cleanup:operational-records');
     console.log('[medar-integration] cleanup:conversations');
     console.log('[medar-integration] cleanup:bank-records');
+    console.log('[medar-integration] cleanup:contact-import');
+    await db.execute('DELETE FROM suppliers WHERE company_id=? AND name IN (?,?)', [companyId,'CI Domestic Supplier '+suffix,'CI Domestic Supplier '+suffix+' ('+userId.slice(0,8)+')']);
+    await db.execute('DELETE FROM customers WHERE company_id=? AND name=?', [companyId,'CI Domestic Customer '+suffix]);
     await db.execute('DELETE FROM medar_bank_transactions WHERE company_id=?', [companyId]);
     await db.execute('DELETE FROM medar_bank_accounts WHERE company_id=?', [companyId]);
     await db.execute('DELETE FROM medar_messages WHERE company_id=?', [companyId]);
@@ -286,6 +289,53 @@ test('domestic MySQL API supports health, login, session, memberships, password 
   const messagePayload = await messagesResponse.json();
   assert.equal(messagePayload.messages.length, 1);
   assert.equal(messagePayload.messages[0].id, firstMessagePayload.id);
+
+  console.log('[medar-integration] request:contacts-import');
+  const customerName = 'CI Domestic Customer ' + suffix;
+  const supplierName = 'CI Domestic Supplier ' + suffix;
+  const contactImport = await app.request('/api/contacts/import', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', cookie: sessionCookie },
+    body: JSON.stringify({
+      companyId,
+      contacts: [
+        { name: customerName, kind: 'customers', phone: '۰۹۱۲۳۴۵۶۷۸۹', city: 'سیمین‌شهر', email: 'customer@example.test', tags: ['عمده‌فروش'] },
+        { name: supplierName, kind: 'suppliers', phone: '09123456780', city: 'گنبد', organization: 'CI farm', tags: ['تأمین‌کننده'] },
+        { name: customerName, kind: 'customers', phone: '۰۹۱۲۳۴۵۶۷۸۹', city: 'سیمین‌شهر' },
+      ],
+    }),
+  });
+  assert.equal(contactImport.status, 200);
+  const contactImportPayload = await contactImport.json();
+  assert.equal(contactImportPayload.imported, 2);
+  assert.equal(contactImportPayload.updated, 0);
+  assert.equal(contactImportPayload.skipped, 1);
+  assert.equal(contactImportPayload.byKind.customers.imported, 1);
+  assert.equal(contactImportPayload.byKind.suppliers.imported, 1);
+
+  const [customerRows] = await db.execute('SELECT name,phone,city,email,contact_tags,contact_source FROM customers WHERE company_id=? AND name=?', [companyId,customerName]);
+  assert.equal(customerRows.length, 1);
+  assert.equal(customerRows[0].phone, '09123456789');
+  assert.equal(customerRows[0].contact_source, 'phone_import');
+  const tags = typeof customerRows[0].contact_tags === 'string' ? JSON.parse(customerRows[0].contact_tags) : customerRows[0].contact_tags;
+  assert.deepEqual(tags, ['عمده‌فروش']);
+
+  const updateContact = await app.request('/api/contacts/import', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', cookie: sessionCookie },
+    body: JSON.stringify({ companyId, contacts: [{name:customerName,kind:'customers',phone:'09123456700',city:'آق‌قلا',tags:['مشتری ویژه']}] }),
+  });
+  assert.equal(updateContact.status, 200);
+  const updatePayload = await updateContact.json();
+  assert.equal(updatePayload.imported, 0);
+  assert.equal(updatePayload.updated, 1);
+  const [updatedCustomers] = await db.execute('SELECT phone,city FROM customers WHERE company_id=? AND name=?', [companyId,customerName]);
+  assert.equal(updatedCustomers[0].phone, '09123456700');
+  assert.equal(updatedCustomers[0].city, 'آق‌قلا');
+
+  const pushConfig = await app.request('/api/push/config?companyId='+companyId, { headers: { cookie: sessionCookie } });
+  assert.equal(pushConfig.status, 200);
+  assert.equal((await pushConfig.json()).enabled, false, 'external push must remain disabled until a domestic delivery service is configured');
 
   console.log('[medar-integration] request:bank-account-and-import');
   const bankAccountResponse = await app.request('/api/finance/bank-accounts', {
