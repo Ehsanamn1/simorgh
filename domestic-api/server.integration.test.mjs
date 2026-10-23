@@ -21,6 +21,10 @@ after(async () => {
   try {
     console.log('[medar-integration] cleanup:sessions');
     console.log('[medar-integration] cleanup:operational-records');
+    console.log('[medar-integration] cleanup:conversations');
+    await db.execute('DELETE FROM medar_messages WHERE company_id=?', [companyId]);
+    await db.execute('DELETE FROM medar_conversation_participants WHERE company_id=?', [companyId]);
+    await db.execute('DELETE FROM medar_conversations WHERE company_id=?', [companyId]);
     await db.execute('DELETE FROM medar_exception_cases WHERE company_id=?', [companyId]);
     await db.execute('DELETE FROM medar_operational_events WHERE company_id=?', [companyId]);
     await db.execute('DELETE FROM notifications WHERE company_id=?', [companyId]);
@@ -213,6 +217,66 @@ test('domestic MySQL API supports health, login, session, memberships, password 
   assert.equal((await resolve.json()).exception.status, 'resolved');
   const resolvedList = await app.request('/api/operational/exceptions?companyId='+companyId+'&status=resolved', { headers: { cookie: sessionCookie } });
   assert.equal((await resolvedList.json()).exceptions.length, 1);
+
+  console.log('[medar-integration] request:module-permissions-and-client-admin');
+  const modulePermissionsResponse = await app.request('/api/workspace/my-module-permissions?companyId='+companyId, { headers: { cookie: sessionCookie } });
+  assert.equal(modulePermissionsResponse.status, 200);
+  const modulePermissions = await modulePermissionsResponse.json();
+  assert.equal(modulePermissions.permissions.home, true);
+  assert.equal(modulePermissions.permissions.audit, true);
+
+  const adminClients = await app.request('/api/admin/system/clients?companyId='+companyId, { headers: { cookie: sessionCookie } });
+  assert.equal(adminClients.status, 200);
+  const adminClientPayload = await adminClients.json();
+  assert.equal(adminClientPayload.summary.knownClients, 1);
+  assert.equal(adminClientPayload.summary.onlineClients, 1);
+  assert.equal(adminClientPayload.clients[0].clientId, clientId);
+
+  console.log('[medar-integration] request:connect');
+  const peopleResponse = await app.request('/api/connect/people?companyId='+companyId, { headers: { cookie: sessionCookie } });
+  assert.equal(peopleResponse.status, 200);
+  assert.ok((await peopleResponse.json()).people.some(person => person.id === userId));
+
+  const createConversation = await app.request('/api/connect/conversations', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', cookie: sessionCookie },
+    body: JSON.stringify({ companyId, title: 'CI team conversation', participantUserIds: [userId] }),
+  });
+  assert.equal(createConversation.status, 201);
+  const conversationId = (await createConversation.json()).conversation.id;
+  assert.ok(conversationId);
+
+  const conversationList = await app.request('/api/connect/conversations?companyId='+companyId, { headers: { cookie: sessionCookie } });
+  assert.equal(conversationList.status, 200);
+  assert.ok((await conversationList.json()).conversations.some(conversation => conversation.id === conversationId));
+
+  const clientMessageId = 'ci-message-' + suffix;
+  const firstMessage = await app.request('/api/connect/conversations/'+conversationId+'/messages', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', cookie: sessionCookie },
+    body: JSON.stringify({ companyId, body: 'First test message', clientMessageId }),
+  });
+  assert.equal(firstMessage.status, 201);
+  const firstMessagePayload = (await firstMessage.json()).message;
+  assert.equal(firstMessagePayload.body, 'First test message');
+
+  const duplicateMessage = await app.request('/api/connect/conversations/'+conversationId+'/messages', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', cookie: sessionCookie },
+    body: JSON.stringify({ companyId, body: 'This retry must not replace the original', clientMessageId }),
+  });
+  assert.equal(duplicateMessage.status, 201);
+  const duplicateMessagePayload = (await duplicateMessage.json()).message;
+  assert.equal(duplicateMessagePayload.id, firstMessagePayload.id);
+  assert.equal(duplicateMessagePayload.body, 'First test message');
+  const [[messageCount]] = await db.execute('SELECT COUNT(*) AS n FROM medar_messages WHERE company_id=? AND conversation_id=? AND sender_user_id=? AND client_message_id=?', [companyId,conversationId,userId,clientMessageId]);
+  assert.equal(Number(messageCount.n), 1);
+
+  const messagesResponse = await app.request('/api/connect/conversations/'+conversationId+'/messages?companyId='+companyId, { headers: { cookie: sessionCookie } });
+  assert.equal(messagesResponse.status, 200);
+  const messagePayload = await messagesResponse.json();
+  assert.equal(messagePayload.messages.length, 1);
+  assert.equal(messagePayload.messages[0].id, firstMessagePayload.id);
 
   console.log('[medar-integration] request:password-change');
   const changed = await app.request('/api/auth/password/change', {
