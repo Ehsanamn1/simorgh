@@ -2677,6 +2677,35 @@ app.post('/api/ai/actions/:id/execute', async (c) => {
 });
 
 
+
+app.post('/api/push/subscriptions', async (c) => {
+  const session=await currentSession(c);
+  if (!session) return c.json({message:'برای ادامه وارد حساب شو.'},401);
+  const body=await c.req.json().catch(()=>null);
+  const companyId=typeof body?.companyId==='string'?body.companyId:'';
+  if(!DOMESTIC_UUID_RE.test(companyId))return c.json({message:'شناسه مجموعه معتبر نیست.'},422);
+  if(!(await domesticMembership(session.user.id,companyId)))return c.json({message:'به این فضای کاری دسترسی فعال نداری.'},403);
+  return c.json({message:'ارسال Push در نسخه داخلی هنوز پیکربندی نشده است؛ اشتراک جدید ذخیره نشد.'},503);
+});
+
+app.post('/api/push/subscriptions/remove', async (c) => {
+  if(!pool)return c.json({message:'پایگاه داده تنظیم نشده است.'},503);
+  const session=await currentSession(c);
+  if(!session)return c.json({message:'برای ادامه وارد حساب شو.'},401);
+  const body=await c.req.json().catch(()=>null);
+  const companyId=typeof body?.companyId==='string'?body.companyId:'';
+  const endpoint=typeof body?.endpoint==='string'?body.endpoint.trim():'';
+  if(!DOMESTIC_UUID_RE.test(companyId)||endpoint.length<20||endpoint.length>2048)return c.json({message:'شناسه مجموعه یا آدرس اشتراک معتبر نیست.'},422);
+  if(!(await domesticMembership(session.user.id,companyId)))return c.json({message:'به این فضای کاری دسترسی فعال نداری.'},403);
+  let endpointUrl;
+  try { endpointUrl=new URL(endpoint); } catch { return c.json({message:'آدرس اشتراک معتبر نیست.'},422); }
+  if(endpointUrl.protocol!=='https:'||endpointUrl.username||endpointUrl.password)return c.json({message:'آدرس اشتراک باید HTTPS معتبر باشد.'},422);
+  const endpointHash=sha256(endpoint);
+  const [result]=await pool.execute('UPDATE medar_push_subscriptions SET active=FALSE,updated_at=NOW(3) WHERE company_id=? AND user_id=? AND endpoint_hash=?',[companyId,session.user.id,endpointHash]);
+  return c.json({ok:true,removed:Number(result.affectedRows||0)});
+});
+
+
 app.notFound((c) => c.json({ message: 'مسیر API در نسخه داخلی پیدا نشد.' }, 404));
 app.onError((error, c) => {
   const requestId = randomBytes(8).toString('hex');
