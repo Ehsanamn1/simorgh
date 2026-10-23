@@ -1724,7 +1724,7 @@ for (const [action, fromStates, toState] of [
         await connection.rollback();
         return c.json({ message: 'مسئله پیدا نشد یا وضعیت فعلی اجازه این عملیات را نمی‌دهد.' }, 409);
       }
-      const [result] = await connection.execute(
+      await connection.execute(
         "UPDATE medar_exception_cases SET status=?,acknowledged_at=CASE WHEN ?='acknowledged' THEN COALESCE(acknowledged_at,NOW(3)) ELSE acknowledged_at END,updated_at=NOW(3) WHERE id=? AND company_id=?",
         [toState,toState,id,companyId],
       );
@@ -1734,7 +1734,7 @@ for (const [action, fromStates, toState] of [
       );
       row = updated[0];
       await connection.commit();
-    } catch (error) {
+    } catch {
       await connection.rollback().catch(() => undefined);
       return c.json({ message: 'به‌روزرسانی مسئله کامل نشد.' }, 500);
     } finally { connection.release(); }
