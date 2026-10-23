@@ -377,19 +377,31 @@ app.post('/api/workspace/members/create', async (c) => {
 const MEMBER_PERMISSION_CATALOG = [
   { key: 'home', label: 'صفحه اصلی و کارهای روزانه' },
   { key: 'command', label: 'مرکز فرمان و گزارش‌ها' },
+  { key: 'agents', label: 'مرکز ایجنت‌ها' },
+  { key: 'contacts', label: 'دفترچه مخاطبین' },
+  { key: 'customers', label: 'مشتریان و قراردادها' },
   { key: 'suppliers', label: 'تأمین‌کنندگان و ظرفیت' },
+  { key: 'orders', label: 'سفارش‌ها' },
+  { key: 'purchase-orders', label: 'خرید و سفارش خرید' },
+  { key: 'products', label: 'محصولات' },
+  { key: 'inventory', label: 'موجودی و انبار' },
   { key: 'capacity', label: 'ظرفیت و تعهد تأمین' },
   { key: 'quality', label: 'کیفیت و کنترل محموله' },
-  { key: 'shipments', label: 'حمل‌ونقل، رانندگان و مدارک' },
+  { key: 'shipments', label: 'حمل‌ونقل و مدارک' },
+  { key: 'finance', label: 'مالی و تسویه‌ها' },
   { key: 'farm-sites', label: 'سایت‌ها و نقشه' },
-  { key: 'flock-cycles', label: 'چرخه‌های کشت و پرورش' },
+  { key: 'flock-cycles', label: 'چرخه‌های پرورش' },
   { key: 'production-batches', label: 'دوره‌های تولید' },
-  { key: 'daily-production', label: 'ثبت روزانهٔ تولید' },
+  { key: 'daily-production', label: 'ثبت روزانه تولید' },
   { key: 'operational-tasks', label: 'وظایف و شواهد کار' },
+  { key: 'task-templates', label: 'الگوهای وظیفه' },
   { key: 'incidents', label: 'رخدادها و مغایرت‌ها' },
+  { key: 'partnership-agreements', label: 'قراردادهای مشارکت' },
   { key: 'partner-finance', label: 'دفتر مالی شریک' },
-  { key: 'partner-settlements', label: 'دوره‌ها و تسویهٔ شریک' },
+  { key: 'partner-settlements', label: 'تسویه شریک' },
+  { key: 'goals', label: 'اهداف و برنامه' },
   { key: 'members', label: 'اعضا و دسترسی‌ها' },
+  { key: 'audit', label: 'تاریخچه و ممیزی' },
 ];
 const MEMBER_PERMISSION_KEYS = new Set(MEMBER_PERMISSION_CATALOG.map((module) => module.key));
 
@@ -1766,6 +1778,223 @@ app.post('/api/operational/exceptions/:id/resolve', async (c) => {
     [id,companyId],
   );
   return c.json({ ok: true, exception: domesticExceptionRow(rows[0]) });
+});
+
+
+
+app.get('/api/workspace/my-module-permissions', async (c) => {
+  if (!pool) return c.json({ message: 'پایگاه داده تنظیم نشده است.' }, 503);
+  const session = await currentSession(c);
+  if (!session) return c.json({ message: 'برای ادامه وارد حساب شو.' }, 401);
+  const companyId = c.req.query('companyId') || '';
+  if (!DOMESTIC_UUID_RE.test(companyId)) return c.json({ message: 'شناسه مجموعه معتبر نیست.' }, 422);
+  const [rows] = await pool.execute(
+    'SELECT m.id AS membership_id,m.role,p.module_key,p.inherit_role_defaults,p.can_read FROM memberships m LEFT JOIN medar_membership_module_permissions p ON p.membership_id=m.id AND p.company_id=m.company_id WHERE m.user_id=? AND m.company_id=? AND m.active=TRUE',
+    [session.user.id, companyId],
+  );
+  if (!rows.length) return c.json({ message: 'به این فضای کاری دسترسی فعال نداری.' }, 403);
+  const uniqueMemberships = [...new Map(rows.map(row => [String(row.membership_id), row])).values()];
+  const permissions = {};
+  for (const module of MEMBER_PERMISSION_CATALOG) {
+    permissions[module.key] = uniqueMemberships.some(row => ['owner','admin'].includes(String(row.role))) ||
+      uniqueMemberships.every(member => {
+        if (['owner','admin'].includes(String(member.role))) return true;
+        const override = rows.find(row => String(row.membership_id) === String(member.membership_id) && row.module_key === module.key);
+        return !override || override.inherit_role_defaults === null || Boolean(override.inherit_role_defaults) || Boolean(override.can_read);
+      });
+  }
+  return c.json({ companyId, permissions });
+});
+
+app.get('/api/admin/system/clients', async (c) => {
+  if (!pool) return c.json({ message: 'پایگاه داده تنظیم نشده است.' }, 503);
+  const session = await currentSession(c);
+  if (!session) return c.json({ message: 'برای ادامه وارد حساب شو.' }, 401);
+  const companyId = c.req.query('companyId') || '';
+  if (!DOMESTIC_UUID_RE.test(companyId)) return c.json({ message: 'شناسه مجموعه معتبر نیست.' }, 422);
+  const membership = await domesticMembership(session.user.id, companyId);
+  if (!membership || !['owner','admin'].includes(String(membership.role))) {
+    return c.json({ message: 'فقط مالک یا مدیر مجموعه می‌تواند وضعیت اتصال کاربران را ببیند.' }, 403);
+  }
+  const [rows] = await pool.execute(
+    "SELECT p.client_id AS clientId,p.platform,p.app_version AS appVersion,u.username,(SELECT m.role FROM memberships m WHERE m.company_id=p.company_id AND m.user_id=p.user_id AND m.active=TRUE ORDER BY CASE m.role WHEN 'owner' THEN 0 WHEN 'admin' THEN 1 WHEN 'staff' THEN 2 WHEN 'supplier' THEN 3 WHEN 'driver' THEN 4 ELSE 5 END,m.created_at LIMIT 1) AS role,p.first_seen_at AS firstSeenAt,p.last_seen_at AS lastSeenAt,(p.last_seen_at > DATE_SUB(NOW(3), INTERVAL 3 MINUTE)) AS online FROM medar_client_presence p JOIN medar_users u ON u.id=p.user_id WHERE p.company_id=? ORDER BY p.last_seen_at DESC LIMIT 100",
+    [companyId],
+  );
+  const clients = rows.map(row => ({ ...row, online: Boolean(row.online) }));
+  return c.json({ companyId, clients, summary: { knownClients: clients.length, onlineClients: clients.filter(row => row.online).length, staleAfterSeconds: 180 } });
+});
+
+app.get('/api/connect/people', async (c) => {
+  if (!pool) return c.json({ message: 'پایگاه داده تنظیم نشده است.' }, 503);
+  const session = await currentSession(c);
+  if (!session) return c.json({ message: 'برای ادامه وارد حساب شو.' }, 401);
+  const companyId = c.req.query('companyId') || '';
+  if (!DOMESTIC_UUID_RE.test(companyId)) return c.json({ message: 'شناسه مجموعه معتبر نیست.' }, 422);
+  const membership = await domesticMembership(session.user.id, companyId);
+  if (!membership || !INTERNAL_ROLES.has(String(membership.role)) || !(await domesticModuleAllowed(membership, 'operational-tasks', 'can_create'))) {
+    return c.json({ message: 'فهرست همکاران فقط برای اعضای داخلی مجاز است.' }, 403);
+  }
+  const [rows] = await pool.execute(
+    "SELECT DISTINCT u.id,u.username,u.display_name AS displayName,m.role FROM memberships m JOIN medar_users u ON u.id=m.user_id WHERE m.company_id=? AND m.active=TRUE AND u.account_status='active' ORDER BY m.role,u.display_name,u.username LIMIT 300",
+    [companyId],
+  );
+  return c.json({ people: rows.map(row => ({ ...row, id: String(row.id) })) });
+});
+
+const DOMESTIC_CONNECT_ENTITY_TABLES = {
+  order: 'orders',
+  purchase_order: 'purchase_orders',
+  task: 'operational_tasks',
+  shipment: 'shipments',
+  invoice: 'invoices',
+  exception: 'medar_exception_cases',
+};
+
+app.get('/api/connect/conversations', async (c) => {
+  if (!pool) return c.json({ message: 'پایگاه داده تنظیم نشده است.' }, 503);
+  const session = await currentSession(c);
+  if (!session) return c.json({ message: 'برای ادامه وارد حساب شو.' }, 401);
+  const companyId = c.req.query('companyId') || '';
+  if (!DOMESTIC_UUID_RE.test(companyId)) return c.json({ message: 'شناسه مجموعه معتبر نیست.' }, 422);
+  const membership = await domesticMembership(session.user.id, companyId);
+  if (!membership) return c.json({ message: 'به این فضای کاری دسترسی فعال نداری.' }, 403);
+  const [rows] = await pool.execute(
+    'SELECT v.id,v.title,v.related_entity_type AS relatedEntityType,v.related_entity_id AS relatedEntityId,v.created_at AS createdAt,v.updated_at AS updatedAt,p.last_read_at AS lastReadAt,(SELECT COUNT(*) FROM medar_messages msg WHERE msg.company_id=v.company_id AND msg.conversation_id=v.id AND msg.deleted_at IS NULL AND msg.sender_user_id<>p.user_id AND (p.last_read_at IS NULL OR msg.created_at>p.last_read_at)) AS unreadCount,(SELECT LEFT(msg.body,180) FROM medar_messages msg WHERE msg.company_id=v.company_id AND msg.conversation_id=v.id AND msg.deleted_at IS NULL ORDER BY msg.created_at DESC LIMIT 1) AS lastMessage FROM medar_conversation_participants p JOIN medar_conversations v ON v.company_id=p.company_id AND v.id=p.conversation_id WHERE p.company_id=? AND p.user_id=? AND v.archived_at IS NULL ORDER BY v.updated_at DESC LIMIT 100',
+    [companyId, session.user.id],
+  );
+  return c.json({ conversations: rows.map(row => ({ ...row, id: String(row.id), relatedEntityId: row.relatedEntityId ? String(row.relatedEntityId) : null, unreadCount: Number(row.unreadCount || 0) })) });
+});
+
+app.post('/api/connect/conversations', async (c) => {
+  if (!pool) return c.json({ message: 'پایگاه داده تنظیم نشده است.' }, 503);
+  const session = await currentSession(c);
+  if (!session) return c.json({ message: 'برای ادامه وارد حساب شو.' }, 401);
+  const body = await c.req.json().catch(() => null);
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return c.json({ message: 'درخواست گفت‌وگو معتبر نیست.' }, 400);
+  const companyId = typeof body.companyId === 'string' ? body.companyId : '';
+  if (!DOMESTIC_UUID_RE.test(companyId)) return c.json({ message: 'شناسه مجموعه معتبر نیست.' }, 422);
+  const membership = await domesticMembership(session.user.id, companyId);
+  if (!membership || !INTERNAL_ROLES.has(String(membership.role)) || !(await domesticModuleAllowed(membership, 'operational-tasks', 'can_create'))) {
+    return c.json({ message: 'ایجاد گفت‌وگوی جدید فقط برای اعضای داخلی دارای مجوز مجاز است.' }, 403);
+  }
+  const title = typeof body.title === 'string' ? body.title.trim() : '';
+  const relatedEntityType = typeof body.relatedEntityType === 'string' ? body.relatedEntityType : '';
+  const relatedEntityId = typeof body.relatedEntityId === 'string' ? body.relatedEntityId : '';
+  const rawParticipantIds = Array.isArray(body.participantUserIds) ? body.participantUserIds : [];
+  if (title.length > 180 || rawParticipantIds.length > 29 || rawParticipantIds.some(id => typeof id !== 'string' || !DOMESTIC_UUID_RE.test(id))) {
+    return c.json({ message: 'عنوان یا فهرست اعضای گفت‌وگو معتبر نیست.' }, 422);
+  }
+  if (relatedEntityType && !['order','purchase_order','task','shipment','invoice','exception','other'].includes(relatedEntityType)) {
+    return c.json({ message: 'نوع رکورد مرتبط معتبر نیست.' }, 422);
+  }
+  if (relatedEntityId && (!DOMESTIC_UUID_RE.test(relatedEntityId) || !relatedEntityType)) {
+    return c.json({ message: 'شناسه یا نوع رکورد مرتبط معتبر نیست.' }, 422);
+  }
+  const participantIds = [...new Set([session.user.id, ...rawParticipantIds])];
+  if (participantIds.length > 30) return c.json({ message: 'حداکثر ۳۰ عضو در یک گفت‌وگو مجاز است.' }, 422);
+  const placeholders = participantIds.map(() => '?').join(',');
+  const [activeParticipants] = await pool.execute(
+    'SELECT COUNT(DISTINCT user_id) AS total FROM memberships WHERE company_id=? AND active=TRUE AND user_id IN (' + placeholders + ')',
+    [companyId, ...participantIds],
+  );
+  if (Number(activeParticipants[0].total) !== participantIds.length) {
+    return c.json({ message: 'تمام شرکت‌کنندگان باید عضو فعال همین شرکت باشند.' }, 422);
+  }
+  if (relatedEntityId) {
+    const table = DOMESTIC_CONNECT_ENTITY_TABLES[relatedEntityType];
+    if (!table) return c.json({ message: 'این نوع رکورد برای اتصال گفت‌وگو پشتیبانی نمی‌شود.' }, 422);
+    const [found] = await pool.execute('SELECT 1 FROM ' + sqlIdentifier(table) + ' WHERE id=? AND company_id=? LIMIT 1', [relatedEntityId, companyId]);
+    if (!found.length) return c.json({ message: 'رکورد مرتبط در این شرکت پیدا نشد.' }, 404);
+  }
+  const connection = await pool.getConnection();
+  const conversationId = randomUUID();
+  try {
+    await connection.beginTransaction();
+    await connection.execute(
+      'INSERT INTO medar_conversations(id,company_id,title,related_entity_type,related_entity_id,created_by) VALUES(?,?,?,?,?,?)',
+      [conversationId,companyId,title,relatedEntityType || null,relatedEntityId || null,session.user.id],
+    );
+    for (const userId of participantIds) {
+      await connection.execute(
+        'INSERT INTO medar_conversation_participants(company_id,conversation_id,user_id,participant_role) VALUES(?,?,?,?)',
+        [companyId,conversationId,userId,userId === session.user.id ? 'owner' : 'member'],
+      );
+    }
+    await connection.commit();
+  } catch (error) {
+    await connection.rollback().catch(() => undefined);
+    console.error('Domestic conversation creation failed', { code: typeof error?.code === 'string' ? error.code : 'unknown' });
+    return c.json({ message: 'ایجاد گفت‌وگو کامل نشد.' }, 500);
+  } finally { connection.release(); }
+  return c.json({ ok: true, conversation: { id: conversationId, companyId } }, 201);
+});
+
+app.get('/api/connect/conversations/:id/messages', async (c) => {
+  if (!pool) return c.json({ message: 'پایگاه داده تنظیم نشده است.' }, 503);
+  const session = await currentSession(c);
+  if (!session) return c.json({ message: 'برای ادامه وارد حساب شو.' }, 401);
+  const companyId = c.req.query('companyId') || '';
+  const conversationId = c.req.param('id');
+  if (!DOMESTIC_UUID_RE.test(companyId) || !DOMESTIC_UUID_RE.test(conversationId)) return c.json({ message: 'شناسه گفت‌وگو یا مجموعه معتبر نیست.' }, 422);
+  const membership = await domesticMembership(session.user.id, companyId);
+  if (!membership) return c.json({ message: 'به این فضای کاری دسترسی فعال نداری.' }, 403);
+  const [participants] = await pool.execute(
+    'SELECT 1 FROM medar_conversation_participants WHERE company_id=? AND conversation_id=? AND user_id=? LIMIT 1',
+    [companyId,conversationId,session.user.id],
+  );
+  if (!participants.length) return c.json({ message: 'این گفت‌وگو در دسترس حساب فعلی نیست.' }, 403);
+  const [rows] = await pool.execute(
+    'SELECT msg.id,msg.sender_user_id AS senderUserId,u.username AS senderUsername,msg.body,msg.created_at AS createdAt,msg.edited_at AS editedAt FROM (SELECT * FROM medar_messages WHERE company_id=? AND conversation_id=? AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 100) msg JOIN medar_users u ON u.id=msg.sender_user_id ORDER BY msg.created_at ASC',
+    [companyId,conversationId],
+  );
+  await pool.execute(
+    'UPDATE medar_conversation_participants SET last_read_at=NOW(3) WHERE company_id=? AND conversation_id=? AND user_id=?',
+    [companyId,conversationId,session.user.id],
+  );
+  return c.json({ messages: rows.map(row => ({ ...row, id: String(row.id), senderUserId: String(row.senderUserId) })) });
+});
+
+app.post('/api/connect/conversations/:id/messages', async (c) => {
+  if (!pool) return c.json({ message: 'پایگاه داده تنظیم نشده است.' }, 503);
+  const session = await currentSession(c);
+  if (!session) return c.json({ message: 'برای ادامه وارد حساب شو.' }, 401);
+  const conversationId = c.req.param('id');
+  const body = await c.req.json().catch(() => null);
+  const companyId = typeof body?.companyId === 'string' ? body.companyId : '';
+  const messageBody = typeof body?.body === 'string' ? body.body.trim() : '';
+  const clientMessageId = typeof body?.clientMessageId === 'string' ? body.clientMessageId.trim() : '';
+  if (!DOMESTIC_UUID_RE.test(companyId) || !DOMESTIC_UUID_RE.test(conversationId)) return c.json({ message: 'شناسه گفت‌وگو یا مجموعه معتبر نیست.' }, 422);
+  if (messageBody.length < 1 || messageBody.length > 8000) return c.json({ message: 'متن پیام باید بین ۱ تا ۸۰۰۰ نویسه باشد.' }, 422);
+  if (body?.clientMessageId !== undefined && (clientMessageId.length < 8 || clientMessageId.length > 120)) {
+    return c.json({ message: 'شناسه پیام معتبر نیست.' }, 422);
+  }
+  const membership = await domesticMembership(session.user.id, companyId);
+  if (!membership) return c.json({ message: 'به این فضای کاری دسترسی فعال نداری.' }, 403);
+  const [participant] = await pool.execute(
+    'SELECT 1 FROM medar_conversation_participants WHERE company_id=? AND conversation_id=? AND user_id=? LIMIT 1',
+    [companyId,conversationId,session.user.id],
+  );
+  if (!participant.length) return c.json({ message: 'ارسال پیام به این گفت‌وگو مجاز نیست.' }, 403);
+  const newMessageId = randomUUID();
+  if (clientMessageId) {
+    await pool.execute(
+      'INSERT INTO medar_messages(id,company_id,conversation_id,sender_user_id,body,client_message_id) VALUES(?,?,?,?,?,?) ON DUPLICATE KEY UPDATE client_message_id=VALUES(client_message_id)',
+      [newMessageId,companyId,conversationId,session.user.id,messageBody,clientMessageId],
+    );
+  } else {
+    await pool.execute(
+      'INSERT INTO medar_messages(id,company_id,conversation_id,sender_user_id,body) VALUES(?,?,?,?,?)',
+      [newMessageId,companyId,conversationId,session.user.id,messageBody],
+    );
+  }
+  const lookupSql = clientMessageId
+    ? 'SELECT id,company_id,conversation_id,sender_user_id,body,created_at FROM medar_messages WHERE company_id=? AND conversation_id=? AND sender_user_id=? AND client_message_id=? LIMIT 1'
+    : 'SELECT id,company_id,conversation_id,sender_user_id,body,created_at FROM medar_messages WHERE id=? AND company_id=? LIMIT 1';
+  const lookupParams = clientMessageId ? [companyId,conversationId,session.user.id,clientMessageId] : [newMessageId,companyId];
+  const [rows] = await pool.execute(lookupSql, lookupParams);
+  const message = rows[0];
+  await pool.execute('UPDATE medar_conversations SET updated_at=NOW(3) WHERE company_id=? AND id=?', [companyId,conversationId]);
+  return c.json({ ok: true, message: { id: String(message.id), companyId: String(message.company_id), conversationId: String(message.conversation_id), senderUserId: String(message.sender_user_id), body: message.body, createdAt: message.created_at } }, 201);
 });
 
 
