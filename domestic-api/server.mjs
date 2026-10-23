@@ -1360,6 +1360,415 @@ app.post('/api/storage/:bucket/remove', async (c) => {
   }
 });
 
+
+const DOMESTIC_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const DOMESTIC_EVENT_SOURCE_TABLES = {
+  order: 'orders', purchase_order: 'purchase_orders', task: 'operational_tasks',
+  shipment: 'shipments', invoice: 'invoices', inventory: 'inventory_movements',
+  production: 'production_batches', quality: 'quality_reviews', supplier: 'suppliers',
+};
+
+async function domesticMembership(userId, companyId) {
+  const [rows] = await pool.execute(
+    'SELECT id, company_id, user_id, role, active FROM memberships WHERE user_id=? AND company_id=? AND active=TRUE LIMIT 1',
+    [userId, companyId],
+  );
+  return rows[0] || null;
+}
+
+async function domesticModuleAllowed(membership, moduleKey, capability) {
+  if (!membership) return false;
+  if (membership.role === 'owner' || membership.role === 'admin') return true;
+  const allowedCapabilities = new Set(['can_read', 'can_create', 'can_update', 'can_delete', 'can_approve']);
+  if (!allowedCapabilities.has(capability)) return false;
+  const [rows] = await pool.execute(
+    'SELECT inherit_role_defaults, can_read, can_create, can_update, can_delete, can_approve FROM medar_membership_module_permissions WHERE company_id=? AND membership_id=? AND module_key=? LIMIT 1',
+    [membership.company_id, membership.id, moduleKey],
+  );
+  const policy = rows[0];
+  if (!policy || Boolean(policy.inherit_role_defaults)) return capability !== 'can_delete' && capability !== 'can_approve';
+  return Boolean(policy[capability]);
+}
+
+function domesticJson(value, fallback = {}) {
+  if (value && typeof value === 'object') return value;
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      if (parsed && typeof parsed === 'object') return parsed;
+    } catch { /* reject malformed persisted JSON by returning a safe empty object */ }
+  }
+  return fallback;
+}
+
+function domesticEventRow(row) {
+  return {
+    id: String(row.id), companyId: String(row.company_id), eventType: String(row.event_type),
+    severity: String(row.severity), sourceType: String(row.source_type),
+    sourceId: row.source_id ? String(row.source_id) : null,
+    title: String(row.title), body: String(row.body || ''),
+    payload: domesticJson(row.payload), occurredAt: row.occurred_at,
+    actorUserId: row.actor_user_id ? String(row.actor_user_id) : null,
+    actorUsername: row.actor_username || null,
+  };
+}
+
+function domesticExceptionRow(row) {
+  return {
+    id: String(row.id), eventId: row.event_id ? String(row.event_id) : null,
+    title: String(row.title), details: String(row.details || ''), severity: String(row.severity),
+    status: String(row.status), assignedUserId: row.assigned_user_id ? String(row.assigned_user_id) : null,
+    assignedUsername: row.assigned_username || null, dueAt: row.due_at || null,
+    acknowledgedAt: row.acknowledged_at || null, resolvedAt: row.resolved_at || null,
+    resolvedBy: row.resolved_by ? String(row.resolved_by) : null,
+    resolutionNote: row.resolution_note || null, createdAt: row.created_at, updatedAt: row.updated_at,
+  };
+}
+
+app.get('/api/notifications', async (c) => {
+  if (!pool) return c.json({ message: 'پایگاه داده تنظیم نشده است.' }, 503);
+  const session = await currentSession(c);
+  if (!session) return c.json({ message: 'برای ادامه وارد حساب شو.' }, 401);
+  const companyId = c.req.query('companyId') || '';
+  if (!DOMESTIC_UUID_RE.test(companyId)) return c.json({ message: 'شناسه مجموعه معتبر نیست.' }, 422);
+  const membership = await domesticMembership(session.user.id, companyId);
+  if (!membership || !(await domesticModuleAllowed(membership, 'home', 'can_read'))) {
+    return c.json({ message: 'برای مشاهده اعلان‌ها مجوز نداری.' }, 403);
+  }
+  const [rows] = await pool.execute(
+    'SELECT id,title,body,href,read_at,created_at FROM notifications WHERE company_id=? AND user_id=? ORDER BY created_at DESC LIMIT 30',
+    [companyId, session.user.id],
+  );
+  const [[summary]] = await pool.execute(
+    'SELECT COUNT(*) AS total, SUM(CASE WHEN read_at IS NULL THEN 1 ELSE 0 END) AS unread FROM notifications WHERE company_id=? AND user_id=?',
+    [companyId, session.user.id],
+  );
+  return c.json({
+    notifications: rows.map(row => ({ id: String(row.id), title: row.title, body: row.body, href: row.href, readAt: row.read_at, createdAt: row.created_at })),
+    summary: { total: Number(summary.total || 0), unread: Number(summary.unread || 0) },
+  });
+});
+
+app.post('/api/notifications/read-all', async (c) => {
+  if (!pool) return c.json({ message: 'پایگاه داده تنظیم نشده است.' }, 503);
+  const session = await currentSession(c);
+  if (!session) return c.json({ message: 'برای ادامه وارد حساب شو.' }, 401);
+  const body = await c.req.json().catch(() => null);
+  const companyId = typeof body?.companyId === 'string' ? body.companyId : '';
+  if (!DOMESTIC_UUID_RE.test(companyId)) return c.json({ message: 'شناسه مجموعه معتبر نیست.' }, 422);
+  const membership = await domesticMembership(session.user.id, companyId);
+  if (!membership || !(await domesticModuleAllowed(membership, 'home', 'can_update'))) {
+    return c.json({ message: 'مجوز ثبت وضعیت خوانده‌شدن اعلان را نداری.' }, 403);
+  }
+  const [result] = await pool.execute(
+    'UPDATE notifications SET read_at=COALESCE(read_at,NOW(3)) WHERE company_id=? AND user_id=? AND read_at IS NULL',
+    [companyId, session.user.id],
+  );
+  return c.json({ ok: true, updated: Number(result.affectedRows || 0) });
+});
+
+app.post('/api/notifications/:id/read', async (c) => {
+  if (!pool) return c.json({ message: 'پایگاه داده تنظیم نشده است.' }, 503);
+  const session = await currentSession(c);
+  if (!session) return c.json({ message: 'برای ادامه وارد حساب شو.' }, 401);
+  const notificationId = c.req.param('id');
+  const body = await c.req.json().catch(() => null);
+  const companyId = typeof body?.companyId === 'string' ? body.companyId : '';
+  if (!DOMESTIC_UUID_RE.test(companyId) || !DOMESTIC_UUID_RE.test(notificationId)) {
+    return c.json({ message: 'شناسه اعلان یا مجموعه معتبر نیست.' }, 422);
+  }
+  const membership = await domesticMembership(session.user.id, companyId);
+  if (!membership || !(await domesticModuleAllowed(membership, 'home', 'can_update'))) {
+    return c.json({ message: 'مجوز ثبت وضعیت خوانده‌شدن اعلان را نداری.' }, 403);
+  }
+  const [result] = await pool.execute(
+    'UPDATE notifications SET read_at=COALESCE(read_at,NOW(3)) WHERE id=? AND company_id=? AND user_id=?',
+    [notificationId, companyId, session.user.id],
+  );
+  if (!result.affectedRows) return c.json({ message: 'اعلان در حساب فعلی پیدا نشد.' }, 404);
+  const [[row]] = await pool.execute(
+    'SELECT id,read_at FROM notifications WHERE id=? AND company_id=? AND user_id=? LIMIT 1',
+    [notificationId, companyId, session.user.id],
+  );
+  return c.json({ ok: true, notification: { id: String(row.id), readAt: row.read_at } });
+});
+
+app.post('/api/client/heartbeat', async (c) => {
+  if (!pool) return c.json({ message: 'پایگاه داده تنظیم نشده است.' }, 503);
+  const session = await currentSession(c);
+  if (!session) return c.json({ message: 'برای ادامه وارد حساب شو.' }, 401);
+  const body = await c.req.json().catch(() => null);
+  const companyId = typeof body?.companyId === 'string' ? body.companyId : '';
+  const clientId = typeof body?.clientId === 'string' ? body.clientId : '';
+  const platform = body?.platform;
+  const appVersion = typeof body?.appVersion === 'string' ? body.appVersion.trim() : '';
+  if (!DOMESTIC_UUID_RE.test(companyId) || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(clientId) ||
+      !['web','android','ios'].includes(platform) || appVersion.length < 1 || appVersion.length > 40 ||
+      Array.from(appVersion).some(char => char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127)) {
+    return c.json({ message: 'اطلاعات وضعیت دستگاه معتبر نیست.' }, 422);
+  }
+  const membership = await domesticMembership(session.user.id, companyId);
+  if (!membership) return c.json({ message: 'این حساب به مجموعه انتخاب‌شده دسترسی فعال ندارد.' }, 403);
+  await pool.execute(
+    'INSERT INTO medar_client_presence(company_id,user_id,client_id,platform,app_version) VALUES(?,?,?,?,?) ON DUPLICATE KEY UPDATE platform=VALUES(platform),app_version=VALUES(app_version),last_seen_at=NOW(3)',
+    [companyId, session.user.id, clientId, platform, appVersion],
+  );
+  const [[row]] = await pool.execute(
+    'SELECT last_seen_at FROM medar_client_presence WHERE company_id=? AND user_id=? AND client_id=? LIMIT 1',
+    [companyId, session.user.id, clientId],
+  );
+  return c.json({ ok: true, lastSeenAt: row.last_seen_at });
+});
+
+app.get('/api/operational/events', async (c) => {
+  if (!pool) return c.json({ message: 'پایگاه داده تنظیم نشده است.' }, 503);
+  const session = await currentSession(c);
+  if (!session) return c.json({ message: 'برای ادامه وارد حساب شو.' }, 401);
+  const companyId = c.req.query('companyId') || '';
+  if (!DOMESTIC_UUID_RE.test(companyId)) return c.json({ message: 'شناسه مجموعه معتبر نیست.' }, 422);
+  const membership = await domesticMembership(session.user.id, companyId);
+  if (!membership || !(await domesticModuleAllowed(membership, 'operational-tasks', 'can_read'))) {
+    return c.json({ message: 'برای مشاهده رویدادها مجوز نداری.' }, 403);
+  }
+  const [rows] = await pool.execute(
+    'SELECT e.id,e.company_id,e.event_type,e.severity,e.source_type,e.source_id,e.title,e.body,e.payload,e.occurred_at,e.actor_user_id,u.username AS actor_username FROM medar_operational_events e LEFT JOIN medar_users u ON u.id=e.actor_user_id WHERE e.company_id=? ORDER BY e.occurred_at DESC LIMIT 100',
+    [companyId],
+  );
+  return c.json({ events: rows.map(domesticEventRow) });
+});
+
+app.post('/api/operational/events', async (c) => {
+  if (!pool) return c.json({ message: 'پایگاه داده تنظیم نشده است.' }, 503);
+  const session = await currentSession(c);
+  if (!session) return c.json({ message: 'برای ادامه وارد حساب شو.' }, 401);
+  const body = await c.req.json().catch(() => null);
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return c.json({ message: 'درخواست رویداد معتبر نیست.' }, 400);
+  const companyId = typeof body.companyId === 'string' ? body.companyId : '';
+  if (!DOMESTIC_UUID_RE.test(companyId)) return c.json({ message: 'شناسه مجموعه معتبر نیست.' }, 422);
+  const membership = await domesticMembership(session.user.id, companyId);
+  if (!membership || !INTERNAL_ROLES.has(String(membership.role)) || !(await domesticModuleAllowed(membership, 'operational-tasks', 'can_create'))) {
+    return c.json({ message: 'برای ثبت رویداد عملیاتی مجوز نداری.' }, 403);
+  }
+  const eventType = typeof body.eventType === 'string' ? body.eventType.trim() : '';
+  const severity = typeof body.severity === 'string' ? body.severity : 'info';
+  const sourceType = typeof body.sourceType === 'string' ? body.sourceType : 'system';
+  const sourceId = typeof body.sourceId === 'string' ? body.sourceId : '';
+  const title = typeof body.title === 'string' ? body.title.trim() : '';
+  const description = typeof body.body === 'string' ? body.body.trim() : '';
+  const idempotencyKey = typeof body.idempotencyKey === 'string' ? body.idempotencyKey.trim() : '';
+  const payload = body.payload && typeof body.payload === 'object' && !Array.isArray(body.payload) ? body.payload : {};
+  const sourceTypes = new Set(['order','purchase_order','task','shipment','invoice','inventory','production','quality','supplier','system','other']);
+  if (!/^[a-z][a-z0-9_.-]{1,79}$/.test(eventType) || !['info','warning','critical'].includes(severity) ||
+      !sourceTypes.has(sourceType) || title.length < 2 || title.length > 180 || description.length > 4000 ||
+      (sourceId && !DOMESTIC_UUID_RE.test(sourceId)) || (idempotencyKey && (idempotencyKey.length < 8 || idempotencyKey.length > 240))) {
+    return c.json({ message: 'اطلاعات رویداد معتبر نیست.' }, 422);
+  }
+  if (sourceId) {
+    const table = DOMESTIC_EVENT_SOURCE_TABLES[sourceType];
+    if (!table) return c.json({ message: 'این نوع رویداد نمی‌تواند به رکورد عملیاتی متصل شود.' }, 422);
+    const [found] = await pool.execute('SELECT 1 FROM ' + sqlIdentifier(table) + ' WHERE id=? AND company_id=? LIMIT 1', [sourceId, companyId]);
+    if (!found.length) return c.json({ message: 'رکورد مرتبط در این شرکت پیدا نشد.' }, 404);
+  }
+  const connection = await pool.getConnection();
+  let event;
+  try {
+    await connection.beginTransaction();
+    const newId = randomUUID();
+    if (idempotencyKey) {
+      await connection.execute(
+        'INSERT INTO medar_operational_events(id,company_id,actor_user_id,event_type,severity,source_type,source_id,title,body,payload,idempotency_key) VALUES(?,?,?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE idempotency_key=VALUES(idempotency_key)',
+        [newId,companyId,session.user.id,eventType,severity,sourceType,sourceId || null,title,description,JSON.stringify(payload),idempotencyKey],
+      );
+      const [rows] = await connection.execute(
+        'SELECT id,company_id,event_type,severity,source_type,source_id,title,body,payload,occurred_at,actor_user_id FROM medar_operational_events WHERE company_id=? AND idempotency_key=? LIMIT 1',
+        [companyId,idempotencyKey],
+      );
+      event = rows[0];
+    } else {
+      await connection.execute(
+        'INSERT INTO medar_operational_events(id,company_id,actor_user_id,event_type,severity,source_type,source_id,title,body,payload) VALUES(?,?,?,?,?,?,?,?,?,?)',
+        [newId,companyId,session.user.id,eventType,severity,sourceType,sourceId || null,title,description,JSON.stringify(payload)],
+      );
+      const [rows] = await connection.execute(
+        'SELECT id,company_id,event_type,severity,source_type,source_id,title,body,payload,occurred_at,actor_user_id FROM medar_operational_events WHERE id=? AND company_id=? LIMIT 1',
+        [newId,companyId],
+      );
+      event = rows[0];
+    }
+    if ((severity === 'warning' || severity === 'critical' || body.createException === true) && event) {
+      const dedupeKey = idempotencyKey ? 'event:' + idempotencyKey : '';
+      const exceptionId = randomUUID();
+      if (dedupeKey) {
+        await connection.execute(
+          'INSERT INTO medar_exception_cases(id,company_id,event_id,title,details,severity,created_by,dedupe_key) VALUES(?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE updated_at=NOW(3)',
+          [exceptionId,companyId,event.id,title,description,severity === 'critical' ? 'critical' : 'warning',session.user.id,dedupeKey],
+        );
+      } else {
+        await connection.execute(
+          'INSERT INTO medar_exception_cases(id,company_id,event_id,title,details,severity,created_by) VALUES(?,?,?,?,?,?,?)',
+          [exceptionId,companyId,event.id,title,description,severity === 'critical' ? 'critical' : 'warning',session.user.id],
+        );
+      }
+    }
+    await connection.commit();
+  } catch (error) {
+    await connection.rollback().catch(() => undefined);
+    console.error('Domestic operational event write failed', { code: typeof error?.code === 'string' ? error.code : 'unknown' });
+    return c.json({ message: 'ثبت رویداد عملیاتی کامل نشد.' }, 500);
+  } finally { connection.release(); }
+  return c.json({ ok: true, event: domesticEventRow(event) }, 201);
+});
+
+app.get('/api/operational/exceptions', async (c) => {
+  if (!pool) return c.json({ message: 'پایگاه داده تنظیم نشده است.' }, 503);
+  const session = await currentSession(c);
+  if (!session) return c.json({ message: 'برای ادامه وارد حساب شو.' }, 401);
+  const companyId = c.req.query('companyId') || '';
+  if (!DOMESTIC_UUID_RE.test(companyId)) return c.json({ message: 'شناسه مجموعه معتبر نیست.' }, 422);
+  const membership = await domesticMembership(session.user.id, companyId);
+  if (!membership || !INTERNAL_ROLES.has(String(membership.role)) || !(await domesticModuleAllowed(membership, 'operational-tasks', 'can_read'))) {
+    return c.json({ message: 'برای مشاهده صندوق استثناها مجوز نداری.' }, 403);
+  }
+  const status = c.req.query('status') || '';
+  if (status && !['open','acknowledged','in_progress','resolved','closed'].includes(status)) {
+    return c.json({ message: 'وضعیت مسئله معتبر نیست.' }, 422);
+  }
+  const [rows] = await pool.execute(
+    'SELECT x.id,x.event_id,x.title,x.details,x.severity,x.status,x.assigned_user_id,u.username AS assigned_username,x.due_at,x.acknowledged_at,x.resolved_at,x.resolved_by,x.resolution_note,x.created_at,x.updated_at FROM medar_exception_cases x LEFT JOIN medar_users u ON u.id=x.assigned_user_id WHERE x.company_id=? AND (? = \\'\\' OR x.status=?) ORDER BY CASE x.severity WHEN \\'critical\\' THEN 0 ELSE 1 END,(x.due_at IS NULL) ASC,x.due_at ASC,x.created_at DESC LIMIT 100',
+    [companyId,status,status],
+  );
+  return c.json({ exceptions: rows.map(domesticExceptionRow) });
+});
+
+app.post('/api/operational/exceptions', async (c) => {
+  if (!pool) return c.json({ message: 'پایگاه داده تنظیم نشده است.' }, 503);
+  const session = await currentSession(c);
+  if (!session) return c.json({ message: 'برای ادامه وارد حساب شو.' }, 401);
+  const body = await c.req.json().catch(() => null);
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return c.json({ message: 'درخواست ایجاد مسئله معتبر نیست.' }, 400);
+  const companyId = typeof body.companyId === 'string' ? body.companyId : '';
+  if (!DOMESTIC_UUID_RE.test(companyId)) return c.json({ message: 'شناسه مجموعه معتبر نیست.' }, 422);
+  const membership = await domesticMembership(session.user.id, companyId);
+  if (!membership || !INTERNAL_ROLES.has(String(membership.role)) || !(await domesticModuleAllowed(membership, 'operational-tasks', 'can_create'))) {
+    return c.json({ message: 'برای ایجاد مسئله عملیاتی مجوز نداری.' }, 403);
+  }
+  const title = typeof body.title === 'string' ? body.title.trim() : '';
+  const details = typeof body.details === 'string' ? body.details.trim() : '';
+  const severity = typeof body.severity === 'string' ? body.severity : 'warning';
+  const eventId = typeof body.eventId === 'string' ? body.eventId : '';
+  const assignedUserId = typeof body.assignedUserId === 'string' ? body.assignedUserId : '';
+  const dueAt = typeof body.dueAt === 'string' ? body.dueAt : '';
+  const dedupeKey = typeof body.dedupeKey === 'string' ? body.dedupeKey.trim() : '';
+  if (title.length < 2 || title.length > 180 || details.length > 4000 || !['warning','critical'].includes(severity) ||
+      (eventId && !DOMESTIC_UUID_RE.test(eventId)) || (assignedUserId && !DOMESTIC_UUID_RE.test(assignedUserId)) ||
+      (dueAt && !Number.isFinite(Date.parse(dueAt))) || (dedupeKey && (dedupeKey.length < 8 || dedupeKey.length > 240))) {
+    return c.json({ message: 'اطلاعات مسئله معتبر نیست.' }, 422);
+  }
+  if (eventId) {
+    const [found] = await pool.execute('SELECT 1 FROM medar_operational_events WHERE id=? AND company_id=? LIMIT 1', [eventId,companyId]);
+    if (!found.length) return c.json({ message: 'رویداد مرتبط در این شرکت پیدا نشد.' }, 404);
+  }
+  if (assignedUserId) {
+    const [found] = await pool.execute('SELECT 1 FROM memberships WHERE company_id=? AND user_id=? AND active=TRUE LIMIT 1', [companyId,assignedUserId]);
+    if (!found.length) return c.json({ message: 'مسئول باید عضو فعال همین شرکت باشد.' }, 422);
+  }
+  const newId = randomUUID();
+  if (dedupeKey) {
+    await pool.execute(
+      'INSERT INTO medar_exception_cases(id,company_id,event_id,title,details,severity,assigned_user_id,due_at,created_by,dedupe_key) VALUES(?,?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE updated_at=NOW(3)',
+      [newId,companyId,eventId || null,title,details,severity,assignedUserId || null,dueAt ? new Date(dueAt) : null,session.user.id,dedupeKey],
+    );
+    const [rows] = await pool.execute(
+      'SELECT x.*,u.username AS assigned_username FROM medar_exception_cases x LEFT JOIN medar_users u ON u.id=x.assigned_user_id WHERE x.company_id=? AND x.active_dedupe_key=? LIMIT 1',
+      [companyId,dedupeKey],
+    );
+    return c.json({ ok: true, exception: domesticExceptionRow(rows[0]) }, 201);
+  }
+  await pool.execute(
+    'INSERT INTO medar_exception_cases(id,company_id,event_id,title,details,severity,assigned_user_id,due_at,created_by) VALUES(?,?,?,?,?,?,?,?,?)',
+    [newId,companyId,eventId || null,title,details,severity,assignedUserId || null,dueAt ? new Date(dueAt) : null,session.user.id],
+  );
+  const [rows] = await pool.execute(
+    'SELECT x.*,u.username AS assigned_username FROM medar_exception_cases x LEFT JOIN medar_users u ON u.id=x.assigned_user_id WHERE x.company_id=? AND x.id=? LIMIT 1',
+    [companyId,newId],
+  );
+  return c.json({ ok: true, exception: domesticExceptionRow(rows[0]) }, 201);
+});
+
+for (const [action, fromStates, toState] of [
+  ['acknowledge', ['open','acknowledged'], 'acknowledged'],
+  ['start', ['acknowledged'], 'in_progress'],
+]) {
+  app.post('/api/operational/exceptions/:id/' + action, async (c) => {
+    if (!pool) return c.json({ message: 'پایگاه داده تنظیم نشده است.' }, 503);
+    const session = await currentSession(c);
+    if (!session) return c.json({ message: 'برای ادامه وارد حساب شو.' }, 401);
+    const id = c.req.param('id');
+    const body = await c.req.json().catch(() => null);
+    const companyId = typeof body?.companyId === 'string' ? body.companyId : '';
+    if (!DOMESTIC_UUID_RE.test(id) || !DOMESTIC_UUID_RE.test(companyId)) return c.json({ message: 'شناسه مسئله یا مجموعه معتبر نیست.' }, 422);
+    const membership = await domesticMembership(session.user.id, companyId);
+    if (!membership || !INTERNAL_ROLES.has(String(membership.role)) || !(await domesticModuleAllowed(membership, 'operational-tasks', 'can_update'))) {
+      return c.json({ message: 'برای رسیدگی به این مسئله دسترسی نداری.' }, 403);
+    }
+    const connection = await pool.getConnection();
+    let row;
+    try {
+      await connection.beginTransaction();
+      const [rows] = await connection.execute(
+        'SELECT id,status,acknowledged_at,updated_at FROM medar_exception_cases WHERE id=? AND company_id=? FOR UPDATE',
+        [id,companyId],
+      );
+      const existing = rows[0];
+      if (!existing || !fromStates.includes(String(existing.status))) {
+        await connection.rollback();
+        return c.json({ message: 'مسئله پیدا نشد یا وضعیت فعلی اجازه این عملیات را نمی‌دهد.' }, 409);
+      }
+      const [result] = await connection.execute(
+        'UPDATE medar_exception_cases SET status=?,acknowledged_at=CASE WHEN ?=\\'acknowledged\\' THEN COALESCE(acknowledged_at,NOW(3)) ELSE acknowledged_at END,updated_at=NOW(3) WHERE id=? AND company_id=?',
+        [toState,toState,id,companyId],
+      );
+      const [updated] = await connection.execute(
+        'SELECT id,status,acknowledged_at,updated_at FROM medar_exception_cases WHERE id=? AND company_id=? LIMIT 1',
+        [id,companyId],
+      );
+      row = updated[0];
+      await connection.commit();
+    } catch (error) {
+      await connection.rollback().catch(() => undefined);
+      return c.json({ message: 'به‌روزرسانی مسئله کامل نشد.' }, 500);
+    } finally { connection.release(); }
+    return c.json({ ok: true, exception: { id: String(row.id), status: row.status, acknowledgedAt: row.acknowledged_at, updatedAt: row.updated_at } });
+  });
+}
+
+app.post('/api/operational/exceptions/:id/resolve', async (c) => {
+  if (!pool) return c.json({ message: 'پایگاه داده تنظیم نشده است.' }, 503);
+  const session = await currentSession(c);
+  if (!session) return c.json({ message: 'برای ادامه وارد حساب شو.' }, 401);
+  const id = c.req.param('id');
+  const body = await c.req.json().catch(() => null);
+  const companyId = typeof body?.companyId === 'string' ? body.companyId : '';
+  const resolutionNote = typeof body?.resolutionNote === 'string' ? body.resolutionNote.trim() : '';
+  if (!DOMESTIC_UUID_RE.test(id) || !DOMESTIC_UUID_RE.test(companyId)) return c.json({ message: 'شناسه مسئله یا مجموعه معتبر نیست.' }, 422);
+  if (resolutionNote.length < 3 || resolutionNote.length > 2000) return c.json({ message: 'برای بستن مسئله، شرح نتیجه لازم است.' }, 422);
+  const membership = await domesticMembership(session.user.id, companyId);
+  if (!membership || !INTERNAL_ROLES.has(String(membership.role)) || !(await domesticModuleAllowed(membership, 'operational-tasks', 'can_update'))) {
+    return c.json({ message: 'برای رسیدگی به این مسئله دسترسی نداری.' }, 403);
+  }
+  const [result] = await pool.execute(
+    "UPDATE medar_exception_cases SET status='resolved',resolved_at=NOW(3),resolved_by=?,resolution_note=?,updated_at=NOW(3) WHERE id=? AND company_id=? AND status NOT IN ('resolved','closed')",
+    [session.user.id,resolutionNote,id,companyId],
+  );
+  if (!result.affectedRows) return c.json({ message: 'مسئله پیدا نشد یا قبلاً بسته شده است.' }, 409);
+  const [rows] = await pool.execute(
+    'SELECT x.*,u.username AS assigned_username FROM medar_exception_cases x LEFT JOIN medar_users u ON u.id=x.assigned_user_id WHERE x.id=? AND x.company_id=? LIMIT 1',
+    [id,companyId],
+  );
+  return c.json({ ok: true, exception: domesticExceptionRow(rows[0]) });
+});
+
+
 app.notFound((c) => c.json({ message: 'مسیر API در نسخه داخلی پیدا نشد.' }, 404));
 app.onError((error, c) => {
   const requestId = randomBytes(8).toString('hex');
