@@ -400,6 +400,12 @@ test('domestic MySQL API supports health, login, session, memberships, password 
   const pushConfig = await app.request('/api/push/config?companyId='+companyId, { headers: { cookie: sessionCookie } });
   assert.equal(pushConfig.status, 200);
   assert.equal((await pushConfig.json()).enabled, false, 'external push must remain disabled until a domestic delivery service is configured');
+  const pushSubscribe = await app.request('/api/push/subscriptions', {
+    method:'POST',
+    headers:{'content-type':'application/json',cookie:sessionCookie},
+    body:JSON.stringify({companyId,endpoint:'https://push.example.test/subscription/endpoint',keys:{p256dh:'not-a-key',auth:'not-a-key'}}),
+  });
+  assert.equal(pushSubscribe.status,503,'push subscription must not silently report success when delivery is not configured');
 
   console.log('[medar-integration] request:bank-account-and-import');
   const bankAccountResponse = await app.request('/api/finance/bank-accounts', {
