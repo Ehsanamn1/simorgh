@@ -304,9 +304,10 @@ test('domestic MySQL API supports health, login, session, memberships, password 
     }),
   });
   assert.equal(proposeAction.status,201);
-  const proposedAction=(await proposeAction.json()).action;
+  const proposedPayload=await proposeAction.json();
+  const proposedAction=proposedPayload.action;
+  assert.equal(proposedPayload.requiresConfirmation,true);
   assert.equal(proposedAction.status,'proposed');
-  assert.equal(proposedAction.requiresConfirmation,undefined);
 
   const actionList = await app.request('/api/ai/actions?companyId='+companyId+'&status=proposed',{headers:{cookie:sessionCookie}});
   assert.equal(actionList.status,200);
