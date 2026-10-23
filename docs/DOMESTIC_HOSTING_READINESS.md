@@ -1,45 +1,56 @@
 # Domestic Hosting Readiness — Madar
 
 ## Current purpose
-This branch documents and checks the existing web application while preparing a future Node.js + MySQL deployment. The workflow is CI-only: it does not deploy or claim that the operational backend has been migrated.
 
-## CI
-`.github/workflows/domestic-ci.yml` runs typecheck, lint, unit/component tests and a frontend build, applies the initial identity/tenant MySQL foundation to disposable MySQL 8.4, then checks the guarded migration runner can re-run idempotently and uploads a review artifact. This validates only the first foundation migration; it does not validate the full operational backend or prove the application can operate on HostMizbanFa.
+This branch is a staged Node.js + MySQL migration effort. It does not replace the live Cloudflare Worker/Neon API and is not approved for production cutover. The existing operational Worker, PostgreSQL database, and live domain must remain unchanged until API parity, data migration, reconciliation, full integration tests and rollback all pass.
 
-## Current architecture constraints
+## Current architecture
+
 - Frontend: React + TypeScript + Vite.
-- API: Hono worker under `worker/index.ts`.
-- Data access: `@neondatabase/serverless` and PostgreSQL SQL.
-- Existing schema history: 31 numbered migrations under `worker/migrations/`.
-- Existing API depends on PostgreSQL UUID/JSONB/enums/timestamptz, casts, partial indexes, conflict clauses, CTEs, functions/triggers and row-locking patterns. Some paths depend on transactional/concurrency behavior.
+- Production API: Hono on Cloudflare Workers under `worker/index.ts`.
+- Production database: Neon PostgreSQL through `@neondatabase/serverless`.
+- Source migration history: 31 PostgreSQL migrations under `worker/migrations/`.
+- The API uses PostgreSQL UUID/JSONB/enums/timestamptz, casts, partial indexes, `ON CONFLICT`, database functions/triggers, CTEs, row-locking and transaction semantics.
 
-## Completed migration groundwork
-- `worker/migrations/mysql/0001_foundation.sql` now passes the disposable MySQL 8.4 integration test, including identity, sessions, companies, memberships, access requests and explicit owner/pending-request guard tables.
-- `scripts/apply-medar-mysql-foundation.mjs` adds a dry-run-by-default, staging-database-only runner with a checksum ledger and safe skipping of already installed foreign-key constraints on retries.
-- `mysql2` is a runtime dependency, ready for the Node adapter.
+## Migration groundwork present on this branch
 
-These items are only the identity/tenant foundation; no production data or live API was switched.
+- Separate MySQL 8 migrations `worker/migrations/mysql/0001_foundation.sql` through `0005_notification_tenant_fk.sql`, including identity, sessions, company membership, core operations, extended operations, private-file metadata, event/exception tracking, messaging and notification/outbox structures.
+- A guarded migration runner at `scripts/apply-medar-mysql-foundation.mjs`, with dry-run default, staging database-name checks, version/checksum tracking, required-table checks and idempotent constraint handling.
+- A Node.js/Hono API adapter at `domestic-api/server.mjs` using `mysql2`.
+- Implemented slice: health, authenticated sessions/login/logout/password change, membership provisioning and permissions, scoped data/RPC adapter, private storage handlers, notification read endpoints, device heartbeat, operational event creation/listing and exception lifecycle.
+- Integration tests cover MySQL health/authentication, session rules, membership provisioning/role restrictions, notifications, client heartbeat, event idempotency, and acknowledge/start/resolve exception state transitions.
 
-## Required migration work
-1. Build a Node.js Hono server adapter compatible with the hosting process model, with graceful shutdown and request limits.
-2. Inventory every API route, SQL query, migration, trigger/function and scheduled task. Produce a traceable route-to-test matrix.
-3. Convert the schema and all 31 migrations to MySQL 8-compatible migrations; do not just translate the initial tables.
-4. Replace Neon query calls with a supported MySQL driver and explicit transaction boundaries. Preserve company/tenant scoping, membership and module permissions, audit logs, encrypted secrets, session handling and idempotency.
-5. Re-design critical concurrency paths (stock/inventory, purchase orders, capacity commitments, notification outbox) using transactions, unique constraints and appropriate row locks. Test concurrent requests, retries and duplicate delivery.
-6. Replace Cloudflare assets/R2 bindings with a verified domestic file-storage approach. Replace scheduled triggers with a verified host cron or scheduler, with idempotent jobs and observable failures.
-7. Add integration tests against the actual MySQL major version and test login, permissions, CRUD, accounting, inventory, orders, shipment workflows, file access, notification jobs, tenant isolation and database outages.
-8. Provide a dry-run data export/import tool, backups and a verified restore drill; compare table row counts, foreign-key relationships, key aggregates and checksums where practical.
-9. Verify host Node version, persistent process support, environment variables, database limits, HTTPS, custom subdomain, cron, outbound network policy and deployment access.
-10. Add a deployment workflow only after the host protocol is known. Use staged releases, health checks and rollback; never auto-run destructive migrations against production.
+CI must pass for the latest commit before these changes are treated as validated. Even a green CI validates this slice and the converted schema chain—not all production workflows and not the actual MizbanFa environment.
 
-## Reserved GitHub Actions secrets for later
-- `HOST_SSH_HOST`
-- `HOST_SSH_USER`
-- `HOST_SSH_KEY`
-- `HOST_DEPLOY_PATH`
-- `HOST_HEALTHCHECK_URL`
+## Important work still open
 
-Keep runtime database credentials in the host's protected environment settings where possible. Never commit or paste credentials into chat.
+1. Port every remaining Worker route and middleware to Node.js/MySQL; produce route-to-test parity coverage. The current adapter is still missing several route groups, including bank reconciliation, AI providers/chat/action flows, contact operations, client administration/profile completion, invites/join parity, internal messaging, push subscription/delivery jobs and scheduled tasks.
+2. Convert the remaining PostgreSQL functions, triggers, tenant policies and transaction/concurrency behavior. Preserve inventory and purchasing invariants using MySQL transactions and row locking; validate duplicate retries and competing requests.
+3. Switch the frontend API base only after all required route semantics and browser tests are ready. The application currently remains wired to the live Worker API.
+4. Build and validate a production data export/import and reconciliation tool. No production data migration from Neon is complete by virtue of a MySQL schema existing.
+5. Verify the private file/storage strategy and replace Cloudflare R2 requirements where they are operationally essential; confirm maximum upload size and persistence on the shared host.
+6. Replace Cloudflare scheduled jobs with a supported host scheduler, if available, and provide logs/alerts for failures.
+7. Test the actual host's Node version, Passenger process lifecycle, environment variables, MySQL version/limits, filesystem persistence, HTTPS, outbound networking, backup/restore and resource limits.
+8. Complete owner acceptance for authentication, permissions, two-company isolation, core farm/inventory/order/logistics/finance operations, files, notifications and backup recovery.
+9. Provide an upload package only after route parity and staging acceptance; do not label a static frontend or partial API package production-ready.
+
+## Confirmed HostMizbanFa limitations (per support reply)
+
+- Shared hosting does not provide root access, remote database access or SSH-based deployment from GitHub Actions.
+- Node.js is managed through cPanel's “Setup Node.js App”, with startup file/process settings chosen there.
+- MySQL databases and users are created in cPanel; the database host is `localhost`.
+- ZIP upload/extract through File Manager and manual updates are the supported route described by support.
+- The current production DNS is still managed in Cloudflare. Do not change the apex A record until the new origin has passed staging tests and current mail-related DNS records are recorded.
+
+Therefore, the existing SSH workflow must remain disabled for this account. Automatic GitHub-to-host deployment should not be promised unless the provider confirms an alternative supported mechanism (for example a supported secure file-transfer endpoint). GitHub CI can still build and test release artifacts, but manual File Manager upload remains the confirmed delivery path.
 
 ## Release gate
-Keep the existing Worker/Neon deployment and production database untouched until the MySQL implementation, migration rehearsal, backup restore, concurrency tests and cutover/rollback plan pass. A frontend artifact is not an operational Madar release.
+
+Keep the current Worker/Neon path live until:
+- the Node/MySQL API covers all production-used Worker routes;
+- the full MySQL migration/import and integrity reconciliation pass;
+- authentication, role/tenant isolation, concurrency and file access tests pass;
+- backup restore and rollback are rehearsed;
+- the actual host passes HTTPS, health and workflow acceptance tests.
+
+A green build, a MySQL schema or a ZIP file is not proof of a complete operational migration.
