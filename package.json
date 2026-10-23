@@ -16,7 +16,13 @@
     "serve:pages:test": "node scripts/serve-pages-simulation.mjs",
     "mobile:ios:prepare": "node scripts/build-mobile.mjs ios",
     "build:hosted-web": "node scripts/build-hosted-web.mjs",
-    "test:pwa:hosted": "node scripts/smoke-hosted-pwa.mjs"
+    "test:pwa:hosted": "node scripts/smoke-hosted-pwa.mjs",
+    "test:mysql-foundation": "node scripts/test-medar-mysql-foundation.mjs",
+    "checkmysql": "node --check scripts/test-medar-mysql-foundation.mjs && node --check scripts/apply-medar-mysql-foundation.mjs",
+    "migrate:mysql:foundation:dry-run": "npm run migrate:mysql:dry-run",
+    "migrate:mysql:foundation:apply": "npm run migrate:mysql:apply",
+    "migrate:mysql:dry-run": "node scripts/apply-medar-mysql-foundation.mjs",
+    "migrate:mysql:apply": "node scripts/apply-medar-mysql-foundation.mjs --apply"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.0",
@@ -34,7 +40,8 @@
     "@neondatabase/serverless": "^1.0.2",
     "hono": "^4.9.7",
     "@capgo/capacitor-speech-recognition": "^8.4.4",
-    "@capgo/capacitor-speech-synthesis": "^8.0.20"
+    "@capgo/capacitor-speech-synthesis": "^8.0.20",
+    "mysql2": "^3.15.3"
   },
   "devDependencies": {
     "@capacitor/cli": "^8.5.0",

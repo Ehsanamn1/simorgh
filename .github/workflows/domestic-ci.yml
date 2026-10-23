@@ -1,0 +1,101 @@
+name: Domestic migration CI — Madar
+
+on:
+  push:
+    branches: ["feat/mysql-domestic-hosting"]
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: madar-domestic-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: ci-root-password
+          MYSQL_DATABASE: medar_ci
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -pci-root-password"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Install domestic Node/MySQL API dependencies
+        working-directory: domestic-api
+        run: npm install --no-audit --no-fund
+      - name: Validate domestic API syntax and authentication primitives
+        working-directory: domestic-api
+        run: npm run check && npm test
+      - name: TypeScript validation
+        run: npm run typecheck
+      - name: Validate MySQL migration test syntax
+        run: node --check scripts/test-medar-mysql-foundation.mjs
+      - name: Apply Medar foundation migration to disposable MySQL 8.4
+        env:
+          MEDAR_MYSQL_TEST_URL: mysql://root:ci-root-password@127.0.0.1:3306/medar_ci
+        run: npm run test:mysql-foundation
+      - name: Verify guarded migration runner and idempotent re-run
+        env:
+          MEDAR_MYSQL_URL: mysql://root:ci-root-password@127.0.0.1:3306/medar_ci
+        run: |
+          npm run checkmysql
+          node scripts/apply-medar-mysql-foundation.mjs --apply
+          node scripts/apply-medar-mysql-foundation.mjs --apply
+      - name: Test domestic API against the migrated disposable MySQL database
+        working-directory: domestic-api
+        timeout-minutes: 8
+        env:
+          MYSQL_URL: mysql://root:ci-root-password@127.0.0.1:3306/medar_ci
+          NODE_ENV: test
+          MEDAR_TEST_TRACE: 'true'
+        run: npm run test:integration
+      - name: Test the isolated domestic Node/MySQL API
+        working-directory: domestic-api
+        env:
+          MYSQL_URL: mysql://root:ci-root-password@127.0.0.1:3306/medar_ci
+          NODE_ENV: test
+          TRUST_PROXY_HEADERS: 'false'
+        run: |
+          npm install --no-audit --no-fund
+          npm run check
+          npm test
+          npm run test:integration
+      - name: Lint
+        run: npm run lint
+      - name: Unit and component tests
+        run: npm run test
+      - name: Build browser application
+        run: npm run build
+      - name: Verify build output
+        run: |
+          set -euo pipefail
+          test -s dist/index.html
+          test -s dist/manifest.webmanifest
+          test -s dist/sw.js
+      - name: Upload build artifact for review (not an operational deployment)
+        uses: actions/upload-artifact@v4
+        with:
+          name: madar-web-ci-${{ github.sha }}
+          path: dist/
+          if-no-files-found: error
+          retention-days: 7

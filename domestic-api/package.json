@@ -1,0 +1,19 @@
+{
+  "name": "medar-domestic-api",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node server.mjs",
+    "check": "node --check server.mjs && node --check server.test.mjs && node --check server.integration.test.mjs",
+    "test": "node --test server.test.mjs",
+    "test:integration": "node --test --test-reporter=spec integration.test.mjs server.integration.test.mjs"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.19.1",
+    "hono": "^4.9.7",
+    "mysql2": "^3.14.5"
+  }
+}

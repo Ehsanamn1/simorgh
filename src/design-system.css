@@ -1,6 +1,6 @@
 /* مدار — سامانه‌ی یکپارچه‌ی مدیریت مزرعه و عملیات */
 :root{color-scheme:dark;--portal-ink:#EAF0F0;--role-accent:#6EB9AC;--obs-bg:#0B1012;--obs-surface:#11191C;--obs-surface-2:#172124;--obs-elevated:#1D292D;--obs-border:#29373B;--obs-text:#EAF0F0;--obs-muted:#A0B0B2;--obs-subtle:#77898C;--obs-accent:#6EB9AC;--obs-accent-2:#709AA8;--obs-highlight:#C1D6D1;--obs-warning:#D5AE73;--obs-critical:#D9827D;--obs-positive:#8EC8B4;--obs-radius-sm:9px;--obs-radius-md:13px;--obs-radius-lg:18px;--obs-radius-xl:24px;--obs-shadow:0 12px 36px rgb(0 0 0 / 18%);--obs-shadow-raised:0 24px 80px rgb(0 0 0 / 32%);--sim-forest-950:#0B1012;--sim-forest-900:#172124;--sim-forest-800:#223237;--sim-emerald-700:#6EB9AC;--sim-lime:#C1D6D1;--sim-canvas:#0B1012;--sim-surface:#11191C;--sim-text:#EAF0F0;--sim-muted:#A0B0B2;--sim-border:#29373B;--sim-soft:#172124;--sim-warning:#D5AE73;--sim-warning-bg:#29251E;--sim-danger:#D9827D;--sim-danger-bg:#2B1F20;--sim-info:#709AA8;--sim-info-bg:#19282D;--sim-radius-sm:9px;--sim-radius-md:13px;--sim-radius-lg:18px;--sim-radius-xl:24px;--sim-shadow-card:0 8px 24px rgb(0 0 0 / 14%);--sim-shadow-raised:var(--obs-shadow-raised);--sim-focus-ring:3px solid rgb(110 185 172 / 60%);--sim-focus-offset:3px;--sim-status-success:#8EC8B4;--sim-status-success-bg:#1C2B29;--sim-status-warning:#D5AE73;--sim-status-warning-bg:#29251E;--sim-status-danger:#D9827D;--sim-status-danger-bg:#2B1F20;--sim-status-info:#83B4C0;--sim-status-info-bg:#19282D;--sim-chart-1:#6EB9AC;--sim-chart-2:#709AA8;--sim-chart-3:#C1D6D1;--sim-chart-4:#D5AE73;--sim-chart-5:#D9827D;--sim-control-height:48px;--sim-touch-target:46px;--sim-motion-fast:140ms;--sim-motion-normal:200ms;--forest:var(--obs-accent);--forest-2:var(--obs-accent-2);--lime:var(--obs-highlight);--paper:var(--obs-bg);--line:var(--obs-border);--muted:var(--obs-muted);--soft:var(--obs-surface-2);--danger:var(--obs-critical);--shadow:var(--obs-shadow);--shadow-raised:var(--obs-shadow-raised);font-size:15px}
-html{background:var(--obs-bg);color-scheme:dark;scroll-padding-top:92px;scroll-behavior:smooth}body{min-width:320px;background:var(--obs-bg);color:var(--obs-text);font-family:Vazirmatn,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:14px;line-height:1.75;text-rendering:optimizeLegibility}
+html{background:var(--obs-bg);color-scheme:dark;scroll-padding-top:92px;scroll-behavior:smooth}body{min-width:320px;background:var(--obs-bg);color:var(--obs-text);font-family:system-ui,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:14px;line-height:1.75;text-rendering:optimizeLegibility}
 button,input,select,textarea{font-family:inherit}button,a,input,select,textarea{-webkit-tap-highlight-color:transparent}button{color:inherit}:focus-visible{outline:var(--sim-focus-ring);outline-offset:var(--sim-focus-offset)}button:disabled{cursor:not-allowed;opacity:.58}::selection{color:var(--obs-bg);background:var(--obs-accent)}
 .portal{min-height:100dvh;background:radial-gradient(ellipse at 78% 9%,rgb(112 154 168 / 8%),transparent 31%),radial-gradient(ellipse at 9% 40%,rgb(110 185 172 / 4%),transparent 33%),var(--obs-bg);color:var(--obs-text)}
 .portal-header{position:sticky;top:0;z-index:40;min-height:76px;gap:clamp(12px,2vw,28px);padding-inline:clamp(18px,4vw,64px);background:rgb(11 16 18 / 88%);border-bottom:1px solid var(--obs-border);backdrop-filter:blur(18px)}.portal-brand,.portal-brand:visited{color:var(--obs-text)}.portal-header-nav{flex:1;gap:clamp(14px,2vw,28px)}.portal-header-nav a{min-height:44px;display:inline-flex;align-items:center;color:var(--obs-muted);font-size:12px}.portal-header-nav a:hover{color:var(--obs-highlight)}.portal-header-state{border:1px solid var(--obs-border);border-radius:999px;padding:8px 12px;background:var(--obs-surface);color:var(--obs-muted);font-size:10px}.portal-state-dot,.portal-caption-dot{background:var(--obs-accent);box-shadow:0 0 0 4px rgb(110 185 172 / 10%)}
@@ -441,7 +441,7 @@ html[data-theme="light"] .signin-owner-guide{color:var(--obs-muted)}
   direction: rtl;
   letter-spacing: 0;
   text-transform: none;
-  font-family: Vazirmatn, Tahoma, sans-serif;
+  font-family: system-ui, Tahoma, sans-serif;
 }
 
 
@@ -525,7 +525,7 @@ html[data-theme="light"] .simorgh-signin-form-card .signin-form-logo .brand-symb
   background: rgba(17,25,28,.96);
   color: #EAF0F0;
   box-shadow: 0 4px 14px rgba(7,20,18,.24);
-  font: 800 9px/1.6 Vazirmatn, Tahoma, sans-serif;
+  font: 800 9px/1.6 system-ui, Tahoma, sans-serif;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -555,11 +555,11 @@ html[data-theme="light"] .simorgh-signin-form-card .signin-form-logo .brand-symb
 
 /* Public company signup and secure tenant provisioning states */
 .signin-registration-cta{display:grid;justify-items:center;gap:8px;margin-top:18px;padding-top:16px;border-top:1px solid var(--obs-border);color:var(--obs-muted);font-size:11px;text-align:center}
-.signin-registration-cta button{display:flex;align-items:center;justify-content:center;gap:7px;width:100%;min-height:42px;padding:10px 14px;border:1px solid #42665f;border-radius:12px;background:#203735;color:#DDEBE5;font:800 12px/1.5 Vazirmatn,Tahoma,sans-serif;cursor:pointer;transition:background var(--sim-motion-fast),border-color var(--sim-motion-fast)}
+.signin-registration-cta button{display:flex;align-items:center;justify-content:center;gap:7px;width:100%;min-height:42px;padding:10px 14px;border:1px solid #42665f;border-radius:12px;background:#203735;color:#DDEBE5;font:800 12px/1.5 system-ui,Tahoma,sans-serif;cursor:pointer;transition:background var(--sim-motion-fast),border-color var(--sim-motion-fast)}
 .signin-registration-cta button:hover{border-color:var(--obs-accent);background:#294743}
 .signin-optional{color:var(--obs-subtle);font-size:10px;font-weight:500}
 .workspace-provision-error{display:flex;align-items:center;justify-content:space-between;gap:10px}
-.workspace-provision-error button{flex:none;padding:7px 10px;border:1px solid currentColor;border-radius:8px;background:transparent;color:inherit;font:700 10px Vazirmatn,Tahoma,sans-serif;cursor:pointer}
+.workspace-provision-error button{flex:none;padding:7px 10px;border:1px solid currentColor;border-radius:8px;background:transparent;color:inherit;font:700 10px system-ui,Tahoma,sans-serif;cursor:pointer}
 html[data-theme="light"] .signin-registration-cta{border-color:#D5E0DD;color:var(--obs-muted)}
 html[data-theme="light"] .signin-registration-cta button{border-color:#C6DBD4;background:#EAF3F0;color:#1A5147}
 html[data-theme="light"] .signin-registration-cta button:hover{border-color:#287E70;background:#DFEEE8}

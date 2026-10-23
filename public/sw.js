@@ -1,4 +1,5 @@
-const CACHE_NAME = 'medar-shell-v6';
+const CACHE_NAME = 'medar-shell-v7';
+const PRECACHE_ASSETS = []; // Replaced by the Vite build plugin with the core home-route dependency graph.
 const scopeURL = new URL(self.registration.scope);
 // Notification routes are emitted as app-relative paths by the Worker. Resolve
 // them against this installation's scope so /madar/ hosting stays in-scope.
@@ -19,9 +20,16 @@ const assetExtensions = ['.js', '.css', '.svg', '.webmanifest', '.woff', '.woff2
 
 self.addEventListener('install', event => {
   event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then(cache => cache.add(new Request(scopeURL.href, { cache: 'reload' })))
-      .then(() => self.skipWaiting())
+    caches.open(CACHE_NAME).then(async cache => {
+      await cache.add(new Request(scopeURL.href, { cache: 'reload' }));
+      // Cache the home-route chunks while online so an already-opened app can
+      // navigate back to its operational home screen without a network request.
+      await Promise.allSettled(PRECACHE_ASSETS.map(asset => {
+        const url = new URL(asset, scopeURL);
+        if (url.origin !== self.location.origin || !url.href.startsWith(scopeURL.href)) return Promise.resolve();
+        return cache.add(new Request(url.href, { cache: 'reload' }));
+      }));
+    }).then(() => self.skipWaiting())
   );
 });
 self.addEventListener('activate', event => {

@@ -6,17 +6,19 @@ const root = process.cwd();
 const pkg = JSON.parse(await readFile(resolve(root, 'package.json'), 'utf8'));
 const rawApi = process.env.MEDAR_WEB_API_BASE_URL?.trim() || process.env.VITE_API_BASE_URL?.trim();
 if (!rawApi) {
-  throw new Error('Set MEDAR_WEB_API_BASE_URL to the HTTPS origin of the authenticated Medar API. Static hosting without an API is only a showcase.');
+  throw new Error('Set MEDAR_WEB_API_BASE_URL to the HTTPS origin of the authenticated Medar API or the same-origin /api/medar proxy base. Static hosting without an API is only a showcase.');
 }
 
 let parsedApi;
 try { parsedApi = new URL(rawApi); } catch { throw new Error('MEDAR_WEB_API_BASE_URL must be a valid absolute URL.'); }
 if (parsedApi.protocol !== 'https:' && !['localhost', '127.0.0.1'].includes(parsedApi.hostname)) {
-  throw new Error('The hosted operational app requires an HTTPS API origin.');
+  throw new Error('The hosted operational app requires an HTTPS API base.');
 }
-if (parsedApi.username || parsedApi.password || parsedApi.pathname !== '/' || parsedApi.search || parsedApi.hash) {
-  throw new Error('Configure only the API origin (scheme + host + optional port), without credentials, path, query, or fragment.');
+const apiPath = parsedApi.pathname.replace(/\/+$/, '') || '';
+if (!['', '/api/medar'].includes(apiPath) || parsedApi.username || parsedApi.password || parsedApi.search || parsedApi.hash) {
+  throw new Error('Configure an API origin or the same-origin proxy base ending in /api/medar; credentials, query strings and fragments are forbidden.');
 }
+const apiBaseUrl = parsedApi.origin + apiPath;
 if (parsedApi.hostname === 'medar-api.dengxiao445.workers.dev') {
   throw new Error('The public medar-api demo is read-only; use the authenticated medar-ops API origin.');
 }
@@ -24,7 +26,7 @@ if (parsedApi.hostname === 'medar-api.dengxiao445.workers.dev') {
 const appVersion = process.env.VITE_APP_VERSION?.trim() || process.env.GITHUB_SHA || pkg.version || '0.1.0';
 const env = {
   ...process.env,
-  VITE_API_BASE_URL: parsedApi.origin,
+  VITE_API_BASE_URL: apiBaseUrl,
   VITE_ENABLE_AUTH_UI: 'true',
   VITE_DISABLE_API_UI: 'false',
   VITE_APP_VERSION: appVersion,
@@ -85,8 +87,8 @@ const allJavaScript = bundles.join('\n');
 if (!allJavaScript.includes('simorgh-signin-layer') || !allJavaScript.includes('ثبت‌نام عمومی غیرفعال است')) {
   throw new Error('Hosted build does not contain the private sign-in UI with public self-registration disabled.');
 }
-if (!allJavaScript.includes(parsedApi.origin)) {
-  throw new Error('The configured API origin was not embedded in the built JavaScript.');
+if (!allJavaScript.includes(apiBaseUrl)) {
+  throw new Error('The configured API base was not embedded in the built JavaScript.');
 }
 
 await writeFile(resolve(dist, 'medar-deployment.json'), JSON.stringify({
@@ -94,6 +96,7 @@ await writeFile(resolve(dist, 'medar-deployment.json'), JSON.stringify({
   release: 'hosted-web',
   appVersion,
   apiOrigin: parsedApi.origin,
+  apiBaseUrl,
   builtAt: new Date().toISOString(),
   note: 'Public metadata only. Never place database URLs, API tokens, or credentials in this file.',
 }, null, 2) + '\n', { mode: 0o644 });
@@ -104,7 +107,7 @@ const installGuide = [
   '۱) محتوای این بسته را در document root یک زیردامنهٔ اپلیکیشن استخراج کن؛ فایل‌ها را روی ریشهٔ سایت اصلی راز صحرا جایگزین نکن.',
   '۲) برای Apache، mod_rewrite باید فعال باشد و فایل .htaccess کنار index.html حفظ شود؛ این فایل مسیرهای مستقیم /app/home و دیگر مسیرهای SPA را به index.html هدایت می‌کند.',
   '۳) این بسته رابط وب و پوستهٔ PWA است؛ API و دیتابیس را به هاست استاتیک تبدیل نمی‌کند. در این build، API عملیاتی از مبدأ زیر استفاده می‌کند:',
-  parsedApi.origin,
+  apiBaseUrl,
   '۴) اگر وب و API روی دو مبدأ جدا هستند، مبدأ HTTPS همین وب‌سایت را در GitHub Actions variable به نام MEDAR_ALLOWED_ORIGINS قرار بده و Worker عملیاتی را دوباره منتشر کن تا CORS مجاز شود.',
   '۵) گزینهٔ کم‌ریسک‌تر این است که زیردامنهٔ اپ را مستقیم به Worker عملیاتی Cloudflare متصل کنی تا وب و /api روی یک مبدأ باشند.',
   '۶) پس از بارگذاری، این مسیرها را بررسی کن: /, /app/home, /manifest.webmanifest, /sw.js. سپس ورود، خروج، ساخت حساب در فضای آزمایشی و role permissions را با حساب‌های staging آزمایش کن.',
@@ -119,5 +122,5 @@ const installGuideInfo = await stat(resolve(dist, 'RAZ-SAHRA-INSTALL.txt'));
 if (installGuideInfo.size < 300) throw new Error('Raz Sahara installation guide was not written completely.');
 
 console.log('Hosted Medar web bundle is ready in dist/.');
-console.log('API origin: ' + parsedApi.origin);
+console.log('API base: ' + apiBaseUrl);
 console.log('PWA manifest, icons, service worker, Apache SPA fallback, sign-in gate, and API configuration verified.');

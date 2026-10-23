@@ -1,0 +1,41 @@
+name: Medar MySQL Foundation — Staging Only
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: "Use DRY_RUN_ONLY to inspect the migration; enter APPLY_TO_STAGING only for a dedicated staging database."
+        required: true
+        default: DRY_RUN_ONLY
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: medar-mysql-staging-foundation
+  cancel-in-progress: false
+
+jobs:
+  foundation:
+    name: Validate and optionally apply foundation to staging
+    runs-on: ubuntu-latest
+    environment: medar-staging
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: npm install
+      - name: Dry-run and validate staging target
+        env:
+          MEDAR_MYSQL_URL: ${{ secrets.MEDAR_MYSQL_STAGING_URL }}
+        run: node scripts/apply-medar-mysql-foundation.mjs
+      - name: Apply only after explicit staging confirmation
+        if: ${{ inputs.confirmation == 'APPLY_TO_STAGING' }}
+        env:
+          MEDAR_MYSQL_URL: ${{ secrets.MEDAR_MYSQL_STAGING_URL }}
+        run: node scripts/apply-medar-mysql-foundation.mjs --apply

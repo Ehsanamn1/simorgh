@@ -69,10 +69,21 @@ export default function ProductExperience() {
       setAppMain(document.querySelector<HTMLElement>('.app-main'));
       setWaitingScreen(document.querySelector<HTMLElement>('.waiting-screen'));
     };
+    let frame = 0;
+    const scheduleRefresh = () => {
+      if (frame) return;
+      frame = window.requestAnimationFrame(() => {
+        frame = 0;
+        refreshTargets();
+      });
+    };
     refreshTargets();
-    const observer = new MutationObserver(refreshTargets);
+    const observer = new MutationObserver(scheduleRefresh);
     observer.observe(document.body, { childList: true, subtree: true });
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      if (frame) window.cancelAnimationFrame(frame);
+    };
   }, [location.pathname, location.hash, user?.id, memberships.length]);
 
   useEffect(() => {
@@ -84,10 +95,21 @@ export default function ProductExperience() {
       const next = readAllowedLinks();
       setAllowedLinks(old => JSON.stringify(old) === JSON.stringify(next) ? old : next);
     };
+    let frame = 0;
+    const scheduleRefresh = () => {
+      if (frame) return;
+      frame = window.requestAnimationFrame(() => {
+        frame = 0;
+        refresh();
+      });
+    };
     refresh();
-    const observer = new MutationObserver(refresh);
+    const observer = new MutationObserver(scheduleRefresh);
     observer.observe(sideNav, { childList: true, subtree: true, characterData: true, attributes: true });
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      if (frame) window.cancelAnimationFrame(frame);
+    };
   }, [appMain, location.pathname, user?.id, memberships.length, memberships[0]?.role]);
 
   useEffect(() => {
