@@ -111,6 +111,12 @@ test('domestic MySQL API supports health, login, session, memberships, password 
   });
   assert.equal(markOne.status, 200);
   assert.ok((await markOne.json()).notification.readAt);
+  const markOneAgain = await app.request('/api/notifications/'+firstNotificationId+'/read', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', cookie: sessionCookie },
+    body: JSON.stringify({ companyId }),
+  });
+  assert.equal(markOneAgain.status, 200, 'reading an already-read notification should be idempotent');
 
   await db.execute(
     'INSERT INTO notifications(id,company_id,user_id,title,body,href,dedupe_key) VALUES(?,?,?,?,?,?,?)',
@@ -277,6 +283,28 @@ test('domestic MySQL API supports health, login, session, memberships, password 
   const messagePayload = await messagesResponse.json();
   assert.equal(messagePayload.messages.length, 1);
   assert.equal(messagePayload.messages[0].id, firstMessagePayload.id);
+
+  console.log('[medar-integration] request:profile-complete');
+  const profileComplete = await app.request('/api/profile/complete', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', cookie: sessionCookie },
+    body: JSON.stringify({ companyId, firstName: 'احسان', lastName: 'آزمایشی', phone: '۰۹۱۲۳۴۵۶۷۸۹' }),
+  });
+  assert.equal(profileComplete.status, 200);
+  const profilePayload = await profileComplete.json();
+  assert.equal(profilePayload.user.full_name, 'احسان آزمایشی');
+  assert.equal(profilePayload.user.phone, '+989123456789');
+  const [profileRows] = await db.execute('SELECT full_name,phone FROM profiles WHERE id=?', [userId]);
+  assert.equal(profileRows.length, 1);
+  assert.equal(profileRows[0].full_name, 'احسان آزمایشی');
+  assert.equal(profileRows[0].phone, '+989123456789');
+
+  const invalidProfilePhone = await app.request('/api/profile/complete', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', cookie: sessionCookie },
+    body: JSON.stringify({ companyId, firstName: 'احسان', lastName: 'آزمایشی', phone: 'invalid' }),
+  });
+  assert.equal(invalidProfilePhone.status, 422);
 
   console.log('[medar-integration] request:password-change');
   const changed = await app.request('/api/auth/password/change', {
