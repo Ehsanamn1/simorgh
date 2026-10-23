@@ -23,14 +23,16 @@ after(async () => {
     console.log('[medar-integration] cleanup:operational-records');
     console.log('[medar-integration] cleanup:conversations');
     console.log('[medar-integration] cleanup:bank-records');
+    await db.execute('DELETE FROM medar_bank_transactions WHERE company_id=?', [companyId]);
+    await db.execute('DELETE FROM medar_bank_accounts WHERE company_id=?', [companyId]);
+    await db.execute('DELETE FROM invoices WHERE company_id=? AND reference=?', [companyId,'CI-INV-'+suffix]);
+    await db.execute('DELETE FROM orders WHERE company_id=? AND reference=?', [companyId,'CI-ORDER-'+suffix]);
     console.log('[medar-integration] cleanup:contact-import');
+    await db.execute('DELETE FROM suppliers WHERE company_id=? AND name IN (?,?)', [companyId,'CI Domestic Supplier '+suffix,'CI Domestic Supplier '+suffix+' ('+userId.slice(0,8)+')']);
+    await db.execute('DELETE FROM customers WHERE company_id=? AND name=?', [companyId,'CI Domestic Customer '+suffix]);
     console.log('[medar-integration] cleanup:ai-actions-and-tasks');
     await db.execute('DELETE FROM medar_ai_action_runs WHERE company_id=?', [companyId]);
     await db.execute('DELETE FROM operational_tasks WHERE company_id=? AND title IN (?,?)', [companyId,'CI domestic AI action task execute '+suffix,'CI domestic AI action task cancel '+suffix]);
-    await db.execute('DELETE FROM suppliers WHERE company_id=? AND name IN (?,?)', [companyId,'CI Domestic Supplier '+suffix,'CI Domestic Supplier '+suffix+' ('+userId.slice(0,8)+')']);
-    await db.execute('DELETE FROM customers WHERE company_id=? AND name=?', [companyId,'CI Domestic Customer '+suffix]);
-    await db.execute('DELETE FROM medar_bank_transactions WHERE company_id=?', [companyId]);
-    await db.execute('DELETE FROM medar_bank_accounts WHERE company_id=?', [companyId]);
     await db.execute('DELETE FROM medar_messages WHERE company_id=?', [companyId]);
     await db.execute('DELETE FROM medar_conversation_participants WHERE company_id=?', [companyId]);
     await db.execute('DELETE FROM medar_conversations WHERE company_id=?', [companyId]);
@@ -456,21 +458,69 @@ test('domestic MySQL API supports health, login, session, memberships, password 
   assert.equal(listedTransactions[0].externalTransactionId, externalTransactionId);
   assert.equal(listedTransactions[0].reconciliationStatus, 'unmatched');
 
+  const [customerForInvoiceRows] = await db.execute('SELECT id FROM customers WHERE company_id=? AND name=? LIMIT 1',[companyId,'CI Domestic Customer '+suffix]);
+  assert.equal(customerForInvoiceRows.length,1);
+  const orderId=randomUUID();
+  const invoiceId=randomUUID();
+  await db.execute('INSERT INTO orders(id,company_id,customer_id,reference,status,created_by) VALUES(?,?,?,?,?,?)',[orderId,companyId,customerForInvoiceRows[0].id,'CI-ORDER-'+suffix,'draft',userId]);
+  await db.execute('INSERT INTO invoices(id,company_id,order_id,customer_id,reference,amount,due_date,status) VALUES(?,?,?,?,?,?,?,?)',[invoiceId,companyId,orderId,customerForInvoiceRows[0].id,'CI-INV-'+suffix,125000000,'2026-10-30','issued']);
+
   const candidates = await app.request('/api/finance/bank-transactions/'+bankTransactionId+'/candidates?companyId='+companyId, {
     headers: { cookie: sessionCookie },
   });
   assert.equal(candidates.status, 200);
-  assert.equal((await candidates.json()).transaction.direction, 'incoming');
+  const candidatePayload=await candidates.json();
+  assert.equal(candidatePayload.transaction.direction, 'incoming');
+  assert.ok(candidatePayload.candidates.some(candidate=>candidate.entityType==='invoice'&&candidate.entityId===invoiceId));
 
-  const ignore = await app.request('/api/finance/bank-transactions/'+bankTransactionId+'/ignore', {
+  const invalidReconcile=await app.request('/api/finance/bank-transactions/'+bankTransactionId+'/reconcile',{
+    method:'POST',headers:{'content-type':'application/json',cookie:sessionCookie},
+    body:JSON.stringify({companyId,entityType:'toString',entityId:invoiceId}),
+  });
+  assert.equal(invalidReconcile.status,422,'entity table names must be checked against an own-property allowlist');
+
+  const reconcile = await app.request('/api/finance/bank-transactions/'+bankTransactionId+'/reconcile', {
+    method:'POST',
+    headers:{'content-type':'application/json',cookie:sessionCookie},
+    body:JSON.stringify({companyId,entityType:'invoice',entityId:invoiceId}),
+  });
+  assert.equal(reconcile.status,200);
+  assert.equal((await reconcile.json()).status,'reconciled');
+  const [reconciledRows]=await db.execute('SELECT reconciliation_status,matched_entity_type,matched_entity_id,matched_by FROM medar_bank_transactions WHERE id=? AND company_id=?',[bankTransactionId,companyId]);
+  assert.equal(reconciledRows[0].reconciliation_status,'reconciled');
+  assert.equal(reconciledRows[0].matched_entity_type,'invoice');
+  assert.equal(reconciledRows[0].matched_entity_id,invoiceId);
+  assert.equal(reconciledRows[0].matched_by,userId);
+  const reconcileAgain=await app.request('/api/finance/bank-transactions/'+bankTransactionId+'/reconcile',{
+    method:'POST',headers:{'content-type':'application/json',cookie:sessionCookie},
+    body:JSON.stringify({companyId,entityType:'invoice',entityId:invoiceId}),
+  });
+  assert.equal(reconcileAgain.status,409);
+
+  const outgoingId=externalTransactionId+'-out';
+  const importOutgoing=await app.request('/api/finance/bank-transactions/import',{
+    method:'POST',headers:{'content-type':'application/json',cookie:sessionCookie},
+    body:JSON.stringify({companyId,accountId:bankAccount.id,transactions:[{
+      externalTransactionId:outgoingId,bookedAt:'2026-10-23T11:30:00.000Z',amount:-2500,currency:'IRR',description:'CI outgoing fixture',
+      counterparty:'Test supplier',reference:'CI-OUT-'+suffix,
+    }]}),
+  });
+  assert.equal(importOutgoing.status,200);
+  assert.deepEqual(await importOutgoing.json(),{inserted:1,skippedDuplicates:0,submitted:1});
+  const outgoingList=await app.request('/api/finance/bank-transactions?companyId='+companyId+'&accountId='+bankAccount.id+'&status=unmatched',{headers:{cookie:sessionCookie}});
+  assert.equal(outgoingList.status,200);
+  const outgoingTransactions=(await outgoingList.json()).transactions;
+  assert.equal(outgoingTransactions.length,1);
+  assert.equal(outgoingTransactions[0].externalTransactionId,outgoingId);
+
+  const ignore = await app.request('/api/finance/bank-transactions/'+outgoingTransactions[0].id+'/ignore', {
     method: 'POST',
     headers: { 'content-type': 'application/json', cookie: sessionCookie },
     body: JSON.stringify({ companyId }),
   });
   assert.equal(ignore.status, 200);
   assert.equal((await ignore.json()).status, 'ignored');
-
-  const ignoreAgain = await app.request('/api/finance/bank-transactions/'+bankTransactionId+'/ignore', {
+  const ignoreAgain = await app.request('/api/finance/bank-transactions/'+outgoingTransactions[0].id+'/ignore', {
     method: 'POST',
     headers: { 'content-type': 'application/json', cookie: sessionCookie },
     body: JSON.stringify({ companyId }),
@@ -481,8 +531,9 @@ test('domestic MySQL API supports health, login, session, memberships, password 
   assert.equal(bankAccountList.status, 200);
   const listedAccounts = await bankAccountList.json();
   assert.equal(listedAccounts.accounts.length, 1);
-  assert.equal(listedAccounts.accounts[0].transactionCount, 1);
+  assert.equal(listedAccounts.accounts[0].transactionCount, 2);
   assert.equal(listedAccounts.accounts[0].unmatchedCount, 0);
+  assert.equal(listedAccounts.summary.reconciled, 1);
 
   console.log('[medar-integration] request:profile-complete');
   const profileComplete = await app.request('/api/profile/complete', {
